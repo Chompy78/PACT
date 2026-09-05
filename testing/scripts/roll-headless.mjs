@@ -16,22 +16,35 @@
  * provides them. If `randomizeRoll()` changes shape, this script sees the new behaviour automatically;
  * it never drifts, because it never re-implements anything.
  *
- * SELF-CONTAINED ON PURPOSE. No imports from this repo's other testing/scripts files, no npm packages —
- * Node built-ins only, plus a Chromium binary that already exists (this project's own, or any other).
- * That makes this ONE FILE copy-paste-portable into a sibling project (`cm-pact-campaign` or similar)
- * that wants headless rolls but doesn't want to check out all of PACT. If PACT *is* checked out as a
- * sibling/submodule there instead, point --repo at it and skip the copy.
+ * NOT FULLY STANDALONE — READ THIS BEFORE COPYING THE FILE. This script has no npm dependencies of its
+ * own (Node built-ins only), but it works by SERVING PACT's real tool files over HTTP from --repo (default:
+ * this script's own repo checkout) and driving them in Chromium — so it needs a full PACT checkout
+ * present somewhere reachable, not just this one file. From another project, the simplest path is to
+ * clone PACT itself (it's the same public repo GitHub Pages serves from) and point --repo at that clone —
+ * see the "FOR A SIBLING PROJECT" section in the companion `roll-headless.md` in this directory for the
+ * exact command. Copying just this .mjs file only works if you also vendor tools/PACT-CharGen-Webtool.html
+ * and the js/ directory it imports alongside it, at the same relative paths --repo expects.
  *
  * USAGE
+ *   node testing/scripts/roll-headless.mjs --help              # this text
+ *   node testing/scripts/roll-headless.mjs --list-themes        # theme metadata + AP/level table, no rolling
  *   node testing/scripts/roll-headless.mjs --theme=bruiser --budget=295 --count=50
  *   node testing/scripts/roll-headless.mjs --theme=bruiser,scholar --budget=79,295,535 --count=20
  *   node testing/scripts/roll-headless.mjs --theme=bruiser --budget=295 --count=10 --class=Fighter
- *   node testing/scripts/roll-headless.mjs --list-themes            # theme metadata, no rolling
  *   node testing/scripts/roll-headless.mjs --theme=scholar --budget=295 --count=200 --out=rolls.json
+ *   node testing/scripts/roll-headless.mjs --repo=/path/to/PACT --theme=bruiser --budget=295 --count=50
  *
- *   --repo=/path/to/PACT   Repo root to serve the tool from (default: this script's own repo).
- *                          Point this at a sibling PACT checkout if this file has been copied elsewhere.
- *   CHROME_BIN=/path/to/chrome   Override Chromium discovery.
+ * FLAGS
+ *   --theme=<key[,key...]>   Required (unless --list-themes). Theme key(s) from --list-themes' output.
+ *   --budget=<AP[,AP...]>    Required (unless --list-themes). AP budget(s) to roll at.
+ *   --count=<N>              Rolls per theme x budget combination. Default 1.
+ *   --class=<ClassName>      Force this origin class on every roll (e.g. "Fighter"), instead of letting
+ *                            the theme pick its own preferred classes.
+ *   --out=<path>             Write JSON to this file instead of stdout.
+ *   --list-themes            Print theme metadata + DATA.levelAP (AP-per-level) as JSON. No rolling.
+ *   --repo=<path>            PACT repo root to serve the tool from. Default: this script's own repo.
+ *   --help / -h              Print this usage text and exit 0 — no browser is launched.
+ *   CHROME_BIN=<path>        Env var. Override Chromium discovery.
  *
  * OUTPUT   A JSON array on stdout (or written to --out), one entry per roll:
  *   { themeKey, budget, forcedClass, build, result }
@@ -41,7 +54,8 @@
  *   init, speed, saveDC, …) — everything a character sheet DERIVES. Nothing here is invented or
  *   summarized; it's exactly what the real tool would show if a person clicked 🎲 in a browser.
  *
- * Exits 0 on success · 1 on a page-side error · 2 no Chromium found · 3 Chromium found but never started.
+ * EXIT CODES   0 success · 1 page-side error (bad --theme key, bad flags, tool threw) · 2 no Chromium
+ * found (set CHROME_BIN or install one) · 3 Chromium found but never opened its DevTools port.
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -58,6 +72,17 @@ function parseArgs(argv) {
   return out;
 }
 const args = parseArgs(process.argv.slice(2));
+
+// --help / -h: print the header doc-comment verbatim and exit BEFORE touching the repo path or Chrome —
+// this has to work with zero setup (no --repo, no Chromium installed) since it's how an agent with no
+// prior context on this script is expected to learn what it does.
+if (args.help || process.argv.slice(2).includes('-h')) {
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const m = /^\/\*\*([\s\S]*?)\*\//.exec(src);
+  console.log((m ? m[1] : '').split('\n').map(l => l.replace(/^\s*\* ?/, '')).join('\n').trim());
+  process.exit(0);
+}
+
 const REPO = path.resolve(args.repo || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 const PORT = 8737, CDP_PORT = 9339;   // distinct from the CI gates' ports so this can run alongside them
 const csv = v => (v == null ? [] : String(v).split(',').map(s => s.trim()).filter(Boolean));
