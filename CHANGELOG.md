@@ -33,6 +33,15 @@
   CharGen session all show. Fixed by freezing the source campaign's `rules` in the same fetch that
   already freezes `ignore_player_ap` (no second network call — `drawbackCapFromRules()` is a pure
   function of that blob), and giving `_cgDrawbackCap()` an optional rules-override parameter.
+- **2026-09-03 · fix: two real bugs found by `/code-review ultra` on the three entries above, before
+  opening the PR** — (1) `dm_zero_player_ap` summed ALL award events including `dmEdit:true` ones, so
+  zeroing a character with a DM-granted boon would silently cancel that legitimate grant too, leaving
+  its paired cost stranded; fixed to exclude `dmEdit:true`, matching what the ceiling trigger already
+  protects and what the DM Console button's own tooltip already promised. (2) The Copy-to-CharGen fixes
+  were gated on `_cgCopySourceAp>0` rather than "is this actually a copy", so a character with 0 DM AP
+  (an ordinary case, not an edge case) lost both fixes — and the AP-source label had the identical
+  conflation, telling the DM a bound character "isn't bound to a cloud campaign at all". Both fixed with
+  a genuine `_cgCopySourceIsCopy` flag. See the Addendum on `D-GH-2026-09-03-dm-zero-player-ap`.
 - **2026-09-03 · fix(testing): the anti-drift guard could not see the drift it was built for**
   — `/code-review ultra` on PR #503 returned 13 findings; this lands the test/doc half of them.
   `testing/sql/rls-baseline-test.sql` hashed only `prosrc`, so the `search_path` regression that shipped

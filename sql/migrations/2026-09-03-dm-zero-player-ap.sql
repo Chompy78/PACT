@@ -27,9 +27,10 @@
 -- DM-log RPC in this project (dm_edit_character_log, dm_set_creation_ceiling, dm_reopen_creation) is
 -- APPEND-ONLY — history is never moved or rewritten, only added to (pact_enforce_locked_history relies
 -- on this). So zeroing means appending one more `award` whose amount is the exact negative of
--- whatever the log's award events currently sum to, computed fresh from the log itself (not from
--- anything the client claims), which brings the running sum to exactly 0 regardless of how many prior
--- award events exist or what CharGen's own singleton happens to say.
+-- whatever the log's PLAYER-attributed award events (dmEdit not true — see the query itself for why
+-- DM-attributed ones, e.g. a boon grant's matched award, are excluded) currently sum to, computed fresh
+-- from the log itself (not from anything the client claims), which brings that pool to exactly 0
+-- regardless of how many prior award events exist or what CharGen's own singleton happens to say.
 --
 -- WHY THIS EVENT IS EXEMPT FROM THE NEW "CAN'T INCREASE" TRIGGER BELOW EVEN THOUGH IT SUMS INTO THE
 -- SAME POOL: it is stamped dmEdit:true, exactly like every other DM-authored log event in this project,
@@ -65,11 +66,17 @@ begin
   v_log := coalesce(v_stats->'LOG', '[]'::jsonb);
   v_seq := coalesce((v_stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
 
-  -- Sum every existing 'award' event's amount, exactly as economy() does client-side — so the
-  -- compensating entry below always lands on precisely 0, whatever the current total actually is.
+  -- Sum every existing NON-DM-ATTRIBUTED 'award' event's amount — Player AP specifically, matching
+  -- exactly what pact_enforce_player_ap_ceiling (below) protects. Found in review (/code-review ultra):
+  -- an earlier version of this summed ALL award events, dmEdit:true included, so zeroing a character
+  -- with a DM-granted boon (dm_edit_character_log's matched buy/award pair, the award side stamped
+  -- dmEdit:true) would cancel that award too while leaving its paired buy cost in place — silently
+  -- charging the character for a boon that was supposed to be free, with nothing catching the drop
+  -- (pact_enforce_ap_budget_consistency only blocks spend RISING past what's spendable, not earned
+  -- falling). Excluding dmEdit:true here means this RPC only ever touches the pool it claims to.
   select coalesce(sum((e->>'amount')::numeric), 0) into v_player_ap
     from jsonb_array_elements(v_log) e
-   where e->>'type' = 'award';
+   where e->>'type' = 'award' and not coalesce((e->>'dmEdit')::boolean, false);
 
   if v_player_ap = 0 then
     raise exception 'Player AP is already 0';

@@ -107,10 +107,44 @@ functions carry the identical generic "SECURITY DEFINER exposed to authenticated
 every other DM RPC in this project already carries, and both are already revoked from `public`/`anon`
 per the lesson recorded in `D-GH-2026-09-01-campaign-move-clears-creation`.
 
+## Addendum — two real bugs found by `/code-review ultra`, before opening the PR
+
+Run against the full branch diff prior to a PR, per this template's own review-cadence requirement for
+anything touching `sql/`. Two of its three findings were confirmed and fixed; the third was checked
+against the actual file and found to already match its established convention (below).
+
+1. **`dm_zero_player_ap` summed ALL `award` events, `dmEdit:true` included** — so zeroing a character
+   that also had a DM-granted boon (`dm_edit_character_log`'s matched buy/award pair, whose award half
+   is `dmEdit:true`) would cancel that legitimate DM award too, while leaving its paired buy cost in the
+   log: a boon that was supposed to be free would silently cost the character AP net, with nothing in
+   `pact_enforce_ap_budget_consistency` to catch a *drop* in earned (it only blocks spend *rising* past
+   what's spendable). Fixed to exclude `dmEdit:true` from the sum, matching exactly what
+   `pact_enforce_player_ap_ceiling` already protects — the function's own tooltip in DM Console already
+   promised "Never touches DM-granted AP"; now the SQL actually keeps that promise. Verified live (in a
+   transaction rolled back afterward, real character, real trigger stack) that the corrected function
+   only ever touches the non-`dmEdit` slice.
+2. **The CharGen "Copy to CharGen" fix (`ignorePlayerAp`/`drawbackCap`, same day) was gated on
+   `window._cgCopySourceAp>0`**, conflating "is this a copy" with "does this copy have non-zero DM AP".
+   A character freshly bound to a campaign with no DM AP award yet — an entirely ordinary case, not an
+   edge case — fell through to the bare local-character branch and lost both fixes right along with it:
+   exactly the bug they claimed to close, just gated behind an unrelated condition. Fixed with a genuine
+   `window._cgCopySourceIsCopy` flag, set once at copy-open time independent of the AP amount, and used
+   by both `_cgDmOpts()` and the `_apSourceHTML()` label/tooltip (which had the identical conflation,
+   found while fixing the first — a 0-DM-AP copy was telling the DM "this build isn't bound to a cloud
+   campaign at all", which is false).
+3. **Not changed:** the reviewer suggested the new `zero-ap-btn` handler reuse `findRosterEntry()`
+   instead of an inline `cloudRoster.filter(...)`. Checked against the file itself: every sibling
+   handler inside the SAME delegated-click function (`sealBtn`, `awardBtn`, `unbind-btn`, and others)
+   uses the identical inline filter — `findRosterEntry()` is a different helper for a different code
+   path (the read-only skill-overlay handlers). The suggested change would have made this handler the
+   inconsistent one, not fixed an inconsistency.
+
 ## Status
 
-IN FORCE. `sql/migrations/2026-09-03-dm-zero-player-ap.sql` applied to the live project. Archer, Anders
-Pipeleaf and Caspian all confirmed at Player AP 0. `js/engine.js` untouched — no parity re-run required.
+IN FORCE. `sql/migrations/2026-09-03-dm-zero-player-ap.sql` applied to the live project (twice — the
+second time carrying the dmEdit-exclusion fix above). Archer, Anders Pipeleaf and Caspian all confirmed
+at Player AP 0, using the corrected function's own logic. `js/engine.js` untouched — parity re-run
+anyway (73 passed / 0 failed) since the CharGen changes reran after the review pass.
 
 ## Related
 

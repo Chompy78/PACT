@@ -763,7 +763,7 @@ async function _cgResolveDmApStatus(ap, campaignId){
   // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
   // unrelated cloud/local character loaded afterward, inflating that character's budget.
   window._cgCopySourceAp = 0; window._cgCopySourceName = ''; window._cgCopySourceIgnorePlayerAp = false;
-  window._cgCopySourceRules = null;
+  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false;
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // feat/campaign-ap-budget-enforce: cached alongside _ignorePlayerAp, same lifecycle (resolved here
@@ -1451,6 +1451,13 @@ document.addEventListener('sync-ready', function () {
       // copy still cannot spend AP that belongs to the campaign roster it is not part of.
       window._cgCopySourceAp = Number(rec.ap) || 0;
       window._cgCopySourceName = srcName;
+      // fix/chargen-dm-view-zero-dm-ap (found alongside the two fixes below, same review pass): a
+      // genuine "this IS a copy" flag, independent of the AP amount. _cgDmOpts() used to key its whole
+      // copy branch off `_cgCopySourceAp>0`, so a copy of a character with 0 DM AP (freshly bound to a
+      // campaign, no award yet) fell through to the bare local-character branch and lost BOTH the
+      // ignorePlayerAp and drawbackCap fixes below along with it — the exact bug they claim to close,
+      // just gated behind "and only if this character has ever been awarded DM AP".
+      window._cgCopySourceIsCopy = true;
       // fix/chargen-dm-view-ignore-player-ap (D-GH-2026-09-03-dm-zero-player-ap follow-up): the copy
       // used to always show Player AP counted in full, even when the SOURCE campaign has
       // ignore_player_ap on — _cgDmOpts() hardcoded false here rather than reading it. One extra fetch
@@ -1579,9 +1586,15 @@ function _cgDrawbackCap(rulesOverride){
 // uncapped grant (drawbackCap:undefined put compute() on its "no campaign" advisory path), disagreeing
 // with every live view the same way ignorePlayerAp did. _cgDrawbackCap() takes the frozen
 // window._cgCopySourceRules instead of reading the (unset, for a copy) window._cloudCampaign.
+//
+// Gated on window._cgCopySourceIsCopy, NOT window._cgCopySourceAp>0 (found in the same review pass):
+// the AP amount and "is this actually a copy" are two different questions, and a character freshly
+// bound to a campaign with no DM AP award yet (_cgCopySourceAp===0) is a completely ordinary case, not
+// an edge case — conflating the two meant such a copy fell through to the bare local-character branch
+// below and lost both fixes above right along with it.
 function _cgDmOpts(){
   if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceAp>0) return {dmAp:window._cgCopySourceAp,ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
+  if(window._cgCopySourceIsCopy) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -1602,7 +1615,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;
+function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1685,10 +1698,15 @@ function _apSourceHTML(r){
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player'+_apDrawPart(r)+' + '+dmAp+' DM';
     tip='Your spendable budget combines the Player AP field ('+r.playerAp+')'+(r.drawbackAp?(', '+r.drawbackAp+' AP granted by your drawbacks,'):'')+' with '+dmAp+' AP your DM has granted this character. Combined live at display time — never saved as one number.';
-  } else if(window._cgCopySourceAp>0){
-    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+window._cgCopySourceAp+' DM, frozen)';
+  } else if(window._cgCopySourceIsCopy){
+    // Gated on _cgCopySourceIsCopy, not _cgCopySourceAp>0 (same fix as _cgDmOpts(), same review
+    // pass): a copy of a character with 0 DM AP still IS a copy, and used to fall all the way
+    // through to the plain "not bound to a cloud campaign" label below -- actively wrong (it is
+    // bound; it just hasn't been awarded anything yet) -- and it hid the frozen-snapshot warning entirely.
+    var _cpDm = window._cgCopySourceAp||0;
+    label='👁 '+r.spendable+' AP — DM copy ('+r.playerAp+' player'+_apDrawPart(r)+' + '+_cpDm+' DM, frozen)';
     tip='This is a snapshot of \u201c'+(window._cgCopySourceName||'a character')+'\u201d, deliberately NOT bound to its campaign \u2014 nothing you do here can spend the original\u2019s real AP or touch its real data. Its '
-      +window._cgCopySourceAp+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
+      +_cpDm+' DM-granted AP is counted above as a frozen snapshot from when this copy was opened, so the budget reads correctly, but it will NOT update if the DM awards more AP later. '
       +'Re-open \ud83d\udccb Copy to CharGen for a fresh snapshot, or use \ud83d\udc41 View for the always-live real total.';
   } else {
     label='🔒 '+r.playerAp+' AP — player only';
