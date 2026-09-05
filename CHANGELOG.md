@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · docs: correct an over-broad claim about protected events, and rewrite the task built on
+  it** — `/code-review ultra` flagged that `dmRemoveBoon` is protected *positionally* on the stated
+  grounds that "Nothing rewrites or relocates one", and that CharGen regenerates its whole log from the
+  DOM and cannot emit that type. The predicted symptom — open a sealed character in CharGen, save, get
+  `PACT: locked character history cannot shrink` — **does not appear to occur**, for two reasons the
+  review missed: every cloud load runs through `_cgApplyEnvelope`, which rebuilds and then reinstates the
+  saved log **verbatim**, and `_cgBlockedBySeal()` already refuses the genuinely destructive entry points
+  with a player-readable message. Ordinary edits never reach the rebuild path at all. **What survives is
+  smaller and real:** `replaceWholeLogFromBuild()` does destroy those events, and safety depends on all
+  four call sites individually restoring afterwards or refusing first — caller discipline, not
+  construction, the same shape as `D-GH-2026-09-05-protected-projection-search-path`. The migration
+  header now states the narrower truth (**comments only — zero non-comment diff lines, so replaying the
+  file is byte-identical**), and the task is rewritten to lead with reproduction, to name "no bug" as a
+  valid outcome, and to make a round-trip regression test the deliverable rather than a speculative code
+  change. **Explicitly not reproduced** — this is a reading of the code, said so in all three places.
+  No code, no SQL, no rules. `DATA.version` and `BUILD` untouched.
 - **2026-09-05 · fix(sql): `pact_ap_ledger_protected` gets its pinned `search_path` back — and the
   property is now asserted, not just agreement** — three consecutive definitions of this function
   declared `set search_path = public, pg_temp`; `2026-09-02-widen-protected-projection.sql` dropped the

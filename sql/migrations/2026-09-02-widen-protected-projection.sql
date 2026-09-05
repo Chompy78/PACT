@@ -43,8 +43,29 @@
 --   * 'dmRemoveBoon' -> ADDED to the IN list below (applied as `seal_protects_dm_removals`). Positional
 --     protection is correct for this one: it is created in exactly one place (tools/DM-Console.html, via
 --     dm_edit_character_log's append-only `v_log := v_log || v_new`), and every other reference merely
---     READS it (js/engine.js activeEvents, the Live Sheet's history renderer). Nothing rewrites or
---     relocates one, so the property that defeats patch events does not apply here.
+--     READS it (js/engine.js activeEvents, the Live Sheet's history renderer).
+--
+--     >> CORRECTED 2026-09-05 (comments only — no SQL changed, replay is byte-identical). This bullet
+--     >> used to end "Nothing rewrites or relocates one, so the property that defeats patch events does
+--     >> not apply here." The CONCLUSION still holds for this event type; the REASON given for it was
+--     >> too strong, and stated as a general property it is false:
+--     >>
+--     >>   - CharGen's replaceWholeLogFromBuild() re-synthesises the ENTIRE log from the DOM, and
+--     >>     CharGen cannot emit 'dmRemoveBoon' at all (0 occurrences in the file). That function
+--     >>     therefore DOES destroy these events. What saves it is that every one of its call sites
+--     >>     either reinstates the saved log verbatim straight afterwards (_cgApplyEnvelope, the path
+--     >>     every cloud load takes) or is refused up front by _cgBlockedBySeal. Safety here is a
+--     >>     property of CALLER DISCIPLINE, not of the event type.
+--     >>   - "Nothing relocates a protected event" is false in general: _cgSyncSingletonEvent()
+--     >>     relocates its singleton by filter-and-append, and 'award' — which IS in this projection —
+--     >>     is one of the types it handles. It simply never handles 'dmRemoveBoon'.
+--     >>
+--     >> So the right reading is narrower: positional protection is safe for 'dmRemoveBoon' TODAY
+--     >> because no client rewrites it, not because the shape of the event makes rewriting impossible.
+--     >> A fifth caller of replaceWholeLogFromBuild() that forgets both conventions reintroduces the
+--     >> hazard. NOT REPRODUCED against a live character — this is a reading of the code, and the
+--     >> predicted failure (a save refused with "locked character history cannot shrink") has not been
+--     >> observed. Tracked as `fix/chargen-regenerates-protected-events`.
 --
 -- The lesson: "just add it to the projection" is right or wrong depending on whether anything
 -- legitimately REWRITES that event type. It has to be checked per type, never assumed from the shape.
