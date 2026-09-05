@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-05 · release: promote `preview` → `main` as build `v1.513` (PR #513)** — carries the Guide
+  half of the proficiency-bonus re-price (#510, `docs(guide)`) plus a security-hardening SQL fix and its
+  production-verification note (#512, #515) that landed on `preview` from a concurrent session while this
+  promotion PR was open. Regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5 — confirmed
+  the merge commit carries two parents (old `main` tip + `preview`'s tip at merge time). `BUILD` bumped
+  v1.511 → v1.513 in `js/engine.js` and mirrored to the four tool labels; `index.html` untouched (reads
+  `BUILD` live); `DATA.version` untouched (confirmed by diff — the only changed line in `js/engine.js` is
+  the `BUILD` constant). All 16 CI checks green, re-verified after the head moved twice more mid-review
+  from concurrent pushes. **No tag** — left for a local/terminal session or the GitHub web UI (cloud
+  sessions cannot push tags); whether this docs+security promotion warrants one is the owner's call per
+  `D-GH-2026-08-20-tag-only-meaningful-promotions`. This promotion itself overlapped with a *second*,
+  independent promotion (PR #511, a different concurrent session) landing minutes earlier — see
+  `docs/sessions/2026-09-05-proficiency-bonus-pricing-and-concurrent-promotions.md` for the full
+  sequence.
 - **2026-09-05 · test: reproduce the predicted protected-event failure — it does not occur, and the gate
   stays anyway** — `/code-review ultra` predicted that opening a sealed character in CharGen and saving
   would drop `sessionSeal`/`dmRemoveBoon` and be refused with `PACT: locked character history cannot
