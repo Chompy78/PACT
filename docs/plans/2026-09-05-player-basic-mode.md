@@ -497,3 +497,17 @@ about it by name rather than by re-reading its body next to the decision record'
 ("a DM sharing a campaign," not "shares a campaign"). `/code-review ultra`'s catch came from doing
 exactly that comparison against the real function source. Nine rounds of scrutiny, and the one that
 mattered most was the one with the actual code in front of it.
+
+**Update 2026-09-06 — PR #531 merged, then a live production smoke test — task graduated.** Real
+end-to-end verification against the actual production Supabase project, not a local Postgres copy: three
+disposable auth accounts (DM, player, fellow-player), exercising `create_player_invite` →
+`redeem_player_invite` (the exact flow both editing tools use, not a shortcut RPC). Confirmed live: the
+player held two unflagged active characters bound to the campaign (existing multi-character players
+genuinely unaffected — not retroactive); the fellow-player, a real campaign member but not its DM, was
+correctly *rejected* calling `set_basic_mode()` — the precise scenario the same-day `is_dm_of_player()`
+fix exists to close, and this is the first time that exact fix was exercised against production rather
+than the local test harness; the real DM's `set_basic_mode()` succeeded; a third character insert was
+then rejected with the typed `PACT1` error; `unset_basic_mode()` (no arguments — the player's own
+self-service path) immediately un-blocked it. 14 checks, 0 failed. All test data deleted afterward,
+verified zero leftovers, production character count confirmed back to genuine baseline. Task graduated
+off `docs/TASK_BOARD_NEXT.md` into `CHANGELOG.md` in the same change.
