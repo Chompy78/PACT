@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-06 · chore: player-basic-mode graduated off the task board** — PR #531 merged, then a live
+  end-to-end smoke test against production confirmed every "Done when" criterion: three disposable test
+  accounts (DM, player, fellow-player) exercised the *real* invite-redemption flow (not a shortcut) —
+  the player joined a campaign, held two active characters unflagged (existing multi-character players
+  genuinely unaffected), a fellow-player who shares the campaign but isn't its DM was correctly
+  *rejected* trying to set the flag (the exact scenario the same-day authorization fix closes), the real
+  DM's `set_basic_mode()` call succeeded, a third character was then correctly blocked with the typed
+  error, and the player's own `unset_basic_mode()` self-service call immediately un-blocked it — 14
+  checks, 0 failed. All test accounts/characters/campaign deleted afterward; production characters count
+  returned to genuine baseline (43 rows / 10 owners, no leftovers). Full task text moved out of
+  `docs/TASK_BOARD_NEXT.md` — see the two entries directly below for the feature and its fix.
 - **2026-09-06 · fix: player-basic-mode authorization bug — any fellow-player could flag any other
   player (or their own DM)** — `/code-review ultra` on PR #531 found `set_basic_mode()`/
   `unset_basic_mode()` used `shares_campaign(p_player)`, which is true for ordinary co-players too, not
