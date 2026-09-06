@@ -58,7 +58,14 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('pact.test_uid', true), '')::uuid;
 $$;
 
-create extension if not exists pgcrypto;
+-- pgcrypto goes in an `extensions` schema, not the default (public) location, matching real
+-- Supabase — gen_invite_code() (schema.sql) calls extensions.gen_random_bytes() fully-qualified, so
+-- without this the fresh-install harness itself fails the moment any test creates a campaign row.
+-- Latent since this file was written (no prior test in here ever inserted into campaigns); surfaced
+-- by feat/player-basic-mode's own test, which is the first to need one, fixed here rather than
+-- worked around in that test — the shim should match what schema.sql actually depends on.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 -- ---------------------------------------------------------------------------
 -- THE THING UNDER TEST: the documented fresh-install path, and nothing else.
@@ -156,6 +163,17 @@ do $$ begin
   perform pg_temp.ok('...and by nobody anonymous',
     not has_function_privilege('anon', 'public.seal_character_history(uuid,text,text)', 'EXECUTE')
     and not has_function_privilege('anon', 'public.award_ap_and_seal(uuid,integer,text,text)', 'EXECUTE'));
+  perform pg_temp.ok('the basic-mode trigger function is NOT callable by authenticated either',
+    not has_function_privilege('authenticated', 'public.pact_enforce_basic_mode()', 'EXECUTE'));
+  perform pg_temp.ok('set_basic_mode/unset_basic_mode ARE callable by a signed-in user',
+    has_function_privilege('authenticated', 'public.set_basic_mode(uuid)', 'EXECUTE')
+    and has_function_privilege('authenticated', 'public.unset_basic_mode(uuid)', 'EXECUTE'));
+  perform pg_temp.ok('...and by nobody anonymous',
+    not has_function_privilege('anon', 'public.set_basic_mode(uuid)', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.unset_basic_mode(uuid)', 'EXECUTE'));
+  perform pg_temp.ok('profiles has NO blanket UPDATE grant for authenticated '
+    || '(closes the audit-immutability gap — basic_mode/set_by/set_at are writable only via the RPCs above)',
+    not has_table_privilege('authenticated', 'public.profiles', 'UPDATE'));
 end $$;
 
 \echo ''
@@ -222,6 +240,88 @@ select pg_temp.rejects('...and the protections still fire after a re-run',
      where id = '00000000-0000-0000-0000-0000000000f1'$$);
 
 \echo ''
+\echo 'feat/player-basic-mode — the trigger is attached, and it actually blocks the bypass'
+do $$
+declare v_dm uuid; v_player uuid; v_other uuid; v_campaign uuid; v_char1 uuid; v_char2 uuid;
+begin
+  perform pg_temp.ok('trg_pact_enforce_basic_mode is attached to characters',
+    exists (select 1 from pg_trigger where tgname = 'trg_pact_enforce_basic_mode' and not tgisinternal));
+
+  insert into auth.users (email) values ('bm-dm@example.test') returning id into v_dm;
+  insert into auth.users (email) values ('bm-player@example.test') returning id into v_player;
+  insert into auth.users (email) values ('bm-other@example.test') returning id into v_other;
+
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Basic-mode probe') returning id into v_campaign;
+
+  -- Player has TWO active characters BEFORE being flagged — existing multi-character players must be
+  -- unaffected by the flag itself (not retroactive), and this is also the fixture the round-7
+  -- correctness-guard test below actually needs (a routine edit with a real second active character
+  -- present is the only way that test can distinguish "the guard works" from "there was nothing to
+  -- wrongly block anyway").
+  perform set_config('pact.test_uid', v_player::text, false);
+  insert into public.characters (id, owner_id, name, stats)
+    values (gen_random_uuid(), v_player, 'Flagged player''s first character', '{}'::jsonb)
+    returning id into v_char1;
+  insert into public.characters (id, owner_id, name, stats)
+    values (gen_random_uuid(), v_player, 'Flagged player''s second character', '{}'::jsonb)
+    returning id into v_char2;
+  -- shares_campaign(v_player) needs an actual character bound to the DM's campaign, not just an
+  -- invite. join_campaign() is the real RPC for this; a direct UPDATE is test-only shorthand.
+  update public.characters set campaign_id = v_campaign where id = v_char1;
+
+  -- A DM with no shared campaign cannot set the flag.
+  perform set_config('pact.test_uid', v_other::text, false);
+  perform pg_temp.rejects('a DM with no shared campaign cannot set basic mode',
+    format('select public.set_basic_mode(%L)', v_player),
+    'PACT: only a DM sharing a campaign%');
+
+  perform set_config('pact.test_uid', v_dm::text, false);
+  perform public.set_basic_mode(v_player);
+  perform pg_temp.ok('set_basic_mode succeeds for a DM who shares a campaign with the player, '
+    || 'even though the player already had two active characters (not retroactive)',
+    (select basic_mode from public.profiles where id = v_player) is true);
+  perform pg_temp.ok('basic_mode_set_by/set_at are recorded',
+    (select basic_mode_set_by from public.profiles where id = v_player) = v_dm
+    and (select basic_mode_set_at from public.profiles where id = v_player) is not null);
+
+  perform set_config('pact.test_uid', v_player::text, false);
+  perform pg_temp.rejects('a flagged player cannot insert a THIRD active character',
+    format('insert into public.characters (id, owner_id, name, stats) values (gen_random_uuid(), %L, %L, ''{}''::jsonb)',
+      v_player, 'Third character, should be blocked'));
+
+  update public.characters set archived_at = archived_at where id = v_char1;
+  perform pg_temp.ok('a routine UPDATE that names archived_at but resends its unchanged NULL value is '
+    || 'NOT blocked, even with a real second active character present (round-7 cold-review guard — '
+    || 'without it, this exact statement wrongly finds v_char2 and refuses the save)', true);
+
+  update public.characters set archived_at = now() where id = v_char2;
+  perform pg_temp.ok('archiving down to one active character always succeeds regardless of the flag',
+    (select archived_at from public.characters where id = v_char2) is not null);
+
+  perform pg_temp.rejects('un-archiving back to a second active character is rejected while flagged '
+    || '(closes the archive/create/un-archive bypass both original cold reviews found)',
+    format('update public.characters set archived_at = null where id = %L', v_char2));
+
+  perform public.unset_basic_mode();
+  perform pg_temp.ok('the player can always unset their OWN flag, no DM standing required',
+    (select basic_mode from public.profiles where id = v_player) is false
+    and (select basic_mode_set_by from public.profiles where id = v_player) is null);
+
+  update public.characters set archived_at = null where id = v_char2;
+  perform pg_temp.ok('...and the same un-archive now succeeds once unflagged',
+    (select archived_at from public.characters where id = v_char2) is null);
+
+  -- Regression control: an entirely different, never-flagged player is unaffected throughout.
+  perform set_config('pact.test_uid', v_other::text, false);
+  insert into public.characters (id, owner_id, name, stats)
+    values (gen_random_uuid(), v_other, 'Unflagged player, character 1', '{}'::jsonb);
+  insert into public.characters (id, owner_id, name, stats)
+    values (gen_random_uuid(), v_other, 'Unflagged player, character 2', '{}'::jsonb);
+  perform pg_temp.ok('an unflagged player can freely hold more than one active character', true);
+end $$;
+
+\echo ''
 \echo 'Every checked function pins its search_path — the check that agreement cannot make'
 -- THE DRIFT GUARD BELOW CANNOT CATCH THIS, BY CONSTRUCTION. It asserts the baseline and the migrations
 -- say the SAME thing; it is satisfied when both are wrong in the same way. That is exactly what
@@ -244,7 +344,8 @@ begin
     from pg_proc
     where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                       'pact_ap_ledger_protected','pact_enforce_locked_history',
-                      'pact_ap_ledger_spend','pact_enforce_ap_budget_consistency')
+                      'pact_ap_ledger_spend','pact_enforce_ap_budget_consistency',
+                      'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode')
   loop
     v_n := v_n + 1;
     if r.cfg not like '%search_path=%' then v_bad := v_bad || r.proname || ' '; end if;
@@ -252,7 +353,7 @@ begin
   -- Same missing-match guard as the drift check: a renamed or typo'd function must fail, never
   -- silently shrink coverage. version-label-ci.mjs states the rule — "A missing match is a FAILURE,
   -- not a skip."
-  perform pg_temp.ok('all 7 search_path-checked functions exist (saw ' || v_n || ')', v_n = 7);
+  perform pg_temp.ok('all 10 search_path-checked functions exist (saw ' || v_n || ')', v_n = 10);
   perform pg_temp.ok('every checked function pins its search_path'
     || case when v_bad = '' then '' else ' — UNPINNED: ' || v_bad end, v_bad = '');
 end $$;
@@ -290,16 +391,17 @@ select proname,
       || ' vol=' || provolatile::text) as norm
 from pg_proc
 where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
-                  'pact_ap_ledger_protected','pact_enforce_locked_history');
+                  'pact_ap_ledger_protected','pact_enforce_locked_history',
+                  'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
--- PASS having checked nothing. A typo in the five names above, or a future migration renaming one, and
+-- PASS having checked nothing. A typo in the names above, or a future migration renaming one, and
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 5 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 5);
+  perform pg_temp.ok('all 8 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 8);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -307,6 +409,7 @@ end $$;
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
+\ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -326,8 +429,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 5 functions (saw ' || v_n || ')',
-    v_n = 5);
+  perform pg_temp.ok('the drift comparison actually covered all 8 functions (saw ' || v_n || ')',
+    v_n = 8);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;
