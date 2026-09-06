@@ -93,6 +93,15 @@ permanently strand a flagged player once the qualifying DM relationship ended.
      concurrent attempts serialize instead of both reading count=0. This is the smaller diff — same
      trigger pattern this codebase already has, just broadened and lock-guarded — and is the
      recommended first cut.
+     **Correctness guard, found by cold review — must not be skipped:** `UPDATE OF archived_at` fires
+     whenever that column is present in the UPDATE's SET list, whether or not its value actually
+     changes. If either editing tool's save path resends the full row (a common ORM/sync pattern) on a
+     routine edit to an already-active character, `archived_at = NULL` is resent unchanged and the
+     trigger would fire and run the count check — which then finds the *other* active characters a
+     basic-mode player already has and wrongly blocks saving edits to their one allowed character. The
+     trigger (or a `WHEN` clause on `CREATE TRIGGER` itself, the cleaner Postgres-native place for this)
+     must only run the count check on `TG_OP = 'INSERT'` or on a genuine transition — `OLD.archived_at
+     IS DISTINCT FROM NEW.archived_at` — never on an UPDATE that merely re-sends the same value.
    - **(b) Denormalize:** copy `basic_mode` onto the character row itself at write time (kept in sync by
      a trigger on the accounts table cascading down whenever the flag changes), then a genuine partial
      unique index on `characters(owner_id) where archived_at is null and basic_mode` becomes valid,
@@ -192,6 +201,16 @@ permanently strand a flagged player once the qualifying DM relationship ended.
   assumed away given it's new to this codebase's trigger patterns. A concrete pattern, suggested by a
   Gemini cold review: `pg_advisory_xact_lock(hashtext(NEW.owner_id::text))` — an advisory lock scoped to
   the transaction, keyed on the owner, with no risk of colliding with a real row lock elsewhere.
+  **Refinement from a second Gemini round:** `hashtext()` returns a 32-bit int, so two unrelated owners'
+  UUIDs have a small but non-zero chance of hashing to the same key and needlessly serializing against
+  each other. `pg_advisory_xact_lock(hashtextextended(NEW.owner_id::text, 0))` takes the 64-bit variant
+  instead — same call shape, negligible extra cost, collision probability low enough not to need its own
+  test given this table's size.
+- **Audit-field immutability, not yet explicit.** `basic_mode_set_by`/`basic_mode_set_at` exist so a
+  flagged player can see who restricted them and when (see Proposed approach, step 1) — that only holds
+  if the player can't rewrite them. The plan already excludes `owner_id` from the player's own UPDATE
+  column grant as precedent (see Verified above); the migration must apply the same exclusion to these
+  two audit columns, not just imply it by analogy.
 - **Future feature risk, not a current bug:** if this app ever grows a character-ownership-transfer
   feature, whatever trigger enforces this limit must also fire on that path (not just `archived_at`) —
   confirmed above that no such transfer path exists today, so this isn't a gap to close now, just a trap
@@ -232,9 +251,13 @@ permanently strand a flagged player once the qualifying DM relationship ended.
 A DM sharing a campaign with a player can flag that player's account; the flagged player can always
 unset it themselves, independent of that DM's continued standing; a flagged player is refused (with a
 clear, app-styled message, in both tools) when trying to create a second active character OR to
-un-archive a second one while already at the limit; two concurrent creation attempts cannot both
-succeed; an unflagged player is unaffected; the project's own regression suite and security-advisor
-tooling are clean; the authority/reversibility decision and this implementation are both documented per
+un-archive a second one while already at the limit; **a raw SQL insert/un-archive attempt against a
+flagged player's row, issued directly against the database rather than through either tool, is also
+refused by the trigger** (the one check that actually proves "cannot be bypassed by calling the database
+directly," not just that both UI paths happen to route through it); two concurrent creation attempts
+cannot both succeed; an unflagged player is unaffected; the project's own regression suite and
+security-advisor tooling are clean; the authority/reversibility decision and this implementation are both
+documented per
 this project's own decision-record convention.
 
 ---
@@ -383,3 +406,46 @@ rather than critiquing a version that no longer exists.
   skipped the self-identification instruction entirely rather than reporting a wrong identity — no self-
   ID line at all. Worth the same "verify it actually followed the reviewer instructions" discipline as
   the wrong-identity cases, just a different way to fail at the same thing.
+
+**Update 2026-09-06 — sixth review round, Groq API (`openai/gpt-oss-120b`, free tier), first run made
+through the properly-invoked `cold-review-api-universal-jc` skill rather than an ad-hoc script call.**
+See `docs/plans/cold-reviews/2026-09-06-groq-player-basic-mode-round2.md`. Almost entirely a re-tread of
+already-settled ground from round 4 — same reviewer, same identity mismatch (still claims `gpt-4o`,
+confirming this is a stable trait of this model rather than a one-off), same recommendations already
+addressed before this round ran.
+- **Accepted, one genuinely new item:** the audit-field immutability gap — `basic_mode_set_by`/
+  `basic_mode_set_at` need the same column-grant exclusion `owner_id` already gets, and the plan hadn't
+  said so explicitly. Folded into Risks.
+- **Everything else rejected as already-resolved** — see the review file's own verification note for the
+  full point-by-point mapping back to where each claim was already settled.
+
+**Update 2026-09-06 — seventh review round, Gemini API (`gemini-3.6-flash`, free tier), via the skill.**
+See `docs/plans/cold-reviews/2026-09-06-gemini-player-basic-mode-round2.md`. The single most valuable
+round of the whole process — caught a real correctness bug no prior round found.
+- **Accepted, a real bug:** the broadened `BEFORE INSERT OR UPDATE OF archived_at` trigger, as specified
+  through round 5, would fire on *any* UPDATE that lists `archived_at` in its SET list — including a
+  routine stat edit to an already-active character, if either tool's save path resends the full row.
+  Without a guard, that would wrongly run (and could fail) the count check on an edit that never touches
+  archive state at all. Fixed in "Proposed approach" step 2(a) with an explicit `TG_OP = 'INSERT' OR
+  OLD.archived_at IS DISTINCT FROM NEW.archived_at` guard.
+- **Accepted, a real refinement:** `hashtext()`'s 32-bit output has a small collision chance across
+  unrelated owners; swapped for `hashtextextended(..., 0)` (64-bit) in the Risks section, same call
+  shape, no real cost.
+- **Fourth data point on reviewer self-ID unreliability:** claimed `gemini-2.5-pro`; actually
+  `gemini-3.6-flash` — a different tier, not just a different point release.
+
+**Update 2026-09-06 — eighth review round, OpenRouter API (`nvidia/nemotron-3-super-120b-a12b:free`,
+free tier, after one automatic fallback from a 429 on `z-ai/glm-5.2:free` — the skill's model-list
+fallback working as designed), via the skill.** See
+`docs/plans/cold-reviews/2026-09-06-openrouter-nemotron-player-basic-mode-round2.md`.
+- **Accepted, genuinely new:** the "Done when" list had no explicit test for a *direct database* bypass
+  attempt, despite that being the actual core claim ("cannot be bypassed by calling the database
+  directly") the whole feature rests on. Added as its own "Done when" item.
+- **Everything else rejected as already-resolved**, same pattern as this model's round-5 outing.
+- **Fourth self-ID failure mode observed this session:** an explicit "language model (version unknown)"
+  placeholder rather than a wrong name or silent omission.
+
+**Eight review rounds, four independent providers/skill-invocation-styles, in total.** At this point new
+rounds are producing sharply diminishing returns — six of the last eight items raised were already-settled
+restatements. The plan is in a stable, well-verified state; further rounds should wait for a genuinely
+new revision to review rather than re-running the same providers against unchanged text.
