@@ -639,16 +639,19 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // CharGen must stay fully usable with no network at all (see the local-only badge in the header),
   // so this failure must never take engine-ready down with it; keeping it a separate <script
   // type="module"> means a dead CDN only loses the cloud-campaign UI, not the character builder.
-  import { currentSession, onSessionChange } from '../js/auth.js';
+  // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
+  // always-available self-unset control (decision A3). Bridged alongside session/auth for the same
+  // CDN-resilience reason as the rest of this module.
+  import { currentSession, onSessionChange, myProfile, unsetMyBasicMode } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked } from '../js/sync.js';
-  window._authBridge = { currentSession, onSessionChange };
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+  window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -871,7 +874,20 @@ document.addEventListener('sync-ready', function () {
     // time, not just shown/hidden) so it always reflects THIS character's current setting.
     var _autosaveOn = window._syncBridge && window._syncBridge.getAutosaveEnabled
       ? window._syncBridge.getAutosaveEnabled(currentCharId()) : true;
+    // feat/player-basic-mode: fetched fresh on every open, same spirit as the autosave checkbox above
+    // — a DM could have flagged/unflagged this account since the menu was last opened.
+    var _bm = null;
+    try { _bm = window._authBridge && window._authBridge.myProfile ? await window._authBridge.myProfile() : null; }
+    catch (err) { _bm = null; }   // best-effort: a failed read just means no notice shows, not a broken menu
+    if (gen !== _cloudMenuGen) return;
     cgCloudMenu.innerHTML = '<div style="padding:2px 10px 6px;font-size:11px;color:var(--grey)">' + _apEsc(_session.user.email || '') + '</div>' +
+      (_bm && _bm.basicMode
+        ? '<div class="mi" style="cursor:default;display:block;font-size:12px;background:rgba(220,53,69,.12);line-height:1.4">' +
+          '🔒 <b>Basic mode is on</b> — this account is limited to one character' +
+          (_bm.basicModeSetBy ? ', set by ' + _apEsc(_bm.basicModeSetBy) : '') +
+          (_bm.basicModeSetAt ? ' on ' + _apEsc(String(_bm.basicModeSetAt).slice(0, 10)) : '') + '.' +
+          '<div style="margin-top:5px"><button type="button" class="btn" id="cgUnsetBasicModeBtn" style="padding:3px 9px;font-size:12px">Turn off</button></div></div>'
+        : '') +
       '<button type="button" class="mi" id="cgCloudNewBtn">🆕 New Character</button>' +
       '<button type="button" class="mi" id="cgCloudSaveBtn">☁ Save to cloud</button>' +
       '<label class="mi" id="cgAutosaveToggle" style="display:flex;align-items:center;gap:7px;cursor:pointer" ' +
@@ -902,6 +918,18 @@ document.addEventListener('sync-ready', function () {
       '<div id="cgCloudCharList"><div style="padding:6px 10px;font-size:12px;color:var(--grey)">Loading…</div></div>';
     document.getElementById('cgCloudSaveBtn').addEventListener('click', onSaveClick);
     _cgWireCloudNewBtn();
+    var _unsetBmBtn = document.getElementById('cgUnsetBasicModeBtn');
+    if (_unsetBmBtn) _unsetBmBtn.addEventListener('click', async function () {
+      _unsetBmBtn.disabled = true; _unsetBmBtn.textContent = 'Turning off…';
+      try {
+        await window._authBridge.unsetMyBasicMode();
+        if (typeof flash === 'function') flash('Basic mode turned off');
+        renderCgCloudMenu();
+      } catch (err) {
+        alert('Could not turn off basic mode: ' + err.message);
+        _unsetBmBtn.disabled = false; _unsetBmBtn.textContent = 'Turn off';
+      }
+    });
     var _joinBtn = document.getElementById('cgJoinBtn');
     if (_joinBtn) _joinBtn.addEventListener('click', onJoinCampaignClick);
     var _claimBtn = document.getElementById('cgClaimLinkBtn');
@@ -998,6 +1026,16 @@ document.addEventListener('sync-ready', function () {
           + 'Save a copy to a file if you want to keep a record of it, then reload the page to pick the '
           + 'character up from the server\'s copy.\n\n(This happens when your DM seals a session, and also when an AP award locks everything before it.)');
         if (btn) { btn.disabled = false; btn.textContent = '\u2601 Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
+        return;
+      }
+      // feat/player-basic-mode: same treatment as the seal/conflict cases above — this is not a
+      // generic failure, so it must not reach the "Save failed: " catch below. Only ever raised on a
+      // genuinely NEW character (an INSERT) or an un-archive, per pact_enforce_basic_mode() — never on
+      // a routine edit to the player's one already-allowed character.
+      if (res.error && window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(res.error)) {
+        alert('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+        if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
         if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
       }
@@ -1308,6 +1346,11 @@ document.addEventListener('sync-ready', function () {
         _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:DATA.version,name:'New Character',LOG:seedLog,SEQ:seedLog.length+1,id:res.characterId},{clearHistory:true});
         var stats = _cgEnvelope(false);
         var saveRes = await S.saveCharacter({id:res.characterId,name:stats.name||'New Character',kind:'chargen',stats:stats});
+        // feat/player-basic-mode: a player already flagged (from an earlier campaign) redeeming an
+        // invite into a SECOND campaign is a genuine new-character INSERT, same as any other.
+        if(saveRes && saveRes.error && S.isBasicModeRejection && S.isBasicModeRejection(saveRes.error)){
+          alert('🔒 ' + S.BASIC_MODE_MESSAGE); return;
+        }
         if(saveRes && saveRes.error) throw saveRes.error;
         ap = res.startingAp;
       } else {
@@ -1338,6 +1381,12 @@ document.addEventListener('sync-ready', function () {
       // plainly instead of showing what reads as an error for a no-op.
       if(/already joined/i.test(msg)){
         showBanner('You’re already in this campaign — this invite wasn’t needed. Your existing character is shown below.');
+      } else if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
+        // feat/player-basic-mode (/code-review ultra finding, PR #531): redeem_player_invite() does its
+        // own `insert into characters` INSIDE the RPC, before saveCharacter() is ever called — a
+        // flagged player already at their limit hits pact_enforce_basic_mode() right here, not at the
+        // later saveRes.error check below (which can never see it, since the row already exists by then).
+        showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
       } else {
         showBanner('Could not join campaign: '+msg);
       }
@@ -1397,7 +1446,13 @@ document.addEventListener('sync-ready', function () {
       hideBannerSoon();
     }catch(err){
       clearPendingClaim();   // a terminal RPC error (already used, invalid, etc.) must not keep re-prompting either
-      showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
+      // feat/player-basic-mode (/code-review ultra finding, PR #531): redeem_character_claim() also
+      // does its own `insert into characters` INSIDE the RPC — same reasoning as tryRedeem()'s copy.
+      if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
+        showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+      } else {
+        showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
+      }
     }finally{
       _claiming = false;
     }
@@ -1479,6 +1534,11 @@ document.addEventListener('sync-ready', function () {
         LOG:rec.stats.LOG,SEQ:rec.stats.SEQ||(rec.stats.LOG.length+1),id:copyId},{clearHistory:true});
       var stats = _cgEnvelope(false);
       var saveRes = await S.saveCharacter({id:copyId,name:copyName,kind:'chargen',stats:stats});
+      // feat/player-basic-mode: this copy is owned by whoever is viewing it (a real new-character
+      // INSERT on their own account), so it's just as reachable as any other insert path.
+      if(saveRes && saveRes.error && S.isBasicModeRejection && S.isBasicModeRejection(saveRes.error)){
+        alert('🔒 ' + S.BASIC_MODE_MESSAGE); return false;
+      }
       if(saveRes && saveRes.error) throw saveRes.error;
       if(saveRes && saveRes.id) __charId = saveRes.id;
       flash('👁 Opened a DM copy of “'+srcName+'” — a snapshot as of right now. Edits here never touch the original character, and re-opening it later replaces this copy.');

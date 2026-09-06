@@ -102,15 +102,45 @@ export function onSessionChange(cb) {
   return onAuthChange((_event, session) => cb(session));
 }
 
-/** Fetch the signed-in user's profile row (id, display_name). */
+/** Fetch the signed-in user's profile row (id, display_name, and — feat/player-basic-mode — whether
+ *  this account is currently restricted to one active character, and by whom/when if so). The
+ *  `setter` embed resolves basic_mode_set_by to that DM's display name so a flagged player can see
+ *  who restricted them without a second query.
+ *
+ *  AUTHORIZATION CORRECTION (/code-review ultra finding, PR #531): this embed reads the SETTING DM's
+ *  own profile row, not the caller's own row — an earlier version of this comment wrongly said the
+ *  latter. What actually authorizes it is profiles_select's `shares_campaign(id)` branch, matched
+ *  against the setter's id. That has a real, if minor, latent gap decision A3 doesn't fully cover: if
+ *  the setting DM's shared-campaign relationship with this player ever lapses while the flag stays
+ *  set (decision A3 says it must — the flag's persistence doesn't depend on that relationship), this
+ *  embed can silently come back null even though basic_mode_set_by is still populated in the
+ *  database, and basicModeSetBy below would read null instead of that DM's real name. Not a security
+ *  issue (basic_mode/basicModeSetAt are unaffected either way), just a display gap worth a follow-up
+ *  if it's ever observed — e.g. a SECURITY DEFINER lookup instead of relying on this RLS-gated embed. */
 export async function myProfile() {
   const user = await currentUser();
   if (!user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, basic_mode, basic_mode_set_at, setter:profiles!basic_mode_set_by(display_name)')
     .eq('id', user.id)
     .single();
   if (error) throw error;
-  return data;
+  return {
+    id: data.id,
+    display_name: data.display_name,
+    basicMode: !!data.basic_mode,
+    basicModeSetBy: data.setter?.display_name || null,
+    basicModeSetAt: data.basic_mode_set_at || null,
+  };
+}
+
+/** feat/player-basic-mode: the player's own always-available escape hatch — turns basic mode off on
+ *  the SIGNED-IN account, regardless of whether the DM who set it still shares a campaign with them
+ *  (decision A3: this is what actually closes the reversibility gap, not the DM's own convenience
+ *  path — see decisions/2026/D-GH-2026-09-05-player-basic-mode.md and js/dm.js's
+ *  unsetBasicModeForPlayer() for that DM-side counterpart). */
+export async function unsetMyBasicMode() {
+  const { error } = await supabase.rpc('unset_basic_mode');
+  if (error) throw error;
 }

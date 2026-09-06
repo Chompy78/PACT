@@ -4,6 +4,35 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-06 · fix: player-basic-mode authorization bug — any fellow-player could flag any other
+  player (or their own DM)** — `/code-review ultra` on PR #531 found `set_basic_mode()`/
+  `unset_basic_mode()` used `shares_campaign(p_player)`, which is true for ordinary co-players too, not
+  just a DM. Live in production under a day, never exploited (0 players flagged at time of fix,
+  confirmed by direct query). Fixed with a new `is_dm_of_player()` helper and applied to production
+  immediately; see the entry below for the full feature and `docs/plans/2026-09-05-player-basic-mode.md`'s
+  2026-09-06 update for the complete writeup, including the two secondary findings from the same
+  review round.
+- **2026-09-06 · feat: account-level "basic mode" — implemented, tested, applied to production**
+  (`feat/player-basic-mode`) — restricts a flagged player's account to one active character,
+  enforced server-side so it cannot be bypassed by calling the database directly. `profiles` gains
+  `basic_mode`/`basic_mode_set_by`/`basic_mode_set_at`; `pact_enforce_basic_mode()` (a `BEFORE INSERT
+  OR UPDATE OF archived_at` trigger, advisory-lock-guarded) closes both the plain-insert path and the
+  archive/create/un-archive bypass; `set_basic_mode()`/`unset_basic_mode()` are the only write paths
+  (decision A3: a DM sharing a campaign may turn it on, the player may always turn their own off
+  regardless of any DM's current standing). DM Console gets a per-player toggle; both editing tools
+  and the My Characters page surface a plain-language message instead of the raw database error, and
+  a player-facing "basic mode is on, set by X on Y" notice with a self-unset control. Went through 8
+  cold-review rounds before implementation (see `docs/plans/2026-09-05-player-basic-mode.md`) and both
+  `testing/sql/*.sql` harnesses pass locally against Postgres 16, including full functional coverage of
+  the trigger itself (bypass rejected, the round-7 correctness guard verified with a real two-character
+  fixture, self-unset always works, unflagged players unaffected). **Applied to production the same
+  day** — 0 of 39 characters affected (every flag defaults off). The advisor's only genuinely new
+  finding (an unindexed `basic_mode_set_by` foreign key, INFO level) was fixed immediately with a
+  follow-up index migration; every other finding was pre-existing and app-wide (`SECURITY DEFINER`
+  functions callable by `authenticated` — expected, matches every other intentionally-exposed RPC —
+  and `auth_rls_initplan` across most of this app's RLS policies, not specific to this change). Not yet
+  graduated off the task board — a PR is still to be opened, and manual in-app verification is still
+  outstanding.
 - **2026-09-05 · chore: repo branch cleanup — 91 → 3 branches, one accidental `main` deletion and full
   recovery** — a merged-PR-based sweep (git ancestry checks don't work here; this repo squash-merges)
   correctly identified 85 stale branches, but the delete list wasn't filtered against the repo's own

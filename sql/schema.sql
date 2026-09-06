@@ -75,8 +75,21 @@ create table if not exists public.profiles (
   id           uuid primary key references auth.users(id) on delete cascade,
   display_name text,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  updated_at   timestamptz not null default now(),
+  -- Account-level "basic mode" (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode). Nullable,
+  -- default null/off -- existing players entirely unaffected until a DM deliberately flags them.
+  -- set_by/set_at exist purely so the flagged player can see who restricted them and when; never read
+  -- by the enforcement trigger on characters (sql/migrations/2026-09-06-player-basic-mode.sql). Only
+  -- writable via set_basic_mode()/unset_basic_mode() -- see rls-policies.sql's profiles grant section,
+  -- which revokes plain UPDATE entirely so these three columns can't be self-forged by the player.
+  basic_mode        boolean,
+  basic_mode_set_by uuid references public.profiles(id) on delete set null,
+  basic_mode_set_at timestamptz
 );
+
+-- Advisor-flagged (INFO, unindexed foreign key) immediately after the migration that added the
+-- column above; see sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql.
+create index if not exists idx_profiles_basic_mode_set_by on public.profiles(basic_mode_set_by);
 
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at

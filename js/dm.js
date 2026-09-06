@@ -27,7 +27,10 @@ import { supabase } from './supabase-client.js';
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
+    // owner:basic_mode -- feat/player-basic-mode. Account-level, not per-character, so every row for
+    // the same owner carries the same value; the console only needs it to show/toggle the flag
+    // wherever a roster already surfaces that player, not to key anything by character.
+    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name, basic_mode), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -51,6 +54,7 @@ export async function getRoster(campaignId) {
       updated_at: c.updated_at,
       owner_id: c.owner_id,
       player: c.owner?.display_name || '',
+      basicMode: !!c.owner?.basic_mode,
       playerLabel: notesRow?.player_label || '',
       dmNotes: notesRow?.notes || '',
       // feat/dm-custom-character-fields (D-GH-2026-08-10): raw values for the campaign's
@@ -132,6 +136,29 @@ export async function awardAp(characterId, amount, note) {
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * feat/player-basic-mode (D-GH-2026-09-05-player-basic-mode, decision A3): restrict `playerId` to
+ * one active character, enforced server-side. Callable by any DM sharing a campaign with the player
+ * (the RPC itself checks this via shares_campaign() — safe even if called directly). Records the
+ * calling DM's id and the current time; see js/auth.js's myProfile() for the player-facing read of
+ * that attribution.
+ */
+export async function setBasicMode(playerId) {
+  const { error } = await supabase.rpc('set_basic_mode', { p_player: playerId });
+  if (error) throw error;
+}
+
+/**
+ * The DM-convenience path only — turns basic mode off for `playerId`. Never the only path: the
+ * player's own unsetMyBasicMode() (js/auth.js) always works regardless of any DM's standing, which is
+ * what actually closes the reversibility gap (see the decision record). This one is for a DM helping
+ * a confused player sort out their characters without needing the player to do it themselves.
+ */
+export async function unsetBasicModeForPlayer(playerId) {
+  const { error } = await supabase.rpc('unset_basic_mode', { p_player: playerId });
+  if (error) throw error;
 }
 
 /**
