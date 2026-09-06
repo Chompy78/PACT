@@ -17,9 +17,14 @@
   cold-review rounds before implementation (see `docs/plans/2026-09-05-player-basic-mode.md`) and both
   `testing/sql/*.sql` harnesses pass locally against Postgres 16, including full functional coverage of
   the trigger itself (bypass rejected, the round-7 correctness guard verified with a real two-character
-  fixture, self-unset always works, unflagged players unaffected). **Not yet graduated off the task
-  board** — the migration has not been applied to the live database yet, so "Done when"'s advisor-clean
-  and manual-verification criteria are still outstanding.
+  fixture, self-unset always works, unflagged players unaffected). **Applied to production the same
+  day** — 0 of 39 characters affected (every flag defaults off). The advisor's only genuinely new
+  finding (an unindexed `basic_mode_set_by` foreign key, INFO level) was fixed immediately with a
+  follow-up index migration; every other finding was pre-existing and app-wide (`SECURITY DEFINER`
+  functions callable by `authenticated` — expected, matches every other intentionally-exposed RPC —
+  and `auth_rls_initplan` across most of this app's RLS policies, not specific to this change). Not yet
+  graduated off the task board — a PR is still to be opened, and manual in-app verification is still
+  outstanding.
 - **2026-09-05 · chore: repo branch cleanup — 91 → 3 branches, one accidental `main` deletion and full
   recovery** — a merged-PR-based sweep (git ancestry checks don't work here; this repo squash-merges)
   correctly identified 85 stale branches, but the delete list wasn't filtered against the repo's own

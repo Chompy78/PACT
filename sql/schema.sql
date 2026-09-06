@@ -87,6 +87,10 @@ create table if not exists public.profiles (
   basic_mode_set_at timestamptz
 );
 
+-- Advisor-flagged (INFO, unindexed foreign key) immediately after the migration that added the
+-- column above; see sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql.
+create index if not exists idx_profiles_basic_mode_set_by on public.profiles(basic_mode_set_by);
+
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at
   before update on public.profiles
