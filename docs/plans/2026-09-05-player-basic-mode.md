@@ -454,3 +454,46 @@ fallback working as designed), via the skill.** See
 rounds are producing sharply diminishing returns — six of the last eight items raised were already-settled
 restatements. The plan is in a stable, well-verified state; further rounds should wait for a genuinely
 new revision to review rather than re-running the same providers against unchanged text.
+
+**Update 2026-09-06 — the line above was premature, corrected by `/code-review ultra` on PR #531,
+during implementation review (not a cold-review round — a full adversarial code review of the actual
+diff, once written).** It found a real, severe authorization bug none of the 8 cold reviews, the
+implementation itself, or the local SQL test suite had caught: `set_basic_mode()`/`unset_basic_mode()`
+called `shares_campaign(p_player)` for their authority check, not a DM-specific check.
+`shares_campaign()` has FOUR branches, only one of which means "I DM a campaign this player plays
+in" — the other three ("p_other DMs a campaign I play in", "we both play in the same campaign as
+fellow players", "we co-DM the same campaign") do not. In practice this meant **any two ordinary
+fellow-players sharing a campaign could flag each other — or even flag their own DM** — a genuine
+privilege escalation, live in production for under a day (applied via
+`2026-09-06-player-basic-mode.sql`) before this catch, and never actually exploited (0 players had
+`basic_mode` set at the time of the fix, confirmed by direct query). Fixed same-day:
+`sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql` adds `is_dm_of_player(player)` (mirrors
+`shares_campaign()`'s own first branch exactly, the one that actually means DM-of-this-player) and
+both functions now call that instead. Applied to production immediately, before the fix even landed in
+this file. `testing/sql/rls-baseline-test.sql` gained the exact missing coverage this bug exposed — a
+new fixture (`v_fellow`, an ordinary co-player, not a DM) asserting that sharing a campaign is not
+sufficient to set the flag.
+
+Two secondary findings from the same review round, both real and both fixed:
+- `tryRedeem()`/`tryRedeemClaim()` in CharGen (player-invite and character-claim-link redemption) never
+  checked `isBasicModeRejection` — both `redeem_player_invite()` and `redeem_character_claim()` do their
+  own `insert into characters` *inside* their SECURITY DEFINER bodies, so a flagged player already at
+  their limit accepting a new invite or claim link would have seen the raw database error rather than
+  the friendly message, contradicting this PR's own claim of covering every character-creation call
+  site. (The trigger itself was never affected by this gap — a Postgres trigger fires on the table
+  regardless of which code path performs the INSERT, so the *enforcement* held throughout; only the
+  client-side error message was missing.)
+- `js/auth.js`'s `myProfile()` doc comment wrongly attributed the setter-name embed's authorization to
+  "reading its own row" when it actually reads the SETTING DM'S row, authorized by `profiles_select`'s
+  `shares_campaign(id)` branch — a documentation-accuracy fix, plus a newly-named (not yet fixed) latent
+  display gap: if that DM's shared-campaign relationship with the player later lapses while the flag
+  stays set (which decision A3 requires it to), the setter's display name could silently read as
+  unknown even though the underlying columns are intact. Not a security issue; flagged as a follow-up.
+
+**The corrected lesson, not just the corrected code:** cold review (text-only, no repo access) and even
+a careful manual implementation both missed this because `shares_campaign()`'s name reads as far more
+specific than its actual four-branch definition — every prior round, plan-writer included, reasoned
+about it by name rather than by re-reading its body next to the decision record's actual requirement
+("a DM sharing a campaign," not "shares a campaign"). `/code-review ultra`'s catch came from doing
+exactly that comparison against the real function source. Nine rounds of scrutiny, and the one that
+mattered most was the one with the actual code in front of it.

@@ -4,7 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
-- **2026-09-06 · feat: account-level "basic mode" — implemented, tested, NOT yet applied to production**
+- **2026-09-06 · fix: player-basic-mode authorization bug — any fellow-player could flag any other
+  player (or their own DM)** — `/code-review ultra` on PR #531 found `set_basic_mode()`/
+  `unset_basic_mode()` used `shares_campaign(p_player)`, which is true for ordinary co-players too, not
+  just a DM. Live in production under a day, never exploited (0 players flagged at time of fix,
+  confirmed by direct query). Fixed with a new `is_dm_of_player()` helper and applied to production
+  immediately; see the entry below for the full feature and `docs/plans/2026-09-05-player-basic-mode.md`'s
+  2026-09-06 update for the complete writeup, including the two secondary findings from the same
+  review round.
+- **2026-09-06 · feat: account-level "basic mode" — implemented, tested, applied to production**
   (`feat/player-basic-mode`) — restricts a flagged player's account to one active character,
   enforced server-side so it cannot be bypassed by calling the database directly. `profiles` gains
   `basic_mode`/`basic_mode_set_by`/`basic_mode_set_at`; `pact_enforce_basic_mode()` (a `BEFORE INSERT

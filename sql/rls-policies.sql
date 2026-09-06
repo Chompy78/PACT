@@ -976,6 +976,29 @@ create trigger trg_pact_enforce_basic_mode
 
 revoke all on function public.pact_enforce_basic_mode() from public, anon, authenticated;
 
+-- is_dm_of_player(player) -- true iff auth.uid() DMs a campaign `player` currently plays in. Mirrors
+-- shares_campaign()'s own first branch exactly, deliberately NOT shares_campaign() itself: that
+-- function's other three branches (p_other DMs a campaign I play in; we both play in the same
+-- campaign as fellow players; we co-DM the same campaign) do NOT mean "I am this player's DM", and
+-- basic-mode authority (decision A3) is DM-of-the-player only, one specific direction.
+--
+-- FOUND BY /code-review ultra on PR #531, before merge: set_basic_mode()/unset_basic_mode() originally
+-- called shares_campaign() directly, which let ANY two fellow-players in the same campaign flag each
+-- other (or even their own DM) -- a real privilege escalation, live in production for under a day
+-- before being caught, never actually exploited (0 players flagged at time of fix). Every other
+-- privileged RPC in this codebase (award_ap, seal_character_history, etc.) already checks
+-- is_campaign_dm(campaign); this is that same pattern's account-level equivalent.
+create or replace function public.is_dm_of_player(p_player uuid)
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from campaign_dms d join characters ch on ch.campaign_id = d.campaign_id
+      where d.dm_id = auth.uid() and ch.owner_id = p_player
+  );
+$$;
+
+revoke all on function public.is_dm_of_player(uuid) from public, anon;
+grant execute on function public.is_dm_of_player(uuid) to authenticated;
+
 -- set_basic_mode(player) / unset_basic_mode(player) -- the only write paths for profiles.basic_mode
 -- and its audit columns (profiles has no plain UPDATE grant at all -- see above). Authority per
 -- decision A3: a DM sharing a campaign with the player may turn it ON; the player may ALWAYS turn
@@ -984,7 +1007,7 @@ revoke all on function public.pact_enforce_basic_mode() from public, anon, authe
 create or replace function public.set_basic_mode(p_player uuid)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if not shares_campaign(p_player) then
+  if not is_dm_of_player(p_player) then
     raise exception 'PACT: only a DM sharing a campaign with this player can turn on basic mode';
   end if;
   update profiles
@@ -1001,7 +1024,7 @@ returns void language plpgsql security definer set search_path = public, pg_temp
 declare
   v_target uuid := coalesce(p_player, auth.uid());
 begin
-  if v_target <> auth.uid() and not shares_campaign(v_target) then
+  if v_target <> auth.uid() and not is_dm_of_player(v_target) then
     raise exception 'PACT: only the player themselves, or a DM sharing a campaign with them, can turn off basic mode';
   end if;
   update profiles

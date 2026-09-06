@@ -242,7 +242,7 @@ select pg_temp.rejects('...and the protections still fire after a re-run',
 \echo ''
 \echo 'feat/player-basic-mode — the trigger is attached, and it actually blocks the bypass'
 do $$
-declare v_dm uuid; v_player uuid; v_other uuid; v_campaign uuid; v_char1 uuid; v_char2 uuid;
+declare v_dm uuid; v_player uuid; v_other uuid; v_fellow uuid; v_campaign uuid; v_char1 uuid; v_char2 uuid;
 begin
   perform pg_temp.ok('trg_pact_enforce_basic_mode is attached to characters',
     exists (select 1 from pg_trigger where tgname = 'trg_pact_enforce_basic_mode' and not tgisinternal));
@@ -250,6 +250,7 @@ begin
   insert into auth.users (email) values ('bm-dm@example.test') returning id into v_dm;
   insert into auth.users (email) values ('bm-player@example.test') returning id into v_player;
   insert into auth.users (email) values ('bm-other@example.test') returning id into v_other;
+  insert into auth.users (email) values ('bm-fellow@example.test') returning id into v_fellow;
 
   perform set_config('pact.test_uid', v_dm::text, false);
   insert into public.campaigns (dm_id, name) values (v_dm, 'Basic-mode probe') returning id into v_campaign;
@@ -273,6 +274,18 @@ begin
   -- A DM with no shared campaign cannot set the flag.
   perform set_config('pact.test_uid', v_other::text, false);
   perform pg_temp.rejects('a DM with no shared campaign cannot set basic mode',
+    format('select public.set_basic_mode(%L)', v_player),
+    'PACT: only a DM sharing a campaign%');
+
+  -- /code-review ultra finding, PR #531: an ORDINARY fellow-player who shares this campaign with
+  -- v_player (but is not its DM) must not be able to set the flag either. This is the exact gap the
+  -- original shares_campaign()-based check missed — shares_campaign() returns true for "we both play
+  -- in the same campaign" regardless of DM status, so this test would have failed before the fix.
+  perform set_config('pact.test_uid', v_fellow::text, false);
+  insert into public.characters (id, owner_id, name, stats, campaign_id)
+    values (gen_random_uuid(), v_fellow, 'Fellow player''s own character', '{}'::jsonb, v_campaign);
+  perform pg_temp.rejects('an ordinary fellow-player sharing the SAME campaign cannot set basic mode '
+    || '(shares_campaign() would have wrongly allowed this — must check DM status specifically)',
     format('select public.set_basic_mode(%L)', v_player),
     'PACT: only a DM sharing a campaign%');
 
@@ -345,7 +358,7 @@ begin
     where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                       'pact_ap_ledger_protected','pact_enforce_locked_history',
                       'pact_ap_ledger_spend','pact_enforce_ap_budget_consistency',
-                      'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode')
+                      'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player')
   loop
     v_n := v_n + 1;
     if r.cfg not like '%search_path=%' then v_bad := v_bad || r.proname || ' '; end if;
@@ -353,7 +366,7 @@ begin
   -- Same missing-match guard as the drift check: a renamed or typo'd function must fail, never
   -- silently shrink coverage. version-label-ci.mjs states the rule — "A missing match is a FAILURE,
   -- not a skip."
-  perform pg_temp.ok('all 10 search_path-checked functions exist (saw ' || v_n || ')', v_n = 10);
+  perform pg_temp.ok('all 11 search_path-checked functions exist (saw ' || v_n || ')', v_n = 11);
   perform pg_temp.ok('every checked function pins its search_path'
     || case when v_bad = '' then '' else ' — UNPINNED: ' || v_bad end, v_bad = '');
 end $$;
@@ -392,7 +405,7 @@ select proname,
 from pg_proc
 where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                   'pact_ap_ledger_protected','pact_enforce_locked_history',
-                  'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode');
+                  'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -400,8 +413,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 8 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 8);
+  perform pg_temp.ok('all 9 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 9);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -410,6 +423,8 @@ end $$;
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
+\ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
+\ir ../../sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -429,8 +444,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 8 functions (saw ' || v_n || ')',
-    v_n = 8);
+  perform pg_temp.ok('the drift comparison actually covered all 9 functions (saw ' || v_n || ')',
+    v_n = 9);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

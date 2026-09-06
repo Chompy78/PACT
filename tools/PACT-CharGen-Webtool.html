@@ -1381,6 +1381,12 @@ document.addEventListener('sync-ready', function () {
       // plainly instead of showing what reads as an error for a no-op.
       if(/already joined/i.test(msg)){
         showBanner('You’re already in this campaign — this invite wasn’t needed. Your existing character is shown below.');
+      } else if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
+        // feat/player-basic-mode (/code-review ultra finding, PR #531): redeem_player_invite() does its
+        // own `insert into characters` INSIDE the RPC, before saveCharacter() is ever called — a
+        // flagged player already at their limit hits pact_enforce_basic_mode() right here, not at the
+        // later saveRes.error check below (which can never see it, since the row already exists by then).
+        showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
       } else {
         showBanner('Could not join campaign: '+msg);
       }
@@ -1440,7 +1446,13 @@ document.addEventListener('sync-ready', function () {
       hideBannerSoon();
     }catch(err){
       clearPendingClaim();   // a terminal RPC error (already used, invalid, etc.) must not keep re-prompting either
-      showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
+      // feat/player-basic-mode (/code-review ultra finding, PR #531): redeem_character_claim() also
+      // does its own `insert into characters` INSIDE the RPC — same reasoning as tryRedeem()'s copy.
+      if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
+        showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+      } else {
+        showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
+      }
     }finally{
       _claiming = false;
     }
