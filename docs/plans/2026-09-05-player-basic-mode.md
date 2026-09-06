@@ -32,6 +32,11 @@ turning that one-off fix into a real feature so a human doesn't have to interven
   into the cloud database (as opposed to updating an existing one): a single function that first tries
   an UPDATE by id, and only inserts if that UPDATE affects zero rows. Both character-editing tools call
   through this same shared function — there is no second, tool-specific insert path to worry about.
+  **DM Console specifically checked at implementation time (2026-09-06), closing the gap five prior
+  cold-review rounds flagged as unverified:** it imports nothing from `js/sync.js` except display-chip
+  helpers (`chipPresentation`, `SIGNED_OUT`, `IDLE`) and contains no `.insert(` call on `characters`
+  anywhere in the file. It has no character-creation path of any kind — the "exactly ONE insert path"
+  claim holds for the whole app, not just the two editing tools.
 - There is already a working precedent in this codebase for a database trigger that blocks a write and
   raises a custom, client-recognizable error message (used today to protect locked/sealed character
   history) — the client-side code matches on a distinctive substring of the raised message text,

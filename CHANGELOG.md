@@ -4,6 +4,22 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-06 · feat: account-level "basic mode" — implemented, tested, NOT yet applied to production**
+  (`feat/player-basic-mode`) — restricts a flagged player's account to one active character,
+  enforced server-side so it cannot be bypassed by calling the database directly. `profiles` gains
+  `basic_mode`/`basic_mode_set_by`/`basic_mode_set_at`; `pact_enforce_basic_mode()` (a `BEFORE INSERT
+  OR UPDATE OF archived_at` trigger, advisory-lock-guarded) closes both the plain-insert path and the
+  archive/create/un-archive bypass; `set_basic_mode()`/`unset_basic_mode()` are the only write paths
+  (decision A3: a DM sharing a campaign may turn it on, the player may always turn their own off
+  regardless of any DM's current standing). DM Console gets a per-player toggle; both editing tools
+  and the My Characters page surface a plain-language message instead of the raw database error, and
+  a player-facing "basic mode is on, set by X on Y" notice with a self-unset control. Went through 8
+  cold-review rounds before implementation (see `docs/plans/2026-09-05-player-basic-mode.md`) and both
+  `testing/sql/*.sql` harnesses pass locally against Postgres 16, including full functional coverage of
+  the trigger itself (bypass rejected, the round-7 correctness guard verified with a real two-character
+  fixture, self-unset always works, unflagged players unaffected). **Not yet graduated off the task
+  board** — the migration has not been applied to the live database yet, so "Done when"'s advisor-clean
+  and manual-verification criteria are still outstanding.
 - **2026-09-05 · chore: repo branch cleanup — 91 → 3 branches, one accidental `main` deletion and full
   recovery** — a merged-PR-based sweep (git ancestry checks don't work here; this repo squash-merges)
   correctly identified 85 stale branches, but the delete list wasn't filtered against the repo's own

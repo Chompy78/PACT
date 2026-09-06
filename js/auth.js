@@ -102,15 +102,35 @@ export function onSessionChange(cb) {
   return onAuthChange((_event, session) => cb(session));
 }
 
-/** Fetch the signed-in user's profile row (id, display_name). */
+/** Fetch the signed-in user's profile row (id, display_name, and — feat/player-basic-mode — whether
+ *  this account is currently restricted to one active character, and by whom/when if so). The
+ *  `setter` embed resolves basic_mode_set_by to that DM's display name so a flagged player can see
+ *  who restricted them without a second query — profiles_select's RLS already lets any account read
+ *  its own row in full, so no extra grant is needed for this join. */
 export async function myProfile() {
   const user = await currentUser();
   if (!user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, basic_mode, basic_mode_set_at, setter:profiles!basic_mode_set_by(display_name)')
     .eq('id', user.id)
     .single();
   if (error) throw error;
-  return data;
+  return {
+    id: data.id,
+    display_name: data.display_name,
+    basicMode: !!data.basic_mode,
+    basicModeSetBy: data.setter?.display_name || null,
+    basicModeSetAt: data.basic_mode_set_at || null,
+  };
+}
+
+/** feat/player-basic-mode: the player's own always-available escape hatch — turns basic mode off on
+ *  the SIGNED-IN account, regardless of whether the DM who set it still shares a campaign with them
+ *  (decision A3: this is what actually closes the reversibility gap, not the DM's own convenience
+ *  path — see decisions/2026/D-GH-2026-09-05-player-basic-mode.md and js/dm.js's
+ *  unsetBasicModeForPlayer() for that DM-side counterpart). */
+export async function unsetMyBasicMode() {
+  const { error } = await supabase.rpc('unset_basic_mode');
+  if (error) throw error;
 }

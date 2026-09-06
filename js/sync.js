@@ -298,6 +298,25 @@ export function isSealRejection(error) {
   return /locked character history/i.test(m);
 }
 
+/** Recognises the account-basic-mode rejection raised by pact_enforce_basic_mode() (feat/
+ *  player-basic-mode) — fires on a blocked character INSERT (new character) or a blocked UPDATE OF
+ *  archived_at (un-archiving a second character while already at the limit). Checks the typed
+ *  SQLSTATE first (`error.code`, PostgREST surfaces this directly) — belt-and-suspenders with the
+ *  message-substring match, same layering isSealRejection() above already uses, per this feature's
+ *  own plan (a Groq cold review's suggestion to not rely on message wording alone). */
+export function isBasicModeRejection(error) {
+  if (!error) return false;
+  if (error.code === 'PACT1') return true;
+  const m = [error.message, error.hint, error.details].filter(Boolean).join(' | ');
+  return /limited to one active character/i.test(m);
+}
+
+/** The plain-language message every tool should show in place of the raw database error when
+ *  isBasicModeRejection() is true — one string, so the wording can't drift between tools. */
+export const BASIC_MODE_MESSAGE =
+  'This account is limited to one character (basic mode). You can turn it off yourself in your '
+  + 'account settings, or ask a DM to.';
+
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
  *  returns null and the caller falls back to minting a new id, which is the pre-existing behaviour
  *  rather than a broken state. */
