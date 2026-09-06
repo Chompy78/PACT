@@ -5165,6 +5165,45 @@ function randomizeRoll(themeKey,lvlWanted){
     _draws++; budget=Math.max(budget,_cur.spendable||budget);
   }
 
+  // ── IDENTITY FIRST: buy the class's defining feature before the general spend ────────────────
+  //
+  // Added 2026-09-07 after measuring that **85% of rolled characters had no class feature at all** —
+  // 98% of warlocks, 94% of druids, and two thirds of barbarians could not rage. A druid with no Wild
+  // Shape is not a druid.
+  //
+  // THE CAUSE WAS BUDGET STARVATION, not weight and not a level gate. Confirmed on 3,264 rolls:
+  // characters WITHOUT a feature finished with a median of **0 AP left**, against 7 for those with
+  // one, and started with a median budget of 145 against 193. The feature action was being attempted
+  // and rejected on cost, silently, because tryAct reverts without saying why. That is also why
+  // raising its weight from 3 to 9 moved the rate only 85% -> 82%: a more frequent attempt at
+  // something unaffordable is still unaffordable. And it explains the odd Hit-Dice curve (29% at HD 4
+  // falling to 11% at HD 6) — Hit Dice cost AP, so more of them leaves less for anything else.
+  //
+  // WHY THIS IS NOT A COOKIE-CUTTER FIX. The obvious version — force the signature feature at the end
+  // — was rejected by the owner on exactly those grounds. This buys it FIRST, from the front of an
+  // untouched budget, and then leaves the general loop below completely unchanged. Every barbarian
+  // rages; no two barbarians are otherwise alike, because the other ~80% of the budget is still spent
+  // exactly as it was.
+  (function buyClassIdentity(){
+    const SIGNATURE = {
+      Barbarian:'Barbarian: Rage', Rogue:'Rogue: Sneak Attack', Fighter:'Fighter: Second Wind',
+      Druid:'Druid: Wild Shape', Monk:'Monk: Martial Arts die', Paladin:'Paladin: Lay on Hands',
+      Cleric:'Cleric: Channel Divinity', Bard:'Bard: Bardic Inspiration die',
+      Ranger:'Ranger: Weapon Mastery', Sorcerer:'Sorcerer: Innate Sorcery',
+      Warlock:'Warlock: Magical Cunning', Wizard:'Wizard: Arcane Recovery',
+      // Names verified against engine-data.js on 2026-09-07 rather than assumed from memory. A wrong
+      // name fails silently — the first pass invented "Warlock: Eldritch Invocations", "Ranger:
+      // Favored Enemy" and "Sorcerer: Font of Magic", none of which exist in this data, and every
+      // warlock came out with no feature at all while the fix looked like it was working.
+    };
+    const want = SIGNATURE[b.originClass];
+    if(!want) return;
+    const f = DATA.features[want];
+    if(!f || f.inv || f.hidden || f.bar) return;            // not a real, buyable feature here
+    if((b.features||[]).includes(want)) return;
+    tryAct(x=>{ x.features.push(want); }, 'powers');         // still budget- and warning-checked
+  })();
+
   // ── bucketed, theme-weighted spend ───────────────────────────────────────
   // The old pool was one flat array picked uniformly, so what a character ended up owning was decided by
   // how many entries of each kind happened to be in that array — which is why every rich character bought
@@ -5181,7 +5220,15 @@ function randomizeRoll(themeKey,lvlWanted){
     ],
     powers:[
       [actBoon,6],[actArt,6],[actRacial,4],
-      [x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},3],   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
+      [x=>{const cls=x.originClass; const fl=Object.keys(DATA.features).filter(l=>DATA.features[l]&&DATA.features[l].cls===cls&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&!x.features.includes(l)); if(!fl.length)return false; x.features.push(pick(fl));},9],   // a random origin-class feature (HD-gated via warnings) — .bar excludes barred features, same flag buildClassPickers() checks
+      // WEIGHT RAISED 3 -> 9 (2026-09-07, John's call). At weight 3 this action competed against
+      // actBoon and actArt at 6 each inside the same bucket, so most rolls never bought the thing
+      // that makes a character its class. Measured across 3,264 rolls: 85% had NO class feature at
+      // all — 98% of warlocks, 94% of druids, 67% of barbarians. A druid with no Wild Shape is not a
+      // druid, and two thirds of rolled barbarians could not rage. The weight now exceeds boons and
+      // arts rather than trailing them. This does NOT guarantee the defining feature (that was the
+      // rejected option A1); it makes it likely rather than rare, and a class-signature guarantee
+      // remains the better fix if this proves not to be enough.
       // caster actions (no-ops for non-casters); weighted by how magical the theme is
       [x=>{const d=discOf(x); if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false; d.cantrips=(d.cantrips||0)+1;},magicW],
       [x=>{const d=discOf(x); if(!d)return false; if(x.originClass==='Warlock'){d.pactSlots=(d.pactSlots||0)+1;return;} const t=x.traditions.find(tr=>tr&&tr.name===trad); const ll=legalSlotL(d,(t&&t.rank)||1); if(!ll.length)return false; const L=pick(ll); d.slots[L-1]=(d.slots[L-1]||0)+1;},magicW],
