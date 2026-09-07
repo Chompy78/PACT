@@ -5607,7 +5607,12 @@ function annotate(b,r){
     const wantPB=Math.min(6,Math.max(2,+pbsel.value||2));
     if($('profb_w'))$('profb_w').textContent=(wantPB>r.prof)?('⚠ +'+wantPB+' needs '+DATA.profGate[wantPB]+' HD'):'';}
   if($('hpcell'))$('hpcell').textContent=r.hp;if($('toughcap'))$('toughcap').textContent=r.hardyCap;if($('basehp'))$('basehp').textContent=r.baseHP;
-  if($('hpcalc'))$('hpcalc').textContent='= '+r.baseHP+' + ('+r.conMod+'+'+b.hardy+')×'+b.hd+' + '+b.tough+'×5';
+  // Grit is x4 in the engine (js/engine.js: hp = row.baseHP + hd*(cm+hardy) + tough*4). This live
+  // readout said x5 while the static hint above it said x4, so the arithmetic shown beside a
+  // character's own hit points did not add up to the number printed next to it. Found 2026-09-07 while
+  // taking a real party apart to work out where its hit points came from; the wrong hint sent that
+  // analysis down a false trail before the engine was read directly.
+  if($('hpcalc'))$('hpcalc').textContent='= '+r.baseHP+' + ('+r.conMod+'+'+b.hardy+')×'+b.hd+' + '+b.tough+'×4';
   const hsel=$('hardy');if(hsel){if(b.hardy>r.hardyCap){hsel.classList.add('bad');$('hardy_w').textContent='⚠ over cap';}else{hsel.classList.remove('bad');$('hardy_w').textContent='';}}
   // gold dropdown labels (#15) + total
   $('goldcell').textContent=r.goldGp+' gp';
