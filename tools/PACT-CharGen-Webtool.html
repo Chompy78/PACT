@@ -5204,6 +5204,30 @@ function randomizeRoll(themeKey,lvlWanted){
     tryAct(x=>{ x.features.push(want); }, 'powers');         // still budget- and warning-checked
   })();
 
+  // ── IDENTITY, PART TWO: a fighter needs something to fight with ───────────────────────────────
+  //
+  // Measured 2026-09-07 on 180 post-fix rolls: **every caster had a spell tradition (98 of 98) and
+  // NOT ONE martial character had martial weapon training (0 of 82).** Casters get their identity
+  // bought explicitly and early, up above; everybody who fights with their hands was left to the
+  // random pool and lost the same way class features did — 45% ended with no weapon training at all
+  // and 81% with no shield.
+  //
+  // A barbarian holding a club because the dice never picked "weapons" is the same failure as a
+  // barbarian who cannot rage. Bought here, before the general spend, on the same principle: the
+  // things that make a character what it is come first, and everything else still competes.
+  (function buyMartialIdentity(){
+    const MARTIAL = new Set(['Fighter','Barbarian','Paladin','Ranger','Monk','Rogue','Cleric']);
+    if(!MARTIAL.has(b.originClass)) { tryAct(x=>{x.weaponProf.simple=true;}, 'kit'); return; }
+    tryAct(x=>{ x.weaponProf.simple = true; }, 'kit');
+    if(TH.weapons === 'martial') tryAct(x=>{ x.weaponProf.martial = true; }, 'kit');
+    // Armour, for the classes that wear it. A front-liner with no armour training cannot fix that
+    // with any amount of gold, which is the OTHER half of the "half of all rolls wear nothing" fault.
+    if(['Fighter','Barbarian','Paladin','Ranger','Cleric'].includes(b.originClass)){
+      tryAct(x=>{ x.armour.light = true; }, 'kit');
+      if(TH.shield) tryAct(x=>{ x.armour.shield = true; }, 'kit');
+    }
+  })();
+
   // ── bucketed, theme-weighted spend ───────────────────────────────────────
   // The old pool was one flat array picked uniformly, so what a character ended up owning was decided by
   // how many entries of each kind happened to be in that array — which is why every rich character bought
