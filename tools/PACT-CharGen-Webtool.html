@@ -5062,6 +5062,42 @@ function randomizeRoll(themeKey,lvlWanted){
   let _dumps=0;const _maxDumps=rnd(4);
   let _draws=0;const _maxDraws=1+rnd(3);
 
+  // ── IDENTITY, PART THREE: nobody builds a character that dies to one hit ─────────────────────
+  //
+  // Measured 2026-09-07 on the rolled pool: at 91 AP the median character had 15 hit points, the 25th
+  // percentile had 12, and **21% had fewer than twelve** — including a Ranger with SIX at 91 AP, which
+  // is 91 points of advancement spent and the durability of a house cat. A real party at a lower budget
+  // (84 AP) averages 20.3 each, and a sensible 91 AP build reaches 27.
+  //
+  // The consequence was not cosmetic: encounter figures measured against these parties are pessimistic,
+  // and any enemy tuned against them is too strong for a real table. A test that put three thieves
+  // against six of these characters had the THREE ENEMIES holding more total hit points than the whole
+  // party — 105 against 99.
+  //
+  // MOVED AHEAD OF THE CASTER KIT, 2026-09-07. Placed after it, four casters in ninety-six still came
+  // out under twelve hit points at 91 AP — Bards and a Druid at 97/97 AP with CON +0 and no Grit,
+  // because opening a tradition and its slots had already spent the budget. Durability now has first
+  // claim, before anything else at all.
+  //
+  // Durability is bought first, to a floor, on the same principle as the class feature and the weapon:
+  // the things that make a character viable come before the things that make it interesting. The floor
+  // is deliberately modest — roughly what HD alone gives at this budget — so the general spend below
+  // still decides almost everything, and two characters at the same budget still look nothing alike.
+  (function buyDurability(){
+    const budget = (typeof b.budget === 'number') ? b.budget : 79;
+    // One Hit Die per ~24 AP, capped at 6, which tracks PACT's own level budget of 79 + 24 a level.
+    const wantHD = Math.max(1, Math.min(6, 1 + Math.floor((budget - 79) / 24) + 1));
+    while ((b.hd || 1) < wantHD) { if (!tryAct(x => { x.hd++; }, 'powers')) break; }
+    // A point of CON is worth (HD) hit points and helps every save; without it Hit Dice pay nothing
+    // beyond their own base. Buy up to +2, no further — this is a floor, not an optimiser.
+    let guard = 0;
+    while (((_cur && _cur.mods && _cur.mods.CON) || 0) < 2 && guard++ < 4) {
+      if (!tryAct(x => { x.stats.CON = Math.min(20, (x.stats.CON || 10) + 2); }, 'stats')) break;
+    }
+    // And one Grit, the cheapest four hit points in the system at 2 AP.
+    tryAct(x => { x.tough = (+x.tough || 0) + 1; }, 'kit');
+  })();
+
   // pre-prime the CASTING ability to 14 (mod +2) so caster slot caps (= casting-stat mod) aren't 0
   if(trad&&castAb){while((b.stats[castAb]||10)<14){if(!tryAct(x=>{x.stats[castAb]=Math.min(20,(x.stats[castAb]||10)+2);},'stats'))break;}}
   // 2) caster kit: open the tradition (Foundation) then a MINIMUM loadout, in priority order
