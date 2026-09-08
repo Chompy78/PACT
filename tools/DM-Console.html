@@ -476,6 +476,14 @@
     border-radius:50%;width:22px;height:22px;min-height:0;padding:0;font-size:12px;line-height:1;
     cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center}
   .infobtn:hover{color:var(--ink);border-color:var(--muted)}
+  /* feat/infobtn-click (2026-09-08): none of the ⓘ buttons in this file had a click handler — every
+     one relied solely on the native title-hover tooltip, which does nothing on click and nothing at
+     all on a touch device (no hover state exists there). This popover is the click/tap path; the
+     title attribute stays too, so mouse-hover keeps working exactly as before for anyone used to it. */
+  .infopop{position:fixed;z-index:9999;max-width:320px;background:var(--card,#fff);color:var(--ink,#222);
+    border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:12px;line-height:1.5;
+    box-shadow:0 6px 20px rgba(0,0,0,.18);display:none}
+  .infopop.on{display:block}
   /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
   .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .subtile:last-child{margin-bottom:0}
@@ -1245,7 +1253,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.539';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.540';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1578,7 +1586,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // no-build-data-yet placeholder card, where there is nothing to remove.
   function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
-            '<div class="kvrow"><span class="kk" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">DM-granted AP <span style="opacity:.6">&#9432;</span></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
+            '<div class="kvrow"><span class="kk">DM-granted AP <button type="button" class="infobtn" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">&#9432;</button></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     // ---- Basic mode (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode) -----------------
     // Account-level, not per-character — every character this player owns shares the same flag, so
     // this control (and the confirm text) talks about the ACCOUNT, not this one character, even
@@ -2302,6 +2310,35 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     document.body.appendChild(d); }
   function openOv(html){ ensureOv(); $('ovBody').innerHTML=html; $('ov').classList.add('on'); }
   function closeOv(){ var ov=$('ov'); if(ov) ov.classList.remove('on'); }
+  // feat/infobtn-click (2026-09-08): the click/tap path for every ⓘ button in this file (22 of them,
+  // none of which had one before — see the .infobtn CSS comment above). One shared popover element,
+  // reused for whichever button was clicked last; toggles closed on a second click of the SAME
+  // button, moves to a new one on a different button, and closes on any click elsewhere or Escape.
+  function ensureInfoPop(){ if($('infoPop')) return; var d=document.createElement('div'); d.className='infopop'; d.id='infoPop'; document.body.appendChild(d); }
+  function closeInfoPop(){ var p=$('infoPop'); if(p){ p.classList.remove('on'); p.removeAttribute('data-for'); } }
+  function toggleInfoPop(btn){
+    ensureInfoPop();
+    var p=$('infoPop');
+    var txt=btn.getAttribute('title')||btn.getAttribute('data-tip')||'';
+    if(!txt) return;
+    if(p.classList.contains('on') && p.getAttribute('data-for')===txt){ closeInfoPop(); return; }
+    p.textContent=txt;
+    p.setAttribute('data-for',txt);
+    var r=btn.getBoundingClientRect();
+    var top=r.bottom+6, left=Math.max(8,Math.min(r.left,window.innerWidth-328));
+    p.style.top=top+'px'; p.style.left=left+'px';
+    p.classList.add('on');
+    // Flip above the button if it would run off the bottom of the viewport.
+    var ph=p.getBoundingClientRect().height;
+    if(top+ph>window.innerHeight-8) p.style.top=Math.max(8,r.top-ph-6)+'px';
+  }
+  document.addEventListener('click', function(e){
+    var ib=e.target.closest?e.target.closest('.infobtn'):null;
+    if(ib){ e.preventDefault(); e.stopPropagation(); toggleInfoPop(ib); return; }
+    if(!e.target.closest || !e.target.closest('.infopop')) closeInfoPop();
+  });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeInfoPop(); });
+
   function initSkillUI(){
     ensureOv();
     var mb=$('matrixBtn'); if(mb) mb.addEventListener('click', function(){ openOv(matrixOverlayHTML(_chars())); });

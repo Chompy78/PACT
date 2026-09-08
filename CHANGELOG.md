@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-08 · fix: DM Console's ⓘ info buttons now respond to click/tap, not just hover** — none
+  of the 22 `.infobtn` buttons in `tools/DM-Console.html` had a click handler; all relied on the
+  native `title` hover tooltip, which does nothing on click and nothing at all on touch devices.
+  Reported live as two separate dead buttons ("DM-granted AP" and "Basic mode") — same root cause for
+  both, and DM-granted AP additionally wasn't a real `<button>`. Fixed with one shared click/tap
+  popover handler for the whole `.infobtn` class, so all 22 are fixed at once (present and future);
+  `title` hover still works alongside it. (#538)
+
 - **2026-09-08 · feat: Edit AP Awards gets date/note filters, click-to-sort, and an editable award
   date** — extends the 2026-09-08 Edit AP Awards feature (see the entry directly below). Adds a
   from/to date-range filter, a note-word filter, and click-to-sort on any column — all combine (AND),
