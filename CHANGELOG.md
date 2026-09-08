@@ -4,6 +4,19 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-08 · feat: DM Console can now edit an existing AP award in place** — new
+  `edit_ap_award()` RPC (same DM-of-campaign permission shape as `award_ap`) corrects an award's
+  amount/note with a required reason, applying the *delta* to `characters.ap` rather than an
+  overwrite. Fully audited in a new append-only `ap_award_edits` table (visible to the character's
+  own owner, not DM-only), matching this app's "never delete, always append a correction" pattern.
+  DM Console's new "Edit AP Awards" panel lists every award across the whole campaign in one grid,
+  filterable by character, with staged edits — nothing writes until "Save changes", and only rows
+  that actually changed are sent. Motivated by a real live bug found and hand-corrected this
+  session (a bulk "session 6" award landed as +4 AP instead of +5 on all six Amble characters).
+  Player-facing display of the edit trail is **not yet built** — Live Sheet has no existing "view
+  your AP awards" surface at all to extend, so that's filed as its own follow-up on
+  `docs/TASK_BOARD_NEXT.md` rather than added blind. See
+  `D-GH-2026-09-08-ap-award-editing`.
 - **2026-09-06 · chore: player-basic-mode graduated off the task board** — PR #531 merged, then a live
   end-to-end smoke test against production confirmed every "Done when" criterion: three disposable test
   accounts (DM, player, fellow-player) exercised the *real* invite-redemption flow (not a shortcut) —

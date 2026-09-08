@@ -635,6 +635,18 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <span id="campAwardApStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
 
+          <!-- feat/dm-ap-award-editing (2026-09-08): correcting an EXISTING award, as opposed to
+               Award AP above (which only ever adds a new one). Its own subtile, next to Award AP,
+               for the same "campaign-wide AP action" reason the comment below groups Award AP with
+               party downtime. Opens a modal (editApAwardsOverlay, below) listing every award ever
+               made in this campaign, across every character, with a filter box and inline editing —
+               nothing is written until "Save changes" is clicked (edits are staged locally first). -->
+          <div class="subtile" id="campEditAwardsTile">
+            <div class="stitle">Edit AP Awards</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:8px">Correct an award already given — amount, note, or both — across any character in this campaign. Every edit requires a short reason and is fully visible to the player it belongs to, same as the award itself.</div>
+            <button type="button" class="btn sm ghost" id="campEditAwardsBtn">📝 Edit awards…</button>
+          </div>
+
           <!-- feat/move-party-downtime-to-camp-panel: was a bare ruleblock above the roster cards
                (#campSection, before #campRoster) — moved here, next to Award AP, since both are
                "give the whole party something at once" controls and belong in the same group of
@@ -3026,13 +3038,13 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -3127,6 +3139,7 @@ document.addEventListener('campaign-ready', function () {
   var campAwardApStatus = document.getElementById('campAwardApStatus');
   var campAwardApSelAll  = document.getElementById('campAwardApSelAll');
   var campAwardApSelNone = document.getElementById('campAwardApSelNone');
+  var campEditAwardsBtn  = document.getElementById('campEditAwardsBtn');
   var importPanel   = document.getElementById('importPanel');
   var importCampNote = document.getElementById('importCampNote');
   var localToolsPanel = document.getElementById('localToolsPanel');
@@ -3972,6 +3985,115 @@ document.addEventListener('campaign-ready', function () {
       (errs.length ? ' — some failed: '+errs.join('; ') : '.');
     if(okCount>0){ campAwardApAmt.value='0'; campAwardApNote.value=''; }
     loadRoster(currentCampId);   // refresh every card's AP figure and re-tick from the fresh roster
+  });
+
+  // feat/dm-ap-award-editing (2026-09-08) — "Edit AP Awards": correct an award already given,
+  // across any character in the campaign, in one screen. Deliberately staged, not immediate: every
+  // row's amount/note becomes an editable input the moment the modal opens, but nothing is written
+  // until "Save changes" — a row is only sent if its amount or note actually differs from what was
+  // loaded, and every changed row requires its own short reason (server-enforced too; edit_ap_award
+  // rejects a blank one). Independent per-row RPCs (Promise.allSettled), same reasoning as the bulk
+  // Award AP action just above: one bad row must not block or roll back the rest.
+  function _eaRowHTML(a){
+    var ts = (a.created_at||'').slice(0,16).replace('T',' ');
+    return '<tr data-award-id="'+esc(a.id)+'" data-orig-amount="'+esc(String(a.amount))+'" data-orig-note="'+esc(a.note||'')+'" data-char-name="'+esc((a.characterName||'').toLowerCase())+'">'
+      +'<td>'+esc(a.characterName||'—')+'</td>'
+      +'<td><input type="number" step="1" class="ea-amt" value="'+esc(String(a.amount))+'" style="width:70px"></td>'
+      +'<td><input type="text" class="ea-note" value="'+esc(a.note||'')+'" style="width:100%;min-width:160px"></td>'
+      +'<td style="white-space:nowrap;font-size:11px;color:var(--muted)">'+esc(ts)+'</td>'
+      +'<td style="font-size:11px;color:var(--muted)">'+esc(a.dm||'')+'</td>'
+      +'<td><input type="text" class="ea-editnote" placeholder="reason for the change" style="width:100%;min-width:140px"></td>'
+      +'<td class="ea-row-status" style="font-size:11px;color:var(--muted)"></td>'
+      +'</tr>';
+  }
+  function _eaRenderRows(rows){
+    return rows.length
+      ? rows.map(_eaRowHTML).join('')
+      : '<tr><td colspan="7" style="color:var(--muted)">No awards in this campaign yet.</td></tr>';
+  }
+  if(campEditAwardsBtn) campEditAwardsBtn.addEventListener('click', async function(){
+    if(!currentCampId || _peekBlocks()) return;
+    campEditAwardsBtn.disabled = true;
+    var origText = campEditAwardsBtn.textContent;
+    campEditAwardsBtn.textContent = 'Loading…';
+    var rows;
+    try {
+      rows = await B.getPartyAwardHistory(currentCampId);
+    } catch(err) {
+      campEditAwardsBtn.disabled = false; campEditAwardsBtn.textContent = origText;
+      alert('Could not load awards: '+err.message);
+      return;
+    }
+    campEditAwardsBtn.disabled = false; campEditAwardsBtn.textContent = origText;
+
+    var emodal = document.createElement('div');
+    emodal.className = 'hist-modal';
+    emodal.innerHTML = '<div class="inner" style="max-width:920px">'
+      +'<h3 style="margin:0 0 10px;color:var(--heading)">Edit AP awards</h3>'
+      +'<div class="grantnote" style="margin:0 0 8px">Change an amount or note directly, add a short reason in its row, then Save. Only rows you actually change are sent. A player can always see that one of their awards was edited, and why.</div>'
+      +'<input type="text" class="ea-filter" placeholder="Filter by character…" style="width:100%;margin-bottom:8px">'
+      +'<div style="max-height:50vh;overflow:auto"><table class="ea-table"><thead><tr>'
+      +'<th>Character</th><th>Amount</th><th>Note</th><th>Date</th><th>DM</th><th>Reason for change</th><th></th>'
+      +'</tr></thead><tbody class="ea-tbody">'+_eaRenderRows(rows)+'</tbody></table></div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">'
+      +'<span class="ea-status" style="font-size:11px;color:var(--muted)"></span>'
+      +'<div><button type="button" class="btn sm ea-save">💾 Save changes</button> '
+      +'<button type="button" class="btn sm ghost" onclick="this.closest(\'.hist-modal\').remove()">Close</button></div>'
+      +'</div></div>';
+    emodal.addEventListener('click', function(e){ if(e.target===emodal) emodal.remove(); });
+    document.body.appendChild(emodal);
+
+    var filterEl = emodal.querySelector('.ea-filter');
+    filterEl.addEventListener('input', function(){
+      var q = filterEl.value.trim().toLowerCase();
+      emodal.querySelectorAll('.ea-tbody tr[data-award-id]').forEach(function(tr){
+        tr.style.display = (!q || tr.getAttribute('data-char-name').indexOf(q) !== -1) ? '' : 'none';
+      });
+    });
+
+    var saveBtn = emodal.querySelector('.ea-save');
+    var statusEl = emodal.querySelector('.ea-status');
+    saveBtn.addEventListener('click', async function(){
+      var trs = Array.prototype.slice.call(emodal.querySelectorAll('.ea-tbody tr[data-award-id]'));
+      var changed = [];
+      var missingReason = [];
+      trs.forEach(function(tr){
+        var amtEl = tr.querySelector('.ea-amt'), noteEl = tr.querySelector('.ea-note'), reasonEl = tr.querySelector('.ea-editnote');
+        var newAmt = parseFloat(amtEl.value) || 0;
+        var newNote = (noteEl.value||'').trim();
+        var origAmt = parseFloat(tr.getAttribute('data-orig-amount')) || 0;
+        var origNote = tr.getAttribute('data-orig-note') || '';
+        if(newAmt === origAmt && newNote === origNote) return;   // unchanged — not sent
+        var reason = (reasonEl.value||'').trim();
+        if(!reason){ missingReason.push(tr); return; }
+        changed.push({ tr: tr, id: tr.getAttribute('data-award-id'), amt: newAmt, note: newNote, reason: reason });
+      });
+      if(missingReason.length){
+        missingReason.forEach(function(tr){ tr.querySelector('.ea-row-status').textContent = 'needs a reason'; tr.querySelector('.ea-row-status').style.color = '#c0392b'; });
+        statusEl.textContent = missingReason.length+' changed row'+(missingReason.length===1?'':'s')+' need a reason before saving.';
+        return;
+      }
+      if(!changed.length){ statusEl.textContent = 'Nothing changed.'; return; }
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Saving '+changed.length+' change'+(changed.length===1?'':'s')+'…';
+      var results = await Promise.allSettled(changed.map(function(c){ return B.editApAward(c.id, c.amt, c.note, c.reason); }));
+      saveBtn.disabled = false;
+      var okCount = 0;
+      results.forEach(function(r, i){
+        var c = changed[i];
+        var rs = c.tr.querySelector('.ea-row-status');
+        if(r.status === 'fulfilled'){
+          okCount++;
+          c.tr.setAttribute('data-orig-amount', String(c.amt));
+          c.tr.setAttribute('data-orig-note', c.note);
+          rs.textContent = 'saved'; rs.style.color = 'var(--muted)';
+        } else {
+          rs.textContent = 'failed: '+((r.reason&&r.reason.message)||String(r.reason)); rs.style.color = '#c0392b';
+        }
+      });
+      statusEl.textContent = okCount+'/'+changed.length+' change'+(changed.length===1?'':'s')+' saved.';
+      if(okCount>0 && window._dmReloadRoster) window._dmReloadRoster();   // refresh AP totals on the roster cards behind the modal
+    });
   });
 
   // Populate the "Copy rules from…" picker with the DM's OTHER campaigns (exclude the one being edited).
