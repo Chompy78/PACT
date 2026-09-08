@@ -4,6 +4,59 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-08 · feat: DM Console can now edit an existing AP award in place** — new
+  `edit_ap_award()` RPC (same DM-of-campaign permission shape as `award_ap`) corrects an award's
+  amount/note with a required reason, applying the *delta* to `characters.ap` rather than an
+  overwrite. Fully audited in a new append-only `ap_award_edits` table (visible to the character's
+  own owner, not DM-only), matching this app's "never delete, always append a correction" pattern.
+  DM Console's new "Edit AP Awards" panel lists every award across the whole campaign in one grid,
+  filterable by character, with staged edits — nothing writes until "Save changes", and only rows
+  that actually changed are sent. Motivated by a real live bug found and hand-corrected this
+  session (a bulk "session 6" award landed as +4 AP instead of +5 on all six Amble characters).
+  Player-facing display of the edit trail is **not yet built** — Live Sheet has no existing "view
+  your AP awards" surface at all to extend, so that's filed as its own follow-up on
+  `docs/TASK_BOARD_NEXT.md` rather than added blind. See
+  `D-GH-2026-09-08-ap-award-editing`.
+- **2026-09-06 · chore: player-basic-mode graduated off the task board** — PR #531 merged, then a live
+  end-to-end smoke test against production confirmed every "Done when" criterion: three disposable test
+  accounts (DM, player, fellow-player) exercised the *real* invite-redemption flow (not a shortcut) —
+  the player joined a campaign, held two active characters unflagged (existing multi-character players
+  genuinely unaffected), a fellow-player who shares the campaign but isn't its DM was correctly
+  *rejected* trying to set the flag (the exact scenario the same-day authorization fix closes), the real
+  DM's `set_basic_mode()` call succeeded, a third character was then correctly blocked with the typed
+  error, and the player's own `unset_basic_mode()` self-service call immediately un-blocked it — 14
+  checks, 0 failed. All test accounts/characters/campaign deleted afterward; production characters count
+  returned to genuine baseline (43 rows / 10 owners, no leftovers). Full task text moved out of
+  `docs/TASK_BOARD_NEXT.md` — see the two entries directly below for the feature and its fix.
+- **2026-09-06 · fix: player-basic-mode authorization bug — any fellow-player could flag any other
+  player (or their own DM)** — `/code-review ultra` on PR #531 found `set_basic_mode()`/
+  `unset_basic_mode()` used `shares_campaign(p_player)`, which is true for ordinary co-players too, not
+  just a DM. Live in production under a day, never exploited (0 players flagged at time of fix,
+  confirmed by direct query). Fixed with a new `is_dm_of_player()` helper and applied to production
+  immediately; see the entry below for the full feature and `docs/plans/2026-09-05-player-basic-mode.md`'s
+  2026-09-06 update for the complete writeup, including the two secondary findings from the same
+  review round.
+- **2026-09-06 · feat: account-level "basic mode" — implemented, tested, applied to production**
+  (`feat/player-basic-mode`) — restricts a flagged player's account to one active character,
+  enforced server-side so it cannot be bypassed by calling the database directly. `profiles` gains
+  `basic_mode`/`basic_mode_set_by`/`basic_mode_set_at`; `pact_enforce_basic_mode()` (a `BEFORE INSERT
+  OR UPDATE OF archived_at` trigger, advisory-lock-guarded) closes both the plain-insert path and the
+  archive/create/un-archive bypass; `set_basic_mode()`/`unset_basic_mode()` are the only write paths
+  (decision A3: a DM sharing a campaign may turn it on, the player may always turn their own off
+  regardless of any DM's current standing). DM Console gets a per-player toggle; both editing tools
+  and the My Characters page surface a plain-language message instead of the raw database error, and
+  a player-facing "basic mode is on, set by X on Y" notice with a self-unset control. Went through 8
+  cold-review rounds before implementation (see `docs/plans/2026-09-05-player-basic-mode.md`) and both
+  `testing/sql/*.sql` harnesses pass locally against Postgres 16, including full functional coverage of
+  the trigger itself (bypass rejected, the round-7 correctness guard verified with a real two-character
+  fixture, self-unset always works, unflagged players unaffected). **Applied to production the same
+  day** — 0 of 39 characters affected (every flag defaults off). The advisor's only genuinely new
+  finding (an unindexed `basic_mode_set_by` foreign key, INFO level) was fixed immediately with a
+  follow-up index migration; every other finding was pre-existing and app-wide (`SECURITY DEFINER`
+  functions callable by `authenticated` — expected, matches every other intentionally-exposed RPC —
+  and `auth_rls_initplan` across most of this app's RLS policies, not specific to this change). Not yet
+  graduated off the task board — a PR is still to be opened, and manual in-app verification is still
+  outstanding.
 - **2026-09-05 · chore: repo branch cleanup — 91 → 3 branches, one accidental `main` deletion and full
   recovery** — a merged-PR-based sweep (git ancestry checks don't work here; this repo squash-merges)
   correctly identified 85 stale branches, but the delete list wasn't filtered against the repo's own

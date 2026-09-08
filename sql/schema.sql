@@ -75,8 +75,21 @@ create table if not exists public.profiles (
   id           uuid primary key references auth.users(id) on delete cascade,
   display_name text,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  updated_at   timestamptz not null default now(),
+  -- Account-level "basic mode" (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode). Nullable,
+  -- default null/off -- existing players entirely unaffected until a DM deliberately flags them.
+  -- set_by/set_at exist purely so the flagged player can see who restricted them and when; never read
+  -- by the enforcement trigger on characters (sql/migrations/2026-09-06-player-basic-mode.sql). Only
+  -- writable via set_basic_mode()/unset_basic_mode() -- see rls-policies.sql's profiles grant section,
+  -- which revokes plain UPDATE entirely so these three columns can't be self-forged by the player.
+  basic_mode        boolean,
+  basic_mode_set_by uuid references public.profiles(id) on delete set null,
+  basic_mode_set_at timestamptz
 );
+
+-- Advisor-flagged (INFO, unindexed foreign key) immediately after the migration that added the
+-- column above; see sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql.
+create index if not exists idx_profiles_basic_mode_set_by on public.profiles(basic_mode_set_by);
 
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at
@@ -214,6 +227,28 @@ create table if not exists public.ap_awards (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
+
+-- ---------------------------------------------------------------------------
+-- ap_award_edits — append-only audit trail for edit_ap_award() (feat/dm-ap-award-editing,
+-- 2026-09-08). One row per edit, capturing the full before/after amount+note plus who and why —
+-- an award is never overwritten in place, only ever corrected on top, same "never delete, always
+-- append" pattern as the rest of this app's history model.
+-- ---------------------------------------------------------------------------
+create table if not exists public.ap_award_edits (
+  id           uuid primary key default gen_random_uuid(),
+  award_id     uuid not null references public.ap_awards(id) on delete cascade,
+  character_id uuid not null references public.characters(id) on delete cascade,
+  campaign_id  uuid references public.campaigns(id) on delete set null,
+  dm_id        uuid references public.profiles(id) on delete set null,
+  old_amount   integer not null,
+  old_note     text,
+  new_amount   integer not null,
+  new_note     text,
+  edit_note    text not null,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_ap_award_edits_award on public.ap_award_edits(award_id);
+create index if not exists idx_ap_award_edits_char  on public.ap_award_edits(character_id);
 
 -- ---------------------------------------------------------------------------
 -- gold_awards — the gold award ledger, the twin of ap_awards above. award_gold() writes a

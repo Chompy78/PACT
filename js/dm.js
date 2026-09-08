@@ -27,7 +27,10 @@ import { supabase } from './supabase-client.js';
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
     .from('characters')
-    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
+    // owner:basic_mode -- feat/player-basic-mode. Account-level, not per-character, so every row for
+    // the same owner carries the same value; the console only needs it to show/toggle the flag
+    // wherever a roster already surfaces that player, not to key anything by character.
+    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name, basic_mode), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -51,6 +54,7 @@ export async function getRoster(campaignId) {
       updated_at: c.updated_at,
       owner_id: c.owner_id,
       player: c.owner?.display_name || '',
+      basicMode: !!c.owner?.basic_mode,
       playerLabel: notesRow?.player_label || '',
       dmNotes: notesRow?.notes || '',
       // feat/dm-custom-character-fields (D-GH-2026-08-10): raw values for the campaign's
@@ -132,6 +136,29 @@ export async function awardAp(characterId, amount, note) {
   });
   if (error) throw error;
   return data;
+}
+
+/**
+ * feat/player-basic-mode (D-GH-2026-09-05-player-basic-mode, decision A3): restrict `playerId` to
+ * one active character, enforced server-side. Callable by any DM sharing a campaign with the player
+ * (the RPC itself checks this via shares_campaign() — safe even if called directly). Records the
+ * calling DM's id and the current time; see js/auth.js's myProfile() for the player-facing read of
+ * that attribution.
+ */
+export async function setBasicMode(playerId) {
+  const { error } = await supabase.rpc('set_basic_mode', { p_player: playerId });
+  if (error) throw error;
+}
+
+/**
+ * The DM-convenience path only — turns basic mode off for `playerId`. Never the only path: the
+ * player's own unsetMyBasicMode() (js/auth.js) always works regardless of any DM's standing, which is
+ * what actually closes the reversibility gap (see the decision record). This one is for a DM helping
+ * a confused player sort out their characters without needing the player to do it themselves.
+ */
+export async function unsetBasicModeForPlayer(playerId) {
+  const { error } = await supabase.rpc('unset_basic_mode', { p_player: playerId });
+  if (error) throw error;
 }
 
 /**
@@ -353,6 +380,69 @@ export async function getAwardHistory(characterId) {
   return (data || []).map(a => ({
     id: a.id, amount: a.amount, note: a.note, created_at: a.created_at,
     dm_id: a.dm_id, dm: a.dm?.display_name || '',
+  }));
+}
+
+/**
+ * feat/dm-ap-award-editing (2026-09-08): the AP award history for a WHOLE campaign at once
+ * (every character, newest first) — the bulk twin of getAwardHistory() above, for DM Console's
+ * "edit any award, several characters at once" grid rather than the one-character-at-a-time view.
+ * Readable by any DM of the campaign (RLS: ap_awards_select already covers this — a DM sees every
+ * row in their own campaign).
+ * @returns {Promise<Array<{id,characterId,characterName,amount,note,created_at,dm_id,dm}>>}
+ */
+export async function getPartyAwardHistory(campaignId) {
+  const { data, error } = await supabase
+    .from('ap_awards')
+    .select('id, character_id, amount, note, created_at, dm_id, dm:profiles!ap_awards_dm_id_fkey(display_name), character:characters!ap_awards_character_id_fkey(name)')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(a => ({
+    id: a.id, characterId: a.character_id, characterName: a.character?.name || '',
+    amount: a.amount, note: a.note, created_at: a.created_at,
+    dm_id: a.dm_id, dm: a.dm?.display_name || '',
+  }));
+}
+
+/**
+ * feat/dm-ap-award-editing (2026-09-08): correct an EXISTING award's amount and/or note, in place
+ * — as opposed to awardAp() above, which only ever adds a new, separate award. `editNote` is
+ * required (the server rejects a blank one) so every correction states why. Fully audited: the
+ * before/after state, who, and when land in ap_award_edits (visible to the character's own owner,
+ * not just DMs — see getAwardEditHistory() below). Adjusts the character's running `ap` total by
+ * the delta (new − old), not an overwrite, so it composes correctly with any award made since.
+ * @returns {Promise<number>} the character's new ap total
+ */
+export async function editApAward(awardId, newAmount, newNote, editNote) {
+  const { data, error } = await supabase.rpc('edit_ap_award', {
+    p_award_id: awardId,
+    p_new_amount: newAmount,
+    p_new_note: newNote ?? null,
+    p_edit_note: editNote,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * feat/dm-ap-award-editing (2026-09-08): the edit trail for a single award (newest first) —
+ * every correction ever made to it, with the full before/after and who/why. Readable by the
+ * character's owner and any campaign DM (same audience as the award itself), per the owner
+ * decision that award edits are transparent to the player, not DM-only bookkeeping.
+ * @returns {Promise<Array<{id,old_amount,old_note,new_amount,new_note,edit_note,created_at,dm_id,dm}>>}
+ */
+export async function getAwardEditHistory(awardId) {
+  const { data, error } = await supabase
+    .from('ap_award_edits')
+    .select('id, old_amount, old_note, new_amount, new_note, edit_note, created_at, dm_id, dm:profiles!ap_award_edits_dm_id_fkey(display_name)')
+    .eq('award_id', awardId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(e => ({
+    id: e.id, old_amount: e.old_amount, old_note: e.old_note,
+    new_amount: e.new_amount, new_note: e.new_note, edit_note: e.edit_note,
+    created_at: e.created_at, dm_id: e.dm_id, dm: e.dm?.display_name || '',
   }));
 }
 

@@ -27,6 +27,23 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/ap-award-edit-transparency — player-facing display of AP award edits — TODO
+```
+D-GH-2026-09-08-ap-award-editing shipped the DM side (edit_ap_award() RPC, ap_award_edits audit table,
+DM Console's "Edit AP Awards" grid). What's missing: a PLAYER-facing display of that edit trail. Live
+Sheet has no existing "view your AP awards" panel at all to extend — the only prior use of
+getAwardHistory() there is internal (migrating awards into itemized log entries on campaign→standalone
+clone, not a visible history UI). Build one: somewhere reachable from the character sheet, show each
+award (amount, note, date, DM) and, for any award that was edited, its edit trail (old→new amount/note,
+reason, who, when) via the new getAwardEditHistory(awardId) helper in js/dm.js (already exported).
+RLS already permits the read (ap_award_edits_select mirrors ap_awards_select) — this is UI-only, no
+server-side change needed. Decide the display shape (inline under each award vs. a separate history
+modal, matching DM Console's own .hist-modal pattern) before implementing.
+```
+**Done when:** a signed-in player viewing their own campaign character in Live Sheet can see their full
+AP award history, and any award that has been edited shows its correction (old/new amount+note, the
+DM's reason, who, when) — verified against a real edited award in the live Supabase data.
+
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full
@@ -1013,37 +1030,3 @@ writing it from the outside would be reconstruction, which is what this rule exi
 **Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
 agent wonder why this was done this way?"
 
-## Account-level "basic mode" — restrict a player to one character, no self-service creation — TODO
-Branch `feat/player-basic-mode`. A player got confused managing 3 cloud characters and couldn't tell
-which one to use in his campaign — two characters both named "Archer," one correctly built, one whose
-build AP had been zeroed by a DM, and the *wrong* one was bound to the campaign. Fixed by hand for this
-one player (archived the two extras, moved the campaign AP, rebound the right character to Amble) as an
-immediate cleanup — this task is the proper feature so it doesn't need a manual DB intervention every
-time it recurs.
-
-**Effort:** large · **Risk:** high — schema + RLS + UI across all three tools, and it touches live
-production data for real users (re-measure the `characters` table before implementing; it was 35+ rows
-across 8+ owners as of 2026-09-01, per `AGENTS.md`'s Active Priorities). Same effort/risk class as the
-existing per-player-character-limit-on-a-campaign item above (`maxCharactersPerPlayer`) — **get a cold
-plan review (`/make-code-cold-plan-review`) before implementing.** Not sweep-eligible.
-
-```text
-1. Add an account-level flag — e.g. `profiles.character_limit` (integer, default null = unlimited) or a
-   boolean `basic_mode` — that a DM/admin can set on a specific player.
-2. Enforce it server-side: an RLS INSERT policy or trigger on `characters` that refuses a new row for an
-   owner whose flag is set and who already has an active (non-archived) character. Must not be
-   bypassable by calling the insert directly — client-side hiding of "New Character" is not enough.
-3. UI: CharGen's and Live Sheet's "New Character" flow (and any other cloud-create path) should surface
-   the limit with a clear message when refused, not a raw RLS error.
-4. Existing multi-character players must be unaffected unless explicitly flagged — this is opt-in per
-   player, not a retroactive limit.
-5. Migration under `sql/migrations/`, then run the Supabase advisor and skim `get_logs` per the
-   per-change checklist.
-6. Update `CHANGELOG.md` / `DECISIONS.md` per the per-change checklist (this is exactly the kind of
-   non-obvious trust-boundary change that rule asks for).
-```
-
-**Done when:** a DM/admin can set "basic mode" on a specific player, that player is blocked server-side
-from creating a second active character in any tool, existing multi-character players are unaffected
-unless explicitly flagged, the advisor reports no new findings, and `CHANGELOG.md`/`DECISIONS.md` are
-updated.

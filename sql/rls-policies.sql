@@ -115,6 +115,7 @@ alter table public.campaigns          enable row level security;
 alter table public.characters         enable row level security;
 alter table public.campaign_dms       enable row level security;
 alter table public.ap_awards          enable row level security;
+alter table public.ap_award_edits     enable row level security;
 alter table public.gold_awards        enable row level security;
 alter table public.campaign_downtime_declarations enable row level security;
 alter table public.character_dm_notes enable row level security;
@@ -131,9 +132,17 @@ grant usage on schema public to authenticated, anon;
 
 grant select, delete on public.characters to authenticated;
 grant select, insert, delete on public.campaigns to authenticated;   -- update is column-scoped below
-grant select, insert, update on public.profiles to authenticated;
+-- feat/player-basic-mode: plain UPDATE deliberately NOT granted here (was blanket/unscoped before
+-- this feature; confirmed unused -- nothing in the app performs a client-side UPDATE on profiles).
+-- basic_mode/basic_mode_set_by/basic_mode_set_at are writable ONLY through set_basic_mode()/
+-- unset_basic_mode() below (both SECURITY DEFINER), never by a plain grant -- see that section for
+-- why. If a future feature needs direct profile writes (e.g. editing display_name), add
+-- `grant update (display_name) on public.profiles to authenticated;` then, column-scoped like
+-- characters' own grants below, not a blanket update.
+grant select, insert on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
+grant select on public.ap_award_edits to authenticated; -- inserts via edit_ap_award only
 grant select on public.gold_awards  to authenticated;   -- inserts via award_gold only
 grant select on public.campaign_downtime_declarations to authenticated;   -- inserts via declare_downtime only
 
@@ -219,6 +228,19 @@ create policy campaign_dms_select on public.campaign_dms
 -- ---------------------------------------------------------------------------
 drop policy if exists ap_awards_select on public.ap_awards;
 create policy ap_awards_select on public.ap_awards
+  for select using (
+    is_campaign_dm(campaign_id)
+    or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
+  );
+
+-- ---------------------------------------------------------------------------
+-- ap_award_edits — the audit trail for edit_ap_award() (feat/dm-ap-award-editing, 2026-09-08).
+-- Same readers as ap_awards immediately above, on purpose (owner decision this session, "4:
+-- transparency"): a player can see that one of their own awards was corrected, and why, not just
+-- the DM. Inserts happen only through edit_ap_award() (definer).
+-- ---------------------------------------------------------------------------
+drop policy if exists ap_award_edits_select on public.ap_award_edits;
+create policy ap_award_edits_select on public.ap_award_edits
   for select using (
     is_campaign_dm(campaign_id)
     or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
@@ -413,6 +435,66 @@ begin
 
   update characters set ap = ap + p_amount
     where id = p_character
+    returning ap into v_ap;
+  return v_ap;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- edit_ap_award(award_id, new_amount, new_note, edit_note) — feat/dm-ap-award-editing,
+-- 2026-09-08. The ONLY way to change an existing ap_awards row. Same permission shape as
+-- award_ap() directly above: any DM of the award's (still-active) campaign. edit_note is
+-- required (owner decision this session — a correction always states why). Logs the full
+-- before/after to ap_award_edits, then applies the DELTA (new − old) to characters.ap, not an
+-- overwrite, so it composes correctly with any award made between the original and this edit.
+-- ---------------------------------------------------------------------------
+drop function if exists public.edit_ap_award(uuid, integer, text, text);
+create or replace function public.edit_ap_award(
+  p_award_id   uuid,
+  p_new_amount integer,
+  p_new_note   text,
+  p_edit_note  text
+)
+returns integer language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_character  uuid;
+  v_campaign   uuid;
+  v_old_amount integer;
+  v_old_note   text;
+  v_delta      integer;
+  v_ap         integer;
+begin
+  if p_edit_note is null or btrim(p_edit_note) = '' then
+    raise exception 'An edit note is required';
+  end if;
+
+  select character_id, campaign_id, amount, note
+    into v_character, v_campaign, v_old_amount, v_old_note
+    from ap_awards where id = p_award_id;
+
+  if v_character is null then
+    raise exception 'Award not found';
+  end if;
+  if v_campaign is null then
+    raise exception 'Award has no campaign context';
+  end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can edit an AP award';
+  end if;
+  perform assert_campaign_active(v_campaign);
+
+  v_delta := p_new_amount - v_old_amount;
+
+  insert into ap_award_edits
+    (award_id, character_id, campaign_id, dm_id, old_amount, old_note, new_amount, new_note, edit_note)
+    values
+    (p_award_id, v_character, v_campaign, auth.uid(), v_old_amount, v_old_note, p_new_amount, p_new_note, p_edit_note);
+
+  update ap_awards set amount = p_new_amount, note = p_new_note
+    where id = p_award_id;
+
+  update characters set ap = ap + v_delta
+    where id = v_character
     returning ap into v_ap;
   return v_ap;
 end;
@@ -906,6 +988,135 @@ create trigger trg_pact_locked_history
   for each row execute function public.pact_enforce_locked_history();
 
 -- ---------------------------------------------------------------------------
+-- Account-level "basic mode" (feat/player-basic-mode). Restricts a flagged player to one active
+-- (non-archived) character, enforced so it cannot be bypassed by calling the database directly. See
+-- docs/plans/2026-09-05-player-basic-mode.md and decisions/2026/D-GH-2026-09-05-player-basic-mode.md
+-- (authority model, decision A3) for the full reasoning; full commentary in the migration this was
+-- first applied from: sql/migrations/2026-09-06-player-basic-mode.sql.
+--
+-- Broadened to INSERT *and* UPDATE OF archived_at so it also closes the archive/create/un-archive
+-- bypass, not INSERT alone. Advisory-lock-guarded (hashtextextended, 64-bit) so two concurrent
+-- attempts for the same owner serialize instead of both reading a pre-write count of zero.
+--
+-- Correctness guard: `UPDATE OF archived_at` fires whenever that column is present in the UPDATE's
+-- SET list, whether or not its value actually changes -- resending archived_at=NULL unchanged on a
+-- routine edit to an already-active character must NOT re-run the count check. Guarded in the
+-- function body (this codebase's existing style for pact_enforce_locked_history/
+-- pact_enforce_ap_budget_consistency), not a trigger WHEN clause.
+--
+-- Trigger ordering: fires alongside this table's three existing BEFORE UPDATE triggers in
+-- alphabetical-by-name order on any UPDATE OF archived_at. trg_pact_ap_budget_consistency and
+-- trg_pact_locked_history both early-return whenever stats is unchanged -- true by definition for an
+-- archived_at-only update -- so neither interacts with this trigger regardless of order.
+-- ---------------------------------------------------------------------------
+create or replace function public.pact_enforce_basic_mode()
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_basic_mode   boolean;
+  v_active_count integer;
+begin
+  if NEW.archived_at is not null then
+    return NEW;
+  end if;
+  if TG_OP = 'UPDATE' and OLD.archived_at is not distinct from NEW.archived_at then
+    return NEW;
+  end if;
+
+  select basic_mode into v_basic_mode from profiles where id = NEW.owner_id;
+  if not coalesce(v_basic_mode, false) then
+    return NEW;   -- not flagged: no limit to enforce
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(NEW.owner_id::text, 0));
+
+  select count(*) into v_active_count
+    from characters
+    where owner_id = NEW.owner_id and archived_at is null and id <> NEW.id;
+
+  if v_active_count > 0 then
+    raise exception 'PACT: this account is limited to one active character (basic mode)'
+      using errcode = 'PACT1',
+            hint = 'Ask a DM to turn off basic mode, or turn it off yourself in your account settings.';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_enforce_basic_mode on public.characters;
+create trigger trg_pact_enforce_basic_mode
+  before insert or update of archived_at on public.characters
+  for each row execute function public.pact_enforce_basic_mode();
+
+revoke all on function public.pact_enforce_basic_mode() from public, anon, authenticated;
+
+-- is_dm_of_player(player) -- true iff auth.uid() DMs a campaign `player` currently plays in. Mirrors
+-- shares_campaign()'s own first branch exactly, deliberately NOT shares_campaign() itself: that
+-- function's other three branches (p_other DMs a campaign I play in; we both play in the same
+-- campaign as fellow players; we co-DM the same campaign) do NOT mean "I am this player's DM", and
+-- basic-mode authority (decision A3) is DM-of-the-player only, one specific direction.
+--
+-- FOUND BY /code-review ultra on PR #531, before merge: set_basic_mode()/unset_basic_mode() originally
+-- called shares_campaign() directly, which let ANY two fellow-players in the same campaign flag each
+-- other (or even their own DM) -- a real privilege escalation, live in production for under a day
+-- before being caught, never actually exploited (0 players flagged at time of fix). Every other
+-- privileged RPC in this codebase (award_ap, seal_character_history, etc.) already checks
+-- is_campaign_dm(campaign); this is that same pattern's account-level equivalent.
+create or replace function public.is_dm_of_player(p_player uuid)
+returns boolean language sql security definer stable set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from campaign_dms d join characters ch on ch.campaign_id = d.campaign_id
+      where d.dm_id = auth.uid() and ch.owner_id = p_player
+  );
+$$;
+
+revoke all on function public.is_dm_of_player(uuid) from public, anon;
+grant execute on function public.is_dm_of_player(uuid) to authenticated;
+
+-- set_basic_mode(player) / unset_basic_mode(player) -- the only write paths for profiles.basic_mode
+-- and its audit columns (profiles has no plain UPDATE grant at all -- see above). Authority per
+-- decision A3: a DM sharing a campaign with the player may turn it ON; the player may ALWAYS turn
+-- their own OFF regardless of any DM's current standing; a DM sharing a campaign may also turn it
+-- off, as a convenience, but is never the only path.
+create or replace function public.set_basic_mode(p_player uuid)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if not is_dm_of_player(p_player) then
+    raise exception 'PACT: only a DM sharing a campaign with this player can turn on basic mode';
+  end if;
+  update profiles
+    set basic_mode = true, basic_mode_set_by = auth.uid(), basic_mode_set_at = now()
+    where id = p_player;
+  if not found then
+    raise exception 'Player not found';
+  end if;
+end;
+$$;
+
+create or replace function public.unset_basic_mode(p_player uuid default null)
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_target uuid := coalesce(p_player, auth.uid());
+begin
+  if v_target <> auth.uid() and not is_dm_of_player(v_target) then
+    raise exception 'PACT: only the player themselves, or a DM sharing a campaign with them, can turn off basic mode';
+  end if;
+  update profiles
+    set basic_mode = false, basic_mode_set_by = null, basic_mode_set_at = null
+    where id = v_target;
+  if not found then
+    raise exception 'Player not found';
+  end if;
+end;
+$$;
+
+revoke all on function public.set_basic_mode(uuid) from public, anon;
+grant execute on function public.set_basic_mode(uuid) to authenticated;
+revoke all on function public.unset_basic_mode(uuid) from public, anon;
+grant execute on function public.unset_basic_mode(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Session-seal RPCs (feat/session-seal, 2026-09-01; award_ap_and_seal's `for update` added 2026-09-02
 -- by D-GH-2026-09-02 restore-dm-edit-guards). These were MISSING from this baseline entirely until
 -- 2026-09-02: a database built the documented fresh-install way (schema.sql + this file) shipped the
@@ -1110,6 +1321,7 @@ grant execute on function public.regenerate_invite_code(uuid)       to authentic
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
+grant execute on function public.edit_ap_award(uuid, integer, text, text) to authenticated;
 grant execute on function public.award_gold(uuid, integer, text) to authenticated;
 grant execute on function public.declare_downtime(uuid, integer, uuid, text) to authenticated;
 grant execute on function public.get_downtime_window(uuid, uuid) to authenticated;
@@ -1144,6 +1356,7 @@ revoke execute on function public.redeem_character_claim(text)                fr
 -- so award_ap is authenticated-only rather than relying solely on its internal
 -- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
 revoke execute on function public.award_ap(uuid, integer, text) from public;
+revoke execute on function public.edit_ap_award(uuid, integer, text, text) from public;
 revoke execute on function public.award_gold(uuid, integer, text) from public;
 revoke execute on function public.declare_downtime(uuid, integer, uuid, text) from public;
 revoke execute on function public.get_downtime_window(uuid, uuid) from public;

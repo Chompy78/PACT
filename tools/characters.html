@@ -110,7 +110,7 @@ function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else docume
 </script>
 <script type="module">
 import { currentSession, onSessionChange } from '../js/auth.js';
-import { listMyCharacters, peekCharacter, archiveCharacter, unarchiveCharacter, deleteCharacter } from '../js/sync.js';
+import { listMyCharacters, peekCharacter, archiveCharacter, unarchiveCharacter, deleteCharacter, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
 import { listMyCampaigns } from '../js/campaign.js';
 
 const TOOL = {
@@ -249,7 +249,13 @@ async function onArchiveToggle(id, isArchived){
     if (c) c.archived_at = isArchived ? null : new Date().toISOString();
     render();
     say(isArchived ? 'Unarchived.' : 'Archived. Use "Show archived" to find it again.', 'good');
-  } catch (err) { say('Could not update: ' + (err && err.message ? err.message : err), 'bad'); }
+  } catch (err) {
+    // feat/player-basic-mode: un-archiving a second character while already at the limit is exactly
+    // as real a rejection as a blocked new-character save (pact_enforce_basic_mode() fires on both) —
+    // must not surface as a raw "Could not update" database error.
+    if (isBasicModeRejection(err)) { say('🔒 ' + BASIC_MODE_MESSAGE, 'bad'); return; }
+    say('Could not update: ' + (err && err.message ? err.message : err), 'bad');
+  }
 }
 
 async function onDelete(id, name, isCloud){
