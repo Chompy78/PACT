@@ -595,7 +595,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime };
@@ -609,6 +609,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
+  window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
@@ -6155,7 +6156,28 @@ function _cgLockSealedControls(){
   });
 }
 
+// feat/armour-selection-gate + feat/armour-campaign-banlist: after every render, disable any
+// #wornArmour <option> the current build can't legally wear (armourEligible — proficiency + the
+// STR-for-benefit rules, mirroring compute()'s own ⛔/⚠ warnings) or this campaign bans
+// (cloudRuleBarred('armour', name) — the new bannedArmours rules field). Composed, not exclusive: an
+// option can be disabled for either or both reasons at once. Never strips an ALREADY-selected value —
+// armourEligible()'s own header explains why (choices freeze at time of purchase) — this only stops a
+// NEW illegal pick; an existing one still surfaces via validate()'s bannedArmours violation and
+// compute()'s existing warnings.
+function _cgSyncArmourPicker(){
+  var sel=$('wornArmour'); if(!sel) return;
+  var b; try{ b=readBuild(); }catch(e){ return; }
+  Array.prototype.forEach.call(sel.options, function(opt){
+    if(!opt.value) return;   // "— none / unarmoured —"
+    var elig=(typeof armourEligible==='function')?armourEligible(b,opt.value):{ok:true,reasons:[]};
+    var reasons=(elig.reasons||[]).slice();
+    if(typeof cloudRuleBarred==='function' && cloudRuleBarred('armour',opt.value)) reasons.push('banned in this campaign');
+    opt.disabled = reasons.length>0;
+    opt.title = reasons.length ? ("Can't wear yet — "+reasons.join('; ')) : '';
+  });
+}
 function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+  try{_cgSyncArmourPicker();}catch(e){}
   try{_cgLockSealedControls();}catch(e){}
   // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
   // AND a ceiling has been stamped for it — otherwise there is nothing to finish against and the

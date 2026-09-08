@@ -843,6 +843,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned armour <button type="button" class="infobtn" title="A banned armour can no longer be selected in the Worn armour picker (CharGen and Live Sheet). A character already wearing it keeps it — this only stops picking it fresh.">&#9432;</button></div><div class="rulegrid" id="ruleBannedArmours"></div></div>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                   <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
                 </label>
@@ -3345,7 +3346,8 @@ document.addEventListener('campaign-ready', function () {
       function(name){ return (_D.boons && _D.boons[name] && _D.boons[name].fx) || ''; }],
     ['ruleBannedDrawbacks', function(){ return Object.keys(_D.drawbacks||{}); },
       function(name){ return (_D.drawbackFx && _D.drawbackFx[name]) || ''; }],
-    ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }]
+    ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }],
+    ['ruleBannedArmours', function(){ return Object.keys(_D.armours||{}); }]   // feat/armour-campaign-banlist
   ];
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
@@ -3402,6 +3404,7 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
+    setRuleGridChecked('ruleBannedArmours', r.bannedArmours);   // feat/armour-campaign-banlist
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
     // rather than off: the cap is what the rules already say, and a campaign silently opting
@@ -3743,7 +3746,7 @@ document.addEventListener('campaign-ready', function () {
     var el = document.getElementById('campRulesSummary'); if(!el) return;
     r = r || {};
     var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedOriginClasses2',
-                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts']
+                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts','bannedArmours']
       .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
     var house = Object.keys(r.houseRules || {}).length;
     var bits = [];
@@ -3947,6 +3950,7 @@ document.addEventListener('campaign-ready', function () {
       bannedBoons: getRuleGridChecked('ruleBannedBoons'),
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
       bannedArts: getRuleGridChecked('ruleBannedArts'),
+      bannedArmours: getRuleGridChecked('ruleBannedArmours'),   // feat/armour-campaign-banlist
       multiDisciplineAllowed: ruleMultiDisc.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
       // Nested under `economy` rather than sitting as a bare `economyBand` key so the block has room
