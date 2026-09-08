@@ -216,8 +216,27 @@ function lanAddress() {
   }
   return null;
 }
+// Found live (2026-09-08): the LAN address above can be unreachable from another device on the same
+// subnet anyway — this server's own firewall was silently dropping the connection (confirmed via
+// `ss -tn` showing zero incoming attempts), while the SAME device reached this box fine over
+// Tailscale. Read directly off the `tailscale0` interface rather than shelling out to the `tailscale`
+// CLI, so this degrades to "just don't show it" on a machine that doesn't have Tailscale, instead of
+// failing on a missing binary.
+function tailscaleAddress() {
+  const ifaces = os.networkInterfaces().tailscale0 || [];
+  const v4 = ifaces.find(i => i.family === 'IPv4');
+  return v4 ? v4.address : null;
+}
 
 server.listen(PORT, '0.0.0.0', () => {
   const lan = lanAddress();
-  console.log(`\n  PACT branch preview\n  ------------------\n  Control panel:  http://localhost:${PORT}${lan ? `  (or http://${lan}:${PORT} from another device on your LAN)` : ''}\n  App (once loaded): http://localhost:${PORT}/PACT/index.html\n`);
+  const ts = tailscaleAddress();
+  const lines = [`  Control panel:  http://localhost:${PORT}`];
+  // Tailscale first when available — confirmed on 2026-09-08 that the plain LAN address can be
+  // silently firewalled off even from a device on the same subnet, while Tailscale still gets
+  // through (it's a VPN tunnel, not subject to this box's own inbound LAN firewall rules).
+  if (ts) lines.push(`  From another device (Tailscale, most reliable): http://${ts}:${PORT}`);
+  if (lan) lines.push(`  From another device (plain LAN — needs \`sudo ufw allow ${PORT}/tcp\` on this machine first): http://${lan}:${PORT}`);
+  lines.push(`  App (once loaded): http://localhost:${PORT}/PACT/index.html`);
+  console.log(`\n  PACT branch preview\n  ------------------\n${lines.join('\n')}\n`);
 });
