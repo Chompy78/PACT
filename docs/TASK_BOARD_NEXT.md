@@ -27,6 +27,37 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/armour-selection-gate — gate armour picker: proficiency/STR (personal) + campaign ban-list (DM) — TODO
+```
+Two independent gates on the "Worn armour" picker in tools/PACT-CharGen-Webtool.html (~line 2403) and
+tools/PACT-Live-Char-Sheet.html (armour <select> in "Weapons & armour"), which currently lists every
+DATA.armours entry unconditionally in both, with no purchase-time block — only a post-hoc compute()
+warning (js/engine.js ~line 868, "⛔ Wearing X needs Y armour proficiency").
+
+1. Personal capability — hard-gate by the build's own proficiencies (b.armour.light/medium/heavy).
+   DATA.armours[name].str is currently a warning-only speed penalty, not a block — decide, as a
+   separate design call, whether this feature makes STR a hard block too or leaves it warning-only.
+2. Campaign allow-list — new bannedArmours campaign-rules field, wired through the SAME
+   cloudRuleBarred()/RULE_BAN_FIELDS mechanism that already filters banned species/boons/drawbacks/
+   masteries/origin-classes out of these pickers (see PACT-CharGen-Webtool.html ~line 2203 for the
+   idiom to mirror). Needs: campaign-rules schema addition, a DM Console settings control matching the
+   existing banned-X blocks, and picker filtering in both tools.
+
+Composition: an armour must pass BOTH gates to be selectable — campaign-allowed AND (if the STR call
+above makes it a hard gate) proficiency/STR-legal. No compute()/pricing changes — this is a picker/
+purchase-time gate only, so no DATA.version bump unless scoping this changes that.
+```
+**Effort:** medium · **Risk:** medium — ambiguity is medium (the STR hard-block-vs-warn call and
+disabled-vs-hidden-option call are genuine design decisions, not mechanical); damage scale is medium
+(two tools' pickers plus a new campaign-rules field and DM Console control, but no engine.js/compute()
+pricing math touched); damage likelihood is low-medium (the ban-list half follows an already-proven
+pattern used for five other fields; the risk is mostly in getting the two open design calls right, which
+human review catches before merge).
+
+**Done when:** both gates enforced in both tools' armour pickers; DM Console has a banned-armour
+setting matching the existing banned-X pattern; `testing/tests/engine-parity.html` still 0 failed;
+`CHANGELOG.md` updated.
+
 ## feat/ap-award-edit-transparency — player-facing display of AP award edits — TODO
 ```
 D-GH-2026-09-08-ap-award-editing shipped the DM side (edit_ap_award() RPC, ap_award_edits audit table,
