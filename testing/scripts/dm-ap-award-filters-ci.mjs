@@ -138,6 +138,75 @@ check('the loaded note no longer matches once retyped', (await visible()).length
 await setF('.ea-note-filter', 'heist');
 const counter = await page.evaluate(() => document.querySelector('.ea-count').textContent);
 check('counter warns that a hidden row still has unsaved changes', /hidden row/.test(counter), counter);
+await setF('.ea-note-filter', '');
+
+console.log('\nEdit AP awards — editable date (item 4, owner decision A)');
+// Reset a3 back to its loaded values first — the previous section left it with genuine unsaved
+// changes (amt/note), which would otherwise also be sent by the Save clicks below and both break the
+// "Nothing changed" assertion and hit the real (unstubbed) network.
+await page.evaluate(() => {
+  const tr = document.querySelector('tr[data-award-id="a3"]');
+  tr.querySelector('.ea-amt').value = tr.getAttribute('data-orig-amount');
+  tr.querySelector('.ea-note').value = tr.getAttribute('data-orig-note');
+  tr.querySelector('.ea-note').dispatchEvent(new Event('input', { bubbles:true }));
+});
+// Stub editApAward for the rest of this file — nothing below should reach real Supabase.
+await page.evaluate(() => { window._eaEditCalls = []; window._campBridge.editApAward = (...args) => { window._eaEditCalls.push(args); return Promise.resolve(42); }; });
+
+// Deliberately no hardcoded absolute time string anywhere below — the CI machine's local timezone is
+// unknown, and <input type="datetime-local"> is always local-time by spec. Every check here is
+// RELATIVE: round-trip the loaded value back unchanged (must not register as a change — guards
+// against the microsecond-vs-whole-second precision loss between Postgres's created_at and what the
+// input can represent), or shift it by a known, large, unambiguous delta.
+const dateVal = sel => page.evaluate(s => document.querySelector(s).value, sel);
+const setDate = (sel, v) => page.evaluate(([s,v]) => {
+  const el = document.querySelector(s); el.value = v;
+  el.dispatchEvent(new Event('change', { bubbles:true }));
+}, [sel, v]);
+
+const a1Sel = 'tr[data-award-id="a1"] .ea-date';
+const origA1 = await dateVal(a1Sel);
+// Seconds are optional in the readback: some browsers normalize a datetime-local value's trailing
+// ":00" seconds away even with step="1" set, which is a display quirk, not a precision loss — the
+// second-level comparisons below work off Date.parse(), not this string, either way.
+check('date input pre-fills from created_at', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(origA1), origA1);
+
+// Re-set the exact same value (simulates a no-op click into the field) — must NOT count as a change.
+await setDate(a1Sel, origA1);
+await page.click('.ea-save');
+let status = await page.evaluate(() => document.querySelector('.ea-status').textContent);
+check('re-setting the same second is not treated as a change', status === 'Nothing changed.', status);
+
+const p = n => String(n).padStart(2,'0');
+
+// Sorting by date must reflect the LIVE edit immediately, before Save — that IS the feature (owner:
+// "a lot are awarded at the same second and the ordering makes it hard for me to understand"). Shift
+// a1 (originally the earliest, 2026-09-01) 10 days forward from its OWN original local value — plain
+// local-time arithmetic, no UTC accessors — to land past every other row (latest is a4/a3,
+// 2026-09-05) and actually change the sort-by-date order.
+const farFuture = new Date(new Date(origA1).getTime() + 10*24*3600*1000);
+const farVal = `${farFuture.getFullYear()}-${p(farFuture.getMonth()+1)}-${p(farFuture.getDate())}T${p(farFuture.getHours())}:${p(farFuture.getMinutes())}:${p(farFuture.getSeconds())}`;
+await setDate(a1Sel, farVal);
+await clickSort('day');
+const orderAfterDateEdit = await order();
+check('sort by date reflects an unsaved live edit, not just the loaded value', orderAfterDateEdit[orderAfterDateEdit.length-1] === 'a1', orderAfterDateEdit.join(','));
+
+// The required-reason rule applies here too — a1's date genuinely changed, so it needs one or Save
+// correctly refuses the whole batch (this is exactly what caught this test's own first draft: it
+// tried to Save with no reason filled in, and got zero calls back — the app enforcing its own rule
+// correctly, not a bug).
+await page.evaluate(() => { document.querySelector('tr[data-award-id="a1"] .ea-editnote').value = 'correcting a bulk-award timestamp collision'; });
+await page.evaluate(() => { window._eaEditCalls = []; });   // clear the no-op Save click's (empty) log
+await page.click('.ea-save');
+const calls = await page.evaluate(() => window._eaEditCalls);
+check('Save calls editApAward exactly once for the one changed row', calls.length === 1, JSON.stringify(calls));
+if(calls.length === 1){
+  const [id, amt, note, createdAt, reason] = calls[0];
+  check('...for the right award', id === 'a1', id);
+  check('...amount/note unchanged (only the date was edited)', amt === 6 && note === 'session four base', JSON.stringify([amt,note]));
+  check('...createdAt is a valid ISO string', typeof createdAt === 'string' && !isNaN(Date.parse(createdAt)), createdAt);
+  check('...reason for the change was required and sent', typeof reason === 'string' && reason.length > 0, reason);
+}
 
 check('no page errors', errors.length === 0, errors.slice(0,2).join(' | '));
 

@@ -4009,13 +4009,26 @@ document.addEventListener('campaign-ready', function () {
   // loaded, and every changed row requires its own short reason (server-enforced too; edit_ap_award
   // rejects a blank one). Independent per-row RPCs (Promise.allSettled), same reasoning as the bulk
   // Award AP action just above: one bad row must not block or roll back the rest.
+  // Local-time <-> ISO round-trip for the date column, feat/dm-ap-award-filters item 4 (2026-09-08,
+  // owner decision A: created_at is directly editable, not a separate occurred_at field — see
+  // js/dm.js's editApAward() doc comment for the full tradeoff). <input type="datetime-local"> is
+  // timezone-naive by spec: its value is always in the BROWSER'S local time, never UTC, so both
+  // directions here go through `Date`'s local-time accessors/constructor rather than any UTC one —
+  // using getUTC*/toISOString formatting on the way in, or `new Date(isoString)` (UTC-aware) on the
+  // way out, would silently shift every displayed/saved time by the viewer's UTC offset.
+  function _eaToLocalInput(iso){
+    var d = iso ? new Date(iso) : null;
+    if(!d || isNaN(d.getTime())) return '';
+    var p = function(n){ return String(n).padStart(2,'0'); };
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+  }
   function _eaRowHTML(a){
-    var ts = (a.created_at||'').slice(0,16).replace('T',' ');
-    // data-day is the YYYY-MM-DD the date filter compares against, as a plain string: the <input
-    // type="date"> value is the same shape, so a lexical compare IS a date compare and no parsing,
-    // timezone or Date object is involved anywhere.
+    // data-day is the YYYY-MM-DD the date FILTER compares against — deliberately the ORIGINAL loaded
+    // date, not the live-edited one: filtering by "when was this originally awarded" and editing
+    // that same row's date are two different questions, and re-filtering mid-edit would risk hiding
+    // the very row being corrected.
     return '<tr data-award-id="'+esc(a.id)+'" data-orig-amount="'+esc(String(a.amount))+'" data-orig-note="'+esc(a.note||'')+'" data-char-name="'+esc((a.characterName||'').toLowerCase())+'"'
-      +' data-day="'+esc((a.created_at||'').slice(0,10))+'" data-dm="'+esc((a.dm||'').toLowerCase())+'">'
+      +' data-day="'+esc((a.created_at||'').slice(0,10))+'" data-dm="'+esc((a.dm||'').toLowerCase())+'" data-orig-created-at="'+esc(a.created_at||'')+'">'
       // Not a hypothetical: found live in production (2026-09-08) that characterName can genuinely be
       // blank — a character whose DB name reverted to empty via the known "cloud saves are last-write-
       // wins" issue (a stale local session autosaving over a later cloud edit). '—' alone is unhelpful
@@ -4024,7 +4037,7 @@ document.addEventListener('campaign-ready', function () {
       +'<td>'+(a.characterName ? esc(a.characterName) : '<span style="opacity:.7">(unnamed — '+esc((a.characterId||'').slice(0,8))+')</span>')+'</td>'
       +'<td><input type="number" step="1" class="ea-amt" value="'+esc(String(a.amount))+'" style="width:70px"></td>'
       +'<td><input type="text" class="ea-note" value="'+esc(a.note||'')+'" style="width:100%;min-width:160px"></td>'
-      +'<td style="white-space:nowrap;font-size:11px;color:var(--muted)">'+esc(ts)+'</td>'
+      +'<td><input type="datetime-local" step="1" class="ea-date" value="'+esc(_eaToLocalInput(a.created_at))+'" style="font-size:11px;width:100%;min-width:150px"></td>'
       +'<td style="font-size:11px;color:var(--muted)">'+esc(a.dm||'')+'</td>'
       +'<td><input type="text" class="ea-editnote" placeholder="reason for the change" style="width:100%;min-width:140px"></td>'
       +'<td class="ea-row-status" style="font-size:11px;color:var(--muted)"></td>'
@@ -4094,16 +4107,39 @@ document.addEventListener('campaign-ready', function () {
     var countEl = emodal.querySelector('.ea-count');
     var eaSort = { key: null, dir: 1 };
 
+    // Compares the .ea-date input's current value against the row's ORIGINAL created_at, truncated
+    // to whole seconds on both sides. Truncation matters: the original ISO from Postgres carries
+    // microseconds, but <input type="datetime-local" step="1"> can only round-trip whole seconds, so
+    // a naive string/millisecond compare would flag every untouched row as "changed" purely from that
+    // precision loss. Returns the new epoch-seconds value if genuinely changed, else null.
+    function _eaDateChangedTo(tr){
+      var dateEl = tr.querySelector('.ea-date');
+      if(!dateEl || !dateEl.value) return null;
+      var newMs = new Date(dateEl.value).getTime();
+      var origIso = tr.getAttribute('data-orig-created-at') || '';
+      var origMs = origIso ? new Date(origIso).getTime() : NaN;
+      if(isNaN(newMs)) return null;
+      if(!isNaN(origMs) && Math.floor(newMs/1000) === Math.floor(origMs/1000)) return null;
+      return newMs;
+    }
     function _eaRowChanged(tr){
       var amtEl = tr.querySelector('.ea-amt'), noteEl = tr.querySelector('.ea-note');
       if(!amtEl || !noteEl) return false;
       return (parseFloat(amtEl.value) || 0) !== (parseFloat(tr.getAttribute('data-orig-amount')) || 0)
-          || (noteEl.value || '').trim() !== (tr.getAttribute('data-orig-note') || '');
+          || (noteEl.value || '').trim() !== (tr.getAttribute('data-orig-note') || '')
+          || _eaDateChangedTo(tr) !== null;
     }
     function _eaSortVal(tr, key){
       if(key === 'char') return tr.getAttribute('data-char-name') || '';
       if(key === 'dm')   return tr.getAttribute('data-dm') || '';
-      if(key === 'day')  return tr.getAttribute('data-day') || '';
+      // Sorts on the LIVE value of the date input, not the loaded data-day — so re-typing a date to
+      // spread out same-second awards re-sorts immediately, before Save, which is the actual point of
+      // making this field editable (owner: "the ordering makes it hard for me to understand").
+      if(key === 'day'){
+        var dEl = tr.querySelector('.ea-date');
+        var t = dEl ? new Date(dEl.value).getTime() : NaN;
+        return isNaN(t) ? 0 : t;
+      }
       if(key === 'note') return ((tr.querySelector('.ea-note')||{}).value || '').toLowerCase();
       if(key === 'amt')  return parseFloat((tr.querySelector('.ea-amt')||{}).value) || 0;
       return '';
@@ -4145,10 +4181,14 @@ document.addEventListener('campaign-ready', function () {
       filterEl.value = ''; noteFilterEl.value = ''; fromEl.value = ''; toEl.value = '';
       eaSort.key = null; _eaApplyView();
     });
-    // The note column's own inputs feed the note filter and the note sort, so retype re-applies both.
-    emodal.querySelector('.ea-tbody').addEventListener('input', function(e){
-      if(e.target && (e.target.classList.contains('ea-note') || e.target.classList.contains('ea-amt'))) _eaApplyView();
-    });
+    // The note/amount/date columns' own inputs feed the note filter and the note/amount/date sorts,
+    // so retyping any of them re-applies all three live — both 'input' (typing) and 'change' (the
+    // datetime-local picker widget, which doesn't fire 'input' in every browser) are listened for.
+    var _eaLiveCols = function(e){
+      return e.target && (e.target.classList.contains('ea-note') || e.target.classList.contains('ea-amt') || e.target.classList.contains('ea-date'));
+    };
+    emodal.querySelector('.ea-tbody').addEventListener('input', function(e){ if(_eaLiveCols(e)) _eaApplyView(); });
+    emodal.querySelector('.ea-tbody').addEventListener('change', function(e){ if(_eaLiveCols(e)) _eaApplyView(); });
     emodal.querySelectorAll('.ea-sort').forEach(function(th){
       th.addEventListener('click', function(){
         var k = th.getAttribute('data-sort');
@@ -4175,10 +4215,12 @@ document.addEventListener('campaign-ready', function () {
         var newNote = (noteEl.value||'').trim();
         var origAmt = parseFloat(tr.getAttribute('data-orig-amount')) || 0;
         var origNote = tr.getAttribute('data-orig-note') || '';
-        if(newAmt === origAmt && newNote === origNote) return;   // unchanged — not sent
+        var newDateMs = _eaDateChangedTo(tr);   // null unless the date genuinely changed (>=1s)
+        if(newAmt === origAmt && newNote === origNote && newDateMs === null) return;   // unchanged — not sent
         var reason = (reasonEl.value||'').trim();
         if(!reason){ missingReason.push(tr); return; }
-        changed.push({ tr: tr, id: tr.getAttribute('data-award-id'), amt: newAmt, note: newNote, reason: reason });
+        changed.push({ tr: tr, id: tr.getAttribute('data-award-id'), amt: newAmt, note: newNote,
+                        createdAt: newDateMs === null ? null : new Date(newDateMs).toISOString(), reason: reason });
       });
       if(missingReason.length){
         missingReason.forEach(function(tr){ tr.querySelector('.ea-row-status').textContent = 'needs a reason'; tr.querySelector('.ea-row-status').style.color = '#c0392b'; });
@@ -4188,7 +4230,7 @@ document.addEventListener('campaign-ready', function () {
       if(!changed.length){ statusEl.textContent = 'Nothing changed.'; return; }
       saveBtn.disabled = true;
       statusEl.textContent = 'Saving '+changed.length+' change'+(changed.length===1?'':'s')+'…';
-      var results = await Promise.allSettled(changed.map(function(c){ return B.editApAward(c.id, c.amt, c.note, c.reason); }));
+      var results = await Promise.allSettled(changed.map(function(c){ return B.editApAward(c.id, c.amt, c.note, c.createdAt, c.reason); }));
       saveBtn.disabled = false;
       var okCount = 0;
       results.forEach(function(r, i){
@@ -4198,6 +4240,7 @@ document.addEventListener('campaign-ready', function () {
           okCount++;
           c.tr.setAttribute('data-orig-amount', String(c.amt));
           c.tr.setAttribute('data-orig-note', c.note);
+          if(c.createdAt) c.tr.setAttribute('data-orig-created-at', c.createdAt);
           rs.textContent = 'saved'; rs.style.color = 'var(--muted)';
         } else {
           rs.textContent = 'failed: '+((r.reason&&r.reason.message)||String(r.reason)); rs.style.color = '#c0392b';

@@ -412,13 +412,24 @@ export async function getPartyAwardHistory(campaignId) {
  * before/after state, who, and when land in ap_award_edits (visible to the character's own owner,
  * not just DMs — see getAwardEditHistory() below). Adjusts the character's running `ap` total by
  * the delta (new − old), not an overwrite, so it composes correctly with any award made since.
+ *
+ * `newCreatedAt` — feat/dm-ap-award-filters item 4 (2026-09-08, owner decision A): pass `null` (the
+ * default) to leave the award's date untouched — the common case, an amount/note-only edit. Pass a
+ * Date or an ISO string to REWRITE the award's actual created_at, letting a DM spread out awards
+ * that landed at the exact same instant (a real bulk-award artifact — one batch has 24 rows sharing
+ * one timestamp to the microsecond) into a meaningful order. This is a deliberate tradeoff, not an
+ * oversight: created_at is also ap_award_edits' own audit-ordering key, so once it's rewritable that
+ * ordering is no longer fully reliable. Surfaced and accepted explicitly — see
+ * decisions/2026/D-GH-2026-09-08-ap-award-editing.md's addendum. The safer alternative (a separate
+ * occurred_at display field, created_at left untouched) was offered and not chosen.
  * @returns {Promise<number>} the character's new ap total
  */
-export async function editApAward(awardId, newAmount, newNote, editNote) {
+export async function editApAward(awardId, newAmount, newNote, newCreatedAt, editNote) {
   const { data, error } = await supabase.rpc('edit_ap_award', {
     p_award_id: awardId,
     p_new_amount: newAmount,
     p_new_note: newNote ?? null,
+    p_new_created_at: newCreatedAt ?? null,
     p_edit_note: editNote,
   });
   if (error) throw error;
