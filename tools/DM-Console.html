@@ -3703,7 +3703,22 @@ document.addEventListener('campaign-ready', function () {
   // Test seam: currentCampId is closure-local (this closure, not the earlier "UI layer" one), and
   // _renderPartyDowntime()/awardBody() both gate on it being set — same reasoning as every other
   // window._dm*Test seam here, letting the gate drive real rendering without a live campaign select.
-  window._dmSetCampIdTest = function(id){ currentCampId = id; };
+  window._dmSetCampIdTest = function(id){
+    currentCampId = id;
+    // Real campaign selection flips THREE separate display switches before any of the
+    // campaign-scoped controls (#campAwardApTile, #campEditAwardsTile, #campSection's roster, ...)
+    // are reachable: #campControls on sign-in (updateAuth()), #campCodes and #campSection inside
+    // selectCampaign() itself. This hook exists precisely so a gate can skip the real sign-in/
+    // selectCampaign() machinery (which needs a live session and a `camp` object from
+    // currentCampaigns/getRoster) — so it has to flip the same three switches by hand, or every
+    // control nested under them (found empirically: #campEditAwardsTile lives under #campCodes >
+    // #campControls, NOT under #campSection as the DOM's visual grouping suggests) stays
+    // display:none and unreachable to a click no matter what currentCampId is set to.
+    var on = !!id;
+    if(campControls) campControls.style.display = on ? '' : 'none';
+    if(campCodes)    campCodes.style.display    = on ? 'block' : 'none';
+    if(campSection)  campSection.style.display  = on ? 'block' : 'none';
+  };
   window._dmSetCampaignsTest = function(camps){ currentCampaigns = camps || []; };   // for loadCoDms()'s owner-filter test
   // Advancement-dial helpers (feat/advancement-tracks): live L20 preview + preset↔field sync.
   // DATA tables are read lazily inside each handler so a panel opened before engine-ready
@@ -3996,8 +4011,17 @@ document.addEventListener('campaign-ready', function () {
   // Award AP action just above: one bad row must not block or roll back the rest.
   function _eaRowHTML(a){
     var ts = (a.created_at||'').slice(0,16).replace('T',' ');
-    return '<tr data-award-id="'+esc(a.id)+'" data-orig-amount="'+esc(String(a.amount))+'" data-orig-note="'+esc(a.note||'')+'" data-char-name="'+esc((a.characterName||'').toLowerCase())+'">'
-      +'<td>'+esc(a.characterName||'—')+'</td>'
+    // data-day is the YYYY-MM-DD the date filter compares against, as a plain string: the <input
+    // type="date"> value is the same shape, so a lexical compare IS a date compare and no parsing,
+    // timezone or Date object is involved anywhere.
+    return '<tr data-award-id="'+esc(a.id)+'" data-orig-amount="'+esc(String(a.amount))+'" data-orig-note="'+esc(a.note||'')+'" data-char-name="'+esc((a.characterName||'').toLowerCase())+'"'
+      +' data-day="'+esc((a.created_at||'').slice(0,10))+'" data-dm="'+esc((a.dm||'').toLowerCase())+'">'
+      // Not a hypothetical: found live in production (2026-09-08) that characterName can genuinely be
+      // blank — a character whose DB name reverted to empty via the known "cloud saves are last-write-
+      // wins" issue (a stale local session autosaving over a later cloud edit). '—' alone is unhelpful
+      // once more than one row has it, since they become indistinguishable; showing the character id
+      // (short) at least makes each unnamed row traceable back to the actual character.
+      +'<td>'+(a.characterName ? esc(a.characterName) : '<span style="opacity:.7">(unnamed — '+esc((a.characterId||'').slice(0,8))+')</span>')+'</td>'
       +'<td><input type="number" step="1" class="ea-amt" value="'+esc(String(a.amount))+'" style="width:70px"></td>'
       +'<td><input type="text" class="ea-note" value="'+esc(a.note||'')+'" style="width:100%;min-width:160px"></td>'
       +'<td style="white-space:nowrap;font-size:11px;color:var(--muted)">'+esc(ts)+'</td>'
@@ -4031,9 +4055,16 @@ document.addEventListener('campaign-ready', function () {
     emodal.innerHTML = '<div class="inner" style="max-width:920px">'
       +'<h3 style="margin:0 0 10px;color:var(--heading)">Edit AP awards</h3>'
       +'<div class="grantnote" style="margin:0 0 8px">Change an amount or note directly, add a short reason in its row, then Save. Only rows you actually change are sent. A player can always see that one of their awards was edited, and why.</div>'
-      +'<input type="text" class="ea-filter" placeholder="Filter by character…" style="width:100%;margin-bottom:8px">'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">'
+      +'<input type="text" class="ea-filter" placeholder="Filter by character…" style="flex:1 1 160px;min-width:140px">'
+      +'<input type="text" class="ea-note-filter" placeholder="Filter note by word…" style="flex:1 1 160px;min-width:140px">'
+      +'<label style="font-size:11px;color:var(--muted)">from <input type="date" class="ea-from" style="font:inherit"></label>'
+      +'<label style="font-size:11px;color:var(--muted)">to <input type="date" class="ea-to" style="font:inherit"></label>'
+      +'<button type="button" class="btn sm ghost ea-clear">Clear</button>'
+      +'<span class="ea-count" style="font-size:11px;color:var(--muted)"></span>'
+      +'</div>'
       +'<div style="max-height:50vh;overflow:auto"><table class="ea-table"><thead><tr>'
-      +'<th>Character</th><th>Amount</th><th>Note</th><th>Date</th><th>DM</th><th>Reason for change</th><th></th>'
+      +'<th class="ea-sort" data-sort="char" title="Sort" style="cursor:pointer">Character</th>'+'<th class="ea-sort" data-sort="amt" title="Sort" style="cursor:pointer">Amount</th>'+'<th class="ea-sort" data-sort="note" title="Sort" style="cursor:pointer">Note</th>'+'<th class="ea-sort" data-sort="day" title="Sort" style="cursor:pointer">Date</th>'+'<th class="ea-sort" data-sort="dm" title="Sort" style="cursor:pointer">DM</th>'+'<th>Reason for change</th><th></th>'
       +'</tr></thead><tbody class="ea-tbody">'+_eaRenderRows(rows)+'</tbody></table></div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">'
       +'<span class="ea-status" style="font-size:11px;color:var(--muted)"></span>'
@@ -4043,13 +4074,94 @@ document.addEventListener('campaign-ready', function () {
     emodal.addEventListener('click', function(e){ if(e.target===emodal) emodal.remove(); });
     document.body.appendChild(emodal);
 
+    // FILTER + SORT (2026-09-08). Three filters — character, a word in the note, and a date range —
+    // plus click-to-sort on Character / Amount / Note / Date / DM.
+    //
+    // TWO THINGS THIS MUST NOT DO, both of which would lose a DM's typing:
+    //   · Sorting REORDERS THE EXISTING <tr> NODES with appendChild. It never re-renders from `rows`,
+    //     because every row holds three live inputs — a staged amount, a staged note, and that row's
+    //     reason-for-change — and re-rendering would silently discard all of them mid-edit.
+    //   · The note filter reads the INPUT'S CURRENT VALUE, not data-orig-note, so a DM can still find
+    //     a row by what they have just typed into it rather than only by what was loaded.
+    //
+    // Filtering hides rows; it does NOT exclude them from Save. That is deliberate — an edit already
+    // staged must not vanish because the view was narrowed afterwards — so the counter reports how many
+    // hidden rows are carrying changes rather than leaving it to be discovered on save.
     var filterEl = emodal.querySelector('.ea-filter');
-    filterEl.addEventListener('input', function(){
+    var noteFilterEl = emodal.querySelector('.ea-note-filter');
+    var fromEl = emodal.querySelector('.ea-from');
+    var toEl = emodal.querySelector('.ea-to');
+    var countEl = emodal.querySelector('.ea-count');
+    var eaSort = { key: null, dir: 1 };
+
+    function _eaRowChanged(tr){
+      var amtEl = tr.querySelector('.ea-amt'), noteEl = tr.querySelector('.ea-note');
+      if(!amtEl || !noteEl) return false;
+      return (parseFloat(amtEl.value) || 0) !== (parseFloat(tr.getAttribute('data-orig-amount')) || 0)
+          || (noteEl.value || '').trim() !== (tr.getAttribute('data-orig-note') || '');
+    }
+    function _eaSortVal(tr, key){
+      if(key === 'char') return tr.getAttribute('data-char-name') || '';
+      if(key === 'dm')   return tr.getAttribute('data-dm') || '';
+      if(key === 'day')  return tr.getAttribute('data-day') || '';
+      if(key === 'note') return ((tr.querySelector('.ea-note')||{}).value || '').toLowerCase();
+      if(key === 'amt')  return parseFloat((tr.querySelector('.ea-amt')||{}).value) || 0;
+      return '';
+    }
+    function _eaApplyView(){
+      var tbody = emodal.querySelector('.ea-tbody');
+      var trs = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-award-id]'));
       var q = filterEl.value.trim().toLowerCase();
-      emodal.querySelectorAll('.ea-tbody tr[data-award-id]').forEach(function(tr){
-        tr.style.display = (!q || tr.getAttribute('data-char-name').indexOf(q) !== -1) ? '' : 'none';
+      var nq = noteFilterEl.value.trim().toLowerCase();
+      var from = fromEl.value, to = toEl.value;   // '' or YYYY-MM-DD, same shape as data-day
+      var shown = 0, hiddenChanged = 0;
+      trs.forEach(function(tr){
+        var day = tr.getAttribute('data-day') || '';
+        var note = ((tr.querySelector('.ea-note')||{}).value || '').toLowerCase();
+        var ok = (!q  || (tr.getAttribute('data-char-name')||'').indexOf(q) !== -1)
+              && (!nq || note.indexOf(nq) !== -1)
+              && (!from || (day && day >= from))
+              && (!to   || (day && day <= to));
+        tr.style.display = ok ? '' : 'none';
+        if(ok) shown++; else if(_eaRowChanged(tr)) hiddenChanged++;
+      });
+      if(eaSort.key){
+        trs.slice().sort(function(a,b){
+          var x = _eaSortVal(a, eaSort.key), y = _eaSortVal(b, eaSort.key);
+          if(x === y) return 0;
+          return (x > y ? 1 : -1) * eaSort.dir;
+        }).forEach(function(tr){ tbody.appendChild(tr); });   // move, never rebuild
+      }
+      if(countEl){
+        countEl.textContent = 'showing ' + shown + ' of ' + trs.length
+          + (hiddenChanged ? ' · ' + hiddenChanged + ' hidden row' + (hiddenChanged===1?'':'s') + ' still has unsaved changes' : '');
+      }
+    }
+    emodal._eaApplyView = _eaApplyView;   // named so the UI gate can drive it
+
+    [filterEl, noteFilterEl].forEach(function(el){ el.addEventListener('input', _eaApplyView); });
+    [fromEl, toEl].forEach(function(el){ el.addEventListener('change', _eaApplyView); });
+    emodal.querySelector('.ea-clear').addEventListener('click', function(){
+      filterEl.value = ''; noteFilterEl.value = ''; fromEl.value = ''; toEl.value = '';
+      eaSort.key = null; _eaApplyView();
+    });
+    // The note column's own inputs feed the note filter and the note sort, so retype re-applies both.
+    emodal.querySelector('.ea-tbody').addEventListener('input', function(e){
+      if(e.target && (e.target.classList.contains('ea-note') || e.target.classList.contains('ea-amt'))) _eaApplyView();
+    });
+    emodal.querySelectorAll('.ea-sort').forEach(function(th){
+      th.addEventListener('click', function(){
+        var k = th.getAttribute('data-sort');
+        eaSort.dir = (eaSort.key === k) ? -eaSort.dir : 1;
+        eaSort.key = k;
+        emodal.querySelectorAll('.ea-sort').forEach(function(o){
+          o.textContent = o.textContent.replace(/ [\u2191\u2193]$/, '');
+        });
+        th.textContent = th.textContent + (eaSort.dir === 1 ? ' \u2191' : ' \u2193');
+        _eaApplyView();
       });
     });
+    _eaApplyView();
 
     var saveBtn = emodal.querySelector('.ea-save');
     var statusEl = emodal.querySelector('.ea-status');
