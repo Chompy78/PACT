@@ -244,6 +244,11 @@ create table if not exists public.ap_award_edits (
   old_note     text,
   new_amount   integer not null,
   new_note     text,
+  -- feat/dm-ap-award-filters item 4 (2026-09-08, owner decision A): only set when that edit actually
+  -- changed the award's date — NULL/NULL means "this edit didn't touch created_at". Distinct from
+  -- this table's OWN `created_at` below, which is when the edit itself happened, not the award's date.
+  old_created_at timestamptz,
+  new_created_at timestamptz,
   edit_note    text not null,
   created_at   timestamptz not null default now()
 );

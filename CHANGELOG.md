@@ -4,6 +4,25 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-08 · feat: Edit AP Awards gets date/note filters, click-to-sort, and an editable award
+  date** — extends the 2026-09-08 Edit AP Awards feature (see the entry directly below). Adds a
+  from/to date-range filter, a note-word filter, and click-to-sort on any column — all combine (AND),
+  a hidden-but-changed row is called out so a narrowed view can never silently hide unsaved work, and
+  sorting moves the actual `<tr>` nodes rather than re-rendering (a re-render would discard a DM's
+  in-progress amount/note/reason mid-edit). The substantial piece: `ap_awards.created_at` is now
+  directly editable (owner decision, with the audit-preserving alternative offered and declined —
+  see the decision record's addendum) — confirmed live that one bulk-award batch has 24 rows sharing
+  the same timestamp to the microsecond, which is exactly what made ordering "hard to understand."
+  `edit_ap_award()` gained a nullable 5th parameter so the common amount/note-only edit is unaffected.
+  Verified with a dedicated Playwright gate (26/26) — running it for the first time (this feature had
+  never been opened in a browser before this task) surfaced and fixed two real bugs: the offline test
+  seam `_dmSetCampIdTest` never actually revealed the panel it claimed to (it set a variable but never
+  flipped the three display switches real campaign selection does), and the gate's own "sort by
+  character" expectation had two rows in the wrong order. Also found, live: a character's award-list
+  name can genuinely be blank (the same "cloud saves are last-write-wins" failure mode as an
+  already-known issue, re-surfacing on a character fixed by hand earlier the same session) — unnamed
+  rows now show a short character id instead of an indistinguishable `—`. See
+  `decisions/2026/D-GH-2026-09-08-ap-award-editing.md`'s addendum.
 - **2026-09-08 · feat: DM Console can now edit an existing AP award in place** — new
   `edit_ap_award()` RPC (same DM-of-campaign permission shape as `award_ap`) corrects an award's
   amount/note with a required reason, applying the *delta* to `characters.ap` rather than an

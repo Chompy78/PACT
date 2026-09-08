@@ -87,3 +87,32 @@ browser to verify against, was judged out of scope for this same session — fil
 `docs/TASK_BOARD_NEXT.md` rather than added unverified. The RLS policy on `ap_award_edits` already
 permits the read (`ap_award_edits_select`, same shape as `ap_awards_select`) — nothing further needs
 to change server-side when that panel is built, only client UI.
+
+## Addendum (2026-09-08) — `created_at` made directly editable
+
+`feat/dm-ap-award-filters` extended DM Console's "Edit AP Awards" screen with filters, click-to-sort,
+and — the substantial piece — an editable award date. Owner's own words: *"a lot are awarded at the
+same second and the ordering makes it hard for me to understand."* Confirmed live: one bulk-award
+batch has **24 rows sharing the exact same `created_at` down to the microsecond**
+(`2026-08-10 11:58:58.142556+00`).
+
+Two options were put to the owner before any migration was written, per this record's own working
+discipline:
+- **A. Let the DM rewrite `created_at` directly.** Smallest change; destroys the one immutable fact
+  `ap_award_edits`' own before/after ordering rested on.
+- **B. A separate `occurred_at` display field, `created_at` left untouched.** More work; preserves
+  the audit invariant.
+
+**Chosen: A** — the owner's explicit call, made after B was recommended and the tradeoff (audit
+ordering becomes unreliable once the column it orders by is itself rewritable) was stated plainly.
+`edit_ap_award()` gained a 5th parameter, `p_new_created_at timestamptz`, nullable — `NULL` means
+"this edit didn't touch the date," so the common amount/note-only correction is unaffected.
+`ap_award_edits` gained matching `old_created_at`/`new_created_at` columns, populated only on an
+edit that actually changed the date. The modal's Date column is now `<input type="datetime-local"
+step="1">`, live-editable, and — since the whole point is letting the DM see a corrected order
+*before* committing — the date-sort key reads the input's current value, not the loaded one, same
+"live value" treatment the note filter already had. Verified with a dedicated Playwright gate
+(`testing/scripts/dm-ap-award-filters-ci.mjs`, 26/26), including that a same-second round-trip
+(precision lost between Postgres's microseconds and the input's whole-second granularity) does
+**not** register as a change, and that a genuine edit is rejected without a reason, same as any
+other field.
