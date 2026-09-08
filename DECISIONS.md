@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-09-08-ap-award-editing — correcting an award happens in place, audited, not by adding a compensating award
+- A live bug (a bulk "session 6" award landed as +4 AP instead of +5 on all six Amble characters) had
+  no supported fix — `award_ap()` only ever adds a new award, never corrects an existing one. New
+  `edit_ap_award()` RPC corrects an award's amount/note in place, applying the **delta** to
+  `characters.ap` (not an overwrite, so it composes with any award made since), with a **required**
+  reason and a full append-only audit trail (`ap_award_edits`) visible to the character's own owner,
+  not DM-only — matching this app's existing "never delete, always append a correction" pattern. DM
+  Console gets one campaign-wide grid (every award, every character, filterable), staged edits (nothing
+  writes until Save), independent per-row RPCs. Player-facing display of the edit trail is filed as a
+  follow-up — Live Sheet has no existing "view your AP awards" surface at all to extend. Full record:
+  `decisions/2026/D-GH-2026-09-08-ap-award-editing.md`.
+
 ## D-GH-2026-09-05-player-basic-mode — who may set/unset a player's one-character restriction, and what happens when the authorizing relationship ends
 - A cold-plan-review draft for the "basic mode" task defaulted to "any DM sharing a campaign may set
   AND unset," which two independent Claude Code sub-agent reviewers each flagged as reversibility-broken:

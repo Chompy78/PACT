@@ -384,6 +384,69 @@ export async function getAwardHistory(characterId) {
 }
 
 /**
+ * feat/dm-ap-award-editing (2026-09-08): the AP award history for a WHOLE campaign at once
+ * (every character, newest first) — the bulk twin of getAwardHistory() above, for DM Console's
+ * "edit any award, several characters at once" grid rather than the one-character-at-a-time view.
+ * Readable by any DM of the campaign (RLS: ap_awards_select already covers this — a DM sees every
+ * row in their own campaign).
+ * @returns {Promise<Array<{id,characterId,characterName,amount,note,created_at,dm_id,dm}>>}
+ */
+export async function getPartyAwardHistory(campaignId) {
+  const { data, error } = await supabase
+    .from('ap_awards')
+    .select('id, character_id, amount, note, created_at, dm_id, dm:profiles!ap_awards_dm_id_fkey(display_name), character:characters!ap_awards_character_id_fkey(name)')
+    .eq('campaign_id', campaignId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(a => ({
+    id: a.id, characterId: a.character_id, characterName: a.character?.name || '',
+    amount: a.amount, note: a.note, created_at: a.created_at,
+    dm_id: a.dm_id, dm: a.dm?.display_name || '',
+  }));
+}
+
+/**
+ * feat/dm-ap-award-editing (2026-09-08): correct an EXISTING award's amount and/or note, in place
+ * — as opposed to awardAp() above, which only ever adds a new, separate award. `editNote` is
+ * required (the server rejects a blank one) so every correction states why. Fully audited: the
+ * before/after state, who, and when land in ap_award_edits (visible to the character's own owner,
+ * not just DMs — see getAwardEditHistory() below). Adjusts the character's running `ap` total by
+ * the delta (new − old), not an overwrite, so it composes correctly with any award made since.
+ * @returns {Promise<number>} the character's new ap total
+ */
+export async function editApAward(awardId, newAmount, newNote, editNote) {
+  const { data, error } = await supabase.rpc('edit_ap_award', {
+    p_award_id: awardId,
+    p_new_amount: newAmount,
+    p_new_note: newNote ?? null,
+    p_edit_note: editNote,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * feat/dm-ap-award-editing (2026-09-08): the edit trail for a single award (newest first) —
+ * every correction ever made to it, with the full before/after and who/why. Readable by the
+ * character's owner and any campaign DM (same audience as the award itself), per the owner
+ * decision that award edits are transparent to the player, not DM-only bookkeeping.
+ * @returns {Promise<Array<{id,old_amount,old_note,new_amount,new_note,edit_note,created_at,dm_id,dm}>>}
+ */
+export async function getAwardEditHistory(awardId) {
+  const { data, error } = await supabase
+    .from('ap_award_edits')
+    .select('id, old_amount, old_note, new_amount, new_note, edit_note, created_at, dm_id, dm:profiles!ap_award_edits_dm_id_fkey(display_name)')
+    .eq('award_id', awardId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(e => ({
+    id: e.id, old_amount: e.old_amount, old_note: e.old_note,
+    new_amount: e.new_amount, new_note: e.new_note, edit_note: e.edit_note,
+    created_at: e.created_at, dm_id: e.dm_id, dm: e.dm?.display_name || '',
+  }));
+}
+
+/**
  * Read-only full character data for the DM to inspect: the raw stats blob the
  * engine can hydrate + recompute from. (compute() is not called here — the
  * caller passes stats to the engine.)

@@ -115,6 +115,7 @@ alter table public.campaigns          enable row level security;
 alter table public.characters         enable row level security;
 alter table public.campaign_dms       enable row level security;
 alter table public.ap_awards          enable row level security;
+alter table public.ap_award_edits     enable row level security;
 alter table public.gold_awards        enable row level security;
 alter table public.campaign_downtime_declarations enable row level security;
 alter table public.character_dm_notes enable row level security;
@@ -141,6 +142,7 @@ grant select, insert, delete on public.campaigns to authenticated;   -- update i
 grant select, insert on public.profiles to authenticated;
 grant select on public.campaign_dms to authenticated;   -- writes via RPCs only
 grant select on public.ap_awards    to authenticated;   -- inserts via award_ap only
+grant select on public.ap_award_edits to authenticated; -- inserts via edit_ap_award only
 grant select on public.gold_awards  to authenticated;   -- inserts via award_gold only
 grant select on public.campaign_downtime_declarations to authenticated;   -- inserts via declare_downtime only
 
@@ -226,6 +228,19 @@ create policy campaign_dms_select on public.campaign_dms
 -- ---------------------------------------------------------------------------
 drop policy if exists ap_awards_select on public.ap_awards;
 create policy ap_awards_select on public.ap_awards
+  for select using (
+    is_campaign_dm(campaign_id)
+    or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
+  );
+
+-- ---------------------------------------------------------------------------
+-- ap_award_edits — the audit trail for edit_ap_award() (feat/dm-ap-award-editing, 2026-09-08).
+-- Same readers as ap_awards immediately above, on purpose (owner decision this session, "4:
+-- transparency"): a player can see that one of their own awards was corrected, and why, not just
+-- the DM. Inserts happen only through edit_ap_award() (definer).
+-- ---------------------------------------------------------------------------
+drop policy if exists ap_award_edits_select on public.ap_award_edits;
+create policy ap_award_edits_select on public.ap_award_edits
   for select using (
     is_campaign_dm(campaign_id)
     or exists (select 1 from characters c where c.id = character_id and c.owner_id = auth.uid())
@@ -420,6 +435,66 @@ begin
 
   update characters set ap = ap + p_amount
     where id = p_character
+    returning ap into v_ap;
+  return v_ap;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- edit_ap_award(award_id, new_amount, new_note, edit_note) — feat/dm-ap-award-editing,
+-- 2026-09-08. The ONLY way to change an existing ap_awards row. Same permission shape as
+-- award_ap() directly above: any DM of the award's (still-active) campaign. edit_note is
+-- required (owner decision this session — a correction always states why). Logs the full
+-- before/after to ap_award_edits, then applies the DELTA (new − old) to characters.ap, not an
+-- overwrite, so it composes correctly with any award made between the original and this edit.
+-- ---------------------------------------------------------------------------
+drop function if exists public.edit_ap_award(uuid, integer, text, text);
+create or replace function public.edit_ap_award(
+  p_award_id   uuid,
+  p_new_amount integer,
+  p_new_note   text,
+  p_edit_note  text
+)
+returns integer language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_character  uuid;
+  v_campaign   uuid;
+  v_old_amount integer;
+  v_old_note   text;
+  v_delta      integer;
+  v_ap         integer;
+begin
+  if p_edit_note is null or btrim(p_edit_note) = '' then
+    raise exception 'An edit note is required';
+  end if;
+
+  select character_id, campaign_id, amount, note
+    into v_character, v_campaign, v_old_amount, v_old_note
+    from ap_awards where id = p_award_id;
+
+  if v_character is null then
+    raise exception 'Award not found';
+  end if;
+  if v_campaign is null then
+    raise exception 'Award has no campaign context';
+  end if;
+  if not is_campaign_dm(v_campaign) then
+    raise exception 'Only a campaign DM can edit an AP award';
+  end if;
+  perform assert_campaign_active(v_campaign);
+
+  v_delta := p_new_amount - v_old_amount;
+
+  insert into ap_award_edits
+    (award_id, character_id, campaign_id, dm_id, old_amount, old_note, new_amount, new_note, edit_note)
+    values
+    (p_award_id, v_character, v_campaign, auth.uid(), v_old_amount, v_old_note, p_new_amount, p_new_note, p_edit_note);
+
+  update ap_awards set amount = p_new_amount, note = p_new_note
+    where id = p_award_id;
+
+  update characters set ap = ap + v_delta
+    where id = v_character
     returning ap into v_ap;
   return v_ap;
 end;
@@ -1246,6 +1321,7 @@ grant execute on function public.regenerate_invite_code(uuid)       to authentic
 grant execute on function public.archive_campaign(uuid)             to authenticated;
 grant execute on function public.unarchive_campaign(uuid)           to authenticated;
 grant execute on function public.award_ap(uuid, integer, text)      to authenticated;
+grant execute on function public.edit_ap_award(uuid, integer, text, text) to authenticated;
 grant execute on function public.award_gold(uuid, integer, text) to authenticated;
 grant execute on function public.declare_downtime(uuid, integer, uuid, text) to authenticated;
 grant execute on function public.get_downtime_window(uuid, uuid) to authenticated;
@@ -1280,6 +1356,7 @@ revoke execute on function public.redeem_character_claim(text)                fr
 -- so award_ap is authenticated-only rather than relying solely on its internal
 -- is_campaign_dm() guard. See sql/migrations/2026-07-02-drop-legacy-award-xp-lock-award-ap.sql.
 revoke execute on function public.award_ap(uuid, integer, text) from public;
+revoke execute on function public.edit_ap_award(uuid, integer, text, text) from public;
 revoke execute on function public.award_gold(uuid, integer, text) from public;
 revoke execute on function public.declare_downtime(uuid, integer, uuid, text) from public;
 revoke execute on function public.get_downtime_window(uuid, uuid) from public;

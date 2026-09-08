@@ -27,6 +27,23 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/ap-award-edit-transparency — player-facing display of AP award edits — TODO
+```
+D-GH-2026-09-08-ap-award-editing shipped the DM side (edit_ap_award() RPC, ap_award_edits audit table,
+DM Console's "Edit AP Awards" grid). What's missing: a PLAYER-facing display of that edit trail. Live
+Sheet has no existing "view your AP awards" panel at all to extend — the only prior use of
+getAwardHistory() there is internal (migrating awards into itemized log entries on campaign→standalone
+clone, not a visible history UI). Build one: somewhere reachable from the character sheet, show each
+award (amount, note, date, DM) and, for any award that was edited, its edit trail (old→new amount/note,
+reason, who, when) via the new getAwardEditHistory(awardId) helper in js/dm.js (already exported).
+RLS already permits the read (ap_award_edits_select mirrors ap_awards_select) — this is UI-only, no
+server-side change needed. Decide the display shape (inline under each award vs. a separate history
+modal, matching DM Console's own .hist-modal pattern) before implementing.
+```
+**Done when:** a signed-in player viewing their own campaign character in Live Sheet can see their full
+AP award history, and any award that has been edited shows its correction (old/new amount+note, the
+DM's reason, who, when) — verified against a real edited award in the live Supabase data.
+
 ## REV-14b — split js/engine.js's compute() into named sub-pricers — TODO
 Branch refactor/rev-14b-compute-subpricers. Second half of REV-14 (REV-14a — the DATA extraction — shipped
 in PR #251); decompose compute()'s single ~370-line body (~lines 76–446) into named `_price*` helpers. Full

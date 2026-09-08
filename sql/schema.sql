@@ -229,6 +229,28 @@ create table if not exists public.ap_awards (
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
 
 -- ---------------------------------------------------------------------------
+-- ap_award_edits — append-only audit trail for edit_ap_award() (feat/dm-ap-award-editing,
+-- 2026-09-08). One row per edit, capturing the full before/after amount+note plus who and why —
+-- an award is never overwritten in place, only ever corrected on top, same "never delete, always
+-- append" pattern as the rest of this app's history model.
+-- ---------------------------------------------------------------------------
+create table if not exists public.ap_award_edits (
+  id           uuid primary key default gen_random_uuid(),
+  award_id     uuid not null references public.ap_awards(id) on delete cascade,
+  character_id uuid not null references public.characters(id) on delete cascade,
+  campaign_id  uuid references public.campaigns(id) on delete set null,
+  dm_id        uuid references public.profiles(id) on delete set null,
+  old_amount   integer not null,
+  old_note     text,
+  new_amount   integer not null,
+  new_note     text,
+  edit_note    text not null,
+  created_at   timestamptz not null default now()
+);
+create index if not exists idx_ap_award_edits_award on public.ap_award_edits(award_id);
+create index if not exists idx_ap_award_edits_char  on public.ap_award_edits(character_id);
+
+-- ---------------------------------------------------------------------------
 -- gold_awards — the gold award ledger, the twin of ap_awards above. award_gold() writes a
 -- row stamped with the calling DM and bumps the running characters.gold total. May be zero
 -- or negative (a deduction), exactly like ap_awards.
