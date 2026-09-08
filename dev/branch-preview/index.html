@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PACT — branch preview</title>
+<style>
+  :root {
+    --bg:#f4f3f0; --card:#fff; --border:#ddd8cd; --ink:#2b2620; --muted:#766649;
+    --accent:#7a4b2b; --accent-ink:#fff; --ok:#2e7d32; --warn:#b8860b; --danger:#b23a2e;
+    --code-bg:#f0ede6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#181614; --card:#242019; --border:#3a352c; --ink:#e9e4da; --muted:#a99b81;
+      --accent:#c98a52; --accent-ink:#181410; --ok:#7bd88f; --warn:#e0b84a; --danger:#e08a7c;
+      --code-bg:#2c271f; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+  header { padding:18px 22px; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; }
+  header .sub { color:var(--muted); font-size:12px; }
+  main { max-width:920px; margin:0 auto; padding:18px 22px 60px; }
+  #current { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:18px; }
+  #current .label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  #current .line { margin-top:4px; font-size:14px; }
+  #current code { background:var(--code-bg); padding:1px 6px; border-radius:5px; font-size:12.5px; }
+  #current .links { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+  .filterbar { display:flex; gap:8px; margin-bottom:12px; }
+  .filterbar input { flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--ink); font-size:13px; }
+  ul#list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  li.row { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:11px 14px; display:flex; align-items:center; gap:12px; }
+  li.row.baseline { border-color:var(--accent); }
+  .name { font-weight:600; min-width:0; flex:1; }
+  .name .display { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+  .badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:20px; margin-left:6px; vertical-align:middle; }
+  .badge.baseline { background:var(--accent); color:var(--accent-ink); }
+  .badge.current { background:var(--ok); color:#fff; }
+  .meta { color:var(--muted); font-size:12px; min-width:0; }
+  .meta .subject { color:var(--ink); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:340px; }
+  .ab { font-family:ui-monospace,monospace; font-size:12px; white-space:nowrap; }
+  .ab .ahead { color:var(--ok); }
+  .ab .behind { color:var(--danger); }
+  button { font:inherit; cursor:pointer; border:1px solid var(--border); background:var(--card); color:var(--ink); border-radius:8px; padding:7px 12px; }
+  button.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  button.link { border:none; background:none; color:var(--accent); padding:4px 0; text-decoration:underline; font-size:12px; }
+  a.applink { text-decoration:none; color:var(--accent-ink); background:var(--accent); padding:6px 10px; border-radius:7px; font-size:12.5px; }
+  a.applink.ghost { background:none; color:var(--accent); border:1px solid var(--accent); }
+  #status { position:fixed; bottom:0; left:0; right:0; padding:9px 16px; font-size:12.5px; background:var(--card); border-top:1px solid var(--border); display:none; }
+  #status.show { display:block; }
+  #status.err { color:var(--danger); }
+  .pr { font-size:11px; }
+  .pr a { color:var(--accent); }
+  .notice { border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.55; }
+  .notice.danger { background:color-mix(in srgb, var(--danger) 12%, var(--card)); border:1px solid var(--danger); }
+  .notice.info { background:var(--card); border:1px solid var(--border); }
+  .notice b { display:block; margin-bottom:3px; }
+  .notice ol { margin:6px 0 0; padding-left:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🌿 PACT branch preview</h1>
+  <span class="sub">loads any branch into its own worktree and serves it locally — never touches your real checkout</span>
+</header>
+<main>
+  <div class="notice danger">
+    <b>⚠ This is not a sandbox.</b>
+    Every branch you load here still points at the SAME live production Supabase project the real
+    deployed app uses. If you sign in and use DM Console, CharGen, or Live Sheet through this preview,
+    every action is real — awarding AP, editing a character, changing campaign rules, all of it hits
+    the actual database, the same as if you'd done it on the real site. Loading a branch only changes
+    which local FILES are served; it never creates a separate/test database.
+  </div>
+  <div class="notice info">
+    <b>How to use</b>
+    <ol>
+      <li>Pick a branch below and click <b>Load</b> — this checks it out into a separate worktree
+        this tool owns (your own checkout of the repo is never touched, even if it's mid-task).</li>
+      <li>Open one of the tool links under "Currently loaded" — each opens in a new tab, served from
+        that branch's actual files.</li>
+      <li>The branch list re-fetches from GitHub every time this page loads, so it stays current even
+        if the underlying repo hasn't been fetched in a while.</li>
+      <li>This tool doesn't run any install step — if a branch needs a new SQL migration applied or
+        new dependencies, loading it here won't do that for you.</li>
+    </ol>
+  </div>
+  <div id="current">
+    <div class="label">Currently loaded</div>
+    <div class="line" id="currentLine">loading…</div>
+    <div class="links" id="currentLinks"></div>
+  </div>
+
+  <div class="filterbar">
+    <input id="filter" type="text" placeholder="Filter branches by name…">
+  </div>
+
+  <ul id="list"><li class="row">loading branches…</li></ul>
+</main>
+<div id="status"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let BRANCHES = [];
+let BASELINE = 'preview';
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function showStatus(msg, isErr){
+  const el = $('#status');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+}
+function hideStatus(){ $('#status').classList.remove('show'); }
+
+const APP_LINKS = [
+  ['Home', 'index.html'],
+  ['CharGen', 'tools/PACT-CharGen-Webtool.html'],
+  ['Live Sheet', 'tools/PACT-Live-Char-Sheet.html'],
+  ['DM Console', 'tools/DM-Console.html'],
+];
+
+function appLinksHTML(){
+  return APP_LINKS.map(([label, path], i) =>
+    `<a class="applink${i?' ghost':''}" target="_blank" href="/PACT/${path}">${esc(label)} ↗</a>`
+  ).join(' ');
+}
+
+async function refreshCurrent(){
+  const r = await fetch('/api/current').then(r => r.json());
+  const c = r.current;
+  if(!c){ $('#currentLine').textContent = '(nothing loaded yet)'; $('#currentLinks').innerHTML = ''; return; }
+  $('#currentLine').innerHTML = `<code>${esc(c.sha)}</code> — ${esc(c.subject)} <span style="color:var(--muted)">(${esc(c.when)})</span>`;
+  $('#currentLinks').innerHTML = appLinksHTML();
+}
+
+function abHTML(b){
+  if(b.isBaseline) return `<span class="ab" style="color:var(--muted)">baseline</span>`;
+  if(b.ahead == null) return '';
+  const parts = [];
+  if(b.ahead) parts.push(`<span class="ahead">+${b.ahead}</span>`);
+  if(b.behind) parts.push(`<span class="behind">-${b.behind}</span>`);
+  return `<span class="ab">${parts.join(' ') || 'even'}</span>`;
+}
+
+function rowHTML(b){
+  const badges = [
+    b.isBaseline ? '<span class="badge baseline">baseline</span>' : '',
+    b.isCurrent ? '<span class="badge current">checked out locally</span>' : '',
+  ].join('');
+  return `<li class="row${b.isBaseline?' baseline':''}" data-ref="${esc(b.ref)}">
+    <div class="name">
+      <span class="display">${esc(b.display)}</span>${badges}
+      <button class="link" data-pr="${esc(b.display)}">PR?</button>
+      <span class="pr" data-pr-out="${esc(b.display)}"></span>
+    </div>
+    <div class="meta">
+      <span class="subject">${esc(b.subject)}</span>
+      <code>${esc(b.sha)}</code> · ${esc(b.when)} · ${esc(b.author)}
+    </div>
+    ${abHTML(b)}
+    <button class="primary" data-load="${esc(b.ref)}">Load</button>
+  </li>`;
+}
+
+function render(){
+  const q = $('#filter').value.trim().toLowerCase();
+  const filtered = BRANCHES.filter(b => !q || b.display.toLowerCase().includes(q));
+  $('#list').innerHTML = filtered.length ? filtered.map(rowHTML).join('') : '<li class="row">no branches match</li>';
+}
+
+async function loadBranches(){
+  const r = await fetch('/api/branches').then(r => r.json());
+  BASELINE = r.baseline;
+  BRANCHES = r.branches;
+  render();
+}
+
+document.addEventListener('click', async (e) => {
+  const loadBtn = e.target.closest('[data-load]');
+  if(loadBtn){
+    const ref = loadBtn.getAttribute('data-load');
+    loadBtn.disabled = true;
+    showStatus('Loading ' + ref + '…');
+    try {
+      const r = await fetch('/api/load', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ref}) }).then(r => r.json());
+      if(r.error) throw new Error(r.error);
+      showStatus('Loaded ' + ref + ' (' + r.current.sha + ') — open a tool above.');
+      await refreshCurrent();
+      await loadBranches();   // re-check "currently loaded locally" badge
+      setTimeout(hideStatus, 4000);
+    } catch(err){
+      showStatus('Failed: ' + err.message, true);
+    } finally {
+      loadBtn.disabled = false;
+    }
+    return;
+  }
+  const prBtn = e.target.closest('[data-pr]');
+  if(prBtn){
+    const name = prBtn.getAttribute('data-pr');
+    const out = document.querySelector(`[data-pr-out="${CSS.escape(name)}"]`);
+    out.textContent = '…';
+    try {
+      const r = await fetch('/api/pr?branch=' + encodeURIComponent(name)).then(r => r.json());
+      out.innerHTML = r.pr ? `<a href="${esc(r.pr.url)}" target="_blank">#${r.pr.number} (${esc(r.pr.state)})</a>` : 'no open PR';
+    } catch { out.textContent = '(gh unavailable)'; }
+    return;
+  }
+});
+
+$('#filter').addEventListener('input', render);
+
+refreshCurrent();
+loadBranches();
+</script>
+</body>
+</html>

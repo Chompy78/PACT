@@ -30,3 +30,7 @@ for-copilot/
 # Managed via a dedicated git worktree + junction (see ~/dev/zcold-sync)
 z-cold/
 z-uploads/
+
+# dev/branch-preview/server.mjs's own scratch checkout — a detached-HEAD worktree it creates and
+# re-points on every "Load" click. Never shared, never has anything worth committing.
+dev/branch-preview/worktree/
