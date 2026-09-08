@@ -52,6 +52,11 @@
   #status.err { color:var(--danger); }
   .pr { font-size:11px; }
   .pr a { color:var(--accent); }
+  .notice { border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.55; }
+  .notice.danger { background:color-mix(in srgb, var(--danger) 12%, var(--card)); border:1px solid var(--danger); }
+  .notice.info { background:var(--card); border:1px solid var(--border); }
+  .notice b { display:block; margin-bottom:3px; }
+  .notice ol { margin:6px 0 0; padding-left:18px; }
 </style>
 </head>
 <body>
@@ -60,6 +65,27 @@
   <span class="sub">loads any branch into its own worktree and serves it locally — never touches your real checkout</span>
 </header>
 <main>
+  <div class="notice danger">
+    <b>⚠ This is not a sandbox.</b>
+    Every branch you load here still points at the SAME live production Supabase project the real
+    deployed app uses. If you sign in and use DM Console, CharGen, or Live Sheet through this preview,
+    every action is real — awarding AP, editing a character, changing campaign rules, all of it hits
+    the actual database, the same as if you'd done it on the real site. Loading a branch only changes
+    which local FILES are served; it never creates a separate/test database.
+  </div>
+  <div class="notice info">
+    <b>How to use</b>
+    <ol>
+      <li>Pick a branch below and click <b>Load</b> — this checks it out into a separate worktree
+        this tool owns (your own checkout of the repo is never touched, even if it's mid-task).</li>
+      <li>Open one of the tool links under "Currently loaded" — each opens in a new tab, served from
+        that branch's actual files.</li>
+      <li>The branch list re-fetches from GitHub every time this page loads, so it stays current even
+        if the underlying repo hasn't been fetched in a while.</li>
+      <li>This tool doesn't run any install step — if a branch needs a new SQL migration applied or
+        new dependencies, loading it here won't do that for you.</li>
+    </ol>
+  </div>
   <div id="current">
     <div class="label">Currently loaded</div>
     <div class="line" id="currentLine">loading…</div>

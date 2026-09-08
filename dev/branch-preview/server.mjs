@@ -137,12 +137,22 @@ function readBody(req) {
   });
 }
 
+// Read ONCE at startup, not per request. This directory (dev/branch-preview/) lives inside the
+// repo whose branches this tool switches — if someone separately checks the MAIN repo's own working
+// directory over to a branch that doesn't have this tool committed (entirely possible mid-session,
+// and it happened for real while building this), a per-request readFileSync would start 500ing with
+// ENOENT the moment that file disappears from disk, even though the server process itself is still
+// perfectly healthy. Caching it means the control page keeps working regardless of what the main
+// repo's checkout does afterward — the one real cost is that editing index.html needs a restart to
+// take effect, which is a fine trade for a page that changes rarely.
+const CONTROL_HTML = fs.readFileSync(path.join(HERE, 'index.html'));
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
 
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      const html = fs.readFileSync(path.join(HERE, 'index.html'));
+      const html = CONTROL_HTML;
       res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' });
       return res.end(html);
     }
@@ -186,6 +196,28 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`\n  PACT branch preview\n  ------------------\n  Control panel:  http://localhost:${PORT}\n  App (once loaded): http://localhost:${PORT}/PACT/index.html\n`);
+// Bound to all interfaces, not just localhost, so a link on the home dashboard actually works from
+// any device on the LAN — the whole point of putting it there. No auth on this tool itself (matches
+// most of this home server's other LAN-only services), so it's trusted-network-only by design: never
+// put a link to it anywhere reachable from outside this network. The only actions it exposes are
+// `git checkout` of already-public GitHub branch content into a disposable worktree, and reading
+// branch metadata — nothing secret, nothing destructive to anything that matters.
+import os from 'node:os';
+function lanAddress() {
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const i of ifaces || []) {
+      if (i.family === 'IPv4' && !i.internal && i.address.startsWith('192.168.')) return i.address;
+    }
+  }
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const i of ifaces || []) {
+      if (i.family === 'IPv4' && !i.internal) return i.address;
+    }
+  }
+  return null;
+}
+
+server.listen(PORT, '0.0.0.0', () => {
+  const lan = lanAddress();
+  console.log(`\n  PACT branch preview\n  ------------------\n  Control panel:  http://localhost:${PORT}${lan ? `  (or http://${lan}:${PORT} from another device on your LAN)` : ''}\n  App (once loaded): http://localhost:${PORT}/PACT/index.html\n`);
 });
