@@ -77,6 +77,17 @@ warning-only, citing the engine's own existing ⛔/⚠ severity split; the owner
 overruled it ("str 10 for medium and heavy armour should be a blocker") — kept as originally built, now
 with a real human confirmation instead of an overnight guess.
 
+## Closed out: merged and promoted
+
+PR #542 merged into `preview`, then promoted to `main` via PR #543 (`BUILD` synced `v1.540` → `v1.543`,
+regular merge commit, engine-parity 73/73). Hit the exact same version-sync gap as the previous two
+promotions, in a different one of the four mirrored spots each time (this round: CharGen's header
+`.sub` label; the prior round was CharGen's `<title>` build half) — `version-label-ci.mjs` catches it
+every time, but the pattern of missing a different one of the four sites each promotion is worth a
+future look (a single helper script that touches all four in one pass, rather than four separate
+manual edits per promotion, would remove the recurring miss rather than just keep catching it after
+the fact).
+
 ## A real mistake, corrected in the open
 
 While extracting the stored Gemini API key for the review call, a `sed` redaction command's regex

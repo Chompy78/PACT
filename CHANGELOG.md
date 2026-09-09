@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-09 · feat: armour picker gets two gates — campaign ban-list + proficiency/STR (#542)** —
+  new `bannedArmours` DM campaign-rules field, wired through the same `RULE_BAN_FIELDS`/`RULE_GRIDS`/
+  `cloudRuleBarred` machinery already used for banning species/boons/drawbacks/masteries/origin-classes.
+  New `armourEligible(b, name)` export in `js/engine.js` (additive only, no `compute()` change) hard-
+  gates both armour-category proficiency and Strength — a design call cold-reviewed via the Gemini API
+  after being built unattended overnight; the reviewer's STR-severity dissent was reviewed directly by
+  the owner and overruled ("str 10 for medium and heavy armour should be a blocker"), kept as built.
+  Composed: an option disables if either gate fails, with a combined reason shown as both a `title` and
+  visible option text (CharGen was missing the visible-text half, found by the same cold review, fixed
+  same-PR). Grandfather clause: an already-worn armour that becomes illegal/banned is never force-
+  cleared, only flagged via a new `validate()` `bannedArmours` check. Full record:
+  `decisions/2026/D-GH-2026-09-08-armour-selection-gate.md`.
 - **2026-09-08 · feat: DM Console compact-cards toggle, always-visible drawbacks, boon/drawback effect
   chips (#541)** — new 🗂 Compact button (campaign roster toolbar) hides every card's collapsible
   section across every view via one body-level CSS class, persisted per-device. Drawbacks pulled out
