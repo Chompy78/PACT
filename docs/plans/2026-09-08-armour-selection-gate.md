@@ -228,4 +228,16 @@ Please respond in this structure:
 
 ## Review outcome
 
-*(to be filled in after the reviewer's response is triaged)*
+Reviewed via Gemini API (`gemini-3.5-flash` actually served; response self-identified as "Gemini 1.5
+Pro," not trusted per this skill's own known unreliable-self-ID warning). Full response archived at
+`z-cold/processed/2026-09-09-gemini-armour-selection-gate.md`.
+
+Two findings, both verified against the actual code before acting:
+1. **Accepted, fixed.** CharGen's disabled armour options relied on a `title` attribute alone, with no
+   visible text change — confirmed true (Live Sheet already had a visible `⛔` suffix, CharGen didn't).
+   Fixed in `_cgSyncArmourPicker()`.
+2. **Contested — reviewer recommended reverting STR to warning-only; owner overruled, kept as built.**
+   See `decisions/2026/D-GH-2026-09-08-armour-selection-gate.md`'s Addendum for the full exchange and
+   the owner's verbatim ruling.
+
+Logged to `ai-templates`' shared `data/cold-review-track-record.md`.

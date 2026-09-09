@@ -96,6 +96,32 @@ that looks half-finished even though it was a deliberate, considered call — wo
 here, rather than silently picking the convenient reading, is what makes it a reviewable choice
 instead of a silent gap.
 
+## Addendum — cold review received and owner ruling (2026-09-09)
+
+Got the real external review this record's Outstanding section asked for (Gemini API, model actually
+served was `gemini-3.5-flash` per the call's own `MODEL_REQUESTED` — the response's self-identification
+line claimed "Gemini 1.5 Pro," a known unreliable-self-ID failure mode, not trusted). Full document:
+`docs/plans/2026-09-08-armour-selection-gate.md`; raw response: `z-cold/2026-09-09-gemini-armour-
+selection-gate.md`.
+
+**Two findings, verified against the actual code before acting on either:**
+
+1. **Confirmed real, fixed:** CharGen's disabled `<option>`s only carried a `title` attribute, no
+   visible text change — Live Sheet (which rebuilds its options fresh every render) already appended a
+   visible `⛔` to the option label itself, but CharGen (which builds its option list once, statically)
+   never got the same treatment. Native disabled-`<option>` hover/title support is inconsistent across
+   browsers, so a title-only reason can be invisible. Fixed: `_cgSyncArmourPicker()` now also rewrites
+   `opt.textContent` (cached against `opt.dataset.baseText` so repeated syncs don't stack `⛔ ⛔ ⛔`),
+   matching Live Sheet's existing visible-marker behaviour.
+2. **Contested, owner ruled on it directly:** the review argued STR should revert to warning-only,
+   citing this codebase's own ⛔/⚠ severity split and general 5e convention (its specific "Dwarves
+   ignore the heavy-armour speed penalty" example wasn't verified against this engine's own
+   `DATA.racial` and may not map exactly onto PACT's homebrew STR rule). **Owner's ruling, verbatim:**
+   "str 10 for medium and heavy armour should be a blocker." Decision stands as originally built —
+   `armourEligible()`'s STR checks are unchanged. This closes the open question from the Options section
+   above with a real human confirmation, superseding the "genuinely unconfirmed" framing this record
+   carried overnight.
+
 ## Outstanding for the owner's morning review
 
 1. **Push required.** Nothing on `feat/armour-selection-gate` or the `preview` housekeeping commit

@@ -6169,10 +6169,16 @@ function _cgSyncArmourPicker(){
   var b; try{ b=readBuild(); }catch(e){ return; }
   Array.prototype.forEach.call(sel.options, function(opt){
     if(!opt.value) return;   // "— none / unarmoured —"
+    if(opt.dataset.baseText==null) opt.dataset.baseText = opt.textContent;
     var elig=(typeof armourEligible==='function')?armourEligible(b,opt.value):{ok:true,reasons:[]};
     var reasons=(elig.reasons||[]).slice();
     if(typeof cloudRuleBarred==='function' && cloudRuleBarred('armour',opt.value)) reasons.push('banned in this campaign');
     opt.disabled = reasons.length>0;
+    // Visible marker, not title-only — cold review (D-GH-2026-09-08-armour-selection-gate) correctly
+    // flagged that native disabled-<option> hover/title support is inconsistent across browsers, so the
+    // reason must be readable without depending on hover at all. Matches Live Sheet's own visible '⛔'
+    // suffix (that tool builds its options fresh each render so never had this gap).
+    opt.textContent = opt.dataset.baseText + (reasons.length ? ' ⛔' : '');
     opt.title = reasons.length ? ("Can't wear yet — "+reasons.join('; ')) : '';
   });
 }
