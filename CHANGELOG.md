@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-08 · feat: DM Console compact-cards toggle, always-visible drawbacks, boon/drawback effect
+  chips (#541)** — new 🗂 Compact button (campaign roster toolbar) hides every card's collapsible
+  section across every view via one body-level CSS class, persisted per-device. Drawbacks pulled out
+  of the "Boons · Drawbacks · Arts" section into their own always-visible row directly under the 9
+  stat boxes, so they survive compact mode. Boon and drawback chips now show their effect text on
+  hover/click, reusing the ⓘ popover mechanism from the fix directly below.
+- **2026-09-08 · chore: local branch-preview dev tool (#537)** — `dev/branch-preview/` runs a small
+  local server plus a dedicated worktree so any branch (current or `preview`) can be loaded and tested
+  on this machine without deploying, reachable over LAN or Tailscale; linked from the home-server
+  family dashboard.
 - **2026-09-08 · fix: DM Console's ⓘ info buttons now respond to click/tap, not just hover** — none
   of the 22 `.infobtn` buttons in `tools/DM-Console.html` had a click handler; all relied on the
   native `title` hover tooltip, which does nothing on click and nothing at all on touch devices.
