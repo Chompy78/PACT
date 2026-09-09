@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-09-08-armour-selection-gate — worn-armour picker gets two hard gates, STR included
+- Two independent gates on the "Worn armour" picker in both tools: a DM campaign ban-list
+  (`bannedArmours`, mirroring the existing banned-species/boons/drawbacks/masteries/origin-classes
+  pattern exactly) and a personal capability gate (proficiency AND STR both hard-block — a deliberate,
+  documented, but genuinely unconfirmed call, made without a human available to ask; see the record's
+  Options section for the reasoning and how to reverse it if wrong). Implemented on branch
+  `feat/armour-selection-gate`, **not yet pushed or opened as a PR** — needs a human `git push` first.
+  Full record: `decisions/2026/D-GH-2026-09-08-armour-selection-gate.md`.
+
 ## D-GH-2026-09-08-ap-award-editing — correcting an award happens in place, audited, not by adding a compensating award
 - A live bug (a bulk "session 6" award landed as +4 AP instead of +5 on all six Amble characters) had
   no supported fix — `award_ap()` only ever adds a new award, never corrects an existing one. New

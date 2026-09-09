@@ -253,6 +253,8 @@
   .chip.good{background:var(--good-bg); color:var(--good); border-color:#bfe6cd}
   .chip.bad{background:var(--bad-bg); color:var(--bad); border-color:#f0c4bd}
   .chip.lin{background:#efeafb; color:#4b3b9a; border-color:#d8cdf2}
+  .chip.chip-fx{cursor:pointer}
+  .chip.chip-fx:hover{filter:brightness(0.97)}
   .xtra .cast{display:flex; flex-direction:column; gap:4px; width:100%}
   .xtra .castrow{font-size:12px; display:flex; flex-wrap:wrap; gap:5px; align-items:baseline}
   .xtra .castrow .ct{font-weight:700; color:var(--navy)}
@@ -275,6 +277,11 @@
   .sec.open .chev{transform:rotate(90deg)}
   .secbody{display:none; padding:2px 14px 12px}
   .sec.open .secbody{display:block}
+  /* Compact cards (feat/dm-card-compact-mode): a global DM display preference that hides every
+     collapsible .sec row entirely (header AND body) on every card, in every view (local grid, cloud
+     roster, customisable) — the "9 boxes + drawbacks only" scan mode for a whole party at a glance.
+     .cg-drawbacks is deliberately OUTSIDE .sec (see cardHTML) so it survives this rule untouched. */
+  body.pact-compact-cards .sec{display:none}
   .cg{display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin:5px 0}
   .cglabel{font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-right:3px}
   .castline{font-size:12.5px; color:var(--ink); margin:3px 0}
@@ -581,7 +588,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <div id="campSection">
     <div class="cstitle">
       Campaign Roster — <span id="campRosterName"></span>
-      <button type="button" class="btn sm" id="refreshRosterBtn" style="margin-left:auto">⟳ Refresh</button>
+      <button type="button" class="btn sm ghost" id="compactCardsBtn" style="margin-left:auto" title="Hide every card's collapsible detail sections everywhere (this view, the local grid, and the customisable view) — just name, buttons, the stat boxes, and drawbacks stay visible. A display preference on this device only.">🗂 Compact</button>
+      <button type="button" class="btn sm" id="refreshRosterBtn">⟳ Refresh</button>
     </div>
     <div class="tbtoolbar" id="xToolbar" style="display:none"><button class="colbtn" id="xBtn" type="button">🧩 Customise boxes ▾</button><div class="colpanel" id="xPanel"></div></div>
     <div id="campRoster"><div class="camp-empty">Select a campaign in the panel above to load the live roster.</div></div>
@@ -835,6 +843,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <div class="ruleblock"><div class="lbl">Banned boons</div><div class="rulegrid" id="ruleBannedBoons"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned drawbacks</div><div class="rulegrid" id="ruleBannedDrawbacks"></div></div>
                 <div class="ruleblock"><div class="lbl">Banned arts</div><div class="rulegrid" id="ruleBannedArts"></div></div>
+                <div class="ruleblock"><div class="lbl">Banned armour <button type="button" class="infobtn" title="A banned armour can no longer be selected in the Worn armour picker (CharGen and Live Sheet). A character already wearing it keeps it — this only stops picking it fresh.">&#9432;</button></div><div class="rulegrid" id="ruleBannedArmours"></div></div>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                   <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
                 </label>
@@ -1253,7 +1262,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.540';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.543';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1434,10 +1443,17 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
   // (v0.194 extraHTML/chipRow block removed — superseded by buildSections)
 
   // collapsible card sections (UI add)
-  function chipGroup(label, arr){
+  // fx (optional): a lookup(name) -> effect text, for chips that should show what they DO on
+  // hover/click — reuses the ⓘ popover mechanism (toggleInfoPop reads `title` off whatever was
+  // clicked, and its delegate below also matches .chip-fx), rather than a second popup system.
+  // Only Boons and Drawbacks pass one today (see their chipGroup() call sites).
+  function chipGroup(label, arr, fx){
     if(!arr || !arr.length) return '';
     return '<div class="cg">'+(label?'<span class="cglabel">'+esc(label)+'</span>':'')
-         + arr.map(function(x){ return '<span class="chip">'+esc(x)+'</span>'; }).join('') + '</div>';
+         + arr.map(function(x){
+             var t = fx ? (fx(x)||'') : '';
+             return '<span class="chip'+(t?' chip-fx':'')+'"'+(t?' title="'+esc(t)+'"':'')+'>'+esc(x)+'</span>';
+           }).join('') + '</div>';
   }
   function slotLine(c){
     var parts=[];
@@ -1833,7 +1849,15 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
                 + chipGroup('Subclass abilities', _subAbilChips(s))
                 + chipGroup('Subclass spell lists', _subBundleChips(s)));
     h += secBlock('Spellcasting', castBody(s.casting) + knownBtnHTML(s, id));
-    h += secBlock('Boons · Drawbacks · Arts', chipGroup('Boons',s.boonsDisplay)+chipGroup('Drawbacks',s.drawbacks)+chipGroup('Arts',s.artsDisplay));
+    // Drawbacks moved out of this section (feat/dm-card-compact-mode) — now rendered always-visible,
+    // right under the stat boxes in cardHTML, so it survives compact mode's collapse of every .sec.
+    // Boons pass an fx lookup (feat/dm-chip-effects) so a DM can see what one DOES on hover/click,
+    // not just its name — boonsDisplay carries a " ⛔ blocked" suffix for HD-gated boons (see its
+    // header comment above), stripped here before the DATA.boons lookup so blocked boons still show
+    // their effect text.
+    h += secBlock('Boons · Arts', chipGroup('Boons',s.boonsDisplay,function(x){
+      var nm=x.replace(/ ⛔ blocked$/,''); return (DATA.boons&&DATA.boons[nm]&&DATA.boons[nm].fx)||'';
+    })+chipGroup('Arts',s.artsDisplay));
     h += secBlock('Lineage & racial', (s.lineage?'<div class="cg"><span class="cglabel">Lineage</span><span class="chip lin">'+esc(s.lineage)+'</span></div>':'')
                 + chipGroup('Traits',_racialChips(s))+chipGroup('Spells',s.racialSpells));
     h += secBlock('PACT build · warnings · AP history', pactBuildBody(s));
@@ -1905,6 +1929,11 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
+      // Always-visible drawbacks (feat/dm-card-compact-mode) — deliberately OUTSIDE any .sec wrapper,
+      // between the stat boxes and everything else, so it survives compact mode's blanket .sec{display:
+      // none} untouched. class="cg-drawbacks" only distinguishes it in the CSS comment above; chipGroup()
+      // itself renders '' when a character has none, same as every other chip group.
+      '<div class="cg-drawbacks">'+chipGroup('Drawbacks', s.drawbacks, function(x){ return (DATA.drawbackFx&&DATA.drawbackFx[x])||''; })+'</div>' +
       buildSections(s, r.id, dm) +
     '</div>';
   }
@@ -2333,7 +2362,7 @@ function dmMakeGrant(amount,note){return _apEnc({a:+amount,n:note||'',d:new Date
     if(top+ph>window.innerHeight-8) p.style.top=Math.max(8,r.top-ph-6)+'px';
   }
   document.addEventListener('click', function(e){
-    var ib=e.target.closest?e.target.closest('.infobtn'):null;
+    var ib=e.target.closest?e.target.closest('.infobtn,.chip-fx'):null;
     if(ib){ e.preventDefault(); e.stopPropagation(); toggleInfoPop(ib); return; }
     if(!e.target.closest || !e.target.closest('.infopop')) closeInfoPop();
   });
@@ -3317,7 +3346,8 @@ document.addEventListener('campaign-ready', function () {
       function(name){ return (_D.boons && _D.boons[name] && _D.boons[name].fx) || ''; }],
     ['ruleBannedDrawbacks', function(){ return Object.keys(_D.drawbacks||{}); },
       function(name){ return (_D.drawbackFx && _D.drawbackFx[name]) || ''; }],
-    ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }]
+    ['ruleBannedArts', function(){ return Object.keys(_D.arts||{}); }],
+    ['ruleBannedArmours', function(){ return Object.keys(_D.armours||{}); }]   // feat/armour-campaign-banlist
   ];
   function renderRuleGrids(){
     RULE_GRIDS.forEach(function(pair){
@@ -3374,6 +3404,7 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedBoons', r.bannedBoons);
     setRuleGridChecked('ruleBannedDrawbacks', r.bannedDrawbacks);
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
+    setRuleGridChecked('ruleBannedArmours', r.bannedArmours);   // feat/armour-campaign-banlist
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
     // rather than off: the cap is what the rules already say, and a campaign silently opting
@@ -3715,7 +3746,7 @@ document.addEventListener('campaign-ready', function () {
     var el = document.getElementById('campRulesSummary'); if(!el) return;
     r = r || {};
     var bans = ['bannedSpecies','bannedOriginSpecies','bannedOriginClasses','bannedOriginClasses2',
-                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts']
+                'bannedMasteries','bannedBoons','bannedDrawbacks','bannedArts','bannedArmours']
       .reduce(function(n,k){ return n + ((r[k]||[]).length); }, 0);
     var house = Object.keys(r.houseRules || {}).length;
     var bits = [];
@@ -3919,6 +3950,7 @@ document.addEventListener('campaign-ready', function () {
       bannedBoons: getRuleGridChecked('ruleBannedBoons'),
       bannedDrawbacks: getRuleGridChecked('ruleBannedDrawbacks'),
       bannedArts: getRuleGridChecked('ruleBannedArts'),
+      bannedArmours: getRuleGridChecked('ruleBannedArmours'),   // feat/armour-campaign-banlist
       multiDisciplineAllowed: ruleMultiDisc.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
       // Nested under `economy` rather than sitting as a bare `economyBand` key so the block has room
@@ -4584,6 +4616,25 @@ document.addEventListener('campaign-ready', function () {
   // cannot tell whether the invite is stale or genuinely unredeemed. (The underlying data was never
   // wrong: redeem_player_invite stamps redeemed_at, list_campaign_invites returns it, and the row
   // renders "Redeemed" -- verified end to end on 2026-08-04. This is a staleness fix, not a data fix.)
+  // Compact cards (feat/dm-card-compact-mode): pure CSS toggle, no re-render needed — a body class
+  // (body.pact-compact-cards .sec{display:none}) hides every card's collapsible section in every view
+  // at once. Persisted the same way as hiddenCards/hiddenCols (localStorage, this device only, never
+  // sent anywhere). Applied on load so a DM's preference survives a refresh/reopen.
+  var COMPACTCARDSKEY='pact_dm_v3_compact_cards';
+  function applyCompactCards(on){
+    document.body.classList.toggle('pact-compact-cards', !!on);
+    var btn = document.getElementById('compactCardsBtn');
+    if(btn) btn.classList.toggle('ghost', !on);
+  }
+  (function(){
+    var on=false; try{ on = localStorage.getItem(COMPACTCARDSKEY)==='1'; }catch(e){}
+    applyCompactCards(on);
+  })();
+  document.getElementById('compactCardsBtn').addEventListener('click', function(){
+    var on = !document.body.classList.contains('pact-compact-cards');
+    applyCompactCards(on);
+    try{ localStorage.setItem(COMPACTCARDSKEY, on?'1':'0'); }catch(e){}
+  });
   document.getElementById('refreshRosterBtn').addEventListener('click', function(){
     if(!currentCampId) return;
     loadRoster(currentCampId);
