@@ -2117,6 +2117,32 @@ export function wouldExceedCeiling(events, cost, opts) {
   return (st.spent + c) > st.ceiling;
 }
 
+// armourEligible(b, name) (feat/armour-selection-gate): can build `b` legally WEAR armour `name` right
+// now — proficiency AND the STR-for-benefit rule, mirroring compute()'s own warning logic (the ⛔/⚠
+// lines just above the AC block, ~line 868-869) exactly, so a picker gate and compute()'s warnings can
+// never disagree about what "eligible" means. Deliberately a SEPARATE, additive export rather than a
+// compute() refactor: compute()'s inline logic is untouched, so this cannot change compute()'s output
+// or trip engine-parity — the two tools' "Worn armour" pickers are its only callers.
+//
+// Two independent STR checks compute() already makes, both surfaced here as reasons:
+//   * the general v74 rule — medium/heavy armour gives no AC benefit at all below STR 10;
+//   * a specific armour's own higher `.str` floor (e.g. a heavy armour needing STR 15), on top of that.
+// Returns {ok, reasons} — reasons is a list of short strings (never itself escaped/HTML; callers must
+// esc() before rendering), empty when ok is true. Purely a legality/benefit question, never a campaign
+// ban — that is a separate concern (bannedArmours, feat/armour-campaign-banlist) callers compose with.
+export function armourEligible(b, name) {
+  const a = DATA.armours && DATA.armours[name];
+  if (!a) return { ok: true, reasons: [] };
+  const st = (b && b.stats) || {};
+  const arm = (b && b.armour) || {};
+  const strScore = st.STR || 10;
+  const reasons = [];
+  if (!arm[a.cat]) reasons.push('no ' + a.cat + ' armour proficiency');
+  if ((a.cat === 'medium' || a.cat === 'heavy') && strScore < 10) reasons.push('needs STR 10 for any AC benefit');
+  if (a.str && strScore < a.str) reasons.push('needs STR ' + a.str);
+  return { ok: reasons.length === 0, reasons };
+}
+
 // ---- undo barriers (feat/undo-barrier-shared) --------------------------------------------------
 //
 // isUndoBarrier(event) / undoFloor(events): the ONE definition of "this part of the history can no
@@ -2409,7 +2435,7 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
  * validate(b, rules) — check a build against a DM's campaign rules (D-GH14).
  * `rules` is the campaign's `rules` JSON column (DM-authoritative, read-only
  * to players): { bannedSpecies, bannedOriginSpecies, bannedMasteries,
- * bannedBoons, bannedDrawbacks, bannedArts, bannedOriginClasses,
+ * bannedBoons, bannedDrawbacks, bannedArts, bannedArmours, bannedOriginClasses,
  * bannedOriginClasses2, multiDisciplineAllowed, houseRules }.
  * Pure and side-effect-free; does not touch compute() or pricing. Returns
  * { ok, violations: [{code, message}] } — never throws on a malformed/empty
@@ -2459,6 +2485,12 @@ export function validate(b, rules) {
       violations.push({ code: 'bannedArts', message: 'Art "' + ar + '" is banned in this campaign.' });
     }
   }
+  // feat/armour-campaign-banlist: a grandfather-clause surface, same as every other banned-X check
+  // above — this does NOT strip an already-worn banned armour (see armourEligible()'s own header for
+  // why choices freeze at time of purchase); it only reports the violation so a DM/player can see it.
+  if (b.wornArmour && has(r.bannedArmours, b.wornArmour)) {
+    violations.push({ code: 'bannedArmours', message: 'Armour "' + b.wornArmour + '" is banned in this campaign.' });
+  }
   if (r.multiDisciplineAllowed === false) {
     const nDisc = (b.traditions || []).reduce((s, t) => s + ((t.disciplines || []).length), 0);
     if (nDisc > 1) {
@@ -2488,6 +2520,7 @@ export const RULE_BAN_FIELDS = {
                                   // cloudRuleBarred() use ONE kind token per call site — instead of
                                   // 'draws' silently failing open here.
   arts: 'bannedArts',
+  armour: 'bannedArmours',   // feat/armour-campaign-banlist
 };
 
 /* =========================================================================
