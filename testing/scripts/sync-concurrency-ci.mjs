@@ -52,6 +52,7 @@ export const supabase = { from(){
   const q = { _op:null, _payload:null, _eq:{} };
   q.update = p => { q._op='update'; q._payload=p; return q; };
   q.insert = p => { q._op='insert'; q._payload=p; return q; };
+  q.delete = () => { q._op='delete'; return q; };
   q.select = () => { if(!q._op) q._op='select'; return q; };
   q.eq = (c,v) => { q._eq[c]=v; return q; };
   q.maybeSingle = async () => { const r = server.rows.get(q._eq.id); return { data: r?{...r}:null, error:null }; };
@@ -70,9 +71,19 @@ export const supabase = { from(){
       const r = { ...q._payload, ap:0, campaign_id:null, updated_at:stamp() };
       server.rows.set(r.id, r); return { data:[{ id:r.id, updated_at:r.updated_at, ap:r.ap }], error:null };
     }
+    if (q._op === 'delete') {
+      // deleteRaceScenario() below flips this to simulate "this device's OWN delete request hasn't
+      // confirmed yet" (replayDelete() catches the error and leaves the tombstone pending) while the
+      // row is separately removed from server.rows directly -- modelling the real ambiguous window
+      // where the delete has, in fact, already landed server-side.
+      if (server.deleteShouldFail) return { data: null, error: { message: 'network hiccup (test)' } };
+      server.rows.delete(id);
+      return { data: null, error: null };
+    }
     const r = server.rows.get(id); return { data: r?[{...r}]:[], error:null };
   }
   return q; } };
+export function setDeleteShouldFail(v){ server.deleteShouldFail = v; }
 `);
 writeFileSync(join(dir, 'stub-auth.js'), `export async function currentUser(){ return { id:'me' }; }\n`);
 writeFileSync(join(dir, 'stub-cs.js'),   `export const isCloudCharId = id => typeof id === 'string' && id.includes('-');\n`);
@@ -104,6 +115,20 @@ const revertedSrc = liveSrc
 if (revertedSrc === liveSrc) {
   console.log('  FAIL  could not build the reverted copy — the shape of saveCharacter() changed.');
   console.log('        Update the revert pattern in this script, or the differential check is vacuous.');
+  rmSync(dir, { recursive:true, force:true });
+  process.exit(1);
+}
+
+// The delete-vs-save race fix (2026-09-10): strip pushCharacter()'s tombstone check to reproduce the
+// bug it closes — a zero-rows update being misread as "row never existed, safe to insert" when it was
+// actually this device's OWN concurrent delete.
+const revertedDeleteRaceSrc = liveSrc.replace(
+  /\n  \/\/ deleteCharacter\(\) may have run concurrently[\s\S]*?if \(lsDeletes\(\)\.includes\(rec\.id\)\) throw new DeletedError\(rec\.id\);\n/,
+  '\n'
+);
+if (revertedDeleteRaceSrc === liveSrc) {
+  console.log('  FAIL  could not build the delete-race reverted copy — the tombstone check moved or was reworded.');
+  console.log('        Update the revert pattern in this script, or that differential check is vacuous.');
   rmSync(dir, { recursive:true, force:true });
   process.exit(1);
 }
@@ -180,6 +205,37 @@ console.log('\n  regressions — legitimate saves must keep working');
   await A.syncAll();
   const r = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:8}});
   ok('an up-to-date page still saves after a background syncAll', r.synced === true && world.serverSpent(ID) === 8); }
+
+// --- delete-vs-save race (2026-09-10 full-system audit): a save must never resurrect a character ---
+// this SAME DEVICE just deleted. No prior gate covered this — the scenarios above are all save-vs-save;
+// this is the first delete-vs-save race under test.
+async function deleteRaceScenario(file) {
+  world.server.rows.clear(); world.server.clock = 0;
+  const ID = 'delr-aaaa-bbbb-cccc';
+  world.seed(ID, { spent: 10 });
+  const A = await openPage(file);
+  await A.loadCharacter(ID);
+  // This device's own delete is dispatched but hasn't confirmed from the client's point of view
+  // (replayDelete() catches the injected failure and leaves the tombstone pending, exactly as
+  // documented) — while the row is, in fact, already gone server-side, which is the real ambiguous
+  // window: from here, "zero rows" cannot be told apart from "never existed" without the tombstone.
+  world.setDeleteShouldFail(true);
+  await A.deleteCharacter(ID);
+  world.server.rows.delete(ID);
+  world.setDeleteShouldFail(false);   // a later retry of the tombstone would succeed; irrelevant here
+  const race = await A.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 99 } });
+  return { synced: race.synced, deleted: !!race.deleted, resurrected: world.server.rows.has(ID) };
+}
+
+console.log('\n  delete-vs-save race — a save must not resurrect this device\'s own deleted character\n');
+makePage(revertedDeleteRaceSrc, 'delrace-rev.js');
+const beforeDel = await deleteRaceScenario('delrace-rev.js');
+ok('  reverted copy resurrects the deleted character (bug reproduces)', beforeDel.resurrected === true);
+
+makePage(liveSrc, 'delrace-live.js');
+const afterDel = await deleteRaceScenario('delrace-live.js');
+ok('  live js/sync.js: the save is refused, not resurrected', afterDel.synced === false && afterDel.deleted === true);
+ok('  and the character stays deleted on the server', afterDel.resurrected === false);
 
 // --- feat/session-seal: a seal rejection is permanent, unlike every other failure here -----------
 // The classifier is what stops saveCharacter() retrying a write the server will refuse for ever.

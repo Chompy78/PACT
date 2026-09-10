@@ -10,6 +10,25 @@
 
 ## Index
 
+## D-GH-2026-09-10-full-system-audit-delete-save-race — a save must never resurrect a character this device just deleted
+- Full-system audit found a real, previously-untracked bug in `js/sync.js`: a save already in flight
+  when `deleteCharacter()` runs can race the delete's own server confirmation, and `pushCharacter()`'s
+  zero-rows branch could not tell "row never existed" from "row was just deleted" — silently
+  re-inserting a character the user had removed. Fixed by checking this device's own tombstone list
+  (`lsDeletes()`) at the zero-rows decision point, before either the conflict-check or the insert.
+  New differential regression test in `sync-concurrency-ci.mjs` proves the bug on a reverted copy and
+  its absence on the live one. Full record:
+  `decisions/2026/D-GH-2026-09-10-full-system-audit-delete-save-race.md`.
+
+## D-GH-2026-09-10-full-system-audit-ap-grant-dedupe — AP grant-code logic moves into a shared module
+- The AP grant-code encode/decode logic was two byte-for-byte duplicated, untested copies
+  (`tools/DM-Console.html`, `tools/PACT-Live-Char-Sheet.html`) with no shared module and no comment
+  acknowledging the duplication. Extracted into `js/ap-grant-code.js`, bridged into both tools the same
+  way `DATA`/`compute`/`MUT` already are. Not a security change — the obfuscation was always tamper-
+  evident, not secret — but closes a silent-drift risk and adds the first test coverage this logic ever
+  had, including a byte-for-byte backward-compatibility pin against the pre-refactor algorithm. Full
+  record: `decisions/2026/D-GH-2026-09-10-full-system-audit-ap-grant-dedupe.md`.
+
 ## D-GH-2026-09-08-armour-selection-gate — worn-armour picker gets two hard gates, STR included
 - Two independent gates on the "Worn armour" picker in both tools: a DM campaign ban-list
   (`bannedArmours`, mirroring the existing banned-species/boons/drawbacks/masteries/origin-classes
