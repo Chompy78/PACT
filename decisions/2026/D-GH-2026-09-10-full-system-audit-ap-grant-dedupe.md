@@ -56,6 +56,15 @@ place a bug can be fixed, one thing to test), not a widened security boundary. T
 remains server-side and DM-RPC-authoritative, per AGENTS.md's Persistence section and the still-open
 security-audit task in `docs/TASK_BOARD_NEXT.md`.
 
+**Tightened same-day after `/code-review ultra`.** The reviewer found the bridge introduced a real,
+narrow regression: Live Sheet's ⎘/⎀ header buttons (`makeGrant()`/`redeemGrant()`) are static markup, not
+gated on `engine-ready`, and neither call was wrapped in a try/catch — so a very fast click before the
+module resolves would throw an uncaught `TypeError` on `window.apEncodeGrant`/`apDecodeGrant` being
+undefined and fail silently. The pre-refactor plain-function versions had no such dependency. DM
+Console's `dmMakeGrant()` call site already wraps in try/catch with a clear alert (pre-existing code,
+unrelated to this refactor) — Live Sheet's two calls were given the same guard shape, with `flash()`
+messages explaining the sheet is still loading.
+
 ## Verified
 
 New `testing/scripts/ap-grant-code-ci.mjs` (13 assertions, previously zero coverage existed): round-trip

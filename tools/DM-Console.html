@@ -5319,7 +5319,7 @@ document.addEventListener('campaign-ready', function () {
     // Stale-response guard, same reasoning as loadInvites() above — this also fires from the
     // focus/visibilitychange auto-refresh with no cancellation, and has TWO awaits a campaign switch
     // can land between; re-check campId against currentCampId after each before touching the DOM.
-    try { rows = await B.getRoster(campId); } catch(err){ if(!_isCurrentCamp(campId)) return; campRoster.innerHTML='<div class="camp-empty">Error: '+esc(err.message)+'</div>'; return; }
+    try { rows = await B.getRoster(campId); } catch(err){ if(!_isCurrentCamp(campId)) return; campRoster.innerHTML='<div class="camp-empty">Couldn\'t load this campaign\'s roster — try again in a moment. ('+esc(err.message)+')</div>'; return; }
     if(!_isCurrentCamp(campId)) return;
     await _refreshDowntimeWindows(campId, rows.map(function(r){ return r.id; }));
     if(!_isCurrentCamp(campId)) return;

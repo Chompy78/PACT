@@ -431,6 +431,12 @@ async function pushCharacter(rec, capturedSeq) {
 
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
+  // Re-check immediately before the insert, not just once above: the guarded exists-check and
+  // currentUser() are both awaits, and a deleteCharacter() call for this id landing in EITHER window
+  // (after the earlier check already passed) would otherwise still fall through to the insert below.
+  // Checking as late as possible closes that window; the earlier check stays too, since failing fast
+  // there skips a wasted exists-check round trip for the common case (/code-review ultra, 2026-09-10).
+  if (lsDeletes().includes(rec.id)) throw new DeletedError(rec.id);
   const { data: ins, error: insErr } = await supabase
     .from('characters')
     // autosave_enabled carried forward, not left to the column default: a toggle preference set

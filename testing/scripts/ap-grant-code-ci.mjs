@@ -34,10 +34,18 @@ console.log('\nap-grant-code — encode/decode, checksum, backward compatibility
 // --- checksum catches tampering, not just malformed input --------------------------------------
 {
   const code = apEncodeGrant({ a: 5, n: '', d: '2026-09-10', id: makeGrantId() });
-  // Flip one character deep in the payload — still a validly-shaped PACTAP: code, wrong checksum.
-  const tail = code.slice(-1);
-  const flipped = tail === 'A' ? 'B' : 'A';
-  const tampered = code.slice(0, -1) + flipped;
+  // Tamper by flipping one BIT in a byte solidly in the middle of the underlying base64 payload —
+  // deliberately not the code STRING's last character, which can land on a base64 padding bit atob()
+  // ignores. That made an earlier version of this test genuinely flaky: whether the tail character was
+  // significant depended on the random-length grant id shifting the payload's total byte count, so the
+  // "tamper" sometimes decoded back to the SAME bytes and the assertion failed by pure chance. Operating
+  // on the decoded bytes directly, at a fixed middle index, with a full byte XOR, removes that.
+  const b64 = code.slice('PACTAP:'.length);
+  const bytes = atob(b64);
+  const mid = Math.floor(bytes.length / 2);
+  const tamperedByte = String.fromCharCode(bytes.charCodeAt(mid) ^ 0xFF);
+  const tamperedB64 = btoa(bytes.slice(0, mid) + tamperedByte + bytes.slice(mid + 1));
+  const tampered = 'PACTAP:' + tamperedB64;
   ok('a tampered-but-shaped code is flagged {bad:true}, not silently decoded',
     apDecodeGrant(tampered)?.bad === true);
 }
@@ -66,10 +74,16 @@ console.log('\nap-grant-code — encode/decode, checksum, backward compatibility
 }
 
 // --- makeGrantId / apHash: bounded sanity, not full randomness testing --------------------------
+// NOT asserting "two live calls never collide" here: makeGrantId() is Date.now() (millisecond
+// granularity — two back-to-back calls routinely land in the same millisecond) plus 5 base-36 random
+// characters, so a genuine collision has a small but real, non-zero chance on any given run. A flaky
+// assertion that can fail by pure chance is a bug in the TEST, not evidence about the code (hit exactly
+// this during this file's own review — a real one-in-tens-of-millions collision, not a code defect) —
+// so this checks the deterministic SHAPE instead, which every call satisfies unconditionally.
 {
-  const a = makeGrantId(), b = makeGrantId();
+  const a = makeGrantId();
   ok('makeGrantId returns a non-empty string', typeof a === 'string' && a.length > 0);
-  ok('two calls do not collide in practice', a !== b);
+  ok('makeGrantId is timestamp + random, both base-36 (lowercase alphanumerics only)', /^[0-9a-z]+$/.test(a));
   ok('apHash is deterministic for the same input', apHash('same input') === apHash('same input'));
   ok('apHash differs for different input (no trivial collision on these two)', apHash('a') !== apHash('b'));
 }

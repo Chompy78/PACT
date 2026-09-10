@@ -2612,12 +2612,20 @@ function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={
   var _st=_swapTally();if(_st.illegal){flash('\u26D4 Too many free-only swaps (cantrip/arcanum/style) for your free Hit-Die swaps this level.');return;}if(_st.paid>0&&_st.paid>_st.avail){flash('\u26D4 These swaps cost '+_st.paid+' AP but you have '+_st.avail+' available.');return;}var _curB=foldBuild(null);Object.keys(trMap).forEach(function(kk){var tm=trMap[kk];if(!tm._cv)return;Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;tm.kn[L-1]=(tm.kn[L-1]||[]).filter(function(x){return x!==undefined;});});var _dd=(((_curB.traditions||[])[tm.ti]||{}).disciplines||[])[tm.di];var _kc=(_dd&&_dd.known)||[];Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;emit({type:'known',ti:tm.ti,di:tm.di,L:L,to:Math.max(0,(_kc[L-1]||0)+tm._cv[Lk])});});delete tm._cv;});var _shd=(foldBuild(null).hd)||0;emit({type:'names',dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];}),label:'Named spells & languages'+(_st.paid>0?(' \u2014 '+_st.n+' paid swap'+(_st.n>1?'s':'')+' ('+_st.paid+' AP, no refund)'):''),swapHD:(_st.freeUsed>0?_shd:0),fs:fs,fsc:fsc,mm:mm,mv:mv,eb:eb,swapN:_st.freeUsed,cost:_st.paid});closeNames();flash('Spell & language names locked into the log.');}
 // apEncodeGrant/apDecodeGrant/makeGrantId are bridged from js/ap-grant-code.js (engine-ready module) —
 // shared with DM Console, which also encodes these codes; see that file's header for why this must
-// stay one copy.
+// stay one copy. Their onclick buttons (the ⎘/⎀ header buttons) are static markup, not gated on
+// engine-ready, so both calls below are guarded: a very fast click before that module resolves would
+// otherwise throw an uncaught TypeError on window.apEncodeGrant/apDecodeGrant being undefined and fail
+// silently (the pre-refactor plain-function versions had no such dependency) — same guard shape
+// DM Console's dmMakeGrant() call site already has (/code-review ultra, 2026-09-10).
 function makeGrant(){var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
-  var code=window.apEncodeGrant({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:window.makeGrantId()});
+  var code;
+  try{code=window.apEncodeGrant({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:window.makeGrantId()});}
+  catch(e){flash('Could not generate a code — the sheet is still loading, try again in a moment.');return;}
   try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(code);flash('AP grant code copied — send it to the party.');return;}}catch(e){}
   window.prompt('Copy this AP grant code and send it to the party:',code);}
-function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','');if(!code)return;var o=window.apDecodeGrant(code.trim());
+function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','');if(!code)return;var o;
+  try{o=window.apDecodeGrant(code.trim());}
+  catch(e){flash('Could not read that code — the sheet is still loading, try again in a moment.');return;}
   if(!o){flash('That is not a valid AP grant code.');return;}
   if(o.bad){flash('This grant code looks altered — ask your DM for a fresh one.');return;}
   if(!(+o.a)){flash('Invalid grant code.');return;}

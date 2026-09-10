@@ -45,6 +45,15 @@ the local record is already gone by the time this fires (`deleteCharacter()`'s `
 so there is nothing left to keep "dirty," and a rare post-delete "save failed" toast is acceptable
 fallout against the alternative of silent data resurrection.
 
+**Tightened same-day after `/code-review ultra`.** The first version placed the check ONLY right after
+the zero-rows detection. The reviewer found a real, narrower window it missed: the guarded exists-check
+and `currentUser()` are both further `await`s later in the same function, and a `deleteCharacter()` call
+landing in either of THOSE windows — after the early check had already passed — still fell through to
+the insert. Added a second, identical check immediately before the insert itself (the last possible
+moment), keeping the early one too (it fails fast and skips a wasted exists-check round trip in the
+common case). The two checks are genuinely redundant on the common path and deliberately so — the late
+one is the one that actually has to hold.
+
 ## Why
 
 **A1 over A2.** A2 would work but adds real complexity (async coordination between two independently-
@@ -69,9 +78,12 @@ confirmation round-trip.
 
 ## Verified
 
-`testing/scripts/sync-concurrency-ci.mjs` gained a differential regression test (`deleteRaceScenario()`):
-a reverted copy of `js/sync.js` (the tombstone check stripped via regex) is proven to reproduce the
-resurrection, and the live copy is proven to refuse the save and leave the character deleted. All
-pre-existing scenarios in that file, and the full CI suite (engine parity, escaping, pricing, undo
-barriers, state machine, autosave races, e2e flows, theming, service worker, randomiser quality — see
-the session note) stayed green throughout.
+`testing/scripts/sync-concurrency-ci.mjs` gained two differential regression tests: `deleteRaceScenario()`
+(a reverted copy with both checks stripped is proven to reproduce the resurrection; the live copy is
+proven not to) and `midPushRaceScenario()`, added after the code-review tightening — this one proves the
+narrower window specifically, by racing a REAL `deleteCharacter()` call into the push's own
+`currentUser()` await (via a one-shot test hook in the stubbed auth module) so the early check has
+already passed by construction and only the late check can catch it. All pre-existing scenarios in that
+file, and the full CI suite (engine parity, escaping, pricing, undo barriers, state machine, autosave
+races, e2e flows, theming, service worker, randomiser quality — see the session note) stayed green
+throughout.

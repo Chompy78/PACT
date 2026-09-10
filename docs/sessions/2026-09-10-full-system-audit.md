@@ -113,6 +113,35 @@ slice of the test suite immediately after making it, not batched to the end:
   still decodes identically after the refactor — so a code a DM already pasted into a chat stays
   redeemable. Full reasoning in `D-GH-2026-09-10-full-system-audit-ap-grant-dedupe`.
 
+## Step 5 — `/code-review ultra` before opening the PR, per the repo's own review-cadence checklist
+
+Since this touched `sql/schema.sql` and added a migration, the PR template's review cadence requires
+`/code-review ultra` before merge. Run against the full audit commit, it found three real issues that
+survived verification:
+
+1. **The delete-race fix's own window.** The tombstone check landed only once, right after the
+   zero-rows update — but the guarded exists-check and `currentUser()` are both LATER awaits in the same
+   function, and a delete landing in either of those windows still fell through to the insert. Fixed by
+   adding a second, identical check immediately before the insert (the last possible moment); the early
+   one stays too, as a fast-fail. Proven with a new interleaving test (`midPushRaceScenario()`) that
+   races a real `deleteCharacter()` call into the push's own `currentUser()` await via a one-shot test
+   hook, rather than just asserting the code looks right.
+2. **A real regression in the AP-grant dedupe.** Live Sheet's ⎘/⎀ buttons are static markup, not gated
+   on `engine-ready`, and neither `makeGrant()` nor `redeemGrant()` was wrapped in a try/catch around the
+   new `window.apEncodeGrant`/`apDecodeGrant` calls — so a very fast click before the module resolves
+   would throw uncaught and fail silently (the pre-refactor plain functions had no such dependency; DM
+   Console's equivalent call already had this guard, unrelated to this change). Fixed by matching that
+   existing pattern.
+3. **This session's own record overclaimed its scope.** The original CHANGELOG/session-note draft
+   said "two raw-exception-text UI messages" were made friendlier, but only one (Live Sheet's) had
+   actually been touched — DM Console's matching instance (`loadRoster()`'s catch) was read during the
+   audit but never edited. Fixed by actually applying the same treatment there, so the record now matches
+   the diff.
+
+Worth stating plainly: the review caught these because it was actually run and its findings verified
+against the code, not skipped as "the tests already pass." All three would have shipped in a PR whose
+own tests were green.
+
 ## What this audit did NOT do
 
 It did not re-run or expand the still-open `security/privilege-and-character-integrity` task on
@@ -126,8 +155,9 @@ available tools' reach — flagged for the owner, not fixed here.
 ## Full verification
 
 Every automated gate that could be run in this environment was run at least once more after all fixes
-landed, several multiple times as each change was made: `engine-parity-ci`, `esc-gap-verify`,
-`tool-pricing-ci`, `sync-concurrency-ci` (now 29 assertions, up from 26), `undo-barrier-ci`,
+landed, several multiple times as each change was made — including a final pass after the
+`/code-review ultra` fixes above: `engine-parity-ci`, `esc-gap-verify`, `tool-pricing-ci`,
+`sync-concurrency-ci` (32 assertions by the end, up from 26 at the start), `undo-barrier-ci`,
 `sync-state-machine-ci`, `dm-ap-award-filters-ci`, `autosave-flush-latest-push-ci`,
 `cost-customization-ci`, `version-label-ci`, `sync-autosave-toggle-ci`, `protected-events-roundtrip-ci`,
 the new `ap-grant-code-ci`, and the browser e2e suite (`chargen-flows-e2e`, `dm-console-ui-e2e`,
