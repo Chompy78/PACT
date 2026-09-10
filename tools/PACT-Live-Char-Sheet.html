@@ -403,10 +403,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
-  <div class="card"><h3 onclick="this.parentElement.classList.toggle('clp')">Buy / progress</h3><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
-  <div class="card"><h3 onclick="this.parentElement.classList.toggle('clp')">Character</h3><div id="sheet"></div>
+  <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Buy / progress</h3><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
+  <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Character</h3><div id="sheet"></div>
     <h3 style="margin-top:10px">Needs review</h3><div id="tray"></div></div>
-  <div class="card"><h3 onclick="this.parentElement.classList.toggle('clp')">History &amp; ledger</h3>
+  <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">History &amp; ledger</h3>
 <div class="aplegend" title="Colour key for the History &amp; ledger">
   <span><span class="dot g"></span>AP awarded</span>
   <span><span class="dot r"></span>Warning / drawback cost</span>
@@ -416,13 +416,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div id="lmobar"><div id="lmobar-ap" title="Tap to jump to the buy panel" onclick="var s=document.getElementById('buysearch');if(s)s.scrollIntoView({behavior:'smooth'});"><b id="lmb">—</b> <span id="lms"></span></div><div id="lmobar-acts"><button onclick="undo()" title="Undo" aria-label="Undo">↶</button><button onclick="redo()" title="Redo" aria-label="Redo">↷</button></div></div>
 <script>
 
-function _mod(s){return Math.floor((s-10)/2);}
-function _abilName(a){return a;}
 /* ===== spell picker engine (shared, parity-critical) ===== */
 function _spLvKey(l,n){return l+'|'+n;}
 function _spMaxCastLv(rank,hd){var m=0;for(var L=1;L<=9;L++){if(rank>=L&&hd>=(DATA.hdGate[L-1]||99))m=L;}return m;}
-function _spSubclassesFor(b,cls){var out=[];if(b.freeSub&&b.freeSub[cls])out.push(b.freeSub[cls]);
- (b.subAbilities||[]).forEach(function(k){var p=String(k).split('|');if(p[0]===cls&&out.indexOf(p[1])<0)out.push(p[1]);});return out;}
 function _spClassesOf(name){for(var i=0;i<(DATA.spells||[]).length;i++){if(DATA.spells[i].n===name)return DATA.spells[i].c;}return null;}
 // addable spell pool for a discipline: base class list (by castable level) UNION subclass grants (incl off-list).
 function eligibleSpells(b,ti,di){
@@ -1550,10 +1546,6 @@ function validate(){
 function _lsIsAdvisory(w){return /switched off player-entered AP/.test(w)||/no Ki-using ability/.test(w)||/^Creation AP not confirmed/.test(w)||/is no longer in the rules data/.test(w);}
 
 // ---------------- buy panel builders ----------------
-function opt(v){return '<option value="'+String(v).replace(/"/g,'&quot;')+'">'+v+'</option>';}
-function buyBtn(label,cat,payloadJS){return '<button class="buy" onclick=\''+cat+'BUY\'>'+label+'</button>';}
-
-function nextCostLabel(cat,payload){const c=priceOf(cat,payload);return c+' AP';}
 
 // Centre-panel spellcasting section (spellcasting-redesign): header strip + L1-9 slot grid + per-level lists (3 cols),
 // all driven by the live engine (r.discInfo) + the traditions data; ghost placeholders for unfilled prepared/known.
@@ -1779,7 +1771,6 @@ function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(
 // AP a character gains advancing one level (benchmark anchors, interpolated)
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
 function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
-function awardToNext(){const b=foldBuild(null);const d=levelDelta(b.hd);if(d>0)award(d,'Level '+(b.hd+1)+' budget');else flash('Already at the top of the benchmark table.');}
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
@@ -2428,7 +2419,6 @@ function _nameSwapLevelPicker(i){
   i.parentNode.insertBefore(sel,i);
 }
 function _nameSwapUnlock(btn){var i=btn.parentNode.querySelector('.nmf');if(!i)return;var known=(i.dataset.kind==='known');if(!known&&!_nameSwapAvail().ok){flash('Cantrips swap only with your free Hit-Die swap \u2014 none available this Hit Die.');return;}i.readOnly=false;i.style.background='';i.style.color='';_nameSwapLevelPicker(i);i.focus();btn.textContent='\u270E';btn.title='Swapping this pick';_swapRecount();}
-function _nameSwapHD(){var SW=_nameSwapAvail();if(!SW.ok)return 0;var ch=false;document.querySelectorAll('#namesBox .nmf[data-swap="1"]').forEach(function(e){if(String(e.value)!==String(e.dataset.orig||''))ch=true;});return ch?(SW.hd||0):0;}
 function _swapCost(L){return (((DATA.knownUnit)||[])[L-1]||1);}function _spellLevel(nm){var s=(DATA.spells||[]).filter(function(x){return x.n===nm;})[0];return s?Math.max(1,s.l):0;}
 /* Pure free/paid split — the only place the swap economy is decided. Free-only rows
  * (cantrips/arcanum/styles) MUST be covered by free Hit-Die swaps (no paid path); known
@@ -2480,7 +2470,7 @@ function openSpellBrowser(){
   var CL=[];(DATA.spells||[]).forEach(function(s){(s.c||[]).forEach(function(c){if(CL.indexOf(c)<0)CL.push(c);});});CL.sort();
   var clOpts='<option value="">All classes</option>'+CL.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
   var lvOpts='<option value="">All levels</option><option value="0">Cantrip</option>'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<option value="'+L+'">Level '+L+'</option>';}).join('');
-  ov.innerHTML='<div style="background:var(--card);color:var(--ink);border-radius:12px;padding:16px 20px;max-width:640px;width:92%;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0;color:var(--blue);font-size:16px">&#x1F50D; Spell Reference <span style="color:var(--grey);font-weight:400;font-size:11px">&mdash; '+(DATA.spells||[]).length+' spells (2024 PHB)</span></h2><button onclick="closeSpellBrowser()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--grey)">&#x2715;</button></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="spbQ" placeholder="Search by name&hellip;" oninput="_spbRender()" style="flex:1;min-width:140px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)"><select id="spbL" onchange="_spbRender()" style="padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)">'+lvOpts+'</select><select id="spbC" onchange="_spbRender()" style="padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)">'+clOpts+'</select></div><div id="spbResults"></div></div>';
+  ov.innerHTML='<div style="background:var(--card);color:var(--ink);border-radius:12px;padding:16px 20px;max-width:640px;width:92%;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.3)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h2 style="margin:0;color:var(--blue);font-size:16px">&#x1F50D; Spell Reference <span style="color:var(--grey);font-weight:400;font-size:11px">&mdash; '+(DATA.spells||[]).length+' spells (2024 PHB)</span></h2><button onclick="closeSpellBrowser()" class="close-btn" aria-label="Close" title="Close" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--grey)">&#x2715;</button></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="spbQ" placeholder="Search by name&hellip;" oninput="_spbRender()" style="flex:1;min-width:140px;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)"><select id="spbL" onchange="_spbRender()" style="padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)">'+lvOpts+'</select><select id="spbC" onchange="_spbRender()" style="padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink)">'+clOpts+'</select></div><div id="spbResults"></div></div>';
   ov.style.display='flex';_spbRender();
 }
 function closeSpellBrowser(){var ov=document.getElementById('spbOv');if(ov)ov.style.display='none';}
@@ -2620,16 +2610,22 @@ function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],an:[[],[],[],[]],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else if(p[3]==='a')trMap[kk].an[+p[4]][+p[5]]=v;else{var _sL=+p[4],_nL=_spellLevel(v)||_sL;if(v&&String(v).trim()&&_nL!==_sL){(trMap[kk].kn[_nL-1]=trMap[kk].kn[_nL-1]||[]).push(v);trMap[kk]._cv=trMap[kk]._cv||{};trMap[kk]._cv[_sL]=(trMap[kk]._cv[_sL]||0)-1;trMap[kk]._cv[_nL]=(trMap[kk]._cv[_nL]||0)+1;}else trMap[kk].kn[_sL-1][+p[5]]=v;}}});
   var _dup=_swapDupes();if(_dup.length){flash('\u26D4 \u201C'+_dup[0]+'\u201D is already in that spell list \u2014 no duplicates within a discipline. Pick a different spell.');return;}
   var _st=_swapTally();if(_st.illegal){flash('\u26D4 Too many free-only swaps (cantrip/arcanum/style) for your free Hit-Die swaps this level.');return;}if(_st.paid>0&&_st.paid>_st.avail){flash('\u26D4 These swaps cost '+_st.paid+' AP but you have '+_st.avail+' available.');return;}var _curB=foldBuild(null);Object.keys(trMap).forEach(function(kk){var tm=trMap[kk];if(!tm._cv)return;Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;tm.kn[L-1]=(tm.kn[L-1]||[]).filter(function(x){return x!==undefined;});});var _dd=(((_curB.traditions||[])[tm.ti]||{}).disciplines||[])[tm.di];var _kc=(_dd&&_dd.known)||[];Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;emit({type:'known',ti:tm.ti,di:tm.di,L:L,to:Math.max(0,(_kc[L-1]||0)+tm._cv[Lk])});});delete tm._cv;});var _shd=(foldBuild(null).hd)||0;emit({type:'names',dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];}),label:'Named spells & languages'+(_st.paid>0?(' \u2014 '+_st.n+' paid swap'+(_st.n>1?'s':'')+' ('+_st.paid+' AP, no refund)'):''),swapHD:(_st.freeUsed>0?_shd:0),fs:fs,fsc:fsc,mm:mm,mv:mv,eb:eb,swapN:_st.freeUsed,cost:_st.paid});closeNames();flash('Spell & language names locked into the log.');}
-var _AK='DragonReachForgePACT';
-function _apHash(str){var h=5381>>>0;for(var i=0;i<str.length;i++){h=(((h*33)>>>0)^str.charCodeAt(i))>>>0;}return h.toString(36);}
-function _apEnc(o){var pl=JSON.stringify(o);var c=pl+'|'+_apHash(pl);var u=encodeURIComponent(c);var x='';for(var i=0;i<u.length;i++)x+=String.fromCharCode(u.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));return 'PACTAP:'+btoa(x);}
-function _apDec(code){if(!code||code.indexOf('PACTAP:')!==0)return null;try{var x=atob(code.slice(7));var u='';for(var i=0;i<x.length;i++)u+=String.fromCharCode(x.charCodeAt(i)^_AK.charCodeAt(i%_AK.length));var c=decodeURIComponent(u);var p=c.lastIndexOf('|');if(p<0)return null;var pl=c.slice(0,p),sig=c.slice(p+1);if(_apHash(pl)!==sig)return {bad:true};return JSON.parse(pl);}catch(e){return null;}}
-function _grantId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+// apEncodeGrant/apDecodeGrant/makeGrantId are bridged from js/ap-grant-code.js (engine-ready module) —
+// shared with DM Console, which also encodes these codes; see that file's header for why this must
+// stay one copy. Their onclick buttons (the ⎘/⎀ header buttons) are static markup, not gated on
+// engine-ready, so both calls below are guarded: a very fast click before that module resolves would
+// otherwise throw an uncaught TypeError on window.apEncodeGrant/apDecodeGrant being undefined and fail
+// silently (the pre-refactor plain-function versions had no such dependency) — same guard shape
+// DM Console's dmMakeGrant() call site already has (/code-review ultra, 2026-09-10).
 function makeGrant(){var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
-  var code=_apEnc({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:_grantId()});
+  var code;
+  try{code=window.apEncodeGrant({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:window.makeGrantId()});}
+  catch(e){flash('Could not generate a code — the sheet is still loading, try again in a moment.');return;}
   try{if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(code);flash('AP grant code copied — send it to the party.');return;}}catch(e){}
   window.prompt('Copy this AP grant code and send it to the party:',code);}
-function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','');if(!code)return;var o=_apDec(code.trim());
+function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','');if(!code)return;var o;
+  try{o=window.apDecodeGrant(code.trim());}
+  catch(e){flash('Could not read that code — the sheet is still loading, try again in a moment.');return;}
   if(!o){flash('That is not a valid AP grant code.');return;}
   if(o.bad){flash('This grant code looks altered — ask your DM for a fresh one.');return;}
   if(!(+o.a)){flash('Invalid grant code.');return;}
@@ -2693,6 +2689,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // half; the worst case is now local-only mode, which this app already supports.
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
+  import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
+  window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
   window._engineBridge = { validate };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
@@ -3294,7 +3292,7 @@ document.addEventListener('sync-ready', function () {
       renderCharListUI();
     } catch(err){
       var listEl = document.getElementById('cloudCharList');
-      if(listEl) listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:#c00">Error: '+esc(err.message)+'</div>';
+      if(listEl) listEl.innerHTML='<div style="padding:6px 12px;font-size:12px;color:var(--bad)">Couldn\'t load your characters — try again in a moment. ('+esc(err.message)+')</div>';
     }
   }
 });

@@ -244,6 +244,10 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
       _sealBlocked.add(id);
       return { id, synced: false, sealed: true, error, migratedFrom };
     }
+    // See DeletedError/pushCharacter()'s zero-rows branch: this device's own delete beat this push.
+    // Nothing is left to keep "dirty" (deleteCharacter() already lsRemove()'d the local record), and
+    // unlike a conflict, retrying this write could never succeed.
+    if (error && error.deleted) return { id, synced: false, deleted: true, error, migratedFrom };
     return { id, synced: false, conflict: !!error.conflict, error, migratedFrom };   // stays dirty, will retry
   }
   finally { _pushInFlight.delete(id); }
@@ -344,6 +348,17 @@ export class ConflictError extends Error {
   }
 }
 
+/** Thrown by pushCharacter() when this device's own deleteCharacter() tombstoned `id` while this
+ *  exact push was in flight — see the zero-rows branch below. Distinct from ConflictError: a conflict
+ *  means "retry against the newer row", this means "there is no row to save, by this device's own
+ *  action" — retrying can never succeed and there is nothing local left to keep dirty. */
+export class DeletedError extends Error {
+  constructor(id) {
+    super('This character was deleted.');
+    this.name = 'DeletedError'; this.deleted = true; this.id = id;
+  }
+}
+
 async function pushCharacter(rec, capturedSeq) {
   // Optimistic concurrency. The whole event log lives in `stats`, so an unguarded update lets the later
   // writer replace the earlier writer's ENTIRE history — two devices on one character silently destroy
@@ -392,6 +407,17 @@ async function pushCharacter(rec, capturedSeq) {
     return;
   }
 
+  // deleteCharacter() may have run concurrently with THIS exact push (e.g. an in-flight debounced
+  // autosave racing a user-initiated delete of the same character). It lsRemove()s the local record
+  // and tombstones the id before its own server DELETE is even sent — so if that DELETE reached the
+  // server first, the UPDATE above legitimately matched zero rows for that reason, and every branch
+  // below (the guarded conflict-check AND the plain insert) would otherwise read "zero rows" as "row
+  // doesn't exist yet" and INSERT it right back — silently resurrecting a character the user just
+  // removed, with applyServerMeta() then re-populating the local cache too. Found 2026-09-10 (full-
+  // system audit); no existing gate covers this — sync-concurrency-ci.mjs's own header scopes itself to
+  // save-vs-save races, not delete-vs-save. A pending tombstone always wins: never insert over one.
+  if (lsDeletes().includes(rec.id)) throw new DeletedError(rec.id);
+
   // Zero rows now means one of TWO things, and they must not be conflated: the row does not exist yet
   // (insert), or it exists and someone else wrote first (conflict). Inserting in the second case would
   // collide on the primary key. Ask before deciding.
@@ -405,6 +431,12 @@ async function pushCharacter(rec, capturedSeq) {
 
   const user = await currentUser();
   if (!user) throw new Error('Not signed in');
+  // Re-check immediately before the insert, not just once above: the guarded exists-check and
+  // currentUser() are both awaits, and a deleteCharacter() call for this id landing in EITHER window
+  // (after the earlier check already passed) would otherwise still fall through to the insert below.
+  // Checking as late as possible closes that window; the earlier check stays too, since failing fast
+  // there skips a wasted exists-check round trip for the common case (/code-review ultra, 2026-09-10).
+  if (lsDeletes().includes(rec.id)) throw new DeletedError(rec.id);
   const { data: ins, error: insErr } = await supabase
     .from('characters')
     // autosave_enabled carried forward, not left to the column default: a toggle preference set
@@ -601,6 +633,10 @@ async function reconcile(id) {
       // here, because owner decision L1 says a rejected save keeps the client's work: loadCharacter()
       // asks opts.onBehind() first and replaces the local copy only on an explicit yes.
       if (isSealRejection(err)) { _sealBlocked.add(id); return { behind: true, sealed: true }; }
+      // err.deleted (DeletedError): this device's own delete beat this recovery push — correctly a
+      // no-op here, not a bug to chase. syncAll() already excludes tombstoned ids from its next pass
+      // (it filters lsIndex()/server ids against lsDeletes() before calling reconcile() at all), so
+      // this is a one-time race on the single in-flight call, not something that would retry forever.
       /* transient: retry later */
     }
     finally { _pushInFlight.delete(id); }

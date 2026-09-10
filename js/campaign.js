@@ -30,6 +30,10 @@ export const PENDING_INVITE_KEY = 'pact_pending_invite';
  * D-GH-2026-08-11-character-claim-link-copy-not-transfer). Same same-tab-round-trip-through-login
  * purpose as PENDING_INVITE_KEY above, kept as a separate key/token space — a claim link resolves to
  * redeemCharacterClaim(), not redeemPlayerInvite(), and the two must never be confused mid-flow.
+ * Shared here for the same not-hand-duplicated-in-two-files reason as PENDING_INVITE_KEY (fixed
+ * 2026-09-10 — this constant was exported but never imported; CharGen hand-duplicated the literal
+ * as its own local `CLAIM_KEY` instead, which is exactly the drift this comment already claimed
+ * wasn't happening).
  */
 export const PENDING_CLAIM_KEY = 'pact_pending_claim';
 

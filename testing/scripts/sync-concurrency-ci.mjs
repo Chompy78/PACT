@@ -52,6 +52,7 @@ export const supabase = { from(){
   const q = { _op:null, _payload:null, _eq:{} };
   q.update = p => { q._op='update'; q._payload=p; return q; };
   q.insert = p => { q._op='insert'; q._payload=p; return q; };
+  q.delete = () => { q._op='delete'; return q; };
   q.select = () => { if(!q._op) q._op='select'; return q; };
   q.eq = (c,v) => { q._eq[c]=v; return q; };
   q.maybeSingle = async () => { const r = server.rows.get(q._eq.id); return { data: r?{...r}:null, error:null }; };
@@ -70,11 +71,29 @@ export const supabase = { from(){
       const r = { ...q._payload, ap:0, campaign_id:null, updated_at:stamp() };
       server.rows.set(r.id, r); return { data:[{ id:r.id, updated_at:r.updated_at, ap:r.ap }], error:null };
     }
+    if (q._op === 'delete') {
+      // deleteRaceScenario() below flips this to simulate "this device's OWN delete request hasn't
+      // confirmed yet" (replayDelete() catches the error and leaves the tombstone pending) while the
+      // row is separately removed from server.rows directly -- modelling the real ambiguous window
+      // where the delete has, in fact, already landed server-side.
+      if (server.deleteShouldFail) return { data: null, error: { message: 'network hiccup (test)' } };
+      server.rows.delete(id);
+      return { data: null, error: null };
+    }
     const r = server.rows.get(id); return { data: r?[{...r}]:[], error:null };
   }
   return q; } };
+export function setDeleteShouldFail(v){ server.deleteShouldFail = v; }
+// A one-shot hook fired from inside stub-auth.js's currentUser() -- lets a test inject "something else
+// happened while this push was awaiting currentUser()" without needing real network latency. Cleared
+// before the injected function runs so a nested currentUser() call (e.g. deleteCharacter()'s own) does
+// not re-trigger it.
+export const raceInjection = { pending: null };
+export function armRaceDuringCurrentUser(fn){ raceInjection.pending = fn; }
 `);
-writeFileSync(join(dir, 'stub-auth.js'), `export async function currentUser(){ return { id:'me' }; }\n`);
+writeFileSync(join(dir, 'stub-auth.js'),
+  `import { raceInjection } from './world.js';\n` +
+  `export async function currentUser(){ if (raceInjection.pending) { const fn = raceInjection.pending; raceInjection.pending = null; await fn(); } return { id:'me' }; }\n`);
 writeFileSync(join(dir, 'stub-cs.js'),   `export const isCloudCharId = id => typeof id === 'string' && id.includes('-');\n`);
 
 /** Turn a real sync.js source into a self-contained "page" module with stubbed deps and its own
@@ -107,6 +126,22 @@ if (revertedSrc === liveSrc) {
   rmSync(dir, { recursive:true, force:true });
   process.exit(1);
 }
+
+// The delete-vs-save race fix (2026-09-10): strip BOTH of pushCharacter()'s tombstone checks (the early
+// one right after the zero-rows update, and the late one right before the insert — added after
+// /code-review ultra found the early-only check still left a window across the guarded exists-check and
+// currentUser() awaits) to reproduce the bug they close: a zero-rows update being misread as "row never
+// existed, safe to insert" when it was actually this device's OWN concurrent delete. Stripping only one
+// would leave the other still guarding the insert, and the differential check would pass vacuously.
+const DELETED_ERROR_CHECK = 'if (lsDeletes().includes(rec.id)) throw new DeletedError(rec.id);';
+const deletedErrorCheckCount = liveSrc.split(DELETED_ERROR_CHECK).length - 1;
+if (deletedErrorCheckCount !== 2) {
+  console.log(`  FAIL  expected exactly 2 copies of the tombstone check in js/sync.js, found ${deletedErrorCheckCount}.`);
+  console.log('        Update DELETED_ERROR_CHECK/this comment to match, or the differential check is vacuous.');
+  rmSync(dir, { recursive:true, force:true });
+  process.exit(1);
+}
+const revertedDeleteRaceSrc = liveSrc.split(DELETED_ERROR_CHECK).join('/* tombstone check removed for this differential test */');
 
 const world = await import(pathToFileURL(join(dir, 'world.js')).href);
 async function openPage(file) {
@@ -180,6 +215,63 @@ console.log('\n  regressions — legitimate saves must keep working');
   await A.syncAll();
   const r = await A.saveCharacter({id:ID,name:'X',kind:'chargen',stats:{spent:8}});
   ok('an up-to-date page still saves after a background syncAll', r.synced === true && world.serverSpent(ID) === 8); }
+
+// --- delete-vs-save race (2026-09-10 full-system audit): a save must never resurrect a character ---
+// this SAME DEVICE just deleted. No prior gate covered this — the scenarios above are all save-vs-save;
+// this is the first delete-vs-save race under test.
+async function deleteRaceScenario(file) {
+  world.server.rows.clear(); world.server.clock = 0;
+  const ID = 'delr-aaaa-bbbb-cccc';
+  world.seed(ID, { spent: 10 });
+  const A = await openPage(file);
+  await A.loadCharacter(ID);
+  // This device's own delete is dispatched but hasn't confirmed from the client's point of view
+  // (replayDelete() catches the injected failure and leaves the tombstone pending, exactly as
+  // documented) — while the row is, in fact, already gone server-side, which is the real ambiguous
+  // window: from here, "zero rows" cannot be told apart from "never existed" without the tombstone.
+  world.setDeleteShouldFail(true);
+  await A.deleteCharacter(ID);
+  world.server.rows.delete(ID);
+  world.setDeleteShouldFail(false);   // a later retry of the tombstone would succeed; irrelevant here
+  const race = await A.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 99 } });
+  return { synced: race.synced, deleted: !!race.deleted, resurrected: world.server.rows.has(ID) };
+}
+
+console.log('\n  delete-vs-save race — a save must not resurrect this device\'s own deleted character\n');
+makePage(revertedDeleteRaceSrc, 'delrace-rev.js');
+const beforeDel = await deleteRaceScenario('delrace-rev.js');
+ok('  reverted copy resurrects the deleted character (bug reproduces)', beforeDel.resurrected === true);
+
+makePage(liveSrc, 'delrace-live.js');
+const afterDel = await deleteRaceScenario('delrace-live.js');
+ok('  live js/sync.js: the save is refused, not resurrected', afterDel.synced === false && afterDel.deleted === true);
+ok('  and the character stays deleted on the server', afterDel.resurrected === false);
+
+// The narrower window /code-review ultra found in the first version of this fix: the early tombstone
+// check (right after the zero-rows update) passes because nothing is tombstoned YET, and only becomes
+// true during one of pushCharacter()'s LATER awaits (the guarded exists-check, or currentUser()) —
+// which the early check alone cannot see, since it never runs again. Proven here by racing a REAL
+// deleteCharacter() call into the currentUser() await of a brand-new (never-loaded, unguarded) record's
+// first save, which is the simplest path that reaches currentUser() with nothing else in between.
+async function midPushRaceScenario(file) {
+  world.server.rows.clear(); world.server.clock = 0;
+  const ID = 'midr-aaaa-bbbb-cccc';
+  const A = await openPage(file);
+  world.setDeleteShouldFail(true);   // keep the tombstone pending after the injected delete completes
+  world.armRaceDuringCurrentUser(async () => { await A.deleteCharacter(ID); });
+  const race = await A.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 1 } });
+  world.setDeleteShouldFail(false);
+  return { synced: race.synced, deleted: !!race.deleted, resurrected: world.server.rows.has(ID) };
+}
+console.log('\n  the narrower window: a delete landing DURING the push itself, after the early check already passed\n');
+makePage(revertedDeleteRaceSrc, 'midrace-rev.js');
+const beforeMid = await midPushRaceScenario('midrace-rev.js');
+ok('  reverted copy (both checks stripped) still resurrects (bug reproduces)', beforeMid.resurrected === true);
+
+makePage(liveSrc, 'midrace-live.js');
+const afterMid = await midPushRaceScenario('midrace-live.js');
+ok('  live js/sync.js: the LATE check catches a delete that lands mid-push', afterMid.synced === false && afterMid.deleted === true);
+ok('  and the character stays deleted on the server', afterMid.resurrected === false);
 
 // --- feat/session-seal: a seal rejection is permanent, unlike every other failure here -----------
 // The classifier is what stops saveCharacter() retrying a write the server will refuse for ever.
