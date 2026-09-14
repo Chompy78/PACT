@@ -153,6 +153,7 @@ create table if not exists public.campaign_dms (
   primary key (campaign_id, dm_id)
 );
 create index if not exists idx_campaign_dms_dm on public.campaign_dms(dm_id);
+create index if not exists idx_campaign_dms_added_by on public.campaign_dms(added_by);
 
 create or replace function public.add_owner_as_dm()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
@@ -227,6 +228,8 @@ create table if not exists public.ap_awards (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_ap_awards_char on public.ap_awards(character_id);
+create index if not exists idx_ap_awards_dm on public.ap_awards(dm_id);
+create index if not exists idx_ap_awards_campaign on public.ap_awards(campaign_id);
 
 -- ---------------------------------------------------------------------------
 -- ap_award_edits — append-only audit trail for edit_ap_award() (feat/dm-ap-award-editing,
@@ -254,6 +257,8 @@ create table if not exists public.ap_award_edits (
 );
 create index if not exists idx_ap_award_edits_award on public.ap_award_edits(award_id);
 create index if not exists idx_ap_award_edits_char  on public.ap_award_edits(character_id);
+create index if not exists idx_ap_award_edits_dm       on public.ap_award_edits(dm_id);
+create index if not exists idx_ap_award_edits_campaign on public.ap_award_edits(campaign_id);
 
 -- ---------------------------------------------------------------------------
 -- gold_awards — the gold award ledger, the twin of ap_awards above. award_gold() writes a
@@ -277,6 +282,8 @@ create table if not exists public.gold_awards (
   created_at   timestamptz not null default now()
 );
 create index if not exists idx_gold_awards_char on public.gold_awards(character_id);
+create index if not exists idx_gold_awards_dm on public.gold_awards(dm_id);
+create index if not exists idx_gold_awards_campaign on public.gold_awards(campaign_id);
 
 -- ---------------------------------------------------------------------------
 -- campaign_downtime_declarations — the downtime ledger, and the ONLY place downtime lives.
@@ -308,6 +315,7 @@ create table if not exists public.campaign_downtime_declarations (
 );
 create index if not exists idx_downtime_decl_campaign on public.campaign_downtime_declarations(campaign_id, created_at desc);
 create index if not exists idx_downtime_decl_char on public.campaign_downtime_declarations(character_id);
+create index if not exists idx_downtime_decl_declared_by on public.campaign_downtime_declarations(declared_by);
 
 -- ---------------------------------------------------------------------------
 -- character_dm_notes — DM-only per-character annotations (player-name label +
@@ -536,6 +544,8 @@ create table if not exists public.campaign_invites (
 );
 create index if not exists idx_campaign_invites_campaign on public.campaign_invites(campaign_id);
 create index if not exists idx_campaign_invites_source_character on public.campaign_invites(source_character_id);
+create index if not exists idx_campaign_invites_created_by on public.campaign_invites(created_by);
+create index if not exists idx_campaign_invites_redeemed_by on public.campaign_invites(redeemed_by);
 
 -- campaign_invite_redemptions — per-redeemer tracking for REUSABLE (dm-only) invites, since a single
 -- redeemed_by/redeemed_at pair on campaign_invites can only ever record one redeemer. Single-use
@@ -1120,6 +1130,7 @@ create table if not exists public.feedback (
   created_at timestamptz not null default now()
 );
 create index if not exists idx_feedback_created on public.feedback(created_at);
+create index if not exists idx_feedback_user on public.feedback(user_id);
 
 -- ---------------------------------------------------------------------------
 -- character_backups — automatic pre-change snapshots of every characters row.

@@ -4,6 +4,37 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-10 · fix+chore: full-system audit — delete/save race, AP-grant dedupe, dead code, doc
+  drift, a11y, live DB indexes** — ran the entire automated suite first (1,000+ assertions, all green)
+  before hunting for what it structurally can't catch. Two real fixes:
+  (1) `js/sync.js`: a save already in flight when `deleteCharacter()` runs could race the delete's own
+  server confirmation and silently re-insert the deleted character (`pushCharacter()`'s zero-rows branch
+  couldn't tell "never existed" from "just deleted"). Fixed by checking this device's own tombstone list
+  at the zero-rows decision point; new differential regression test in `sync-concurrency-ci.mjs`.
+  (2) The AP grant-code encode/decode logic (`_AK`/`_apHash`/`_apEnc`/`_apDec`) was two byte-for-byte
+  duplicated, untested copies in DM Console and Live Sheet — extracted into `js/ap-grant-code.js`,
+  bridged the same way `DATA`/`MUT` already are, with new dependency-free test coverage including a
+  byte-for-byte backward-compatibility pin. Both recorded in `DECISIONS.md`
+  (`D-GH-2026-09-10-full-system-audit-delete-save-race`,
+  `D-GH-2026-09-10-full-system-audit-ap-grant-dedupe`). Also: dead-code removal (duplicated `_mod`/
+  `_abilName` across all three tools plus several orphaned functions in `js/`/tools, verified unused via
+  grep before deletion; `PENDING_CLAIM_KEY` now actually imported by CharGen instead of hand-duplicated);
+  keyboard accessibility added to CharGen's/Live Sheet's collapsible sections and DM Console's roster
+  rows/cards (role="button", tabindex, Enter/Space handling, visible focus styles); a hardcoded error
+  color and two raw-exception-text UI messages (DM Console and Live Sheet) made theme-aware/friendlier;
+  corrected AGENTS.md's and `js/engine.js`'s stale file-size/line-count figures (up to ~2.9× off — this
+  section has now drifted stale three separate times, see its own updated warning); applied a
+  purely-additive migration (`sql/migrations/2026-09-10-unindexed-foreign-keys.sql`) adding 11 covering
+  indexes the Supabase performance advisor flagged, folded into `sql/schema.sql`, advisor re-checked
+  clean afterward. **`/code-review ultra` run before opening the PR** (required by this repo's own
+  checklist since `sql/` was touched) found and fixed three real issues: a narrower window in the
+  delete/save race fix itself (a second tombstone check added immediately before the insert, proven with
+  a new interleaving test racing a real delete into the push's own `currentUser()` await); a real
+  regression in the AP-grant dedupe (Live Sheet's grant buttons could throw uncaught if clicked before
+  the new module finished loading — now guarded the same way DM Console's equivalent call already was);
+  and this entry's own initial overclaim about "two" friendlier error messages when only one had actually
+  been fixed at that point (now genuinely two). Full session record:
+  `docs/sessions/2026-09-10-full-system-audit.md`.
 - **2026-09-09 · feat: armour picker gets two gates — campaign ban-list + proficiency/STR (#542)** —
   new `bannedArmours` DM campaign-rules field, wired through the same `RULE_BAN_FIELDS`/`RULE_GRIDS`/
   `cloudRuleBarred` machinery already used for banning species/boons/drawbacks/masteries/origin-classes.

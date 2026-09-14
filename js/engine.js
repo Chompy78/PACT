@@ -43,10 +43,11 @@
  *   signPayload(obj)  — a copy of obj with a tamper-evident `sig` attached.
  *   verifyPayload(obj)— {signed, valid, status}: check a signed payload's integrity.
  *
- * (Historical export note below. This file is ~66 KB / ~930 lines — grep for a symbol when you need one,
- *  but it IS small enough to read in full when the task targets the engine. The rules DATA blob that once
- *  made this file ~238 KB now lives in js/engine-data.js (~189 KB on ~13 lines) — that's the one not to
- *  read wholesale.)
+ * (Historical export note below. This file is ~187 KB / ~2,660 lines as of 2026-09-10 — grep for a
+ *  symbol when you need one; re-measure before trusting this figure, it has drifted before. It's still
+ *  small enough to read in full when the task genuinely targets the engine. The rules DATA blob that once
+ *  lived inline here now lives in js/engine-data.js (~206 KB on ~14 lines) — that's the one not to read
+ *  wholesale.)
  *
  * The rules data and the compute() costing logic are lifted verbatim from
  * PACT-CharGen-Webtool-v0.104.html; the event-replay logic mirrors the

@@ -644,7 +644,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // always-available self-unset control (decision A3). Bridged alongside session/auth for the same
   // CDN-resilience reason as the rest of this module.
   import { currentSession, onSessionChange, myProfile, unsetMyBasicMode } from '../js/auth.js';
-  import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
+  import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
@@ -652,6 +652,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
+  window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
@@ -1399,7 +1400,9 @@ document.addEventListener('sync-ready', function () {
   // feat/character-ownership-claim-link (D-GH-2026-08-11-character-claim-link-copy-not-transfer):
   // redeem a DM-issued claim link. Own token/sessionStorage space (CLAIM_KEY, separate from
   // PENDING_KEY above) so an invite and a claim link pending in the same tab can never collide.
-  var CLAIM_KEY = 'pact_pending_claim';
+  // Sourced from js/campaign.js's PENDING_CLAIM_KEY (fixed 2026-09-10 — this used to be a hand-
+  // duplicated literal; see that constant's own comment).
+  var CLAIM_KEY = window.PENDING_CLAIM_KEY;
   function clearPendingClaim(){ try{ sessionStorage.removeItem(CLAIM_KEY); }catch(e){} }
   (function stashClaimToken(){
     var qs = new URLSearchParams(location.search);
@@ -1566,13 +1569,9 @@ document.addEventListener('sync-ready', function () {
 </script>
 <script>
 
-function _mod(s){return Math.floor((s-10)/2);}
-function _abilName(a){return a;}
 /* ===== spell picker engine (shared, parity-critical) ===== */
 function _spLvKey(l,n){return l+'|'+n;}
 function _spMaxCastLv(rank,hd){var m=0;for(var L=1;L<=9;L++){if(rank>=L&&hd>=(DATA.hdGate[L-1]||99))m=L;}return m;}
-function _spSubclassesFor(b,cls){var out=[];if(b.freeSub&&b.freeSub[cls])out.push(b.freeSub[cls]);
- (b.subAbilities||[]).forEach(function(k){var p=String(k).split('|');if(p[0]===cls&&out.indexOf(p[1])<0)out.push(p[1]);});return out;}
 function _spClassesOf(name){for(var i=0;i<(DATA.spells||[]).length;i++){if(DATA.spells[i].n===name)return DATA.spells[i].c;}return null;}
 // addable spell pool for a discipline: base class list (by castable level) UNION subclass grants (incl off-list).
 function eligibleSpells(b,ti,di){
@@ -2264,7 +2263,7 @@ function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
 
 function buildForm(F){
   function grp(t,h){F._sn=(F._sn||0)+1;const id='sec'+F._sn;
-    F.insertAdjacentHTML('beforeend','<fieldset id="'+id+'"><legend><span class="secname" onclick="toggleSec(\''+id+'\')">'+t+'</span><span class="secsub" id="sub'+id+'"></span><span class="secbadge" id="bdg'+id+'"></span></legend><div class="secbody">'+h+'</div></fieldset>');}
+    F.insertAdjacentHTML('beforeend','<fieldset id="'+id+'"><legend><span class="secname" role="button" tabindex="0" aria-expanded="true" onclick="toggleSec(\''+id+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleSec(\''+id+'\');}">'+t+'</span><span class="secsub" id="sub'+id+'"></span><span class="secbadge" id="bdg'+id+'"></span></legend><div class="secbody">'+h+'</div></fieldset>');}
   function rSel(id,l,a,sel,hint,cost){return '<div class="row"><label class="l">'+l+'</label><select id="'+id+'">'+selOpts(a,sel)+'</select>'+(cost?'<span class="c">'+cost+'</span>':'')+(hint?'<span class="hint">'+hint+'</span>':'')+'</div>';}
   function rNum(id,l,sel,mn,mx,hint){return '<div class="row"><label class="l">'+l+'</label><select id="'+id+'">'+numOpts(mn,mx,sel)+'</select><span class="warn" id="'+id+'_w"></span>'+(hint?'<span class="hint">'+hint+'</span>':'')+'</div>';}
   // species <select>s are populated by buildSpeciesSelects() (feat/chargen-campaign-rules, D-GH44) —
@@ -3974,11 +3973,6 @@ function buildClassPickers(){
       else addRow('feat2',lab);}
     render();}));
 }
-function _bundleBoxes(c){var subsW=(DATA.subList[c]||[]).filter(function(s){return ((DATA.subclasses[c]||{})[s]||{}).spellBundle;});if(!subsW.length)return '';
-  var boxes=subsW.map(function(s){var bun=DATA.subclasses[c][s].spellBundle;var cn=bun.cantrips?(' +'+bun.cantrips+'c'):'';
-    if(s==='Circle of the Land'){return ['Arid','Polar','Temperate','Tropical'].map(function(tr){return '<label style="font-size:11px;margin-right:9px;white-space:nowrap"><input type="checkbox" class="subbundle" data-key="'+c+'|'+s+'|'+tr+'"> '+s+' — '+tr+' ('+bun.origin+' AP'+cn+')</label>';}).join('');}
-    return '<label style="font-size:11px;margin-right:9px;white-space:nowrap"><input type="checkbox" class="subbundle" data-key="'+c+'|'+s+'"> '+s+' spell list ('+bun.origin+' AP'+cn+')</label>';}).join('');
-  return '<div style="margin:0 0 3px 80px;line-height:1.8">'+boxes+'</div>';}
 function buildSubPickers(){
   const grid=$('subgrid');if(!grid)return;
   grid.innerHTML=DATA.classes.filter(c=>DATA.subList[c]).map(c=>{
@@ -5862,7 +5856,6 @@ function sheetStats(r,b){
   const spell=kgrid([['Save DC',r.hasDC?r.saveDC:'—'],['Spell Atk',r.hasDC?'+'+r.spellAtk:'—'],['Gold',r.goldGp+'gp']]);
   return abil+'<div class="sublab">Combat</div>'+combat+'<div class="sublab">Magic & wealth</div>'+spell;
 }
-function sgn(x){return (x>=0?'+':'')+x;}
 function renderSheet(){const b=readBuild(),r=compute(b,_cgDmOpts());
   return renderCharSheet(b,r,{apText:r.total+' / '+r.budget+' AP spent  ·  ≈ Level '+(apLevel(r.budget)||'<1')+' by budget'});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;const showing=ov.style.display==='block';
@@ -5923,10 +5916,10 @@ const LGROUPS=[
 // a real 'input' event so it goes through the exact same path a typed value would (including
 // _setCoalesceForEvent, so rapid clicks group into sane undo steps).
 function stepAbil(a,d){const e=$('st_'+a);if(!e)return;e.value=Math.max(2,Math.min(20,(+e.value||10)+d*2));e.dispatchEvent(new Event('input',{bubbles:true}));render();}
-function toggleSec(id){const f=$(id);if(f)f.classList.toggle('collapsed');}
+function toggleSec(id){const f=$(id);if(!f)return;f.classList.toggle('collapsed');const btn=f.querySelector('.secname');if(btn)btn.setAttribute('aria-expanded',f.classList.contains('collapsed')?'false':'true');}
 // M2: on phones, start with every section collapsed (tap to open) and the summary details folded
 function collapseForMobile(){try{if(typeof window==='undefined'||!window.innerWidth||window.innerWidth>600)return;
-  document.querySelectorAll('#form fieldset').forEach((f,i)=>{if(i>0)f.classList.add('collapsed');});
+  document.querySelectorAll('#form fieldset').forEach((f,i)=>{if(i>0){f.classList.add('collapsed');const btn=f.querySelector('.secname');if(btn)btn.setAttribute('aria-expanded','false');}});
   const s=document.querySelector('.summary');if(s)s.classList.add('sumcollapsed');}catch(e){}}
 function jumpTo(id){const el=$(id);if(!el)return;el.classList.remove('collapsed');var _h0=document.querySelector('.stickyhead');if(_h0&&getComputedStyle(_h0).position==='static'){el.scrollIntoView({behavior:'smooth',block:'start'});return;}
   // offset the scroll by the sticky header's height so the section title isn't hidden beneath it
@@ -6284,8 +6277,6 @@ var PACT_SHEET_KEY='pactCharSheetManual';
 var SHEET_TOOL='generic';                 // each tool sets this: 'chargen' or 'livesheet'
 function _sheetStoreKey(){return PACT_SHEET_KEY+':'+SHEET_TOOL;}
 // genCharId() is bridged from js/character-store.js (engine-ready module, D-GH38) — see window.genCharId.
-function _dstamp(){var d=new Date();var p=function(n){return String(n).padStart(2,'0');};
-  return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes());}  // YYYYMMDD-HHMM for save filenames
 function _csStore(){try{return JSON.parse(localStorage.getItem(_sheetStoreKey())||'{}');}catch(e){return {};}}
 function _csKey(id){return (id&&String(id).trim())||'(none)';}
 function csLoad(id){var all=_csStore();return all[_csKey(id)]||{};}
