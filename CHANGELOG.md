@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-18 · feat(dm-console): roster card shows "AP left / AP total", not just AP left** —
+  the card view's AP stat cell (`['AP', ...]`, was `['AP left', avail]`) now reads e.g. "18 / 39"
+  instead of a bare "18", using the same `s.spendable` total the collapsed "Spendable total" DM-tools
+  row already showed, so a DM can tell a low-level character near its ceiling apart from a high-level
+  one that just hasn't spent much, without opening DM tools. Display-only; `s.available`/`s.spendable`
+  themselves are unchanged. `testing/scripts/dm-console-ui-e2e.mjs` updated in the same change — its
+  ignore-player-AP/award-vs-drawback math checks now assert the "AP left" half explicitly and gained
+  matching new checks for the "AP total" half; 101/101 passing.
 - **2026-09-18 · fix(livesheet): guardrails against the "wrong character" mix-up (`D-GH-2026-09-18-campaign-mixup-guardrails`)** —
   a DM ticket ("my player's AP looks completely wrong") turned out to be a player stuck on an old unbound
   local draft instead of their real campaign-bound character (Live Sheet's shared local-autosave slot
