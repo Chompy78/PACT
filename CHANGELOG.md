@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-18 · fix(livesheet): guardrails against the "wrong character" mix-up (`D-GH-2026-09-18-campaign-mixup-guardrails`)** —
+  a DM ticket ("my player's AP looks completely wrong") turned out to be a player stuck on an old unbound
+  local draft instead of their real campaign-bound character (Live Sheet's shared local-autosave slot
+  silently resumes whatever was last open, with no campaign check). Confirmed a recurring pattern, not a
+  one-off. Added: a one-time flash nudging a signed-in campaign player toward My Characters when the
+  loaded character turns out to be standalone; a display-only "— <campaign>" suffix on the sheet header
+  for a campaign-bound character (never persisted into `name`/LOG); and a client-side block on renaming a
+  character to a name that collides with another of the player's own (soft, Rename-button-only — a DB
+  constraint would break on already-existing duplicate-named rows and the universal `'New Character'`
+  default). No `compute()`/`DATA` changes, no `DATA.version` bump.
 - **2026-09-10 · fix+chore: full-system audit — delete/save race, AP-grant dedupe, dead code, doc
   drift, a11y, live DB indexes** — ran the entire automated suite first (1,000+ assertions, all green)
   before hunting for what it structurally can't catch. Two real fixes:

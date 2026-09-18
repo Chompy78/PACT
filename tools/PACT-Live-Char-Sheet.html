@@ -168,6 +168,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
 .card h3{margin:0 0 6px;color:var(--navytx);font-size:13px;border-bottom:1px solid var(--line);padding-bottom:4px}
 .shname{font-size:20px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);margin-bottom:6px;font-size:12px}
+.shcampsuffix{font-size:13px;font-weight:600;color:var(--grey)}
 .abrow{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:6px 0}
 .abx{border:1px solid var(--line);border-radius:8px;text-align:center;padding:4px 0}.abx b{font-size:9px;display:block}.abx span{font-size:18px;font-weight:800}.abx i{font-style:normal;font-size:10px;color:var(--grey);display:block}
 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:6px 0}
@@ -399,7 +400,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <button class="btn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
   <button class="btn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
   <button class="btn" style="padding:3px 8px" title="Redeem an AP grant code from your DM" onclick="redeemGrant()">⎀ Redeem</button>
-  <button class="btn" style="padding:3px 8px" onclick="(function(){var n=prompt('Character name?');if(n!=null)emit({type:'name',name:n,label:'Named: '+n});})()">✎ Rename</button>
+  <button class="btn" style="padding:3px 8px" onclick="(async function(){var n=prompt('Character name?');if(n==null)return;if(!(await _lsRenameGuard(n,currentCharId())))return;emit({type:'name',name:n,label:'Named: '+n});})()">✎ Rename</button>
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
@@ -926,6 +927,29 @@ function legalCheck(cat,payload,_cur){
 }
 
 function _viewOnlyBlock(){ if(!VIEW_ONLY) return false; if(typeof flash==='function') flash('👁 Read-only DM view — nothing here can be changed or saved.'); return true; }
+// fix/duplicate-name-and-campaign-suffix: blocks renaming a character to a name that collides with
+// another of this player's OWN characters — the exact confusion (two "Caspian"s, one campaign-bound,
+// one not) that prompted this. Deliberately client-side/soft, matching this app's existing enforcement
+// model (RLS is the real backend gate; the UI guides the honest path) — it stops the accidental case at
+// the one deliberate action (pressing Rename) without a schema migration or touching the many existing
+// characters already sharing a name. The 'New Character' default is exempt: every fresh draft starts
+// with it, so blocking it would make creating a second draft impossible before the player has even
+// chosen a real name. Not run for signed-out/offline players — there's no "my other characters" list to
+// check against, so nothing to enforce.
+async function _lsRenameGuard(newName, currentId){
+  const trimmed = String(newName||'').trim();
+  if(!trimmed || trimmed.toLowerCase()==='new character') return true;
+  if(!window._lsSignedIn || !window._syncBridge || !window._syncBridge.listMyCharacters) return true;
+  try{
+    const mine = await window._syncBridge.listMyCharacters();
+    const dupe = (mine||[]).find(c => c.id!==currentId && !c.archived_at && String(c.name||'').trim().toLowerCase()===trimmed.toLowerCase());
+    if(dupe){
+      alert('You already have a character named "'+trimmed+'"'+(dupe.campaign_id?' (bound to a campaign)':' (no campaign)')+'. Pick a different name so the two can’t be mixed up — Rename again to try another.');
+      return false;
+    }
+  }catch(e){ /* offline or lookup failed — don't block a rename on a check that couldn't run */ }
+  return true;
+}
 function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
@@ -1636,7 +1660,11 @@ function render(){
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
-  let sh='<div class="shname">'+esc(b.name||'New Character')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
+  // Display-only campaign-name suffix (fix/duplicate-name-and-campaign-suffix) — never written into
+  // b.name/LOG, purely rendered here so two characters that legitimately share a name (e.g. a stray
+  // unbound draft and the real campaign one, exactly the confusion that prompted this) are visually
+  // distinguishable the moment the sheet is open, without having to check My Characters first.
+  let sh='<div class="shname">'+esc(b.name||'New Character')+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -2757,6 +2785,10 @@ document.addEventListener('sync-ready', function () {
   var cloudMenu = document.getElementById('cloudMenu');
   var _session  = null;
   var _campaignName = null;   // name of the campaign_id on the currently loaded character, if any
+  // window._lsCampaignName mirrors _campaignName (fix/duplicate-name-and-campaign-suffix) so render(),
+  // in the main classic <script> and out of this module closure's reach, can show the display-only
+  // "— <campaign>" suffix next to the character name (see the .shname line in render()).
+  var _lsUnboundBannerShown = false;   // one-time-per-session guard for the "not linked to any campaign" flash below
   // 'none' | 'active' | 'unavailable' — see renderCloudStatusBadge(). window-scoped (not a local var) so
   // apCeiling()/_dmOpts() (outside this closure, feat/campaign-ap-model) can read the SAME resolution
   // signal that drives the campaign-rules badge, instead of a second hand-mirrored copy — collapsed from
@@ -2793,6 +2825,24 @@ document.addEventListener('sync-ready', function () {
     } else {
       el.style.display = 'none';
     }
+  }
+
+  // fix/duplicate-name-and-campaign-suffix: a confirmed-standalone cloud character (rec exists, no
+  // campaign_id) is exactly the shape of the recurring support ticket — a player who belongs to a real
+  // campaign lands, via the shared local pactLiveSheet autosave slot, on an old unbound draft instead
+  // and doesn't notice until the numbers look wrong. Only worth a flash when the signed-in player
+  // actually HAS a campaign to be confused with; a genuinely solo/offline player's own standalone
+  // character should never see this. One-time per session (_lsUnboundBannerShown) so it can't spam a
+  // player who deliberately keeps a standalone draft open for a while.
+  function _lsWarnIfUnbound(){
+    if(_lsUnboundBannerShown || !_session || !window._campaignBridge) return;
+    _lsUnboundBannerShown = true;
+    window._campaignBridge.listMyCampaigns().then(function(camps){
+      var inAnyCampaign = (camps||[]).some(function(c){ return c.isPlayer || c.isDm; });
+      if(inAnyCampaign && typeof window.flash === 'function'){
+        window.flash('ℹ This character isn’t linked to any campaign. If you meant to open your campaign character, use 📋 My Characters to pick the right one.', 'warn');
+      }
+    }).catch(function(){ /* non-fatal — this is a courtesy nudge, not a data check */ });
   }
 
   // Uses onAuthChange (not the shared onSessionChange helper) because this site genuinely needs
@@ -2836,11 +2886,11 @@ document.addEventListener('sync-ready', function () {
       window._dmWindow = null;
       window._ignorePlayerAp = false;
       window._lsCampaignId = (rec && rec.campaign_id) || null;   // binding only — see buildCharacterEnvelope
-      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = null; window._rulesStatus = 'none'; window._lsVisibleCustomFields = {}; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); return; }
+      if(!rec || !rec.campaign_id){ window._cloudCampaignRules = null; _campaignName = window._lsCampaignName = null; window._rulesStatus = 'none'; window._lsVisibleCustomFields = {}; if(rec && typeof window._writeRulesSnapshot==='function') window._writeRulesSnapshot(null); /* rec present but no campaign_id = confirmed standalone → clear the offline snapshot (a logged leave) */ renderCloudStatusBadge(); if(rec) _lsWarnIfUnbound(); return; }
       window._rulesStatus = 'unavailable';   // interim, resolved just below — correctly NOT "no DM AP" if getCampaign throws
       var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
       window._cloudCampaignRules = camp ? (camp.rules || {}) : null;
-      _campaignName = camp ? camp.name : null;
+      _campaignName = window._lsCampaignName = camp ? camp.name : null;
       window._rulesStatus = camp ? 'active' : 'unavailable';
       if(camp){
         window._ignorePlayerAp = !!camp.ignore_player_ap;
@@ -2876,17 +2926,18 @@ document.addEventListener('sync-ready', function () {
     window._ignorePlayerAp = false;
     window._lsCampaignId = rec.campaign_id || null;   // binding only — see buildCharacterEnvelope
     window._cloudCampaignRules = null;
-    _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+    _campaignName = window._lsCampaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
     if(rec.campaign_id && window._campaignBridge) {
       try {
         var camps = await window._campaignBridge.listMyCampaigns();
         var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-        if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+        if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = window._lsCampaignName = camp.name; window._rulesStatus = 'active'; }
       } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
       if(window._rulesStatus==='active') await _lsFetchDowntimeWindow(rec.campaign_id, id);
       await _lsRefreshVisibleCustomFields(id);   // independent of whether the listMyCampaigns() lookup above succeeded — the RPC re-derives campaign membership itself
     } else {
       window._lsVisibleCustomFields = {};
+      _lsWarnIfUnbound();
     }
     renderCloudStatusBadge();
     var d = rec.stats;
@@ -2983,7 +3034,7 @@ document.addEventListener('sync-ready', function () {
         window._dmGold = rec.gold || 0; window._dmWindow = null;
         window._ignorePlayerAp = false;
         window._cloudCampaignRules = null;
-        _campaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
+        _campaignName = window._lsCampaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
         var afterRules = function(){
           renderCloudStatusBadge();
           var d = rec.stats;
@@ -2995,7 +3046,7 @@ document.addEventListener('sync-ready', function () {
         if(rec.campaign_id && window._campaignBridge){
           window._campaignBridge.listMyCampaigns().then(function(camps){
             var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
-            if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules||null; _campaignName = camp.name; window._rulesStatus = 'active'; }
+            if(camp){ window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules||null; _campaignName = window._lsCampaignName = camp.name; window._rulesStatus = 'active'; }
             if(window._rulesStatus==='active') return _lsFetchDowntimeWindow(rec.campaign_id, rec.id||vid);
           }).catch(function(){ /* non-fatal — mirrors loadCloudChar's own handling */ }).then(afterRules);
         } else { afterRules(); }
