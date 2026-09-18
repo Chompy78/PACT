@@ -231,8 +231,8 @@ check('players-code grant line element exists', grant.exists);
 const apUi = await page.evaluate(()=>{
   const src = [...document.querySelectorAll('script')].map(s=>s.textContent).join('\n');
   return {
-    stripHasAp:      /statCells\s*=\s*\[\s*\n?\s*\['AP left'/.test(src),
-    usesAvailable:   /\['AP left',\s*avail\]/.test(src),
+    stripHasAp:      /statCells\s*=\s*\[[\s\S]{0,400}?\['AP'/.test(src),
+    usesAvailable:   /\['AP',\s*avail\s*\+\s*'[^']*'\s*\+\s*totalAp\]/.test(src),
     oldLabelGone:    !/>Bonus DM AP</.test(src),
     newLabelPresent: />DM-granted AP/.test(src),
     labelExplained:  /PART OF their spendable total/.test(src),
@@ -242,7 +242,7 @@ const apUi = await page.evaluate(()=>{
   };
 });
 check('roster stat strip carries an AP figure', apUi.stripHasAp, JSON.stringify(apUi.stripHasAp));
-check('it uses the same s.available the player sees as "AP left"', apUi.usesAvailable);
+check('it shows s.available (the player\'s own "AP left") against s.spendable as a total (feat/card-ap-left-of-total)', apUi.usesAvailable);
 check('the misleading "Bonus DM AP" label is gone', apUi.oldLabelGone);
 check('replaced with "DM-granted AP"', apUi.newLabelPresent);
 check('and it explains it is part of, not extra to, the spendable total', apUi.labelExplained);
@@ -559,11 +559,21 @@ const dmap = await page.evaluate(async ()=>{
     {type:'buy',cat:'skill',cost:2,seq:7,payload:{v:'Acrobatics'}},
     {type:'buy',cat:'patch',cost:2,seq:8,_slot:'armour',payload:{patch:{armour:{heavy:false,light:true,medium:false,shield:false},wornArmour:''}}}
   ]}};
-  const read = () => [...document.querySelectorAll('#campRoster .card')].map(c=>({
-    ap: c.querySelector('.stat .v')?.textContent,
-    k:  c.querySelector('.stat .k')?.textContent,
-    warn: c.querySelector('.warnicon')?.getAttribute('title') || ''
-  }));
+  // feat/card-ap-left-of-total: the cell's .v text is now "<left> / <total>" instead of a bare number.
+  // Split once here so every existing `.ap ===` check below keeps asserting exactly the AP-LEFT figure
+  // it always did — the math those checks pin (ignore_player_ap, award-vs-drawback) is unchanged by
+  // this purely-presentational change — and `.apTotal` is new, separately asserted coverage of the
+  // total half.
+  const read = () => [...document.querySelectorAll('#campRoster .card')].map(c=>{
+    const raw = c.querySelector('.stat .v')?.textContent || '';
+    const [left, total] = raw.split(' / ');
+    return {
+      ap: left,
+      apTotal: total,
+      k:  c.querySelector('.stat .k')?.textContent,
+      warn: c.querySelector('.warnicon')?.getAttribute('title') || ''
+    };
+  });
   const out = {};
   // Deterministic render helper: empty the container, call the renderer, read.
   //
@@ -609,22 +619,27 @@ const dmap = await page.evaluate(async ()=>{
   out.awardedIgnoreOff = await render([andersAwarded]);
   return out;
 });
-check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP left', JSON.stringify(dmap.ignoreOn));
+check('the roster stat strip is still the AP cell', dmap.ignoreOn && dmap.ignoreOn.k === 'AP', JSON.stringify(dmap.ignoreOn));
 // ignore_player_ap ON: spendable = 0 awards + 6 drawback + 33 DM = 39; frozen spend 21 -> 18 left.
 // Was 12 until v0.356. Anders has NO award events — his whole +6 is drawback-derived — and under the
 // owner's ruling (D-GH-2026-08-19-drawback-grant-vs-ignore-player-ap) a drawback is a trade the
 // character made rather than player income, so ignore_player_ap does not reach it. He is real Amble
 // data, so this row is a live +6 for an actual character, not a synthetic case.
 check('DM AP reaches "AP left" (0 awards + 6 drawback + 33 DM − 21 spent = 18, was −15)', dmap.ignoreOn && dmap.ignoreOn.ap === '18', dmap.ignoreOn && dmap.ignoreOn.ap);
+// feat/card-ap-left-of-total: the total half is s.spendable itself, BEFORE the 21 spent is subtracted
+// (0 awards + 6 drawback + 33 DM = 39) — the same "Spendable total" figure DM tools already shows.
+check('...and the card now also shows the total it is left OF (39)', dmap.ignoreOn && dmap.ignoreOn.apTotal === '39', dmap.ignoreOn && dmap.ignoreOn.apTotal);
 check('and the bogus "OVER BUDGET" warning is gone', dmap.ignoreOn && !/OVER BUDGET/.test(dmap.ignoreOn.warn), dmap.ignoreOn && dmap.ignoreOn.warn);
 // ignore_player_ap OFF: same 39, same 18 — because Anders has no awards for the switch to drop. This
 // pair no longer proves the switch is read; the awarded variant below does that job now.
 check('and turning the switch off changes nothing for a character with no awards (still 18)',
       dmap.ignoreOff && dmap.ignoreOff.ap === '18', dmap.ignoreOff && dmap.ignoreOff.ap);
+check('...total unchanged too (still 39)', dmap.ignoreOff && dmap.ignoreOff.apTotal === '39', dmap.ignoreOff && dmap.ignoreOff.apTotal);
 // No DM AP and no campaign: ceiling is the player's own 6, spend 21 -> −15. Still correctly negative;
 // the fix must not paper over a genuinely overspent character.
 check('a character with no DM AP still shows a real deficit (6 − 21 = −15)',
       dmap.noDm && dmap.noDm.ap === '-15', dmap.noDm && dmap.noDm.ap);
+check('...against a total of just the player\'s own 6 (no DM/campaign pool)', dmap.noDm && dmap.noDm.apTotal === '6', dmap.noDm && dmap.noDm.apTotal);
 check('and that one DOES still warn "OVER BUDGET"', dmap.noDm && /OVER BUDGET/.test(dmap.noDm.warn), dmap.noDm && dmap.noDm.warn);
 
 // v0.356 — the switch DOES still do its job; it just does it to awards only. Same Anders plus a real
@@ -633,8 +648,12 @@ check('and that one DOES still warn "OVER BUDGET"', dmap.noDm && /OVER BUDGET/.t
 // put the drawback grant back inside the bracket would show 8 and 28 instead.
 check('the ignore-player-AP switch drops an AWARD (10 + 6 + 33 − 21 = 28 with it off)',
       dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.ap === '28', dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.ap);
+check('...total includes the award too (10 + 6 + 33 = 49)',
+      dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.apTotal === '49', dmap.awardedIgnoreOff && dmap.awardedIgnoreOff.apTotal);
 check('...but not the drawback trade (award ignored, drawback kept: 0 + 6 + 33 − 21 = 18)',
       dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.ap === '18', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.ap);
+check('...total drops back to 39 with the award ignored (0 + 6 + 33)',
+      dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal === '39', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal);
 
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));

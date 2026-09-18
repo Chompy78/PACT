@@ -10,6 +10,18 @@
 
 ## Index
 
+## D-GH-2026-09-18-campaign-mixup-guardrails — soft guardrails against the "wrong character" support ticket
+- A DM support ticket (player saw wildly wrong AP) turned out to be no engine bug: the player had two
+  characters named "Caspian" — the real campaign-bound one, and an old unbound draft silently resumed by
+  Live Sheet's single shared local-autosave slot. Confirmed via live Supabase data and the actual engine
+  replayed against the character's own LOG. DM confirmed this is a recurring pattern. Added three small,
+  additive, display/warn-only guardrails to `tools/PACT-Live-Char-Sheet.html`: a one-time flash when a
+  signed-in player with a real campaign lands on a standalone character; a display-only "— <campaign>"
+  suffix on the sheet header when campaign-bound (never persisted); and a client-side block on renaming a
+  character to a name that collides with another of the player's own (soft — a DB-level unique constraint
+  would break on existing duplicate-named rows and the universal `'New Character'` default). Full record:
+  `decisions/2026/D-GH-2026-09-18-campaign-mixup-guardrails.md`.
+
 ## D-GH-2026-09-10-full-system-audit-delete-save-race — a save must never resurrect a character this device just deleted
 - Full-system audit found a real, previously-untracked bug in `js/sync.js`: a save already in flight
   when `deleteCharacter()` runs can race the delete's own server confirmation, and `pushCharacter()`'s

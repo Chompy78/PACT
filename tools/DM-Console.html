@@ -1869,6 +1869,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var s = r.summary;
     var lvl = (s.apLevel!=null ? s.apLevel : '?');
     var avail = (s.available||0);
+    var totalAp = (s.spendable||0);   // same total the "Spendable total" DM-tools row shows (r.spendable) — see feat/card-ap-left-of-total
     var availClass = avail>0 ? 'pos' : (avail<0 ? 'neg' : 'zero');
 
     // compact warning icon (hover for details) — full list lives in the PACT-build expander
@@ -1901,7 +1902,11 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       return [def.label, (v==null || v==='') ? '—' : v];
     }
     var statCells = [
-      ['AP left', avail],
+      // feat/card-ap-left-of-total: was just `avail` — a DM reading the roster card alone had no way
+      // to tell "45 AP left" apart for a level-1 character on a 45 AP budget vs. a level-10 character
+      // on a 300 AP one. Showing it against totalAp (s.spendable, the same ceiling the "Spendable
+      // total" DM-tools row already shows) answers that without opening DM tools.
+      ['AP', avail+' / '+totalAp],
       ['HP', s.hp],
       ['AC', acCellHTML(s.ac, s.name), true],
       ['Speed', (s.speed!=null? s.speed+'′' : '—')],
