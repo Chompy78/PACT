@@ -458,21 +458,6 @@ export async function getAwardEditHistory(awardId) {
 }
 
 /**
- * Read-only full character data for the DM to inspect: the raw stats blob the
- * engine can hydrate + recompute from. (compute() is not called here — the
- * caller passes stats to the engine.)
- */
-export async function getCharacterStats(characterId) {
-  const { data, error } = await supabase
-    .from('characters')
-    .select('id, name, kind, stats, ap, gold')
-    .eq('id', characterId)
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-/**
  * feat/dm-creation-ceiling-controls: set a character's creation-AP ceiling.
  *
  * Goes through the purpose-built `dm_set_creation_ceiling` RPC rather than the general
