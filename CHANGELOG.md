@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-19 · release: promote `preview` → `main` as build `v1.546` (PR #546)** — carries two commits
+  since the last promotion (#543): the full-system audit (#544 — delete/save race fix, AP-grant dedupe,
+  dead code, doc drift, a11y, live DB indexes) and the wrong-character guardrails / AP-left-of-total
+  change below (#545). `BUILD` synced via a separate PR into `preview` first (#547, per
+  `docs/VERSION-SYNC.md`'s cloud-session routing — a cloud session can only push its own branch, and
+  that branch *is* `preview` for a promotion PR), then picked up by #546 automatically. All 16 CI checks
+  green; regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5. **Tag: not yet decided**
+  — this promotion is a bug-fix audit plus two small UI features, not a clear-cut major feature/rules
+  landing, so whether it warrants a `v1.546` tag is left to the owner per
+  `D-GH-2026-08-20-tag-only-meaningful-promotions`; tag pushes are a hard 403 from a cloud session
+  regardless, so it needs a local terminal or the GitHub web UI either way.
 - **2026-09-18 · feat(dm-console): roster card shows "AP left / AP total", not just AP left** —
   the card view's AP stat cell (`['AP', ...]`, was `['AP left', avail]`) now reads e.g. "18 / 39"
   instead of a bare "18", using the same `s.spendable` total the collapsed "Spendable total" DM-tools
