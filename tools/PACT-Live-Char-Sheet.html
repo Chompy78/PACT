@@ -379,6 +379,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
+<script src="../js/account-ui.js"></script>
 <div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
 <div class="top"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
@@ -388,7 +389,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn g" id="finishCreatingBtn" onclick="finishCreating()" title="End character creation. Own-species traits get pricier afterwards and purchases start costing gold and downtime; only your DM can reopen it." style="display:none">✔ <span class="bl">Finish creating</span></button>
 <button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
-<span id="lsSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span>
+<span id="lsSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span>
 <span id="cloudStatusBadge" class="cloudstatus">🔒 Not signed in</span>
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();openEconomy()">🪙 Coin &amp; calendar</button><button class="mi" onclick="closeMore();openWallet()">🎒 Record gold &amp; downtime</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
@@ -1329,9 +1330,12 @@ async function _lsRenderSyncChip(){
     var p=window._syncBridge.chipPresentation(s);
     // Conflict resolution reuses ☁ Cloud → Load's existing onBehind prompt (loadCloudChar, below) —
     // no separate "force sync" action, deliberately. See CharGen's copy of this same comment.
-    var title = s.state==='conflict'
+    var title = (s.state==='conflict'
       ? p.ariaLabel+' — use ☁ Cloud → Load to resolve (this replaces local changes with the cloud version)'
-      : p.ariaLabel;
+      : p.ariaLabel) + ' · Click for account & password';   // fix/account-details-and-password-change:
+      // this used to fully overwrite the static hint set in the HTML, so it vanished the instant this
+      // ran on load — appended, not replaced, so the chip's account-popover affordance survives every
+      // sync-state change instead of only existing for an instant before first render.
     el.textContent=p.icon+' '+p.label;               // textContent only — see chipPresentation()'s own
     el.title=title;                                   // doc comment on why it never carries a dynamic name
     el.setAttribute('aria-label',title);
@@ -2743,11 +2747,11 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
   // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
   // always-available self-unset control (decision A3).
-  import { currentSession, onAuthChange, myProfile, unsetMyBasicMode } from '../js/auth.js';
+  import { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE };
-  window._authBridge = { currentSession, onAuthChange, myProfile, unsetMyBasicMode };
+  window._authBridge = { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };
   initSync();

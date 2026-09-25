@@ -4,6 +4,24 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-25 · feat(auth): shared account popover — who's signed in, in-app password change, working
+  sign-out (`D-GH-2026-09-25-account-details-and-password-change`)** — none of the three tools showed the
+  account's email anywhere prominent (DM Console's buried `campWho` was the one exception), and changing
+  a password meant leaving the app for `login.html`'s forgot-password email round trip. New
+  `js/account-ui.js` shared popover (`renderAccountPopover`), wired into each tool's existing sign-in
+  chip (`#lsSyncChip`/`#cgSyncChip`/`#campWho`): shows name/email, an in-app password-change form (calls
+  the existing `updatePassword()` helper directly, no email round trip), and sign-out. Also fixed a real
+  latent bug found along the way: DM Console's "Sign out" link was relabelled correctly but its `onclick`
+  only called `preventDefault()` — it never actually signed anyone out. `/code-review` caught two more
+  bugs pre-merge (the chip's new account hint was fully overwritten by the sync-status render on every
+  autosave; a failed sign-out closed the popover silently) — both fixed. New
+  `testing/scripts/account-ui-e2e.mjs` (28/28, no live Supabase needed), including an XSS check (a
+  hostile display name renders as inert text, never reaches `innerHTML`) — wired into a new
+  `.github/workflows/account-ui.yml` so it actually gates future PRs, unlike `economy-ui-e2e.mjs`, found
+  along the way to be a real, currently-green test wired into **no** CI workflow at all (a pre-existing
+  gap, left as-is — out of scope here; flagged for a follow-up task). No `js/engine.js`/`DATA`
+  changes; `engine-parity-ci` (73/73), `version-label-ci` (10/10), `economy-ui-e2e` (155/155) and
+  `dm-console-ui-e2e` (101/101) all still green.
 - **2026-09-19 · release: promote `preview` → `main` as build `v1.546` (PR #546)** — carries two commits
   since the last promotion (#543): the full-system audit (#544 — delete/save race fix, AP-grant dedupe,
   dead code, doc drift, a11y, live DB indexes) and the wrong-character guardrails / AP-left-of-total

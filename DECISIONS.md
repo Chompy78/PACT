@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-09-25-account-details-and-password-change — a shared account popover for all three tools
+- A user reported that the tools don't show who's logged in or how to change a password. Confirmed: Live
+  Sheet/CharGen's header chip never showed the email at all, and DM Console's buried `campWho` label did
+  show it but its "Sign out" link was a latent dead bug (relabelled to "Sign out" but its `onclick` only
+  called `preventDefault()`, never actually signing anyone out). Added `js/account-ui.js`, one shared
+  popover (`renderAccountPopover`) wired into each tool's existing sign-in chip, showing the account's
+  name/email, an in-app password-change form (calls the existing `updatePassword()` helper directly — no
+  new auth-security surface), and a working sign-out; fixed DM Console's dead link in the same change.
+  `/code-review` caught two real bugs before merge (the chip's account hint was fully overwritten on
+  every sync-status render; a failed sign-out closed the popover with no error shown) — both fixed and
+  covered by new tests. Full record:
+  `decisions/2026/D-GH-2026-09-25-account-details-and-password-change.md`.
+
 ## D-GH-2026-09-18-campaign-mixup-guardrails — soft guardrails against the "wrong character" support ticket
 - A DM support ticket (player saw wildly wrong AP) turned out to be no engine bug: the player had two
   characters named "Caspian" — the real campaign-bound one, and an old unbound draft silently resumed by
