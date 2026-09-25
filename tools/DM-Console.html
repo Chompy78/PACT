@@ -561,6 +561,7 @@
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
+<script src="../js/account-ui.js"></script>
 <header class="topbar">
   <a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a>
   <h1><span class="dot"></span>PACT — DM Console</h1>
@@ -3106,7 +3107,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 <script type="module">
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
-  import { currentSession, onSessionChange } from '../js/auth.js';
+  import { currentSession, onSessionChange, myProfile, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
   import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
@@ -3114,7 +3115,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -4373,10 +4374,18 @@ document.addEventListener('campaign-ready', function () {
     var p = window._chipPresentation ? window._chipPresentation({ state: nowSignedIn ? window._IDLE : window._SIGNED_OUT }) : null;
     if(session){
       campWho.textContent = (p ? p.icon + ' ' : '') + session.user.email;   // textContent only — safe regardless of what the email contains
-      campWho.title = p ? p.ariaLabel : '';
+      campWho.title = 'Account — change password, sign out';
+      campWho.style.cursor = 'pointer';
+      campWho.setAttribute('role','button');
+      campWho.setAttribute('tabindex','0');
+      campWho.onclick = function(){ renderAccountPopover(campWho, B); };
+      campWho.onkeydown = function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); renderAccountPopover(campWho, B); } };
+      // Was `function(e){ e.preventDefault(); }` — relabelled to "Sign out" but never actually signed
+      // anyone out (fix/account-details-and-password-change). campWho's own popover now covers sign-out
+      // too; this link is kept for the fast one-click path next to it.
       campSignInBtn.textContent = 'Sign out';
       campSignInBtn.href = '#';
-      campSignInBtn.onclick = function(e){ e.preventDefault(); };
+      campSignInBtn.onclick = function(e){ e.preventDefault(); B.logout().catch(function(err){ if(typeof flash==='function') flash('⚠ Could not sign out — '+((err&&err.message)||'check your connection'),'warn'); }); };
       campControls.style.display = '';
       // Supabase fires onAuthChange for every session event, incl. hourly TOKEN_REFRESHED — only
       // reload the roster on an actual sign-in transition (matches the guard tools/PACT-CharGen-
@@ -4387,6 +4396,11 @@ document.addEventListener('campaign-ready', function () {
     } else {
       campWho.textContent = (p ? p.icon + ' ' : '') + 'Not signed in';
       campWho.title = p ? p.ariaLabel : '';
+      campWho.style.cursor = '';
+      campWho.removeAttribute('role');
+      campWho.removeAttribute('tabindex');
+      campWho.onclick = null;
+      campWho.onkeydown = null;
       campSignInBtn.textContent = 'Sign in';
       campSignInBtn.href = '../login.html';
       campSignInBtn.onclick = null;
@@ -4405,6 +4419,9 @@ document.addEventListener('campaign-ready', function () {
       if(window._dmRenderCloudRoster) window._dmRenderCloudRoster(campRoster, []);
     }
   }
+  window._dmUpdateAuthTest = updateAuth;   // test seam: drive campWho/campSignInBtn's sign-in state
+                                            // directly — B.onSessionChange only ever fires from a real
+                                            // Supabase auth event, which no e2e gate can raise offline.
 
   function renderArchivedCampaigns(){
     campArchivedList.innerHTML = archivedCampaigns.length ? archivedCampaigns.map(function(c){
