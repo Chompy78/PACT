@@ -16,7 +16,10 @@
   bugs pre-merge (the chip's new account hint was fully overwritten by the sync-status render on every
   autosave; a failed sign-out closed the popover silently) — both fixed. New
   `testing/scripts/account-ui-e2e.mjs` (28/28, no live Supabase needed), including an XSS check (a
-  hostile display name renders as inert text, never reaches `innerHTML`). No `js/engine.js`/`DATA`
+  hostile display name renders as inert text, never reaches `innerHTML`) — wired into a new
+  `.github/workflows/account-ui.yml` so it actually gates future PRs, unlike `economy-ui-e2e.mjs`, found
+  along the way to be a real, currently-green test wired into **no** CI workflow at all (a pre-existing
+  gap, left as-is — out of scope here; flagged for a follow-up task). No `js/engine.js`/`DATA`
   changes; `engine-parity-ci` (73/73), `version-label-ci` (10/10), `economy-ui-e2e` (155/155) and
   `dm-console-ui-e2e` (101/101) all still green.
 - **2026-09-19 · release: promote `preview` → `main` as build `v1.546` (PR #546)** — carries two commits

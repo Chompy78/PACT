@@ -1,0 +1,59 @@
+name: Account UI
+
+# js/account-ui.js's shared popover (who's signed in, in-app password change, sign-out) had no
+# automated coverage of its own before this — nothing would have caught a regression to it, or to the
+# three tools' wiring into it, on a later PR. Modeled directly on dm-console-ui.yml: no Supabase stack,
+# no real sign-in — supabase-js is vendored so each tool's module bridge loads offline regardless, and
+# the gate fakes the bridge's currentSession/myProfile/updatePassword/logout functions directly. That
+# keeps it runnable on every PR touching any of the three tools' auth wiring, with no ~3-minute stack
+# boot.
+
+on:
+  pull_request:
+    paths:
+      - "js/account-ui.js"
+      - "js/auth.js"
+      - "js/ui-helpers.js"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/DM-Console.html"
+      - "testing/scripts/account-ui-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/account-ui.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: account-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  account-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+
+      - name: Account popover checks
+        run: node testing/scripts/account-ui-e2e.mjs
