@@ -8,9 +8,10 @@
   `⛔ Peg Leg: drawback requires DEX 12 or lower` on a DEX 16 character the DM had imposed it on, though an
   imposed drawback pays 0 AP. `_replay()` now stamps `b._imposedDrawbackIdx` from the server-stamped
   `dmEdit` flag and `compute()` skips `drawbackMaxStats` for those slots (both the entry check and the
-  ceiling). Positional, so a player-taken drawback of the same name stays capped. New fixtures EV-021 and
-  EV-022 (differential-verified against the pre-fix engine); parity 75/0. No `DATA.version` bump. See
-  `D-GH-2026-09-30-imposed-drawback-cap-bypass`.
+  ceiling). Positional, so a player-taken drawback of the same name stays capped, and a `dmEdit` drawback
+  that pays AP (cost < 0) stays capped too. New fixtures EV-021–EV-023 (EV-021/022 differential-verified
+  against the pre-fix engine); parity 76/0. DM Console impose tooltip now says imposed drawbacks carry no
+  stat cap. No `DATA.version` bump. See `D-GH-2026-09-30-imposed-drawback-cap-bypass`.
 - **2026-09-19 · release: promote `preview` → `main` as build `v1.546` (PR #546)** — carries two commits
   since the last promotion (#543): the full-system audit (#544 — delete/save race fix, AP-grant dedupe,
   dead code, doc drift, a11y, live DB indexes) and the wrong-character guardrails / AP-left-of-total

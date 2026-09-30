@@ -1,0 +1,46 @@
+{
+  "description": "fix/imposed-drawback-cap-bypass (code-review finding): the cap exemption rests on an imposed drawback paying NO AP, so it needs cost >= 0 as well as dmEdit. A dmEdit-flagged Peg Leg with cost -4 (it GRANTS +4 AP) on a DEX 16 Fighter stays capped: the AP loan the cap polices is real here. dm_edit_character_log does not check a drawback's cost server-side, so the engine must not trust the flag alone.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 79,
+      "note": "Level 1 starting budget",
+      "label": "Award — Level 1 (79 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "oclass",
+      "payload": {
+        "v": "Fighter"
+      },
+      "cost": 0,
+      "level": 1,
+      "label": "Origin class — Fighter"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "DEX",
+        "to": 16
+      },
+      "cost": 16,
+      "level": 1,
+      "label": "DEX → 16"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Peg Leg"
+      },
+      "cost": -4,
+      "level": 1,
+      "dmEdit": true,
+      "dmLocked": false,
+      "dmRemovalCost": "flat",
+      "label": "dmEdit-flagged Peg Leg that pays +4 AP"
+    }
+  ]
+}

@@ -18,6 +18,9 @@
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
  *                       boons (feat/ledger-show-lost-purchases); absent on a hand-built b, same as
  *                       b._raceTraitLocked/b._vigorRankTier. NEVER store its output — derive at runtime.
+ *                       Also reads b._imposedDrawbackIdx (stamped by _replay: positions in b.drawbacks of
+ *                       DM-imposed, 0-AP drawbacks). Those slots are exempt from drawbackMaxStats. A
+ *                       hand-built b without it gets no exemption — the cap applies as it always did.
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
@@ -1929,8 +1932,15 @@ function _replay(b, log, onApplied) {
     // Record WHICH drawback slots a DM imposed (dmEdit is stamped server-side, so the client cannot forge
     // it). MUT.drawback keeps only the name, so without this compute() cannot tell imposed from chosen.
     // Read before the mutator runs, while b.drawbacks.length is still this drawback's future index.
-    if (e.cat === 'drawback' && e.dmEdit)
+    // "Imposed" means dmEdit AND pays no AP (cost >= 0): the cap exemption rests on there being no AP loan
+    // to police, and the server does not check a drawback's cost, so a dmEdit event that DID grant AP
+    // (cost < 0) must stay capped (code review of D-GH-2026-09-30-imposed-drawback-cap-bypass).
+    if (e.cat === 'drawback' && e.dmEdit && (Number(e.cost) || 0) >= 0)
       (b._imposedDrawbackIdx = b._imposedDrawbackIdx || []).push((b.drawbacks || []).length);
+    // The indices are positions in b.drawbacks, so a legacy `patch` that replaces the whole list (the LS-001
+    // bundle shape) invalidates them — reset rather than let them land on whatever now sits at that slot.
+    if (e.cat === 'patch' && e.payload && e.payload.patch && 'drawbacks' in e.payload.patch)
+      b._imposedDrawbackIdx = [];
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
     if (onApplied) onApplied(e, b, _wasLocked);
   }

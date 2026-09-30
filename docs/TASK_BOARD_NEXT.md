@@ -1041,7 +1041,11 @@ cold plan review (/make-code-cold-plan-review) BEFORE implementing.
 
 ```text
 1. New event type (e.g. dmUnlockDrawback) keyed to the SPECIFIC open drawback purchase, using the same
-   FIFO-by-purchase matching as D-GH-2026-08-06-buyoff-keyed-by-event (not name matching).
+   FIFO-by-purchase matching as D-GH-2026-08-06-buyoff-keyed-by-event (not name matching). Known quirk
+   to design around (found in the fix/imposed-drawback-cap-bypass review): buy-off and Live Sheet's
+   _openDrawbackEvent(v) match the OLDEST open purchase of a name, imposed or player-taken, so with a
+   player-taken and an imposed drawback of the same name the lock/unlock check reads the wrong event.
+   The unlock must target the specific imposed purchase, and the lock check should follow.
 2. New sql/migrations file widening dm_edit_character_log's allowlist for it. The server keeps stamping
    seq/ts/dmEdit/dmId itself. It must move no AP so pact_ap_ledger_spend accepts it, exactly as
    dmRemoveBoon does. Reject an unlock for a drawback that isn't locked/imposed.
@@ -1081,7 +1085,9 @@ is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — th
     CharGen and Live Sheet player pickers hide the NEW wound-only entries; reused entries stay takable.
 (c) Guide — a Wounds section in BOTH the pact-guide master and the served docs/PACT-Players-Guide.html per
     docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
-    needs the DM to unlock it after a story beat.
+    needs the DM to unlock it after a story beat. ALSO document that a DM-imposed drawback carries no stat
+    cap (engine behaviour landed in D-GH-2026-09-30-imposed-drawback-cap-bypass; the guide has no text on
+    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands.
 (d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
     plus a one-line pointer in DECISIONS.md.
 ```
