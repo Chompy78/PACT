@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-09-30-imposed-drawback-cap-bypass — a DM-imposed drawback is exempt from its stat cap
+- Imposing `Peg Leg` on a DEX 16 character made `compute()` raise `⛔ … requires DEX 12 or lower`, though an
+  imposed drawback pays 0 AP and so there is no AP loan for the cap to police. `MUT.drawback` kept only the
+  name, dropping the server-stamped `dmEdit` flag. `_replay()` now records the positions of imposed
+  drawbacks in `b._imposedDrawbackIdx` and `compute()` skips the cap for exactly those — positional, not by
+  name, so a player-taken drawback of the same name is still capped. Both halves of the cap (entry and
+  ceiling) are exempt (owner decision J1). No `DATA.version` bump: no existing fixture's output changed.
+  Full record: `decisions/2026/D-GH-2026-09-30-imposed-drawback-cap-bypass.md`.
+
 ## D-GH-2026-09-18-campaign-mixup-guardrails — soft guardrails against the "wrong character" support ticket
 - A DM support ticket (player saw wildly wrong AP) turned out to be no engine bug: the player had two
   characters named "Caspian" — the real campaign-bound one, and an old unbound draft silently resumed by

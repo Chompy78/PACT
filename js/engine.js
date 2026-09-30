@@ -749,14 +749,21 @@ export function compute(b, opts){
   // slot yet", so it must not count as having a Foundation. An earlier version of this check used
   // `(t.disciplines||[]).length`, which a bare placeholder object satisfies with no name at all.
   const _hasDisc=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
+  // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
+  // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
+  const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
     // not raise the score past it while holding one ("your score can never exceed 12"). Without the
     // second half the drawback is a loan: take Frail at CON 10, keep the AP, buy CON to 16.
     // The Live Sheet's buy() already blocks anything not matched by SOFT_WARN, so both directions were
     // already refused there; the marker makes the intent explicit and lets CharGen classify it too.
-    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
+    // A DM-IMPOSED drawback is exempt from BOTH halves (owner decision J1, 2026-09-30, D-GH-2026-09-30-
+    // imposed-drawback-cap-bypass). The cap exists to stop AP being taken for a stat you never use; an
+    // imposed drawback pays 0 AP, so there is no loan to police — and the wound already carries its own
+    // penalty. Without this a DEX 16 character imposed Peg Leg showed "⛔ … requires DEX 12 or lower".
+    const _dmx=_impIdx.has(_dIdx)?{}:(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{});for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
     const _drq=DATA.drawbackReq&&DATA.drawbackReq[lab];if(_drq&&_drq.caster&&!_hasDisc) W.push('⛔ '+lab+': requires at least one spellcasting discipline');
   }
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
@@ -1919,6 +1926,11 @@ function _replay(b, log, onApplied) {
       b._vigorRankTier = (b._vigorRankTier || []).slice(0, _to);
       for (let n = _from + 1; n <= _to; n++) b._vigorRankTier[n-1] = _tier;
     }
+    // Record WHICH drawback slots a DM imposed (dmEdit is stamped server-side, so the client cannot forge
+    // it). MUT.drawback keeps only the name, so without this compute() cannot tell imposed from chosen.
+    // Read before the mutator runs, while b.drawbacks.length is still this drawback's future index.
+    if (e.cat === 'drawback' && e.dmEdit)
+      (b._imposedDrawbackIdx = b._imposedDrawbackIdx || []).push((b.drawbacks || []).length);
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
     if (onApplied) onApplied(e, b, _wasLocked);
   }

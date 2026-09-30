@@ -1030,39 +1030,6 @@ writing it from the outside would be reconstruction, which is what this rule exi
 **Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
 agent wonder why this was done this way?"
 
-
-## fix/imposed-drawback-cap-bypass — a DM-imposed capped drawback raises a hard ⛔ warning — TODO
-Branch fix/imposed-drawback-cap-bypass. First of four tasks from the 2026-09-30 permanent-wounds design
-session (order: this → feat/dm-unlock-drawback → feat/permanent-wounds; fix/missing-arm-penalty-undefined
-is independent). Standalone bug fix, ships on its own.
-**Effort:** medium · **Risk:** medium — ambiguity low (owner decided J1: no cap at all on an imposed
-drawback); damage scale high (edits `compute()`, the engine's source of truth); likelihood low (the
-parity gate catches drift, and a 2026-09-30 live check found 0 DM-imposed drawbacks, so no live
-character's output changes).
-
-```text
-Verified 2026-09-30: compute() on a DEX 16 build holding Peg Leg emits "⛔ Peg Leg: drawback requires DEX
-12 or lower" (engine.js ~line 758). The DM Console's "impose a drawback" already lets a DM do this, and
-the cap's purpose (stop AP being taken for a stat you don't use) does not apply — an imposed drawback pays
-0 AP. Cause: MUT.drawback (engine.js:951) pushes only the NAME into b.drawbacks, so the dmEdit stamp on
-the log event is lost and compute() cannot tell imposed from chosen.
-
-1. Carry the marker through the replay fold into the build (e.g. b.imposedDrawbacks, a list of names).
-   Handle a player-taken and an imposed drawback of the same name (match per purchase event, as
-   D-GH-2026-08-06-buyoff-keyed-by-event does).
-2. compute() skips BOTH halves of drawbackMaxStats for imposed drawbacks — the entry check and the
-   going-forward "can never exceed" ceiling (owner decision J1). Player-taken drawbacks are unchanged.
-3. Keep engine.js's public API stable. Update the header comment and the DM-Console impose tooltip if
-   either mentions caps.
-4. Fixtures: (a) DEX 16 + DM-imposed Peg Leg → no ⛔, DEX may be raised; (b) same build, player-taken →
-   still ⛔. Bump DATA.version once ONLY if compute() output changes for an existing fixture, and update
-   testing/expected/ in the same change. Re-measure live data first (dated snapshot, 2026-09-30: 42
-   characters, 11 with a drawback purchase, 0 imposed).
-5. CHANGELOG entry; DECISIONS record D-GH-2026-<date>-imposed-drawback-cap-bypass.
-```
-**Done when:** a DM-imposed Peg Leg on a DEX 16 character produces no ⛔ warning and no stat ceiling, the
-same drawback player-taken still does, and `testing/tests/engine-parity.html` reports 0 failed.
-
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
 Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
 bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
