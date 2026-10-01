@@ -529,5 +529,42 @@ section('a drawback raises the budget in the REAL tool, and is counted exactly o
 }
 
 console.log(`\n[chargen-flows] ${fail ? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
+// -------------------------------------------------------------------------------------------------
+// fix/creation-lock-integrity (docs/plans/2026-10-01-creation-lock-integrity.md). A plain CharGen reload
+// restored the autosave verbatim and then the boot seed re-derived the whole LOG from the form, which
+// cannot represent creationLocked / creationLockConfig — so every reload silently un-finished creation
+// and dropped the DM's creation limit. Four live campaign characters lost their locks this way.
+section('a finished character stays finished across CharGen reloads');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  p.on('dialog', d=>d.accept());
+  const errs=[]; p.on('pageerror',e=>errs.push(String(e)));
+  const snap = () => p.evaluate(()=>({ log: JSON.parse(JSON.stringify(LOG)), id: currentCharId() }));
+  const lockEvents = l => l.filter(e=>/^creation(Locked|Unlocked|LockConfig)$/.test(e.type)).map(e=>e.seq+':'+e.type);
+  const buySeqs = l => l.filter(e=>e.type==='buy').map(e=>e.seq+':'+(e.label||'')).join('|');
+
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(2500);
+  await p.evaluate(()=>{ cgFinishCreating(); _cgAutosave(); });
+  const before = await snap();
+  check('Finish creating records the lock', before.log.some(e=>e.type==='creationLocked'));
+
+  for (const n of [1,2]) {
+    await p.reload({waitUntil:'load'});
+    await p.waitForTimeout(2500);
+    const after = await snap();
+    check(`reload ${n}: same character`, after.id===before.id, `${before.id} -> ${after.id}`);
+    check(`reload ${n}: still locked`, after.log.some(e=>e.type==='creationLocked'));
+    check(`reload ${n}: lock/limit events kept, same seq`,
+      JSON.stringify(lockEvents(after.log))===JSON.stringify(lockEvents(before.log)),
+      `${lockEvents(before.log)} -> ${lockEvents(after.log)}`);
+    check(`reload ${n}: purchases keep their seq and order`, buySeqs(after.log)===buySeqs(before.log));
+  }
+  const fatal = errs.filter(e=>!/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors across reloads', fatal.length===0, fatal.slice(0,2).join(' | '));
+  await ctx.close();
+}
+
 await browser.close(); server.close();
 process.exit(fail?1:0);

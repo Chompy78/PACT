@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-01 · fix(chargen): a reload no longer un-finishes creation** — `_cgBoot()` restored the
+  autosave (or a Live Sheet handoff) verbatim, then its boot seed re-derived the whole LOG from the form
+  anyway. The form cannot represent `creationLocked`/`creationUnlocked`/`creationLockConfig`, so every
+  CharGen reload deleted the lock and the DM's creation limit and renumbered the log. Reproduced in a real
+  browser; it is how four live "Amble" characters lost their locks (26 Aug–17 Sep). The seed now runs only
+  when nothing was restored. New `chargen-flows-e2e.mjs` section (fails on the old code, passes now);
+  engine parity 73/0, chargen-flows, tool-pricing and undo-barrier gates green. Part 1 of
+  `docs/plans/2026-10-01-creation-lock-integrity.md`; the remaining whole-log rebuild paths (roll, `#b=`
+  link, legacy imports) and the server guard follow. Interim end-of-log locks were applied to the four
+  Amble characters the same day (data only, AP unchanged).
 - **2026-10-01 · ci: wire `economy-ui-e2e.mjs` into a new workflow** — found orphaned (a real,
   currently-green 155-check gold-and-downtime-economy test with zero CI wiring, only ever run by hand)
   while adding `account-ui.yml` on 2026-09-25; flagged then as a follow-up, done now. New
