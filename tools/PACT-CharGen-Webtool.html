@@ -6515,9 +6515,15 @@ try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys 
 // restore-autosave/blank-character steps below for that one load so this device's own unrelated
 // in-progress build doesn't flash on screen before the copy replaces it.
 let _cgHadShared=new URLSearchParams(location.search).has('viewChar');
-if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();}catch(e){}}                 // 1) incoming character from the Live Sheet
+// _cgLogRestored: a path below already put a saved LOG back VERBATIM (both go through _cgApplyEnvelope).
+// The boot seed further down must then leave LOG alone — re-deriving it from the form is what silently
+// deleted every creation lock, DM creation limit and real purchase order on a plain CharGen reload
+// (reproduced 2026-10-01; four live characters lost their locks this way). See
+// docs/plans/2026-10-01-creation-lock-integrity.md.
+let _cgLogRestored=false;
+if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();_cgLogRestored=_cgHadShared;}catch(e){}}                 // 1) incoming character from the Live Sheet
 if(!_cgHadShared){try{_cgHadShared=!!loadFromHash();}catch(e){}} // 2) existing #b= share-link
-if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}  // 3) autosave; else 4) blank
+if(!_cgHadShared){try{if(_cgRestoreAutosave()){_cgLogRestored=true;flash('Restored your in-progress build (autosaved locally).');}}catch(e){}}  // 3) autosave; else 4) blank
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});
 collapseForMobile();
 // Phase 2 Step 3 (Chunk 0): seed LOG once from the build as it stands at boot (after any shared-link/
@@ -6527,7 +6533,13 @@ collapseForMobile();
 // Chunk B: the initial seed must not create an undo step, and boot must leave a clean history (you can't
 // undo to "before the character existed"). Suspend the seed, then clear — this also drops any frame a
 // shared-link/autosave restore above may have pushed before it cleared.
-{const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
+// Skipped when a saved LOG was just reinstated verbatim (_cgLogRestored above): the form is a VIEW of that
+// LOG, and it cannot represent creationLocked/creationUnlocked/creationLockConfig, so rebuilding from it
+// here destroyed them along with the real purchase order.
+// The LOG-length check is belt-and-braces: every restore path today leaves a non-empty LOG (the envelope
+// paths reinstate it; the legacy flat-build autosave goes through applyBuild(), which builds one), but a
+// future restore path that doesn't must still get seeded rather than boot with an empty ledger.
+if(!_cgLogRestored||!(LOG&&LOG.length)){const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
 _clearHistory();
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to

@@ -10,6 +10,16 @@
 
 ## Index
 
+## D-GH-2026-10-01-creation-lock-integrity — a finished character stays finished
+- A plain CharGen reload deleted the finished-creation lock and the DM's creation limit: `_cgBoot()`
+  restored the saved LOG verbatim, then its boot seed rebuilt the LOG from the form, which cannot represent
+  either. Four live "Amble" characters lost their locks this way. Fixed (seed skipped after a restore) with
+  a regression test; the other whole-log rebuild paths and a server guard follow. Also decided (owner, L1):
+  **a campaign move never clears the finished-creation lock** — the new DM reopens creation explicitly —
+  partly superseding `D-GH-2026-09-01-campaign-move-clears-creation`, because the "different campaign
+  only" variant could be bypassed by leaving, joining any other campaign, and returning. Full record:
+  `decisions/2026/D-GH-2026-10-01-creation-lock-integrity.md`.
+
 ## D-GH-2026-09-25-account-details-and-password-change — a shared account popover for all three tools
 - A user reported that the tools don't show who's logged in or how to change a password. Confirmed: Live
   Sheet/CharGen's header chip never showed the email at all, and DM Console's buried `campWho` label did
