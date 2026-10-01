@@ -89,11 +89,11 @@ locks that nothing can silently undo.
      or when the caller is the campaign-move trigger (flagged with a transaction-local setting, e.g.
      `set_config('pact.system_edit','on',true)`), or `auth.uid()` is null (service/admin).
    - Appending `creationLocked` is always allowed (player's "Finish creating").
-6. **F2** — rewrite `pact_campaign_move_clears_creation`:
-   - **Leave** (X → none): append `{type:'campaignLeft', campaignId:X}`; do **not** clear lock or limit.
-   - **Join** (none → Y): clear lock + limit only if the last `campaignLeft.campaignId` ≠ Y (or none).
-   - **Transfer** (X → Y, Y ≠ X): clear, as today.
-   - Always set the system-edit flag before appending, so step 5's guard admits it.
+6. **Campaign moves — L1 (owner, 2026-10-01; replaces F2):** a join, leave or transfer **never clears
+   `creationLocked`**. The new DM uses `dm_reopen_creation()` if they want the character back in creation.
+   Whether the DM's ceiling figure is still cleared on a move is settled in this part's design. Implemented
+   inside the same trigger as step 5 (no transaction-wide bypass flag — review finding H4). No
+   `campaignLeft` marker is needed any more.
 7. After applying: run the Supabase security and performance advisors and skim the logs (repo rule).
 
 ### Part 3 — G2: one-off repair of five Amble characters (runs after Parts 1–2 are live)
