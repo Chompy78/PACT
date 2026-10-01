@@ -166,4 +166,37 @@ show locked with the agreed lock points; CHANGELOG/DECISIONS updated.
 4. Output a `.md` file named `creation-lock-integrity-review-<model>.md`.
 
 ## Review outcome
-*(to be filled in after review)*
+**Round 1 — 2026-10-01, fresh subagent (no repo access, plan text only).** 6 High / 11 Medium / 9 Low.
+Every finding below was checked against the code before being accepted.
+
+- **H1 boot path — ACCEPTED, root cause confirmed and FIXED.** Reproduced in Chromium: finish creating,
+  reload → lock gone, same id, log renumbered. `_cgBoot()` restored the autosave/handoff verbatim, then the
+  boot seed rebuilt the LOG from the form. Fixed (seed skipped when a LOG was restored) with a regression
+  check in `chargen-flows-e2e.mjs` that fails on the old code. Assumption A is resolved.
+- **H2 fresh burst over the saved row — PARTLY ACCEPTED.** Untagged/legacy imports go through
+  `applyBuild()` without an id, which mints a new one (code comment confirms), so they create a new
+  character. `#b=` share links serialise `readBuild()` — whether that carries the id is to be verified in
+  Part 1b, with a test.
+- **H3 post-lock purchases moved before the lock — ACCEPTED.** The server guard must protect order around
+  the last `creationLocked`, not just the lock events. Patch slots need the derived-value approach the
+  existing history trigger already uses (they are rewritten in place by design). Pre-existing note:
+  CharGen edits a patch slot in place even after the lock — out of scope, logged as a follow-up.
+- **H4 transaction-wide flag — ACCEPTED.** Replace the flag with a single trigger that performs the
+  campaign-move appends *and* the guard, so no bypass state exists.
+- **H5 leave/rejoin detour (Y→Z→Y) — ACCEPTED, needs an owner decision** (threat model): see L below.
+- **H6 blocks normal actions — PARTLY ACCEPTED.** CharGen/Live Sheet undo cannot remove `creationLocked`
+  already (it is an undo barrier, `undoFloor()`), so that half is moot. Solo characters: the guard applies
+  only while a character is in a campaign; with no DM, the owner stays in charge.
+- **M6/M7 repair ordering and trigger disabling — ACCEPTED.** Part 3 (repair) runs **before** Part 2
+  (guard). No `disable trigger`/`session_replication_role`; instead the repair's update is admitted by a
+  narrow check (direct database session with no API JWT claims), which also keeps `character_backups`
+  firing.
+- **M2 `auth.uid()` null — ACCEPTED** (same fix as M7).
+- **M3/M4 campaign checks and forged `campaignLeft` — ACCEPTED.**
+- **M1 merge identity keys — ACCEPTED as design input** for Part 1b; M10 assumption B checked:
+  `_replay()` skips unknown event types.
+- **Verification gaps — ACCEPTED.** Strict-equality merge test; server tests to run against a Supabase
+  branch; add a rollback note (restore from `character_backups`).
+
+**Revised order:** Part 1a (boot fix, done) → Part 1b (remaining rebuild paths) → Part 3 (repair, DM
+sign-off) → Part 2 (server guard + campaign rule, after decision L).
