@@ -120,8 +120,14 @@ drawback's removal cost after imposition; the new wound entries themselves (a se
 - **Rewrite `dmLocked` on the original event** — rejected: breaks append-only and the locked-history prefix.
 - **Impose unlocked and rely on the table's honour** — rejected by the owner (the story beat is meant to gate it).
 - **A DM "removes" the drawback** — rejected: DM edits are add-only by design; unlock keeps the player paying.
-- **Enforce the lock in a database trigger (reject a `buyoff` of a locked drawback)** — attractive but a larger
-  change to a trigger that guards AP; deferred; listed as an open question.
+- **Enforce the lock in a database trigger (reject a `buyoff` of a locked drawback)** — deferred to its own
+  task, and not because it is merely big. A trigger that reads `dmLocked`/`dmUnlockDrawback` out of the same
+  LOG the owner can write checks attacker-controlled data (fact 6): a hostile owner can forge `dmEdit:true`, a
+  forged unlock, or edit `dmLocked`. Sound enforcement needs an **unforgeable DM-authorship signal** (e.g. a
+  DM-only column/table written only by the SECURITY DEFINER function, or a database-held HMAC stamp), a
+  whole-LOG diff trigger (not just the protected prefix), caller-role detection, and a SQL replay of the
+  engine's by-name FIFO matching kept in lockstep with it. Estimated 2–3× the size of this plan. Until then the
+  lock — and this plan's unlock — are **advisory against a hostile owner** and must never be described as enforced.
 
 ## Risks
 
@@ -135,8 +141,13 @@ drawback's removal cost after imposition; the new wound entries themselves (a se
 5. **`seq` uniqueness** (assumption a) — the server requires exactly one match.
 6. **Old cached clients** treat the drawback as still locked — a safe failure (verified, fact 8).
 7. **"Locked" overstates it.** The lock is honoured by the player's app, not enforced by the server (fact 6), so
-   the DM Console's unlock/impose copy must say so rather than imply tamper-proofing. Server enforcement is a
-   documented limitation of this plan, not an oversight.
+   the DM Console's unlock/impose copy must say so rather than imply tamper-proofing — suggested wording: "DM has
+   recorded a story beat and unlocked this drawback (the player still pays to remove it)". The new unlock event is
+   itself client-honoured and forgeable by the owner, exactly like the lock. Server enforcement is a documented
+   limitation with a tracked follow-up task (see Alternatives), not an oversight.
+8. **Stale roster:** a DM acting on an out-of-date roster could unlock a drawback the player bought off
+   meanwhile. Result is a harmless no-op log row (engine ignores it); see Review outcome for the open question
+   of rejecting it server-side.
 
 ## Verification
 
@@ -144,12 +155,15 @@ drawback's removal cost after imposition; the new wound entries themselves (a se
   award`, `sessionSeal`, **and** `dmUnlockDrawback` — all four true.
 - RPC cases (on a disposable branch first): unlock succeeds and the LOG gains one stamped event; rejected for a
   non-DM, an archived campaign, a target that is unlocked / player-taken / missing / duplicated, a double unlock,
-  an over-long or empty note; a mixed batch is atomic; `pact_ap_ledger_spend` unchanged before/after.
+  an over-long or empty note; a mixed batch is atomic; `pact_ap_ledger_spend` unchanged before/after; **two
+  concurrent unlocks of the same target — the second is rejected** (the function takes `select … for update` on
+  the character row, so the calls serialise and the second sees the first's event; verified in the live body).
 - Live Sheet: with an imposed locked drawback the ledger row shows "🔒 locked" and buy-off is refused; after the
   unlock event the row offers the buy-off button and the purchase proceeds at `dmRemovalCost`.
 - Engine: new parity fixture (imposed locked drawback + unlock: totals and warnings unchanged) and a small
   pure-Node gate asserting `activeEvents().unlocked`, seq-based (not name-based) matching with two same-named
-  purchases, and `isUndoBarrier` on the event. Existing gate `engine-parity-ci.mjs` stays 0 failed.
+  purchases, `isUndoBarrier` on the event, and `undoFloor` covering the ORIGINAL imposed buy too (so a player
+  cannot undo the drawback itself past the unlock). Existing gate `engine-parity-ci.mjs` stays 0 failed.
 - Supabase advisors and recent logs show nothing new; the drift guard covers the new migration without edits
   beyond the one listed.
 
@@ -196,5 +210,24 @@ was approve-with-conditions. Every claim was checked against the code/live data 
 | *(not raised by the reviewer)* | Gap found in triage | Live Sheet's ledger row also renders "🔒 locked" from the event flags — added to step 4(b) and Verification. |
 
 Reviewer-quality note: the campaign-boundary point was already in the document as verified fact 1, which suggests a
-skim rather than a close read. One reviewer is thin for a trust-boundary change; a second independent read is
-optional and unresolved.
+skim rather than a close read.
+
+Round 2 — second reviewer, triaged 2026-10-01 (sent a copy with Round 1's table stripped, so it read cold). File:
+`z-cold/processed/2026-10-01-groq-gpt-oss-120b-dm-unlock-drawback.md`. Self-ID was false again: it called itself
+"gpt-4-1106-preview / GPT-4"; the model actually called was `openai/gpt-oss-120b` via Groq. Verdict: sound, with
+suggestions.
+
+| Finding | Verdict | What was done |
+|---|---|---|
+| Server-enforce the lock now with a trigger on `buyoff` | **Contested with round 1 → fresh-agent judge → deferred** | A fresh agent with no history judged it on the merits and recommended deferring, for reasons stronger than either reviewer gave: the reviewer's trigger would read `dmLocked`/unlock from the owner-writable LOG (forgeable), uses "most recent buy" where the engine matches the OLDEST open purchase, and the suggested index doesn't fit a JSON-array column. Recorded in Alternatives and Risks 7; a separate security task is proposed. Final call is the owner's. |
+| `UNIQUE (character_id, seq)` / unique index on the unlock | Rejected | There is no events table — the LOG is a JSON array inside one `characters.stats` column, so such a constraint cannot exist. The "exactly one match" server rule stays (live data has no duplicate `seq`, fact 7). |
+| Race: two simultaneous unlocks | Accepted → verified | The function takes `select … for update` on the character row (live body), so calls serialise and the second is rejected. Added as an explicit RPC test case. |
+| "Protected prefix includes the unlock because it is after the last seal" | Reviewer misread | The prefix compared is *up to* the latest seal/award; later events are not compared. The plan's fact 3 already says so. No change. |
+| Strip `cost`/`amount` from the unlock | Already covered | Step 2 already strips both. |
+| Check `is_campaign_dm` and guard order | Already covered | Live body runs the DM and archived-campaign checks before the event loop (fact 1). |
+| Docs / generated API spec listing event types | Rejected | Searched: no doc or spec enumerates event types (only plans, decisions, the task board and the engine). |
+| Undo barrier: confirm the original buy is also unreachable | Accepted → verified | `undoFloor` returned the full length in a test run; added to the Node gate. |
+| Reject an unlock of an already-bought-off drawback in SQL | Agrees with round 1; **still open** | Both reviewers want it for DM feedback. Kept out of SQL (it would duplicate the engine's FIFO rule); added Risks 8 (stale roster). Owner decision requested. |
+| Split into a server plan and a UI plan | Rejected | Round 1 said no; the pieces share one event shape and one test fixture. Implementation can still be separate commits. |
+| UI wording must not imply tamper-proofing | Accepted | Suggested wording added to Risks 7. |
+| Add a test for unknown-event-type behaviour | Already covered | Fact 8 and the Node gate. |
