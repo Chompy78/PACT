@@ -4,6 +4,10 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-01 · chore(release): promote `preview` → `main` as `v1.554` (PR #554)** — ships #553 (CharGen
+  reload no longer un-finishes creation), #549 (account popover, in-app password change, sign-out fix) and
+  #552 (economy-ui CI wiring). `BUILD` synced `v1.546` → `v1.554` across `js/engine.js` and the three
+  tools' labels; `DATA.version` unchanged (`v0.365`).
 - **2026-10-01 · fix(chargen): a reload no longer un-finishes creation** — `_cgBoot()` restored the
   autosave (or a Live Sheet handoff) verbatim, then its boot seed re-derived the whole LOG from the form
   anyway. The form cannot represent `creationLocked`/`creationUnlocked`/`creationLockConfig`, so every
