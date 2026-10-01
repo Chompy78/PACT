@@ -6536,7 +6536,10 @@ collapseForMobile();
 // Skipped when a saved LOG was just reinstated verbatim (_cgLogRestored above): the form is a VIEW of that
 // LOG, and it cannot represent creationLocked/creationUnlocked/creationLockConfig, so rebuilding from it
 // here destroyed them along with the real purchase order.
-if(!_cgLogRestored){const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
+// The LOG-length check is belt-and-braces: every restore path today leaves a non-empty LOG (the envelope
+// paths reinstate it; the legacy flat-build autosave goes through applyBuild(), which builds one), but a
+// future restore path that doesn't must still get seeded rather than boot with an empty ledger.
+if(!_cgLogRestored||!(LOG&&LOG.length)){const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
 _clearHistory();
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
