@@ -30,7 +30,7 @@ limit and crossed again later, the crossing that stuck is the one used.
 | Fenwick Copperkettle | 74 + 4 = 78 | Prestidigitation (4), 10 Sep 8:58 pm → 82 AP | 15 AP | Ready |
 | Skylar | 76 + 4 = 80 | Ability scores +4, 3 Sep 6:42 pm → 84 AP | 0 AP | Ready — lock goes at the end |
 | Moss Stormspud | 79 + 4 = 83 (DM, 2026-10-01) | Vigor & Grit, 17 Sep 7:49 pm (82 → over) | ≈17 AP | Ready — approximate, see below |
-| "Character" (Archer) | 68 + 0 = 68 | Unknown — older than the kept backups | Unknown | **Needs your input** |
+| "Character" (Archer) | 68 + 0 = 68 | — (crossing predates kept backups) | 0 AP | Ready — lock at the end (DM, 2026-10-01) |
 | Caspian | 74 + 9 = 83 | — (82 spent, never crossed for good) | — | No lock |
 
 ---
@@ -71,12 +71,13 @@ Already carries an old automatic lock from 31 Aug, which moves to the new point.
 
 **In-play (≈17 AP):** Hit Dice → 5 (replacing Hit Dice → 3) and the Hit Dice & Proficiency change.
 
-## "Character" (Archer) — needs your input
+## "Character" (Archer) — ready, lock at the end
 
-- Limit 68, spent 79. It was already at 70 in the oldest backup still kept (8 Sep), so the crossing is
-  older than the surviving history.
-- Its name was also lost (no `name` event in the log) — almost certainly the same CharGen reload bug.
-- To place the lock: which purchase took Archer past 68? Or roughly what was bought after creation?
+- Limit 68, spent 79. The crossing is older than the kept backups (already 70 on 8 Sep).
+- **DM decision, 2026-10-01: lock at the end of the log.** The whole current build counts as creation; any AP
+  spent from now on is in-play.
+- Its name was also lost (no `name` event in the log) — almost certainly the same CharGen reload bug. The
+  repair should restore the name **Archer**.
 
 ## Caspian — no lock
 
