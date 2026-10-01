@@ -1,7 +1,13 @@
 # Amble — creation-lock review sheets (G2, step 1)
 
-**Status:** awaiting DM review. Nothing has been written to any character.
+**Status:** awaiting DM sign-off. Nothing has been written to any character.
 **Drafted:** 2026-10-01 from live Supabase (`characters` + `character_backups`), priced by `js/engine.js`.
+
+## The rule (DM decision, 2026-10-01)
+
+**The purchase that takes a character over their creation limit still counts as creation. The lock goes in
+straight after it. Everything bought after that is in-play.** Where a character dipped back under the
+limit and crossed again later, the crossing that stuck is the one used.
 
 ## How these were worked out
 
@@ -10,107 +16,71 @@
   figure uses Amble's own default, the `generous` budget curve's L1 = **83**.
 - **Spend** = `economy(LOG).spent` — the same figure the tools use for the creation ceiling
   (`tools/PACT-Live-Char-Sheet.html:540`).
-- **Lock point** = the **last** saved version in which spend was still at or under the limit. Everything
-  added after it is what took the character over for good, so it is proposed as in-play.
-- **Limits of the evidence:** only the most recent 50 backups per character are kept, so history older
-  than that is gone. Times are when a save happened, not when a purchase was clicked — a character saved
-  rarely can be off by a purchase or two. CharGen logs are written in category order, so the order inside
-  a log carries no information; only the order *between* saves does.
+- **Crossing purchase** = what was added in the first save that went over the limit and stayed over.
+- **Limits of the evidence:** only the most recent 50 backups per character are kept. Times are when a
+  save happened, not when a purchase was clicked, so one save can hold more than one purchase.
 - **Edited-in-place slots** (Ability scores, Armour, Spellcasting, Vigor & Grit, Hit Dice & Proficiency)
-  are one record each. Where one changed after the lock point it is listed under "slot changes" and needs a
-  choice: keep it all as creation, or split the later part out as an in-play purchase.
+  are one record each; a later change to one is shown as "slot 0→N".
 
 ## Summary
 
-| Character | Limit | Spent now | Over by | Proposed lock point | Confidence |
-|---|---|---|---|---|---|
-| Anders Pipeleaf | 72 + 12 = 84 | 110 | 26 | 17 Sep, 8:01 pm | High — Live Sheet, real purchase order |
-| Fenwick Copperkettle | 74 + 4 = 78 | 97 | 19 | 10 Sep, 8:16 pm | Medium |
-| Skylar | 76 + 4 = 80 | 84 | 4 | 3 Sep, 6:40 pm | Medium |
-| Moss Stormspud | *none set* → 83 + 4 = 87 | 101 | 14 | 17 Sep, 8:31 pm | Low — needs your check |
-| "Character" (Archer) | 68 + 0 = 68 | 79 | 11 | **Unknown** | None — needs your input |
-| Caspian | 74 + 9 = 83 | 82 | — | **No lock** — still 1 AP inside creation | High |
+| Character | Limit | Crossing purchase (creation) | In-play after the lock | Status |
+|---|---|---|---|---|
+| Anders Pipeleaf | 72 + 12 = 84 | Psychic Blades T3 (7), 17 Sep 8:29 pm → 91 AP | 19 AP | Ready |
+| Fenwick Copperkettle | 74 + 4 = 78 | Prestidigitation (4), 10 Sep 8:58 pm → 82 AP | 15 AP | Ready |
+| Skylar | 76 + 4 = 80 | Ability scores +4, 3 Sep 6:42 pm → 84 AP | 0 AP | Ready — lock goes at the end |
+| Moss Stormspud | *none set* → 83 + 4 = 87 | Hit Dice → 5 (12) + Vigor & Grit (2), 17 Sep 8:32 pm → 97 AP | 4 AP | **Needs Moss's limit** |
+| "Character" (Archer) | 68 + 0 = 68 | Unknown — older than the kept backups | Unknown | **Needs your input** |
+| Caspian | 74 + 9 = 83 | — (82 spent, never crossed for good) | — | No lock |
 
 ---
 
-## Anders Pipeleaf
+## Anders Pipeleaf — ready
 
-- **Limit 84**, spent 110. Last within the limit: **17 Sep, 8:01 pm** (84 AP). Next save, 8:29 pm, was over.
-- Already carries an old automatic lock from 31 Aug (fired at 85 AP against the generic 79 default). G2
-  would move it to the point below.
+- Limit 84. At 84 AP on 17 Sep 8:01 pm; **Psychic Blades T3** (7 AP) took it to 91 at 8:29 pm.
+- Lock goes straight after Psychic Blades T3.
 
-**Proposed in-play (26 AP):**
+**In-play (19 AP):** Sleight of Hand (2) · Level up → Hit Die 4 (3) · Hit Die 5 (4) · Hit Die 6 (4) ·
+Unarmored Defense T1 (6).
 
-| Purchase | AP |
-|---|---|
-| Psionic Power / Psychic Blades · T3 | 7 |
-| Sleight of Hand | 2 |
-| Level up → Hit Die 4 | 3 |
-| Level up → Hit Die 5 | 4 |
-| Level up → Hit Die 6 | 4 |
-| Unarmored Defense · T1 | 6 |
+Already carries an old automatic lock from 31 Aug, which moves to the new point.
 
-Note: Psychic Blades T3 was bought on 13 Sep, removed on 17 Sep, and re-bought 28 minutes later. The lock
-point falls in that gap. **Question:** was Psychic Blades part of the finished character or bought in play?
+## Fenwick Copperkettle — ready
 
-## Fenwick Copperkettle
+- Limit 78. At 78 AP on 10 Sep 8:16 pm; **Prestidigitation** (4 AP) took it to 82 at 8:58 pm.
+- Lock goes straight after Prestidigitation.
 
-- **Limit 78**, spent 97. Last within the limit: **10 Sep, 8:16 pm** (78 AP).
+**In-play (15 AP):** Fighter: Action Surge (4) · Savage Attacker (4) · ability-score raises (7, saved 18 Sep).
 
-**Proposed in-play (19 AP):**
+## Skylar — ready
 
-| Purchase | AP |
-|---|---|
-| Racial spell — Prestidigitation | 4 |
-| Class feature — Fighter: Action Surge | 4 |
-| Art / Technique — Savage Attacker | 4 |
-| *Slot change:* Ability scores, 0 → 7 AP | 7 |
+- Limit 80. At 80 AP on 3 Sep 6:40 pm; an **ability-score raise** (+4 AP) took it to 84 at 6:42 pm.
+- Nothing has been bought since (a later reload reshuffled the records, net 0 AP).
+- Lock goes **at the end of the log**: Skylar's whole build is creation, and any AP spent from now on is
+  in-play.
 
-Prestidigitation was added and removed four times between 26 Aug and 10 Sep before it stuck. **Questions:**
-was it part of the finished build? And were the ability-score raises (7 AP, saved 18 Sep) creation or in-play?
+## Moss Stormspud — needs a limit
 
-## Skylar
+- **No DM limit was ever set.** Using Amble's default gives 83 + 4 = 87: at 84 AP on 17 Sep 8:31 pm;
+  **Hit Dice → 5 + Vigor & Grit** took it to 97 at 8:32 pm. In-play after that: Hit Dice & Proficiency
+  (4 AP).
+- If you give Moss a different limit, the crossing point moves — tell me the figure and I'll re-run it.
 
-- **Limit 80**, spent 84. Last within the limit: **3 Sep, 6:40 pm** (80 AP).
+## "Character" (Archer) — needs your input
 
-**Proposed in-play (4 AP):**
+- Limit 68, spent 79. It was already at 70 in the oldest backup still kept (8 Sep), so the crossing is
+  older than the surviving history.
+- Its name was also lost (no `name` event in the log) — almost certainly the same CharGen reload bug.
+- To place the lock: which purchase took Archer past 68? Or roughly what was bought after creation?
 
-| Purchase | AP |
-|---|---|
-| Proficiency +3 | 4 |
+## Caspian — no lock
 
-This came in with the move to Hit Dice 5, so it looks like a level-up. **Question:** confirm.
-
-## Moss Stormspud
-
-- **No DM limit has ever been set.** Using Amble's default 83 + 4 drawback = **87**. Spent 101.
-- Last within 87: **17 Sep, 8:31 pm** (84 AP). Spend swung between 82 and 96 several times on 13–17 Sep
-  while the build was being reworked.
-- Already carries an old automatic lock (fired at 97 AP against the 79 default).
-
-**Proposed in-play (net 17 AP):** Hit Dice → 5 replacing Hit Dice → 3 (12 AP), plus churn in the
-Vigor & Grit and Hit Dice & Proficiency slots.
-
-**Questions:** what creation limit should Moss have had? (If you set one, the lock point moves.) And was the
-jump to Hit Dice 5 a level-up in play?
-
-## "Character" — was Archer
-
-- **Limit 68**, spent 79. It was already at 70 in the **oldest backup still kept** (8 Sep), so the crossing
-  point is older than the surviving history.
-- Its name was lost (no `name` event in the log) — almost certainly the same CharGen reload bug.
-
-**Question:** what did Archer have when they finished creating? A list of what came after — even rough —
-is enough to place the lock.
-
-## Caspian
-
-- **Limit 83**, spent 82. Still 1 AP inside creation, so **no lock is proposed**. The DM's reopen on
-  1 Sep was correct. Caspian's player presses **Finish creating** when done.
+- Limit 83, spent 82. Still 1 AP inside creation, so no lock. The DM's reopen on 1 Sep was correct.
+  Caspian's player presses **Finish creating** when done.
 
 ---
 
-## Next steps after review
+## Next steps after sign-off
 
 1. Fix the CharGen reload bug (A2) and add the server guard (D1, with F2) — **before** any lock is
    restored, or a reload would wipe it again.
