@@ -4,6 +4,58 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-01 · chore(release): promote `preview` → `main` as `v1.554` (PR #554)** — ships #553 (CharGen
+  reload no longer un-finishes creation), #549 (account popover, in-app password change, sign-out fix) and
+  #552 (economy-ui CI wiring). `BUILD` synced `v1.546` → `v1.554` across `js/engine.js` and the three
+  tools' labels; `DATA.version` unchanged (`v0.365`).
+- **2026-10-01 · fix(chargen): a reload no longer un-finishes creation** — `_cgBoot()` restored the
+  autosave (or a Live Sheet handoff) verbatim, then its boot seed re-derived the whole LOG from the form
+  anyway. The form cannot represent `creationLocked`/`creationUnlocked`/`creationLockConfig`, so every
+  CharGen reload deleted the lock and the DM's creation limit and renumbered the log. Reproduced in a real
+  browser; it is how four live "Amble" characters lost their locks (26 Aug–17 Sep). The seed now runs only
+  when nothing was restored. New `chargen-flows-e2e.mjs` section (fails on the old code, passes now);
+  engine parity 73/0, chargen-flows, tool-pricing and undo-barrier gates green. Part 1 of
+  `docs/plans/2026-10-01-creation-lock-integrity.md`; the remaining whole-log rebuild paths (roll, `#b=`
+  link, legacy imports) and the server guard follow. Interim end-of-log locks were applied to the four
+  Amble characters the same day (data only, AP unchanged).
+- **2026-10-01 · ci: wire `economy-ui-e2e.mjs` into a new workflow** — found orphaned (a real,
+  currently-green 155-check gold-and-downtime-economy test with zero CI wiring, only ever run by hand)
+  while adding `account-ui.yml` on 2026-09-25; flagged then as a follow-up, done now. New
+  `.github/workflows/economy-ui.yml`, modeled on `dm-console-ui.yml`/`account-ui.yml` (the
+  `launchChromium()`-based pattern, default Playwright cache path) rather than
+  `cost-customization.yml`/`tool-pricing.yml` (a different raw-CDP driving mechanism with its own
+  `PLAYWRIGHT_BROWSERS_PATH` override that would silently break if copied here). Triggers on
+  `js/engine.js`/`js/engine-data.js`/`js/economy-bands.js`/`js/ui-helpers.js` and all three tool files.
+  No code changes; 155/155 still passing.
+- **2026-09-25 · feat(auth): shared account popover — who's signed in, in-app password change, working
+  sign-out (`D-GH-2026-09-25-account-details-and-password-change`)** — none of the three tools showed the
+  account's email anywhere prominent (DM Console's buried `campWho` was the one exception), and changing
+  a password meant leaving the app for `login.html`'s forgot-password email round trip. New
+  `js/account-ui.js` shared popover (`renderAccountPopover`), wired into each tool's existing sign-in
+  chip (`#lsSyncChip`/`#cgSyncChip`/`#campWho`): shows name/email, an in-app password-change form (calls
+  the existing `updatePassword()` helper directly, no email round trip), and sign-out. Also fixed a real
+  latent bug found along the way: DM Console's "Sign out" link was relabelled correctly but its `onclick`
+  only called `preventDefault()` — it never actually signed anyone out. `/code-review` caught two more
+  bugs pre-merge (the chip's new account hint was fully overwritten by the sync-status render on every
+  autosave; a failed sign-out closed the popover silently) — both fixed. New
+  `testing/scripts/account-ui-e2e.mjs` (28/28, no live Supabase needed), including an XSS check (a
+  hostile display name renders as inert text, never reaches `innerHTML`) — wired into a new
+  `.github/workflows/account-ui.yml` so it actually gates future PRs, unlike `economy-ui-e2e.mjs`, found
+  along the way to be a real, currently-green test wired into **no** CI workflow at all (a pre-existing
+  gap, left as-is — out of scope here; flagged for a follow-up task). No `js/engine.js`/`DATA`
+  changes; `engine-parity-ci` (73/73), `version-label-ci` (10/10), `economy-ui-e2e` (155/155) and
+  `dm-console-ui-e2e` (101/101) all still green.
+- **2026-09-19 · release: promote `preview` → `main` as build `v1.546` (PR #546)** — carries two commits
+  since the last promotion (#543): the full-system audit (#544 — delete/save race fix, AP-grant dedupe,
+  dead code, doc drift, a11y, live DB indexes) and the wrong-character guardrails / AP-left-of-total
+  change below (#545). `BUILD` synced via a separate PR into `preview` first (#547, per
+  `docs/VERSION-SYNC.md`'s cloud-session routing — a cloud session can only push its own branch, and
+  that branch *is* `preview` for a promotion PR), then picked up by #546 automatically. All 16 CI checks
+  green; regular merge commit, never squash, per `docs/VERSION-SYNC.md` step 5. **Tag: not yet decided**
+  — this promotion is a bug-fix audit plus two small UI features, not a clear-cut major feature/rules
+  landing, so whether it warrants a `v1.546` tag is left to the owner per
+  `D-GH-2026-08-20-tag-only-meaningful-promotions`; tag pushes are a hard 403 from a cloud session
+  regardless, so it needs a local terminal or the GitHub web UI either way.
 - **2026-09-18 · feat(dm-console): roster card shows "AP left / AP total", not just AP left** —
   the card view's AP stat cell (`['AP', ...]`, was `['AP left', avail]`) now reads e.g. "18 / 39"
   instead of a bare "18", using the same `s.spendable` total the collapsed "Spendable total" DM-tools

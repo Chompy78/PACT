@@ -87,7 +87,20 @@ async function connect(url) {
     // Evaluate in the page and return the value. Throws on a page-side exception so a broken tool
     // fails the gate loudly rather than silently returning undefined.
     async evaluate(expr) {
-      const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+      // A protocol-level error (not a page exception) used to fall through and return undefined, which a
+      // READY() probe then read as "never became ready" — within half a second, at a random section each
+      // run (seen twice on PR #553). The usual cause is the tab still navigating from about:blank to its
+      // URL when the first evaluate lands: "Execution context was destroyed" / "Cannot find context".
+      // Retry those briefly; any other protocol error now fails loudly instead of masquerading as a
+      // readiness timeout.
+      let r;
+      for (let attempt = 0; ; attempt++) {
+        r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
+        if (!r.error) break;
+        const msg = r.error.message || JSON.stringify(r.error);
+        if (attempt < 50 && /context|navigat/i.test(msg)) { await new Promise(res => setTimeout(res, 200)); continue; }
+        throw new Error('CDP error: ' + msg + `\n    while evaluating: ${expr.slice(0, 160)}`);
+      }
       const ex = r.result?.exceptionDetails;
       if (ex) throw new Error('page threw: ' + (ex.exception?.description || ex.text || 'unknown') + `\n    while evaluating: ${expr.slice(0, 160)}`);
       return r.result?.result?.value;

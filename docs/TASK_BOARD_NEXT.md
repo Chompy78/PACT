@@ -1030,3 +1030,111 @@ writing it from the outside would be reconstruction, which is what this rule exi
 **Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
 agent wonder why this was done this way?"
 
+
+## fix/imposed-drawback-cap-bypass — a DM-imposed capped drawback raises a hard ⛔ warning — TODO
+Branch fix/imposed-drawback-cap-bypass. First of four tasks from the 2026-09-30 permanent-wounds design
+session (order: this → feat/dm-unlock-drawback → feat/permanent-wounds; fix/missing-arm-penalty-undefined
+is independent). Standalone bug fix, ships on its own.
+**Effort:** medium · **Risk:** medium — ambiguity low (owner decided J1: no cap at all on an imposed
+drawback); damage scale high (edits `compute()`, the engine's source of truth); likelihood low (the
+parity gate catches drift, and a 2026-09-30 live check found 0 DM-imposed drawbacks, so no live
+character's output changes).
+
+```text
+Verified 2026-09-30: compute() on a DEX 16 build holding Peg Leg emits "⛔ Peg Leg: drawback requires DEX
+12 or lower" (engine.js ~line 758). The DM Console's "impose a drawback" already lets a DM do this, and
+the cap's purpose (stop AP being taken for a stat you don't use) does not apply — an imposed drawback pays
+0 AP. Cause: MUT.drawback (engine.js:951) pushes only the NAME into b.drawbacks, so the dmEdit stamp on
+the log event is lost and compute() cannot tell imposed from chosen.
+
+1. Carry the marker through the replay fold into the build (e.g. b.imposedDrawbacks, a list of names).
+   Handle a player-taken and an imposed drawback of the same name (match per purchase event, as
+   D-GH-2026-08-06-buyoff-keyed-by-event does).
+2. compute() skips BOTH halves of drawbackMaxStats for imposed drawbacks — the entry check and the
+   going-forward "can never exceed" ceiling (owner decision J1). Player-taken drawbacks are unchanged.
+3. Keep engine.js's public API stable. Update the header comment and the DM-Console impose tooltip if
+   either mentions caps.
+4. Fixtures: (a) DEX 16 + DM-imposed Peg Leg → no ⛔, DEX may be raised; (b) same build, player-taken →
+   still ⛔. Bump DATA.version once ONLY if compute() output changes for an existing fixture, and update
+   testing/expected/ in the same change. Re-measure live data first (dated snapshot, 2026-09-30: 42
+   characters, 11 with a drawback purchase, 0 imposed).
+5. CHANGELOG entry; DECISIONS record D-GH-2026-<date>-imposed-drawback-cap-bypass.
+```
+**Done when:** a DM-imposed Peg Leg on a DEX 16 character produces no ⛔ warning and no stat ceiling, the
+same drawback player-taken still does, and `testing/tests/engine-parity.html` reports 0 failed.
+
+## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
+Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
+bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
+stamped on the immutable drawback event, and `dm_edit_character_log` only accepts buy(boon|drawback),
+award and dmRemoveBoon.
+**Effort:** medium · **Risk:** high — ambiguity medium; damage scale high (widens a SECURITY DEFINER
+write path onto another account's `stats`, plus an SQL migration); likelihood medium. Big/risky → draft a
+cold plan review (/make-code-cold-plan-review) BEFORE implementing.
+
+```text
+1. New event type (e.g. dmUnlockDrawback) keyed to the SPECIFIC open drawback purchase, using the same
+   FIFO-by-purchase matching as D-GH-2026-08-06-buyoff-keyed-by-event (not name matching).
+2. New sql/migrations file widening dm_edit_character_log's allowlist for it. The server keeps stamping
+   seq/ts/dmEdit/dmId itself. It must move no AP so pact_ap_ledger_spend accepts it, exactly as
+   dmRemoveBoon does. Reject an unlock for a drawback that isn't locked/imposed.
+3. Live Sheet buyoffDrawback() honours the unlock (today it reads only src.dmLocked). Undo barrier applies
+   as for every other DM edit.
+4. DM Console: an "Unlock" control on a character holding a locked imposed drawback, behind the same
+   archived-campaign write-block as the other DM tools.
+5. After the migration run get_advisors and skim get_logs (AGENTS.md checklist step 4).
+6. CHANGELOG; DECISIONS record D-GH-2026-<date>-dm-unlock-drawback; engine fixture if activeEvents changes.
+```
+**Done when:** a DM can unlock a locked imposed drawback from DM Console, the player can then buy it off
+(and could not before), an unlock for an unlocked or player-taken drawback is rejected server-side,
+`get_advisors` shows nothing new, and `testing/tests/engine-parity.html` reports 0 failed.
+
+## feat/permanent-wounds — a DM-only Wounds section (minor and moderate only) — TODO
+Branch feat/permanent-wounds. Third task; depends on fix/imposed-drawback-cap-bypass and
+feat/dm-unlock-drawback. Design decided 2026-09-30 (A2 in-play and DM-imposed; B1 buy-off with a story;
+C2 reuse existing drawbacks; G2 reused entries stay player-takable, only NEW wound entries are hidden
+from players; J1 no stat cap on imposed wounds). An imposed drawback pays 0 AP, so a wound's table value
+is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — there is no Grievous tier.**
+**Effort:** high · **Risk:** medium — ambiguity medium (prices are judgement calls); damage scale medium
+(new DATA entries, DM Console and both player pickers, plus the guide in two repos); likelihood low.
+
+```text
+(a) DATA — APPEND new wound-only entries to the END of DATA.drawbacks (key order is load-bearing, see
+    D-GH-2026-08-19-drawbacks-phobias-expansion), each with drawbackFx + drawbackCat, and NO drawbackMaxStats:
+      Maimed Hand 2   — disadvantage on Sleight of Hand and tool/instrument checks
+      Bad Knee 2      — cannot Dash as a bonus action; jump distance halved; disadvantage on Acrobatics
+      Brittle Bones 2 — fall damage doubled; bludgeoning crits against you deal an extra weapon die
+      Withered Arm 4  — the arm can carry a strapped shield but cannot hold a weapon, cast a somatic
+                        component or grip
+    Add a wound tier + body-location map (DATA.wounds or similar). MINOR: Trembling Hands, Hard of Hearing,
+    Asthmatic, one Affliction, and the new 2s. MODERATE: Lame 3, Old Wound 3, Frightening Visage 3,
+    Peg Leg 4, One-Eyed 4, Frail 4, Withered Arm 4. One wound per body location (Lame + Peg Leg must not
+    stack) — warn. NOT wounds, stay ordinary player drawbacks: Missing Arm, Glass Frame, Slow to Mend, Mute.
+(b) UI — DM Console's impose-a-drawback gets a Wounds group (default Locked, default flat removal cost).
+    CharGen and Live Sheet player pickers hide the NEW wound-only entries; reused entries stay takable.
+(c) Guide — a Wounds section in BOTH the pact-guide master and the served docs/PACT-Players-Guide.html per
+    docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
+    needs the DM to unlock it after a story beat.
+(d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
+    plus a one-line pointer in DECISIONS.md.
+```
+**Done when:** a DM can impose each wound from a Wounds group in DM Console, locked by default; players
+cannot pick the four new wound-only entries in either tool; the guide and engine agree (verify-guide.mjs
+clean, both copies); and `testing/tests/engine-parity.html` reports 0 failed.
+
+## fix/missing-arm-penalty-undefined — Missing Arm pays 5 AP for no defined penalty — TODO
+Branch fix/missing-arm-penalty-undefined. Independent of the wounds tasks (it is a Grievous drawback,
+not a wound). `Missing Arm`'s `drawbackFx` says only "Lost an arm; defined mechanical penalty." and
+nothing is defined, so it pays 5 AP for no restriction — the "free AP" failure mode
+D-GH-2026-08-19-drawbacks-phobias-expansion prices against.
+**Effort:** low · **Risk:** low — ambiguity low; damage scale low (a 2026-09-30 live check found 0
+holders); likelihood low. Probably display-only, so no DATA.version bump — confirm.
+
+```text
+Define the penalty in drawbackFx and in the guide (BOTH the pact-guide master and the served copy, per
+docs/VERSION-SYNC.md). Suggested: no two-handed weapons; cannot wield a weapon and a shield together;
+somatic components need your one hand. Keep the existing DEX ≤ 12 cap. Re-check the 5 AP price against
+Thin-Skinned and Slow to Mend (both 5) once the penalty is written. Run verify-guide.mjs before and after.
+```
+**Done when:** `Missing Arm` states a concrete mechanical penalty in `drawbackFx` and the guide, the two
+guide copies agree (verify-guide.mjs clean), and `testing/tests/engine-parity.html` reports 0 failed.
