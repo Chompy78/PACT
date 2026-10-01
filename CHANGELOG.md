@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-01 · ci: wire `economy-ui-e2e.mjs` into a new workflow** — found orphaned (a real,
+  currently-green 155-check gold-and-downtime-economy test with zero CI wiring, only ever run by hand)
+  while adding `account-ui.yml` on 2026-09-25; flagged then as a follow-up, done now. New
+  `.github/workflows/economy-ui.yml`, modeled on `dm-console-ui.yml`/`account-ui.yml` (the
+  `launchChromium()`-based pattern, default Playwright cache path) rather than
+  `cost-customization.yml`/`tool-pricing.yml` (a different raw-CDP driving mechanism with its own
+  `PLAYWRIGHT_BROWSERS_PATH` override that would silently break if copied here). Triggers on
+  `js/engine.js`/`js/engine-data.js`/`js/economy-bands.js`/`js/ui-helpers.js` and all three tool files.
+  No code changes; 155/155 still passing.
 - **2026-09-25 · feat(auth): shared account popover — who's signed in, in-app password change, working
   sign-out (`D-GH-2026-09-25-account-details-and-password-change`)** — none of the three tools showed the
   account's email anywhere prominent (DM Console's buried `campWho` was the one exception), and changing

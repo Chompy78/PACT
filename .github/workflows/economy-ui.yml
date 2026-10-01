@@ -1,0 +1,66 @@
+name: Economy UI
+
+# testing/scripts/economy-ui-e2e.mjs existed and passed with zero CI wiring — it only ever ran when
+# someone remembered to run it by hand (found while wiring account-ui-e2e.mjs into its own workflow,
+# D-GH-2026-09-25-account-details-and-password-change). It covers the gold-and-downtime economy
+# (Players Guide §16): the engine's price bands against the Guide's own tables, the creation exemption,
+# and all three tools' UI (Live Sheet's wallet line and per-tile prices, DM Console's band dial / Award
+# AP form / party-wide downtime control, CharGen's forward-looking "in play" price labels).
+#
+# Same "no Supabase stack" shape as dm-console-ui.yml/account-ui.yml: supabase-js is vendored, so each
+# tool's module bridge loads offline regardless, and the script drives real purchases/declarations
+# through each tool's own UI rather than signing in. Uses the shared launchChromium() helper
+# (testing/scripts/lib/launch-chromium.mjs), so this follows that pattern's default Playwright cache
+# path — NOT cost-customization.yml's/tool-pricing.yml's raw-CDP PLAYWRIGHT_BROWSERS_PATH override,
+# which is a different browser-driving mechanism those two scripts use instead.
+
+on:
+  pull_request:
+    paths:
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "js/economy-bands.js"
+      - "js/ui-helpers.js"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/DM-Console.html"
+      - "testing/scripts/economy-ui-e2e.mjs"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/economy-ui.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: economy-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  economy-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+
+      - name: Economy UI checks
+        run: node testing/scripts/economy-ui-e2e.mjs
