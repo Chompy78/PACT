@@ -29,7 +29,7 @@ limit and crossed again later, the crossing that stuck is the one used.
 | Anders Pipeleaf | 72 + 12 = 84 | Psychic Blades T3 (7), 17 Sep 8:29 pm → 91 AP | 19 AP | Ready |
 | Fenwick Copperkettle | 74 + 4 = 78 | Prestidigitation (4), 10 Sep 8:58 pm → 82 AP | 15 AP | Ready |
 | Skylar | 76 + 4 = 80 | Ability scores +4, 3 Sep 6:42 pm → 84 AP | 0 AP | Ready — lock goes at the end |
-| Moss Stormspud | *none set* → 83 + 4 = 87 | Hit Dice → 5 (12) + Vigor & Grit (2), 17 Sep 8:32 pm → 97 AP | 4 AP | **Needs Moss's limit** |
+| Moss Stormspud | 79 + 4 = 83 (DM, 2026-10-01) | Vigor & Grit, 17 Sep 7:49 pm (82 → over) | ≈17 AP | Ready — approximate, see below |
 | "Character" (Archer) | 68 + 0 = 68 | Unknown — older than the kept backups | Unknown | **Needs your input** |
 | Caspian | 74 + 9 = 83 | — (82 spent, never crossed for good) | — | No lock |
 
@@ -59,12 +59,17 @@ Already carries an old automatic lock from 31 Aug, which moves to the new point.
 - Lock goes **at the end of the log**: Skylar's whole build is creation, and any AP spent from now on is
   in-play.
 
-## Moss Stormspud — needs a limit
+## Moss Stormspud — ready (approximate)
 
-- **No DM limit was ever set.** Using Amble's default gives 83 + 4 = 87: at 84 AP on 17 Sep 8:31 pm;
-  **Hit Dice → 5 + Vigor & Grit** took it to 97 at 8:32 pm. In-play after that: Hit Dice & Proficiency
-  (4 AP).
-- If you give Moss a different limit, the crossing point moves — tell me the figure and I'll re-run it.
+- **Limit set by the DM on 2026-10-01: 79 + drawbacks (4) = 83.** No limit had ever been recorded before.
+- At 82 AP on 17 Sep 7:41 pm. The next save, 7:49 pm, added **Vigor & Grit** and went over; Moss never came
+  back under 83 after that.
+- That evening's edits were saved and rebuilt several times in a few minutes (spend swung 96 → 84 → 89 →
+  84 → 97), so the split is approximate. Taking Vigor & Grit at its final cost (2 AP) as the crossing
+  purchase puts creation at **84 AP**.
+- Lock goes straight after Vigor & Grit.
+
+**In-play (≈17 AP):** Hit Dice → 5 (replacing Hit Dice → 3) and the Hit Dice & Proficiency change.
 
 ## "Character" (Archer) — needs your input
 
