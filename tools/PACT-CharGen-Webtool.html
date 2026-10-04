@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.546.html**-->
+<!--**PACT-CharGen-Webtool v1.554.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.546 · Rules v0.365</title><style>
+<title>PACT Character Generator — Web Tool v1.554 · Rules v0.365</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -537,7 +537,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.error.stack||e.message||e.error)||e);});
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.546</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.365</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="status" aria-live="polite" title="">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<script src="../js/account-ui.js"></script>
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.554</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.365</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -643,13 +644,13 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
   // always-available self-unset control (decision A3). Bridged alongside session/auth for the same
   // CDN-resilience reason as the rest of this module.
-  import { currentSession, onSessionChange, myProfile, unsetMyBasicMode } from '../js/auth.js';
+  import { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
   import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
-  window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode };
+  window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
@@ -4658,9 +4659,12 @@ async function _cgRenderSyncChip(){
     // there is no separate "force sync" action, deliberately (the plan this branch implements found
     // that label actively misleading in this state: the stale-save guard would just refuse it). Point
     // at the real resolution path instead of implying a one-click fix that doesn't exist.
-    var title = s.state==='conflict'
+    var title = (s.state==='conflict'
       ? p.ariaLabel+' — use ☁ Cloud → Load to resolve (this replaces local changes with the cloud version)'
-      : p.ariaLabel;
+      : p.ariaLabel) + ' · Click for account & password';   // fix/account-details-and-password-change:
+      // this used to fully overwrite the static hint set in the HTML, so it vanished the instant this
+      // ran on load — appended, not replaced, so the chip's account-popover affordance survives every
+      // sync-state change instead of only existing for an instant before first render.
     el.title=title;                                    // doc comment on why it never carries a dynamic name
     el.setAttribute('aria-label',title);
     el.setAttribute('aria-live', s.state==='conflict' ? 'assertive' : 'polite');
@@ -6511,9 +6515,15 @@ try{sweepExpiredHandoffs();}catch(e){}   // D-GH38: clear orphaned handoff keys 
 // restore-autosave/blank-character steps below for that one load so this device's own unrelated
 // in-progress build doesn't flash on screen before the copy replaces it.
 let _cgHadShared=new URLSearchParams(location.search).has('viewChar');
-if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();}catch(e){}}                 // 1) incoming character from the Live Sheet
+// _cgLogRestored: a path below already put a saved LOG back VERBATIM (both go through _cgApplyEnvelope).
+// The boot seed further down must then leave LOG alone — re-deriving it from the form is what silently
+// deleted every creation lock, DM creation limit and real purchase order on a plain CharGen reload
+// (reproduced 2026-10-01; four live characters lost their locks this way). See
+// docs/plans/2026-10-01-creation-lock-integrity.md.
+let _cgLogRestored=false;
+if(!_cgHadShared){try{_cgHadShared=_cgConsumeHandoff();_cgLogRestored=_cgHadShared;}catch(e){}}                 // 1) incoming character from the Live Sheet
 if(!_cgHadShared){try{_cgHadShared=!!loadFromHash();}catch(e){}} // 2) existing #b= share-link
-if(!_cgHadShared){try{if(_cgRestoreAutosave())flash('Restored your in-progress build (autosaved locally).');}catch(e){}}  // 3) autosave; else 4) blank
+if(!_cgHadShared){try{if(_cgRestoreAutosave()){_cgLogRestored=true;flash('Restored your in-progress build (autosaved locally).');}}catch(e){}}  // 3) autosave; else 4) blank
 window.addEventListener('hashchange',function(){try{if(loadFromHash())render();}catch(e){}});
 collapseForMobile();
 // Phase 2 Step 3 (Chunk 0): seed LOG once from the build as it stands at boot (after any shared-link/
@@ -6523,7 +6533,13 @@ collapseForMobile();
 // Chunk B: the initial seed must not create an undo step, and boot must leave a clean history (you can't
 // undo to "before the character existed"). Suspend the seed, then clear — this also drops any frame a
 // shared-link/autosave restore above may have pushed before it cleared.
-{const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
+// Skipped when a saved LOG was just reinstated verbatim (_cgLogRestored above): the form is a VIEW of that
+// LOG, and it cannot represent creationLocked/creationUnlocked/creationLockConfig, so rebuilding from it
+// here destroyed them along with the real purchase order.
+// The LOG-length check is belt-and-braces: every restore path today leaves a non-empty LOG (the envelope
+// paths reinstate it; the legacy flat-build autosave goes through applyBuild(), which builds one), but a
+// future restore path that doesn't must still get seeded rather than boot with an empty ledger.
+if(!_cgLogRestored||!(LOG&&LOG.length)){const _p=_histSuspended;_histSuspended=true;try{replaceWholeLogFromBuild(_domReadBuild());}catch(e){console.error('PACT CharGen: initial LOG bootstrap failed',e);}finally{_histSuspended=_p;}}
 _clearHistory();
 render();
 // capability-detect (not UA-sniff) whether Save/Export will use the Share sheet or go straight to
