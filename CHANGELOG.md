@@ -4,6 +4,13 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no
+  creation limit set** — with no stamped limit the engine's spend block is fail-open, which is how Moss, Skylar,
+  Fenwick and Archer overspent (their limit was never set, or was deleted by the reload / stale-copy bugs).
+  Shown next to the lock icon, only for campaign characters that are unlocked and have no `creationLockConfig`
+  threshold (`creationLockState().confirmed === false`); locked characters, characters with a limit, and locally
+  imported files are never flagged. Tooltip points at Set limit in the DM tools. New checks in
+  `dm-console-ui-e2e.mjs` (109 pass). No engine change, no `DATA.version` bump. Owner decision T1.
 - **2026-10-04 · feat(dm-console): a locked/unlocked icon after each character's tier** — 🔒 for a finished
   (locked) character, 🔓 for one still in creation (including one the DM reopened), in the full card, the table's
   Lvl column, the detail card and the compact card. The state is `creationLockState()`'s own answer (computed once

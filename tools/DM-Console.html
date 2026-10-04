@@ -193,6 +193,7 @@
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
   .lockico{margin-left:4px;font-size:12px;cursor:default}
   .lockico.open{opacity:.65}
+  .nolimit{margin-left:4px;font-size:11px;font-weight:700;color:var(--warn,#b45309);white-space:nowrap}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
     /* 40x40 touch target (was 28x28) to match this file's other controls (.btn's min-height:40px)
@@ -1374,11 +1375,22 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // feat/dm-roster-lock-icon: a locked/unlocked icon after the tier, wherever the console shows one. The state
   // is creationLockState()'s own answer (a.creationLock, computed once in the analyser) — never re-derived here.
   // Static strings only, so nothing player-controlled reaches the markup. No icon when the engine gave no state.
+  //
+  // feat/dm-no-limit-flag (owner decision T1, 2026-10-04): a CAMPAIGN character that is still building and has
+  // NO per-character limit stamped (creationLockState().confirmed === false) gets a "no limit" flag too. With no
+  // limit the engine's block is fail-open — nothing stops spending at creation prices — and Moss, Skylar, Fenwick
+  // and Archer overspent that way (their limit was never set, or was deleted by the reload / stale-copy bugs).
+  // Locally imported files are not flagged: a file has no DM, so there is nobody to set a limit.
+  function _isCampaignSummary(a){ return cloudRoster.some(function(r){ return r.summary === a; }); }
   function lockIconHTML(a){
     var cl = a && a.creationLock; if(!cl) return '';
     var on = !!cl.locked;
     var label = on ? 'Creation locked' : 'Creation open (not locked)';
-    return ' <span class="lockico '+(on?'locked':'open')+'" role="img" aria-label="'+label+'" title="'+label+'">'+(on?'\uD83D\uDD12':'\uD83D\uDD13')+'</span>';
+    var h = ' <span class="lockico '+(on?'locked':'open')+'" role="img" aria-label="'+label+'" title="'+label+'">'+(on?'\uD83D\uDD12':'\uD83D\uDD13')+'</span>';
+    if(!on && !cl.confirmed && _isCampaignSummary(a)){
+      h += ' <span class="nolimit" title="No creation limit is set for this character, so nothing stops it spending at creation prices. Use Set limit in its DM tools.">\u26A0 no limit</span>';
+    }
+    return h;
   }
   function tamperBadge(a){ return isTampered(a) ? ' <span class="tamper" title="This character file was edited outside PACT — its signature no longer matches. Treat its numbers with suspicion.">⚠ edited</span>' : ''; }
   function handleFiles(fileList){

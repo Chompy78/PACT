@@ -681,6 +681,23 @@ console.log('\n[dm-console-ui] roster lock icons');
   check('a locked character shows the locked icon', locked.length >= 1 && locked.every(i => i.label === 'Creation locked' && i.text === '\uD83D\uDD12'), JSON.stringify(icons));
   check('an open character and a DM-reopened one both show the open icon', open.length >= 2 && open.every(i => i.label.startsWith('Creation open') && i.text === '\uD83D\uDD13'), JSON.stringify(icons));
   check('the icon sits right after the tier', icons.length > 0 && icons.every(i => i.afterTier), JSON.stringify(icons.map(i => i.afterTier)));
+  // T1 — the "no limit" flag: only a CAMPAIGN character that is unlocked AND has no stamped limit.
+  const nl = await lp.evaluate(() => {
+    const env = (name, extra) => ({ id: name, name, stats: { LOG: [ { seq:1, type:'name', name, label:'Name', rules:'v0.365' },
+      { seq:2, type:'buy', cat:'patch', cost:0, label:'Level 1', payload:{}, rules:'v0.365' }, ...extra ] } });
+    const lock = { seq:3, type:'creationLocked', label:'Creation locked', rules:'v0.365' };
+    const lim = { seq:4, type:'creationLockConfig', payload:{ threshold:74 }, label:'limit', rules:'v0.365' };
+    const rows = [ env('NoLimitOpen', []), env('LimitOpen', [lim]), env('NoLimitLocked', [lock]) ];
+    window._dmRenderCardsTest(rows, null);
+    const cards = [...document.querySelectorAll('.ccard')].map(c => ({ name: (c.querySelector('.nm')||{}).textContent || '', flag: !!c.querySelector('.nolimit') }));
+    window._dmRenderCardsTest([]);
+    return cards;
+  });
+  const flagOf = n => (nl.find(c => c.name.startsWith(n)) || {}).flag;
+  check('campaign character, open, no limit set → "no limit" flag', flagOf('NoLimitOpen') === true, JSON.stringify(nl));
+  check('campaign character with a limit set → no flag', flagOf('LimitOpen') === false, JSON.stringify(nl));
+  check('campaign character that is locked → no flag (a locked one is past its limit)', flagOf('NoLimitLocked') === false, JSON.stringify(nl));
+  check('locally imported (non-campaign) characters are never flagged', (await lp.evaluate(() => document.querySelectorAll('.nolimit').length)) === 0);
   const lfatal = lerrs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
   check('no fatal page errors importing characters', lfatal.length === 0, lfatal.slice(0,2).join(' | '));
   await lp.close();
