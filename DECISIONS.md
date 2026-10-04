@@ -10,6 +10,14 @@
 
 ## Index
 
+## D-GH-2026-10-04-missing-arm-penalty-undefined — `Missing Arm` gets a real penalty
+- `Missing Arm` paid 5 AP but its text ("defined mechanical penalty") defined nothing — free AP, the failure the drawback-pricing
+  decision prices against. It now states one-hand gear/casting limits plus disadvantage on physical checks where one arm
+  reasonably matters (Athletics, Animal Handling, Sleight of Hand — at the DM's call, an owner addition). 5 AP kept after
+  checking against `Peg Leg`/`Thin-Skinned`/`Leaden Reflexes`; fairest for martials, weaker for pure casters (the lever there is
+  a gate or a split, not a repricing). Both guide copies and the engine text edited in place, never copied over each other;
+  display-only, no version bump. Full record: `decisions/2026/D-GH-2026-10-04-missing-arm-penalty-undefined.md`.
+
 ## D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
 - A DM-imposed drawback can be locked so the player may not buy it off, but nothing could ever clear the lock.
   New `dmUnlockDrawback` event (a required story-beat note), appended through `dm_edit_character_log`, **keyed to the
