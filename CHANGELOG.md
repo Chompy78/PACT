@@ -65,6 +65,9 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-05 · chore(release): promote `preview` → `main` as `v1.583` (PR #583)** — ships #579 (CharGen refuses post-lock edits to spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields; opening a locked campaign character
+  no longer rewrites its history), #581 and #582 (the Live Sheet's wallet / shortfall / trade-offer decision moved into the engine as `walletCheck`, and CharGen showing the same warning and §16 trade offer after the lock), and #580 (the server-freeze stage 1
+  migration, rollback, rehearsal and audits — **files only; not applied to the live database**), plus plans, board tasks and session logs. `BUILD` synced `v1.577` → `v1.583` across `js/engine.js` and the three tools; `DATA.version` untouched by the bump. No tag.
 - **2026-10-05 · feat(chargen): after "Finish creating", with the campaign economy on, CharGen shows the Live Sheet's wallet-shortfall warning and the §16 coin-for-time trade offer**
   (`feat/chargen-wallet-warning`; Q2 step 2, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq) — built on the engine's shared `walletCheck()` (#581), so the decision is the Live Sheet's own: the wallet is the
   character's log plus the **DM-held gold** (`characters.gold`, read through a new `refreshServerGold()`/`cachedServerGold()` in `js/sync.js`) plus the **party downtime window** (`get_downtime_window`, via `js/dm.js`), fetched when the campaign
