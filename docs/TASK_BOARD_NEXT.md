@@ -27,6 +27,24 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/server-freeze-at-lock — server freezes history before the lock and priced patch events after a lock/award — TODO
+Branch feat/server-freeze-at-lock. **Effort:** high · **Risk:** high — a new trigger rule on every campaign character save; a wrong rule refuses legitimate saves. Staged WITH `fix/chargen-post-lock-purchases` and AFTER the Amble repair (`docs/plans/2026-10-04-amble-lock-repair.md`). Spec: `docs/plans/2026-10-04-chargen-post-lock-purchases.md` §7.
+
+```text
+Owner decisions D2 + E1 (2026-10-04). Extend pact_enforce_locked_history()/pact_ap_ledger_protected() (sql/migrations/,
+mirrored in sql/rls-policies.sql):
+  D2  For a campaign character that has a creationLocked event, every event BEFORE the last creationLocked is frozen:
+      no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
+  E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
+      innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
+      content, stamped cost, position and existence frozen. No-AP slots (appearance, names, houseRules, misc) stay editable.
+Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
+change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
+STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
+testing/scripts/creation-lock-guard-test/guard-cases.sql. Apply to live only after the Amble repair, with the owner's approval.
+```
+**Done when:** the Docker harness shows each rule refusing the attack and allowing every legitimate save (a normal in-play purchase, a DM edit, an admin session, a solo character); the six Amble characters re-checked locked after applying; advisors/logs run; CHANGELOG + decision addendum written.
+
 ## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
 Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
 
@@ -1187,7 +1205,9 @@ is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — th
     docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
     needs the DM to unlock it after a story beat. ALSO document that a DM-imposed drawback carries no stat
     cap (engine behaviour landed in D-GH-2026-09-30-imposed-drawback-cap-bypass; the guide has no text on
-    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands.
+    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands. Likewise state
+    that an imposed drawback grants NO AP, is not counted toward the "2–3 drawbacks" guideline or a campaign's
+    drawback cap, and is listed at 0 (engine behaviour landed in D-GH-2026-10-04-imposed-drawbacks-grant-no-ap).
 (d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
     plus a one-line pointer in DECISIONS.md.
 ```
@@ -1245,33 +1265,3 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
-
-## fix/imposed-drawbacks-grant-no-ap — compute() credits a DM-imposed drawback's table value as income — TODO
-Branch fix/imposed-drawbacks-grant-no-ap. A DM-imposed drawback is recorded at `cost:0` and pays the player nothing
-(`economy().drawbackEarned` = 0), but `compute()` derives its grant from the drawback NAMES in `b.drawbacks`, so it credits
-the table value anyway. Found 2026-10-04 while building feat/dm-unlock-drawback. Matters as soon as wounds are imposed
-(feat/permanent-wounds): measured on the current engine — one imposed Peg Leg: `compute().remaining` 83 against 79 earned;
-four imposed wounds (4+4+5+3): 95, plus the warnings "Drawbacks grant 16 AP — the guide caps them at 12 AP" and "4 drawbacks
-chosen — most DMs cap this at 2–3". The frozen ledger (`economy()`) is right, so the Live Sheet's AP-left is right, but the
-DM Console's "Granted by drawbacks" row reads `compute().drawbackAp`, and `creationCeiling` takes its `drawbackBonus` from
-`compute()`'s grant too (engine.js, near `opts.drawbackAp`) — verify whether imposed values inflate a still-building
-character's ceiling.
-**Effort:** medium · **Risk:** medium — ambiguity low (the marker exists); damage scale high (edits `compute()`, the engine's
-source of truth, and changes its output); likelihood low (parity catches drift; live data 2026-09-30 had 0 DM-imposed
-drawbacks, so no live character changes — re-measure).
-
-```text
-1. In compute()'s drawback loop, an IMPOSED slot (b._imposedDrawbackIdx, the marker from
-   D-GH-2026-09-30-imposed-drawback-cap-bypass, same cost >= 0 rule) contributes 0 to drawGain, is listed at 0 in the
-   itemised "Drawbacks" rows (so the DM still sees it), and is excluded from BOTH cap warnings ("grant N AP", "N drawbacks
-   chosen"). Decide in the plan whether "Frail and Glass Frame can't be taken together" still applies to an imposed pair.
-2. Check creationCeiling()/DM Console summary consume the corrected figure (drawbackAp), not a re-derived one.
-3. Fixtures: a new event fixture with four imposed wounds — remaining 79, no cap warnings; assert it against a player-taken
-   control of the same four, which still grants 16 and still warns. Update any expected file the change moves.
-4. compute() output changes, so bump DATA.version ONCE and say so in the CHANGELOG. Coordinate the guide wording with
-   feat/permanent-wounds (imposed drawbacks are undocumented there today).
-5. CHANGELOG; DECISIONS record D-GH-<date>-imposed-drawbacks-grant-no-ap.
-```
-**Done when:** with four DM-imposed wounds `compute().remaining` equals `economy().available` (79 on the 79-AP fixture), no
-"Drawbacks grant…" or "N drawbacks chosen" warning appears for them, the same four player-taken still grant 16 and warn, and
-`testing/tests/engine-parity.html` reports 0 failed.

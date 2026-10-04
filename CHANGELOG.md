@@ -13,6 +13,15 @@
   shows an identical result. 5 AP re-checked against `Peg Leg` 4 / `Thin-Skinned` 5 / `Leaden Reflexes` 6 and kept. Display
   text only (`engine.js` never reads `drawbackFx`), so no `DATA.version` bump; 0 of 50 live characters hold it. See
   `D-GH-2026-10-04-missing-arm-penalty-undefined`.
+- **2026-10-04 · fix(engine): a DM-imposed drawback grants no AP in `compute()`; rules `v0.365` → `v0.366`** — `compute()`
+  derived the drawback grant from the drawback names, so a drawback the DM imposed at cost 0 (player paid nothing) was
+  credited at its table value: four imposed wounds showed 93 AP remaining against a true 79, fired "Drawbacks grant 14 AP —
+  the guide caps them at 12" and "4 drawbacks chosen" at the player, and raised the creation ceiling (Live Sheet feeds it
+  `compute().drawbackAp`). An imposed slot (`b._imposedDrawbackIdx`) now contributes 0, is still listed — at 0, labelled
+  "(DM imposed)" — and counts toward neither warning; its penalty is unchanged and Frail + Glass Frame still warns. The
+  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (28/0; 17 of 28 fail on
+  the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
+  0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
 - **2026-10-04 · fix(chargen): CharGen now refuses an edit past the DM's creation limit, prompts at the limit, and
   caps the random roll** — `docs/plans/2026-08-30-creation-ceiling.md` "Done when" #2 ("refused in both CharGen and
   Live Sheet") only ever shipped in Live Sheet; CharGen imported `wouldExceedCeiling` and never called it, which is how

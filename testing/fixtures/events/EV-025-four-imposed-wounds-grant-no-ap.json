@@ -1,0 +1,12 @@
+{
+  "description": "fix/imposed-drawbacks-grant-no-ap (D-GH-2026-10-04-imposed-drawbacks-grant-no-ap): a DM imposes FOUR drawbacks (Peg Leg 4, Lame 3, Old Wound 3, One-Eyed 4 = 14 table AP) on a Fighter. Each is recorded at cost 0, so the player was paid nothing, and the engine must say so: NO 'Drawbacks grant 14 AP — the guide caps them at 12' warning and NO '4 drawbacks chosen' warning (neither describes anything the player chose or was paid for). Before the fix compute() credited the table value anyway — remaining read 93 against a true 79 and both warnings fired. The warning list is the part this gate pins; remaining/drawbackAp are asserted in testing/scripts/imposed-drawback-grants-ci.mjs. EV-026 is the same four PLAYER-TAKEN, which must still grant 14 and still warn.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Peg Leg" }, "cost": 0, "level": 1, "seq": 3, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Drawback — Peg Leg (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Lame" }, "cost": 0, "level": 1, "seq": 4, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Drawback — Lame (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Old Wound" }, "cost": 0, "level": 1, "seq": 5, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Drawback — Old Wound (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "One-Eyed" }, "cost": 0, "level": 1, "seq": 6, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Drawback — One-Eyed (DM imposed)" }
+  ]
+}

@@ -1,6 +1,6 @@
 # Plan — CharGen records a purchase made AFTER the lock as an in-play purchase (B2)
 
-> **Status: PLAN FOR OWNER REVIEW — no code written.** Written 2026-10-04. Task: `fix/chargen-post-lock-purchases` (NEXT
+> **Status: APPROVED — owner answers in §7; phase 1 in progress.** Written 2026-10-04. Task: `fix/chargen-post-lock-purchases` (NEXT
 > board). This is owner decision **B2** from the roll "Accept" discussion; the Accept button itself
 > (`feat/roll-lock-then-spend`) depends on it. Related: `docs/plans/2026-10-04-chargen-creation-ceiling.md` §8, the restart
 > note's follow-up list ("CharGen edits patch slots in place after the lock"), `fix/no-purchase-refunds`.
@@ -105,3 +105,24 @@ test fails.
   does this correctly) instead of gaining this path? That is far less code, but it changes what CharGen is for after
   creation and it cannot serve the roll's automatic remainder. **Recommendation: build it** — the owner chose B2 knowing
   the cost, and the Accept button needs it — but this is the cheaper alternative if the scope worries you.
+
+## 7. Owner answers and the server side (2026-10-04, later)
+
+- **A (decreases after the lock): refuse.** **B (phase 1): `hdProf` + `stats` only.** **C: build it** (B2 stands; CharGen does
+  not become read-only after the lock).
+- **D2 (owner):** the server freezes everything **before the lock** for a campaign character — no change, removal or
+  reordering of events before the lock; events after it can still be added, and undone before they are saved. Closes review
+  finding H3 and turns CharGen's old in-place rewrite from a silent history change into a visible refusal.
+- **E1 (owner): priced `patch` events freeze completely** once a character is locked or has an award/seal — content, stamped
+  cost, position and existence. Found 2026-10-04: `pact_ap_ledger_protected()` excludes every `cat = 'patch'` purchase, so
+  after an award a player can lower Hit Dice, strip armour proficiency, change a stamped cost to 0 or delete the event
+  (proved on the Docker copy of the live rules). Priced patch slots: stats (already ratcheted), hdProf, languages, armour,
+  weaponProf, vigor, traditions, ki, sorcery, attunement, innate, customProfs, freeSub. No-AP slots (appearance, names) stay
+  editable.
+- **Staging.** The server rule for a slot goes live only when CharGen can buy that slot the proper way, otherwise it would
+  refuse legitimate edits: phase 1 → freeze `hdProf` + `stats`; phase 2 → the rest. D2 (freeze before the lock) goes live
+  with phase 1. **Both come after the Amble repair** (`docs/plans/2026-10-04-amble-lock-repair.md`), or they would freeze
+  Caspian's refund and Skylar's post-lock rewrites in place.
+- **Why the Caspian refund got through:** it was recorded as a priced `patch` event *after* the automatic lock and *before*
+  any award; the server's freeze only starts at the last award/seal and never covered patch events.
+

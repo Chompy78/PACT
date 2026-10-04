@@ -29,6 +29,13 @@
   CI as the `dm-unlock-drawback` job of `.github/workflows/engine-parity.yml`:
   `node testing/scripts/dm-unlock-drawback-ci.mjs`. Note the lock and unlock are client-honoured, not
   server-enforced — see `feat/server-enforced-drawback-lock`.
+- **`scripts/imposed-drawback-grants-ci.mjs`** (`fix/imposed-drawbacks-grant-no-ap`) — gate for "a DM-imposed drawback
+  grants no AP in `compute()`": four imposed drawbacks leave `compute().remaining` equal to the frozen ledger (no phantom
+  AP), fire neither the "Drawbacks grant N AP" nor the "N drawbacks chosen" warning, list each row at 0 labelled
+  "(DM imposed)", do not raise `creationCeiling`'s bonus, and do not consume a campaign cap — each case with a
+  player-taken control that must still pay and still warn. Pure Node. Runs in CI as the `imposed-drawback-grants` job of
+  `.github/workflows/engine-parity.yml`: `node testing/scripts/imposed-drawback-grants-ci.mjs`. Parity fixtures
+  EV-025/EV-026 pin the warning lists.
 - **`scripts/live-sheet-unlock-e2e.mjs`** and **`scripts/dm-console-unlock-e2e.mjs`**
   (`feat/dm-unlock-drawback`) — the two tools' halves of the DM unlock, driven in a real browser with no
   Supabase and no sign-in (a seeded `localStorage` character; stubbed + recorded bridge calls). The Live
