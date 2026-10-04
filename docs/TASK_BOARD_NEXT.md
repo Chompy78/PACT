@@ -108,6 +108,20 @@ cantrips, species, origin classes, size, lineage), with the same rehearsal. (9) 
 ```
 **Done when:** the live functions equal the migration's (checked by `pg_get_functiondef`), advisors are clean, the baseline files are updated and `sql-guards` CI is green, a real campaign character saves normally afterwards, and stage 2 is applied the same way (or consciously deferred and written down).
 
+## feat/chargen-2b2-traditions-diff — OPTIONAL: let CharGen buy spellcasting after the lock instead of refusing it — TODO
+Branch feat/chargen-2b2-traditions-diff. **Effort:** high · **Risk:** high — a nested-array diff turned into indexed purchases in a ~600 KB file; a wrong mapping silently buys or prices the wrong thing (driver: damage likelihood). Plan: `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md` (cold-reviewed; the reviewers' staging is why this is separate and optional).
+
+```text
+Phase 2b-1 (#579, merged) REFUSES any post-lock edit to spellcasting in CharGen and points at the Live Sheet, which already records each rank, cantrip, slot and known
+spell as an in-play purchase. This task replaces that refusal with the real diff only if it can be made safe; if not, it is simply not done and spellcasting stays Live-Sheet-only
+after the lock (reviewers' Alternative A). Per the plan: diff cur.traditions vs the form's traditions into found/rank/cantrip/slot/known events (prefix check by position AND name,
+append-only, found -> rank -> cantrip/slot/known order, one step per +1), price each with priceOf and check each with purchaseLegality (shared helper _cgPostLockAppend, which
+also does the wallet check), refuse every decrease, any change to `bound` (it grants AP), and any change to arcanum/pactSlots (no purchase exists). FIRST establish how warlock
+arcanum/pactSlots are produced (derived vs form-set) so a legitimate warlock edit is never refused. Tests: head-to-head with the Live Sheet's buy() for scripted sequences,
+a refusal per rule, two new traditions in one edit, an insertion in the middle (refused), simultaneous rank + slot increases, a Warlock case, a randomised property test (>=200 edits).
+```
+**Done when:** the head-to-head and refusal tests pass in CI, the randomised property test shows identical folded builds from both tools, and the existing browser suite still passes — OR this task is closed as "not worth the risk" with that written in the plan.
+
 ## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
 Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
 
