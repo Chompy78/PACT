@@ -1030,6 +1030,103 @@ section('CharGen refuses post-lock edits to spellcasting, innate, misc and ident
   await ctx.close();
 }
 
+// feat/chargen-wallet-warning (Q2; plan docs/plans/2026-10-04-chargen-wallet-warning-q2.md, cold-reviewed 2026-10-04): after the lock, with the campaign economy on, CharGen shows the Live Sheet's
+// soft wallet-shortfall warning and the §16 coin-for-time trade offer. WHETHER to offer a trade and how short a purchase is come from the engine's walletCheck() (shared with the Live Sheet);
+// a multi-step edit gets its trade offers step by step against a running wallet and ONE aggregated shortfall confirm, all-or-nothing.
+section('CharGen shows the wallet shortfall warning and the §16 trade offer after the lock (Q2)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [], answers = [];   // answers: what to do with each confirm, in order (default: accept)
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); const a = d.type() === 'confirm' && answers.length ? answers.shift() : true; await (a ? d.accept() : d.dismiss()); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; answers = []; };
+  const tick = async (cls, val, on) => { await p.evaluate(([cls, val, on]) => { const el = [...document.querySelectorAll('.' + cls)].find(e => e.value === val); el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }, [cls, val, on]); await p.waitForTimeout(300); };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+  const after = (s) => s.log.slice(lockIdx(s.log) + 1).filter(e => e.type === 'buy').map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, gp: e.gp, days: e.days }));
+  const econOn = () => p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar \u2014 Standard' }); render(); });
+  // a campaign-bound character whose campaign is CONFIRMED, with the server-held gold and the party window the tool would have fetched
+  const campaign = (o) => p.evaluate(o => { window._cgCampaignId = '00000000-0000-0000-0000-00000000c001'; window._cgCampaignBound = true; window._cloudCampaign = { name: 't', rules: { economy: { band: 'standard' } } };
+    window._dmApStatus = o.status || 'active'; window._cgDmGold = o.gold; window._cgDmWindow = o.window; window._cgWalletConfirmed = o.confirmed !== false; }, o);
+  const [B] = await (async () => { await fresh(); return p.evaluate(() => [...document.querySelectorAll('.boonck')].map(e => e.value).filter(v => v === 'Crippling Strike')); })();   // a 4 AP boon: 25 gp / 7 days in play
+  const lock = async () => { await econOn(); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); };
+
+  // 1. a locked campaign character with NO gold and a big window: short of gold only, the trade would not close -> shortfall confirm, no trade offer
+  await fresh(); await lock(); await campaign({ gold: 0, window: { days: 60, startTs: 0 } });
+  answers = [false]; await tick('boonck', B, true);
+  let s1 = await snap();
+  check('short of gold with downtime to spare, and no trade could close: ONE shortfall confirm and no trade offer', dialogs.filter(d => d.type === 'confirm').length === 1 && /short 25 gp/.test(dialogs[0].msg) && !/Take the trade/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 90))));
+  check('...declining it abandons the purchase: nothing appended and the tick is cleared', after(s1).length === 0 && !(await p.evaluate(v => [...document.querySelectorAll('.boonck')].find(e => e.value === v).checked, B)));
+  dialogs = []; answers = [true]; await tick('boonck', B, true); s1 = await snap();
+  check('...accepting it records the purchase at the list price (25 gp, 7 days) — a DM can waive or defer', JSON.stringify(after(s1)) === JSON.stringify([{ cat: 'boon', payload: { v: B }, cost: 4, gp: 25, days: 7 }]), JSON.stringify(after(s1)));
+
+  // 2. DM-held gold but only 3 days of window: short of downtime only, rich in gold -> the §16 trade offer; accepting freezes the TRADED price
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 3, startTs: 0 } });
+  answers = [true]; await tick('boonck', B, true);
+  const s2 = await snap();
+  check('short of downtime but rich in DM-held gold: the §16 trade offer is shown (and no shortfall confirm follows it once the trade covers it)',
+    dialogs.filter(d => d.type === 'confirm').length === 1 && /short of downtime/.test(dialogs[0].msg) && /Traded:/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 80))));
+  check('...accepting freezes the TRADED price on the purchase (75 gp, 3 days)', JSON.stringify(after(s2)) === JSON.stringify([{ cat: 'boon', payload: { v: B }, cost: 4, gp: 75, days: 3 }]), JSON.stringify(after(s2)));
+  const envTrade = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));   // for the head-to-head below (state AFTER; rebuilt below instead)
+
+  // 2b. cancelling the trade offer abandons the purchase (the Live Sheet's rule: "Cancel = leave the purchase alone")
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 3, startTs: 0 } });
+  answers = [false]; await tick('boonck', B, true); const s2b = await snap();
+  check('cancelling the trade offer abandons the purchase: nothing appended, the tick is cleared, and no second prompt follows', after(s2b).length === 0 && dialogs.filter(d => d.type === 'confirm').length === 1 && !(await p.evaluate(v => [...document.querySelectorAll('.boonck')].find(e => e.value === v).checked, B)), JSON.stringify({ n: after(s2b).length, d: dialogs.length }));
+
+  // 3. the DM-held gold and window cover it: silence (the false-shortfall case)
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 60, startTs: 0 } });
+  await tick('boonck', B, true); const s3 = await snap();
+  check('DM-held gold and a big window cover the price: no prompt at all, charged at list price', dialogs.length === 0 && after(s3)[0] && after(s3)[0].gp === 25 && after(s3)[0].days === 7, JSON.stringify(dialogs.map(d => d.msg.slice(0, 60))));
+
+  // 4. an UNCONFIRMED campaign (status 'unavailable'): the server inputs are NOT composed — no phantom gold — and the prompt says the figures are unconfirmed
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 60, startTs: 0 }, status: 'unavailable', confirmed: false });
+  answers = [false]; await tick('boonck', B, true);
+  check('an unconfirmed campaign does not count the DM-held gold (shortfall shown from the own log) and the prompt says it could not be confirmed',
+    dialogs.filter(d => d.type === 'confirm').length === 1 && /short 25 gp/.test(dialogs[0].msg) && /could not be confirmed/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 120))));
+
+  // 5. a two-step edit (Hit Dice 3 -> 5, 25 gp + 7 days each) against a wallet that covers ONE step: a single aggregated confirm, all-or-nothing
+  await fresh(); await setSel('hd', 3); await lock(); await campaign({ gold: 25, window: { days: 60, startTs: 0 } });
+  answers = [false]; await setSel('hd', 5);
+  const s5a = await snap();
+  check('a two-step edit short of gold gets ONE shortfall confirm for the whole edit (not one per step)', dialogs.filter(d => d.type === 'confirm').length === 1 && /This edit costs 50 gp/.test(dialogs[0].msg) && /short 25 gp/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 100))));
+  check('...cancelling appends nothing and Hit Dice go back', after(s5a).length === 0 && (await p.evaluate(() => document.getElementById('hd').value)) === '3', JSON.stringify(after(s5a)));
+  dialogs = []; answers = [true]; await setSel('hd', 5); const s5b = await snap();
+  check('...accepting appends both steps, each stamped with its own charge (25 gp / 7 days)', after(s5b).length === 2 && after(s5b).every(e => e.cat === 'hd' && e.gp === 25 && e.days === 7), JSON.stringify(after(s5b)));
+
+  // 6. economy off: silent, no charge stamped
+  await fresh(); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); await tick('boonck', B, true); const s6 = await snap();
+  check('economy off: no prompts and no gold/downtime stamped', dialogs.length === 0 && after(s6)[0] && after(s6)[0].gp === undefined, JSON.stringify(dialogs.length));
+
+  // 7. head to head with the Live Sheet: the same wallet, the same answer, the same frozen charge (list price after declining the trade; traded price after accepting it)
+  const headToHead = async (label, gold, window_, answersCg, answersLs) => {
+    await fresh(); await lock(); await campaign({ gold, window: window_ });
+    const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+    answers = answersCg.slice(); await tick('boonck', B, true); const cg = after(await snap());
+    const lp = await ctx.newPage(); const lpd = []; let la = answersLs.slice();
+    lp.on('dialog', async d => { lpd.push(d.message()); const a = d.type() === 'confirm' && la.length ? la.shift() : true; await (a ? d.accept() : d.dismiss()); });
+    await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+    await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+    await lp.evaluate(o => { window._rulesStatus = 'active'; window._dmGold = o.gold; window._dmWindow = o.window; window._cloudCampaignRules = { economy: { band: 'standard' } }; }, { gold, window: window_ });
+    await lp.evaluate(v => { buy('boon', { v }, 'Boon \u2014 ' + v); }, B);
+    const lsLog = await lp.evaluate(() => JSON.parse(JSON.stringify(LOG)));
+    const ls = lsLog.slice(lockIdx(lsLog) + 1).filter(e => e.type === 'buy').map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, gp: e.gp, days: e.days }));
+    check(`head to head (${label}): CharGen and the Live Sheet freeze the same charge`, JSON.stringify(cg) === JSON.stringify(ls), JSON.stringify({ cg, ls }));
+    await lp.close();
+  };
+  await headToHead('trade accepted', 5000, { days: 3, startTs: 0 }, [true], [true]);
+  await headToHead('trade cancelled (abandons the purchase in both)', 5000, { days: 3, startTs: 0 }, [false], [false]);
+  await headToHead('shortfall declined (abandons the purchase in both)', 0, { days: 60, startTs: 0 }, [false], [false]);
+  await headToHead('short of gold, accepted', 0, { days: 60, startTs: 0 }, [true], [true]);
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.

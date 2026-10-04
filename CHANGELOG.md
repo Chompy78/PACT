@@ -65,6 +65,12 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-05 · feat(chargen): after "Finish creating", with the campaign economy on, CharGen shows the Live Sheet's wallet-shortfall warning and the §16 coin-for-time trade offer**
+  (`feat/chargen-wallet-warning`; Q2 step 2, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq) — built on the engine's shared `walletCheck()` (#581), so the decision is the Live Sheet's own: the wallet is the
+  character's log plus the **DM-held gold** (`characters.gold`, read through a new `refreshServerGold()`/`cachedServerGold()` in `js/sync.js`) plus the **party downtime window** (`get_downtime_window`, via `js/dm.js`), fetched when the campaign
+  is resolved and composed only when the campaign is confirmed active. A trade is offered per step against a running wallet, only when short of exactly one currency and the traded price would close; Cancel abandons the purchase, as in the Live
+  Sheet; the soft shortfall warning is ONE confirm for the whole edit (all-or-nothing); the figures frozen on the purchase are whatever the player accepted. If the DM gold or window cannot be confirmed (offline, error) it is never silently zero:
+  the cached/last figures are used and the prompt says they could not be confirmed. 20 new browser checks (181 pass, 0 fail), including four head-to-head scenarios against the Live Sheet's `buy()`. No engine change, no `DATA.version` change.
 - **2026-10-05 · refactor(engine): the Live Sheet's gold-and-downtime wallet, soft shortfall warning and §16 trade-offer decision move into the engine as `walletState()` / `walletCheck()`**
   (`refactor/engine-wallet-check`; Q2 step 1, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq: "move it into the engine now, do not copy first") — `_lsWallet`, the decision half of
   `_lsOfferTrade` and `_lsWalletShort` become pure data in `js/engine.js` (what is left of each currency from the character's own log plus the DM-held gold and the party downtime window, composed only when the campaign is confirmed
