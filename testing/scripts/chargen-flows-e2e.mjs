@@ -667,6 +667,111 @@ section('CharGen refuses an over-limit edit (W1), prompts at the limit (W2), cap
   await ctx.close();
 }
 
+// fix/chargen-post-lock-purchases, phase 1 (owner decisions B2/C1/C2, 2026-10-04): after "Finish creating", raising Hit Dice,
+// proficiency or an ability score in CharGen APPENDS the same in-play purchase the Live Sheet records (it used to rewrite the
+// creation-era slot event in place: HD 3 -> 4 became that event at 8 AP, still before the lock). Decreases are refused.
+// A head-to-head against the Live Sheet proves the two tools record the same event. See
+// docs/plans/2026-10-04-chargen-post-lock-purchases.md.
+section('CharGen records a post-lock purchase as an appended in-play event (B2, phase 1)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const setCtl = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), hd: readBuild().hd, str: readBuild().stats.STR, hist: HIST.length,
+    total: compute(foldBuild(LOG), _cgDmOpts()).total, spent: economy(LOG).spent }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+
+  // ---- pre-lock behaviour is unchanged: the slot event is still rewritten in place ----
+  await fresh();
+  await setCtl('hd', 3); await setCtl('hd', 4);
+  const pre = await snap();
+  const preSlots = pre.log.filter(e => e.cat === 'patch' && e._slot === 'hdProf');
+  check('before the lock: raising Hit Dice still rewrites the one hdProf slot event in place (no appended hd event)',
+    preSlots.length === 1 && preSlots[0].payload.patch.hd === 4 && !pre.log.some(e => e.cat === 'hd'), JSON.stringify(preSlots.map(e => e.payload)));
+
+  // ---- after the lock ----
+  await fresh();
+  await setCtl('hd', 3);
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  const a0 = await snap(); const li0 = lockIdx(a0.log);
+  const slotBefore = JSON.stringify(a0.log.find(e => e.cat === 'patch' && e._slot === 'hdProf'));
+  await setCtl('hd', 4);
+  const a1 = await snap(); const li1 = lockIdx(a1.log);
+  const hdEv = a1.log.find(e => e.cat === 'hd');
+  check('after the lock: raising Hit Dice appends an in-play "hd" purchase after the lock', !!hdEv && a1.log.indexOf(hdEv) > li1 && hdEv.payload.to === 4, JSON.stringify(hdEv));
+  check('...priced as the ladder step (3 AP), not the whole slot re-priced to 8', hdEv && hdEv.cost === 3 && a1.spent === a0.spent + 3, JSON.stringify({ cost: hdEv && hdEv.cost, spent0: a0.spent, spent1: a1.spent }));
+  check('...the creation-era Hit Dice slot event is untouched', JSON.stringify(a1.log.find(e => e.cat === 'patch' && e._slot === 'hdProf')) === slotBefore);
+  check('...Hit Dice now read 4 and the control agrees', a1.hd === 4 && await p.evaluate(() => document.getElementById('hd').value === '4'));
+
+  // a jump of several dice appends one purchase per die, as the Live Sheet would, as ONE undo step
+  const histBefore = (await snap()).hist;
+  await setCtl('hd', 6);
+  const a2 = await snap();
+  const hdEvs = a2.log.filter(e => e.cat === 'hd').map(e => e.payload.to);
+  check('...HD 4 -> 6 appends one purchase per die (5, 6)', JSON.stringify(hdEvs) === JSON.stringify([4, 5, 6]), JSON.stringify(hdEvs));
+  check('...as ONE undo step', a2.hist === histBefore + 1, histBefore + ' -> ' + a2.hist);
+  await p.evaluate(() => undo()); await p.waitForTimeout(300);
+  const a3 = await snap();
+  check('...undo takes back that edit and stops at the lock (never the creation purchases)', a3.hd === 4 && lockIdx(a3.log) >= 0 && a3.log.filter(e => e.cat === 'hd').length === 1, JSON.stringify({ hd: a3.hd, hds: a3.log.filter(e => e.cat === 'hd').length }));
+
+  // decreases are refused, and nothing changes
+  dialogs = [];
+  const before = await snap();
+  await setCtl('hd', 2);
+  const aD = await snap();
+  check('lowering Hit Dice after the lock is refused with a message', dialogs.some(d => d.type === 'alert' && /Hit Dice can only go up/.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60))));
+  check('...history and Hit Dice are unchanged, and the control is put back', aD.hd === before.hd && aD.log.length === before.log.length && await p.evaluate(() => document.getElementById('hd').value === String(readBuild().hd)));
+
+  // ability scores: raise appends abil purchases (+2 at a time); lowering is refused
+  await setCtl('st_STR', 14);
+  const s1 = await snap();
+  const abil = s1.log.filter(e => e.cat === 'abil');
+  check('raising STR 10 -> 14 after the lock appends abil purchases 12 then 14', JSON.stringify(abil.map(e => e.payload)) === JSON.stringify([{ ab: 'STR', to: 12 }, { ab: 'STR', to: 14 }]), JSON.stringify(abil.map(e => e.payload)));
+  check('...priced as the ability ladder (4 + 5 = 9 AP) and STR reads 14', abil.reduce((s, e) => s + e.cost, 0) === 9 && s1.str === 14, JSON.stringify(abil.map(e => e.cost)));
+  dialogs = [];
+  await setCtl('st_STR', 10);
+  const s2 = await snap();
+  check('lowering STR after the lock is refused and STR stays 14', s2.str === 14 && dialogs.some(d => /STR can only go up/.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 50))));
+
+  // not enough AP: refused, nothing half-applied
+  const n0 = (await snap()).log.length;
+  await setCtl('hd', 20);
+  const s3 = await snap();
+  check('an edit the character cannot afford is refused and leaves nothing half-applied', s3.log.length === n0 && s3.hd === s2.hd, JSON.stringify({ n0, n1: s3.log.length }));
+
+  // ---- head to head with the Live Sheet: the SAME purchase made in each tool records the SAME event ----
+  await fresh();
+  await setCtl('hd', 3);
+  // switch the coin-and-calendar economy ON (the same event openEconomyCG() writes), so gold/downtime are stamped by both tools
+  await p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar \u2014 Standard' }); render(); });
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  await setCtl('hd', 4); await setCtl('st_STR', 12);
+  const cg = await snap();
+  const cgEvs = cg.log.slice(lockIdx(cg.log) + 1).map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, label: e.label, level: e.level, gp: e.gp, days: e.days }));
+  const lp = await ctx.newPage(); lp.on('dialog', d => d.accept());
+  await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+  await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+  await lp.evaluate(() => { buy('hd', { to: 4 }, 'Level up \u2192 Hit Die 4'); buy('abil', { ab: 'STR', to: 12 }, 'STR 10\u2192' + 12); });
+  const ls = await lp.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), total: compute(foldBuild(null), _dmOpts()).total, spent: economy(null).spent }));
+  const lsLock = lockIdx(ls.log);
+  const lsEvs = ls.log.slice(lsLock + 1).filter(e => e.type === 'buy').map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, label: e.label, level: e.level, gp: e.gp, days: e.days }));
+  check('...with the economy on, the post-lock purchases carry a frozen gold and downtime charge', cgEvs.length === 2 && cgEvs.every(e => typeof e.gp === 'number' && typeof e.days === 'number' && (e.gp > 0 || e.days > 0)), JSON.stringify(cgEvs.map(e => [e.gp, e.days])));
+  check('head to head: CharGen and Live Sheet record the same post-lock events (cat, payload, cost, label, level, gold, downtime)',
+    JSON.stringify(cgEvs) === JSON.stringify(lsEvs), JSON.stringify({ cg: cgEvs, ls: lsEvs }));
+  check('...and the two logs fold to the same total and the same spent', cg.total === ls.total && cg.spent === ls.spent, JSON.stringify({ cg: [cg.total, cg.spent], ls: [ls.total, ls.spent] }));
+  await lp.close();
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.
