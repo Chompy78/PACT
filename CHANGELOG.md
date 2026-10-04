@@ -14,6 +14,10 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.568` (PR #568)** — ships the creation-lock work (#559–#561 DM Console
+  lock icon and "no limit" flag, CharGen over-limit refusal), imposed drawbacks grant no AP (rules v0.366), DM-imposed Wounds (rules v0.367),
+  the Missing Arm text, and the Amble repair tooling and records. `BUILD` synced `v1.554` → `v1.568` across `js/engine.js` and the three
+  tools; `DATA.version` untouched by the bump. No tag (not a milestone).
 - **2026-10-04 · data(repair): the six Amble histories are repaired, locked and sealed** — live data, no code or `DATA.version`
   change. Each character's creation lock now sits where the owner's rule puts it (everything up to and including the lock is creation;
   the lock goes **before** the first purchase past limit + drawback AP), each has its limit restored (= the AP earned through chapter 4:
