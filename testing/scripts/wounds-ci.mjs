@@ -5,8 +5,10 @@
  *
  * WHAT A WOUND IS. A lasting injury a DM imposes on a campaign character. It is an ordinary drawback in
  * DATA.drawbacks (so its price, text and category flow everywhere), plus an entry in DATA.wounds saying which TIER
- * it is (minor 2 AP, moderate 3-4 AP), which part of the body it is in (`slot`), and — for the four NEW entries —
- * whether it is `dmOnly`: wound-only drawbacks that players can never take. An imposed drawback pays the player
+ * it is (minor 2 AP, moderate 3-4 AP), which part of the body it is in (`slot`), and — for the 19 wound-only entries —
+ * whether it is `dmOnly`: wound-only drawbacks that players can never take. (feat/permanent-wounds added four;
+ * feat/wound-aliases added 15 more: 8 ALIASES with the same effect as an existing wound under a different name, and 7 new
+ * mechanics chosen so that every skill is named by at least two drawbacks.) An imposed drawback pays the player
  * nothing, so a wound's table price is simply what it costs to buy it off.
  *
  * WHY A GATE. The wound-only entries are hidden from players by being kept OUT of DATA.drawbackList (the list every
@@ -33,7 +35,22 @@ const t = (name, got, want) => {
 
 const W = DATA.wounds;
 const names = Object.keys(W);
-const NEW = ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'];
+const NEW = ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'];   // the original four wound-only entries
+// feat/wound-aliases: an alias is a different name with the SAME effect, price, tier and place as `of`; `effect` is the
+// mechanical sentence both texts must share (the originals' stat-cap sentences do not apply to a DM-only entry).
+const ALIASES = {
+  'Crushed Leg':    { of: 'Lame',            effect: 'Your speed is reduced by 10 ft.' },
+  'Shattered Hand': { of: 'Maimed Hand',     effect: 'Disadvantage on Sleight of Hand checks and on checks made with tools and musical instruments.' },
+  'Lost Fingers':   { of: 'Maimed Hand',     effect: 'Disadvantage on Sleight of Hand checks and on checks made with tools and musical instruments.' },
+  'Burned Eye':     { of: 'One-Eyed',        effect: 'Disadvantage on ranged attacks past 30 ft and on sight-based Perception.' },
+  'Ruined Hearing': { of: 'Hard of Hearing', effect: 'Disadvantage on hearing Perception; you auto-fail hearing-only checks.' },
+  'Scorched Lungs': { of: 'Asthmatic',       effect: 'After you Dash, you can take no action on your next turn.' },
+  'Cracked Ribs':   { of: 'Brittle Bones',   effect: 'Fall damage you take is doubled, and when a bludgeoning critical hit lands on you it deals one extra weapon damage die.' },
+  'Mangled Arm':    { of: 'Withered Arm',    effect: 'It can carry a strapped shield but cannot hold a weapon, perform somatic spell components or grip anything.' },
+};
+const NEWMECH = ['Addled Memory', 'Rattled Skull', 'Scarred Throat', 'Shell-Shocked', 'Frostbitten Limbs', 'Torn Shoulder', 'Wrenched Back'];
+const LATER = [...Object.keys(ALIASES), ...NEWMECH];         // the 15 added by feat/wound-aliases, in DATA.drawbacks order
+const DM_ONLY = [...NEW, ...LATER];                          // all 19 wound-only entries
 const GRIEVOUS = ['Missing Arm', 'Glass Frame', 'Slow to Mend', 'Mute'];
 
 console.log('DATA.wounds — shape and prices');
@@ -50,18 +67,41 @@ t('the four Grievous drawbacks are NOT wounds — they stay ordinary player draw
 t('...and are still on the player-pickable list', GRIEVOUS.filter(n => !DATA.drawbackList.includes(n)), []);
 
 console.log('wound-only entries — DM can impose, player cannot pick');
-t('exactly four entries are dmOnly: ' + NEW.join(', '), names.filter(n => W[n].dmOnly).sort(), [...NEW].sort());
-t('each is a real drawback, in DATA.drawbacks', NEW.filter(n => DATA.drawbacks[n] === undefined), []);
-t('...and NONE is on the player-pickable list (drawbackList)', NEW.filter(n => DATA.drawbackList.includes(n)), []);
+t('exactly 19 entries are dmOnly: the original four + the 8 aliases + the 7 new mechanics', names.filter(n => W[n].dmOnly).sort(), [...DM_ONLY].sort());
+t('each is a real drawback, in DATA.drawbacks', DM_ONLY.filter(n => DATA.drawbacks[n] === undefined), []);
+t('...and NONE is on the player-pickable list (drawbackList)', DM_ONLY.filter(n => DATA.drawbackList.includes(n)), []);
 t('...while EVERY other drawback still is (drawbackList = drawbacks minus wound-only)',
   Object.keys(DATA.drawbacks).filter(n => !W[n]?.dmOnly && !DATA.drawbackList.includes(n)), []);
 t('drawbackList has no duplicates and no unknown names',
   [DATA.drawbackList.length === new Set(DATA.drawbackList).size, DATA.drawbackList.filter(n => DATA.drawbacks[n] === undefined)], [true, []]);
-t('the four sit at the END of DATA.drawbacks, in this order (key order is load-bearing)',
-  Object.keys(DATA.drawbacks).slice(-4), NEW);
+t('the 19 sit at the END of DATA.drawbacks, in this order (key order is load-bearing)',
+  Object.keys(DATA.drawbacks).slice(-19), DM_ONLY);
 t('wound-only entries carry NO stat cap (an imposed drawback has none, J1) and no class requirement',
-  NEW.filter(n => (DATA.drawbackMaxStats || {})[n] || (DATA.drawbackReq || {})[n]), []);
+  DM_ONLY.filter(n => (DATA.drawbackMaxStats || {})[n] || (DATA.drawbackReq || {})[n]), []);
 t('prices: Maimed Hand 2, Bad Knee 2, Brittle Bones 2, Withered Arm 4', NEW.map(n => DATA.drawbacks[n]), [2, 2, 2, 4]);
+
+console.log('aliases — a different name, the same effect');
+for (const [alias, { of, effect }] of Object.entries(ALIASES)) {
+  t(`${alias} = ${of}: same price, tier and place`,
+    [DATA.drawbacks[alias], W[alias].tier, W[alias].slot], [DATA.drawbacks[of], W[of].tier, W[of].slot]);
+  t(`${alias}: its text and ${of}'s both state the same mechanics`,
+    [DATA.drawbackFx[alias].includes(effect), DATA.drawbackFx[of].includes(effect)], [true, true]);
+  t(`${alias}: it is NOT a copy of the original's text (it has its own flavour)`, DATA.drawbackFx[alias] === DATA.drawbackFx[of], false);
+}
+t('DATA.wounds[..].sameAs records exactly the alias -> original pairs this gate pins (display-only; the picker shows it)',
+  Object.fromEntries(names.filter(n => W[n].sameAs).map(n => [n, W[n].sameAs])),
+  Object.fromEntries(Object.entries(ALIASES).map(([a, v]) => [a, v.of])));
+t('every sameAs points at a real wound, and nothing else carries one', [names.filter(n => W[n].sameAs && !W[W[n].sameAs]), names.filter(n => W[n].sameAs && !ALIASES[n])], [[], []]);
+t('every new name is unique (no alias reuses an existing drawback name)', [names.length, new Set(names).size], [names.length, names.length]);
+
+console.log('skill coverage — every skill is named by at least two drawbacks (owner goal)');
+{
+  const dn = Object.keys(DATA.drawbacks);
+  const count = (s) => dn.filter(n => DATA.drawbackFx[n] && new RegExp('\\b' + s + '\\b', 'i').test(DATA.drawbackFx[n])).length;
+  t('skills named by fewer than two drawbacks', DATA.skillList.map(([s]) => [s, count(s)]).filter(([, c]) => c < 2), []);
+  // control: the check can fail — a skill that no drawback names has a count of zero
+  t('CONTROL: a made-up skill is named by none (the counter really counts)', count('Basket Weaving'), 0);
+}
 
 console.log('body locations (slot) — only the arm and the leg can double up');
 {
@@ -69,8 +109,14 @@ console.log('body locations (slot) — only the arm and the leg can double up');
   names.forEach(n => { if (W[n].slot) (bySlot[W[n].slot] = bySlot[W[n].slot] || []).push(n); });
   const shared = Object.fromEntries(Object.entries(bySlot).filter(([, v]) => v.length > 1).map(([k, v]) => [k, v.sort()]));
   t('slots shared by more than one wound', shared, {
-    arm: ['Maimed Hand', 'Trembling Hands', 'Withered Arm'],
-    leg: ['Bad Knee', 'Lame', 'Peg Leg'],
+    arm: ['Lost Fingers', 'Maimed Hand', 'Mangled Arm', 'Shattered Hand', 'Torn Shoulder', 'Trembling Hands', 'Withered Arm'],
+    ear: ['Hard of Hearing', 'Ruined Hearing'],
+    lungs: ['Asthmatic', 'Scorched Lungs'],
+    leg: ['Bad Knee', 'Crushed Leg', 'Lame', 'Peg Leg'],
+    bones: ['Brittle Bones', 'Cracked Ribs'],
+    torso: ['Old Wound', 'Wrenched Back'],
+    eye: ['Burned Eye', 'One-Eyed'],
+    head: ['Addled Memory', 'Rattled Skull'],
   });
 }
 
@@ -94,7 +140,7 @@ console.log('a wound-only drawback must be DM-imposed');
   t('...and the block is the hard kind (starts with ⛔)', onlyDm(ply.warnings).every(x => x.startsWith('⛔')), true);
   t('control: an ordinary reused drawback taken by a player (Lame) is NOT blocked', onlyDm(run([award, oclass, taken(3, 'Lame')]).warnings), []);
   t('control: a reused WOUND is not dmOnly, so a player-taken one is fine (Peg Leg)', onlyDm(run([award, oclass, taken(3, 'Peg Leg')]).warnings), []);
-  for (const n of NEW) {
+  for (const n of DM_ONLY) {
     t(`${n}: imposed is clean, player-taken is blocked`,
       [onlyDm(run([award, oclass, imposed(3, n)]).warnings).length, onlyDm(run([award, oclass, taken(3, n)]).warnings).length], [0, 1]);
   }
