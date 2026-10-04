@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-10-04-imposed-drawbacks-grant-no-ap — a DM-imposed drawback grants no AP in `compute()`
+- `compute()` derives the drawback grant from the drawback names, which cannot tell imposed from chosen, so a drawback the
+  DM imposed at cost 0 was credited at its table value — inflating "AP remaining", firing cap warnings at a player for
+  drawbacks they never chose, and raising the creation ceiling (the Live Sheet feeds it `compute().drawbackAp`). An
+  imposed slot, identified by the same `b._imposedDrawbackIdx` marker the stat-cap exemption uses, now contributes 0, is
+  listed at 0 labelled "(DM imposed)", and counts toward neither warning; its penalty is unchanged. Fixed in the engine
+  rather than per tool, so the DM Console row and the ceiling are corrected at the source. `DATA.version` v0.365 → v0.366
+  (output changes for an imposed build). Full record: `decisions/2026/D-GH-2026-10-04-imposed-drawbacks-grant-no-ap.md`.
+
 ## D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
 - A DM-imposed drawback can be locked so the player may not buy it off, but nothing could ever clear the lock.
   New `dmUnlockDrawback` event (a required story-beat note), appended through `dm_edit_character_log`, **keyed to the

@@ -21,6 +21,7 @@ on:
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
+      - "testing/scripts/imposed-drawback-grants-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -103,6 +104,25 @@ jobs:
 
       - name: Run the DM unlock-drawback gate
         run: node testing/scripts/dm-unlock-drawback-ci.mjs
+
+  imposed-drawback-grants:
+    # fix/imposed-drawbacks-grant-no-ap. compute() once credited a DM-imposed drawback's table value as income
+    # although the player was paid nothing: it inflated "AP remaining", fired cap warnings at a player for
+    # drawbacks they never chose, and raised the creation ceiling. The parity fixtures pin the warning lists;
+    # parity records only total/warnings, so remaining / the ledger rows / the ceiling are asserted here against
+    # the frozen ledger, each with a player-taken control. Wired in the same change as the gate, because a
+    # previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the imposed-drawback grants gate
+        run: node testing/scripts/imposed-drawback-grants-ci.mjs
 
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
