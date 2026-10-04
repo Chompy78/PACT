@@ -1067,6 +1067,115 @@ create trigger trg_pact_locked_history
   for each row execute function public.pact_enforce_locked_history();
 
 -- ---------------------------------------------------------------------------
+-- Creation-lock guard (D1), campaign moves keep the lock (L1) — applied to live 2026-10-04 as migration
+-- creation_lock_guard (sql/migrations/2026-10-04-creation-lock-guard.sql). See
+-- D-GH-2026-10-01-creation-lock-integrity. NOTE: pact_campaign_move_clears_creation() and its trigger were
+-- previously missing from this file (the 2026-09-01 migration is their only other definition).
+-- ---------------------------------------------------------------------------
+create or replace function public.pact_lock_family(p_log jsonb)
+returns jsonb
+language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
+  from jsonb_array_elements(coalesce(p_log, '[]'::jsonb)) with ordinality as t(ev, ord)
+  where (ev->>'type') in ('creationLocked', 'creationUnlocked', 'creationLockConfig');
+$$;
+revoke execute on function public.pact_lock_family(jsonb) from public, anon, authenticated;
+
+create or replace function public.pact_enforce_creation_lock()
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old jsonb; v_new jsonb; v_ev jsonb; i int;
+  v_moved boolean := OLD.campaign_id is distinct from NEW.campaign_id;
+begin
+  if NEW.stats is not distinct from OLD.stats then return NEW; end if;
+  if OLD.campaign_id is null and NEW.campaign_id is null then return NEW; end if;   -- solo character
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;  -- admin session
+  if (OLD.campaign_id is not null and public.is_campaign_dm(OLD.campaign_id))
+     or (NEW.campaign_id is not null and public.is_campaign_dm(NEW.campaign_id)) then
+    return NEW;
+  end if;
+
+  v_old := public.pact_lock_family(OLD.stats->'LOG');
+  v_new := public.pact_lock_family(NEW.stats->'LOG');
+
+  if jsonb_array_length(v_new) < jsonb_array_length(v_old) then
+    raise exception 'PACT: locked character history — a creation-lock entry cannot be removed'
+      using hint = 'Reload the character — this copy is older than the saved one.';
+  end if;
+  for i in 0 .. jsonb_array_length(v_old) - 1 loop
+    if (v_old -> i) is distinct from (v_new -> i) then
+      raise exception 'PACT: locked character history — a creation-lock entry cannot be changed (entry %)', i
+        using hint = 'Reload the character — this copy is older than the saved one.';
+    end if;
+  end loop;
+
+  for i in jsonb_array_length(v_old) .. jsonb_array_length(v_new) - 1 loop
+    v_ev := v_new -> i;
+    if v_ev->>'type' = 'creationLocked' then
+      continue;
+    elsif v_ev->>'type' = 'creationLockConfig' and not (coalesce(v_ev->'payload', '{}'::jsonb) ? 'threshold') then
+      continue;
+    elsif v_moved and v_ev->>'type' = 'creationLockConfig'
+          and (v_ev->'payload'->'threshold') = 'null'::jsonb and coalesce((v_ev->>'systemEdit')::boolean, false) then
+      continue;
+    end if;
+    raise exception 'PACT: locked character history — only the campaign DM can reopen creation or set its limit'
+      using hint = 'Ask your DM to reopen creation in DM Console.';
+  end loop;
+  return NEW;
+end;
+$$;
+revoke execute on function public.pact_enforce_creation_lock() from public, anon, authenticated;
+
+drop trigger if exists trg_pact_creation_lock_guard on public.characters;
+create trigger trg_pact_creation_lock_guard
+  before update on public.characters
+  for each row execute function public.pact_enforce_creation_lock();
+
+
+create or replace function public.pact_campaign_move_clears_creation()
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_log jsonb; v_seq integer;
+  v_ts bigint := (extract(epoch from now()) * 1000)::bigint;
+  v_note text;
+begin
+  if NEW.campaign_id is not distinct from OLD.campaign_id then return NEW; end if;
+  if NEW.stats is null or not (NEW.stats ? 'LOG') then return NEW; end if;
+
+  v_log := coalesce(NEW.stats->'LOG', '[]'::jsonb);
+  v_seq := coalesce((NEW.stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
+
+  v_note := case
+    when OLD.campaign_id is null then 'joined a campaign'
+    when NEW.campaign_id is null then 'left the campaign'
+    else 'moved to a different campaign'
+  end;
+
+  v_log := v_log || jsonb_build_object(
+    'seq', v_seq, 'ts', v_ts,
+    'type', 'creationLockConfig',
+    'payload', jsonb_build_object('threshold', null),
+    'systemEdit', true,
+    'label', 'Creation limit cleared - ' || v_note);
+  v_seq := v_seq + 1;
+
+  -- L1 (2026-10-01): no creationUnlocked here any more. A finished character stays finished; the new
+  -- table's DM reopens creation explicitly if they want it.
+
+  NEW.stats := jsonb_set(jsonb_set(NEW.stats, '{LOG}', v_log), '{SEQ}', to_jsonb(v_seq));
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_campaign_move_clears_creation on public.characters;
+create trigger trg_pact_campaign_move_clears_creation
+  before update on public.characters
+  for each row execute function public.pact_campaign_move_clears_creation();
+
+-- ---------------------------------------------------------------------------
 -- Account-level "basic mode" (feat/player-basic-mode). Restricts a flagged player to one active
 -- (non-archived) character, enforced so it cannot be bypassed by calling the database directly. See
 -- docs/plans/2026-09-05-player-basic-mode.md and decisions/2026/D-GH-2026-09-05-player-basic-mode.md
@@ -1326,6 +1435,7 @@ revoke execute on function public.pact_ap_ledger_spend(jsonb)            from pu
 revoke execute on function public.pact_ap_ledger_protected(jsonb)        from public, anon, authenticated;
 revoke execute on function public.pact_enforce_ap_budget_consistency()   from public, anon, authenticated;
 revoke execute on function public.pact_enforce_locked_history()          from public, anon, authenticated;
+revoke execute on function public.pact_enforce_creation_lock()          from public, anon, authenticated;
 
 -- The seal RPCs ARE meant to be called by a signed-in user; both gate authorisation internally.
 revoke execute on function public.seal_character_history(uuid, text, text) from public, anon;

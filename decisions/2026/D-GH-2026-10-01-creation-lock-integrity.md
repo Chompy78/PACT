@@ -54,3 +54,39 @@ a campaign move — the new DM reopens creation explicitly if they want it.
 Part 1a done (tests: new `chargen-flows-e2e.mjs` section fails on the old code, passes on the new; engine
 parity 73/0). Interim end-of-log locks applied to the four unlocked Amble characters (AP unchanged). Parts
 1b, 3 (history repair with DM sign-off) and 2 (server guard + L1) to follow, in that order.
+
+## Addendum — 2026-10-04
+
+- **Second cause found:** Skylar (2 Oct) and Archer (3 Oct) lost their interim locks *after* the reload fix
+  shipped — a stale local copy (pre-lock `seq`) pushed over the newer cloud save. Root cause still open; the
+  server guard (D1) is now prioritised ahead of Part 1b (owner decision **P1**).
+- **Q1 (owner):** lock points are judged on **current-rules prices** (`compute(foldBuild(LOG)).total`), not
+  the stored ledger, which held stale prices (Skylar's Proficiency +3 recorded at 4 AP vs 18; Moss's Wild
+  Shape at 0). This moved Moss's crossing to 8 Sep (Wild Shape) and gave Skylar 14 AP in-play.
+- **R (owner):** no mechanics change — drawback AP stays in the creation limit.
+- **S1 (owner):** campaign characters' backups are never pruned (the 50-version window lost Archer's history).
+- Draft migration `sql/migrations/2026-10-04-creation-lock-guard.sql` (D1 + L1 + S1) — not applied; testing
+  approach (decision T) pending. Handoff: `docs/sessions/2026-10-04-creation-lock-restart.md`.
+
+## Addendum — 2026-10-04 (guard applied)
+
+- **T (owner):** testing the guard. A Supabase test branch (the recommended T1) was refused — branching needs
+  the Pro plan and this project isn't on it. Owner chose **G1: a throwaway Postgres in Docker**. The
+  rolled-back-transaction-on-live option was rejected as unsafe; bringing CI's test database up to date
+  stays a separate job (it is missing at least five functions).
+- **Applied to live 2026-10-04** as migration `creation_lock_guard` (D1 + L1 + S1), after
+  `testing/scripts/creation-lock-guard-test/run.sh` showed the attacks succeed without it and are refused
+  with it (22 cases), the DM tools still work, a move keeps the lock, and campaign backups are kept. All six
+  Amble characters re-checked as locked afterwards.
+- **Fidelity limit, stated plainly:** the Docker test omits RLS, the AP-budget / player-AP-ceiling / basic-mode
+  triggers and real Supabase Auth; the live `snapshot_character()` and
+  `pact_campaign_move_clears_creation()` were compared to the repo's versions by reading (same logic, comments
+  differ). The post-apply Postgres log skim was not possible.
+- **Anders (owner):** his lock goes straight after the Forgery kit (85 AP), the first purchase over the
+  limit + drawbacks of 84. Psychic Blades T3 therefore becomes an in-play purchase (gold and downtime). Not yet
+  applied to his live log (Part 3).
+- **New rule (owner), logged as task `fix/no-purchase-refunds`:** nothing bought can be un-bought for AP
+  except drawbacks; dumping below 10 at creation stays; after the lock nothing purchased can be removed or
+  lowered. Found via Caspian's and Skylar's lock-check copies. The live `pact_enforce_locked_history()` already
+  refuses lowering an ability score once a campaign character has an award — the engine rule is the missing half.
+
