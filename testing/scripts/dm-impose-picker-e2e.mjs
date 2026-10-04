@@ -108,10 +108,23 @@ check('three groups, wounds first', JSON.stringify(list.groups.map(g => g.label)
 check('every drawback is listed exactly once', list.all.length === list.total && new Set(list.all).size === list.total, `${list.all.length} items / ${list.total} drawbacks`);
 check('the four wound-only entries are present, in the wound groups', ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'].every(n => list.groups[0].names.concat(list.groups[1].names).includes(n)));
 check('Impose is disabled until something is chosen', list.impose === true);
+// (moved here from wounds-ui-e2e when the dropdown became this picker)
+check('the Grievous drawbacks stay in "Other drawbacks" (Missing Arm, Glass Frame, Slow to Mend, Mute)', ['Missing Arm', 'Glass Frame', 'Slow to Mend', 'Mute'].every(n => list.groups[2].names.includes(n)));
+check('Withered Arm and Peg Leg are under moderate wounds, Bad Knee under minor', list.groups[1].names.includes('Withered Arm') && list.groups[1].names.includes('Peg Leg') && list.groups[0].names.includes('Bad Knee'));
+check('the four wound-only entries are NOT in "Other drawbacks"', ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'].every(n => !list.groups[2].names.includes(n)));
+check('the page behind the window is inert while it is open (a screen reader / Tab cannot reach it)', await page.evaluate(() => !!document.getElementById('campSection').closest('[inert]')));
 await page.fill('#dpSearch', 'peg');
 const s1 = await page.evaluate(() => ({ shown: [...document.querySelectorAll('#dmDrawPick .dp-item')].filter(i => !i.hidden).map(i => i.getAttribute('data-name')),
   groupsShown: [...document.querySelectorAll('#dmDrawPick .dp-group')].filter(g => !g.hidden).length }));
 check('searching "peg" leaves only Peg Leg, and hides the groups that emptied', JSON.stringify(s1.shown) === JSON.stringify(['Peg Leg']) && s1.groupsShown === 1, JSON.stringify(s1));
+await pickItem('Peg Leg');
+await page.fill('#dpSearch', 'knee');
+const s1b = await page.evaluate(() => ({ shown: [...document.querySelectorAll('#dmDrawPick .dp-item')].filter(i => !i.hidden).map(i => i.getAttribute('data-name')),
+  btn: document.getElementById('dpImposeLbl').textContent }));
+check('a chosen drawback stays listed when a search would hide it (so the pane and button never describe something out of sight)',
+  s1b.shown.includes('Peg Leg') && s1b.shown.includes('Bad Knee') && s1b.btn === 'Impose Peg Leg', JSON.stringify(s1b));
+await page.fill('#dpSearch', '');
+await pickItem('Withered Arm');   // leave a clean selection for the next section
 await page.fill('#dpSearch', '');
 const s2 = await page.evaluate(() => [...document.querySelectorAll('#dmDrawPick .dp-item')].filter(i => !i.hidden).length);
 check('clearing the search restores the full list', s2 === list.total, `${s2}`);
@@ -197,6 +210,102 @@ await page.click('#dpImpose');
 await page.waitForFunction(() => window.__calls.length === 3, { timeout: 5000 });
 const ev3 = await page.evaluate(() => window.__calls[2].events[0]);
 check('an explicitly UNticked Locked and expensive removal are what get sent', ev3.payload.v === 'Maimed Hand' && ev3.dmLocked === false && ev3.dmRemovalCost === 'expensive', JSON.stringify(ev3));
+
+check('the page behind is no longer inert once the window has closed', await page.evaluate(() => !document.getElementById('campSection').closest('[inert]')));
+check('with no "how it happened" text the label is exactly as before (no stray suffix)',
+  (await page.evaluate(() => window.__calls[0].events[0].label)) === 'Drawback — Bad Knee (DM imposed)');
+
+// ---- 7. the optional "how it happened" text (K1) ----------------------------------------------------------------------
+console.log('How it happened');
+await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-btn').disabled = false; });
+await openIt();
+await pickItem('Bad Knee');
+await page.fill('#dpFlavor', '  crushed   by a\n collapsing gantry <b>x</b> ' + 'z'.repeat(120));
+await page.click('#dpImpose');
+await page.waitForFunction(() => window.__calls.length === 4, { timeout: 5000 });
+const lab4 = await page.evaluate(() => window.__calls[3].events[0]);
+const suffix = (lab4.label.split('(DM imposed): ')[1]) || '';
+check('the text is appended to the label after "(DM imposed): "', lab4.label.startsWith('Drawback — Bad Knee (DM imposed): crushed by a collapsing gantry <b>x</b>'), lab4.label);
+check('...whitespace collapsed to single spaces and trimmed, and no longer than 80 characters (the input\'s own maxlength trims first)', suffix.length > 60 && suffix.length <= 80 && !/\s{2}/.test(suffix) && suffix === suffix.trim(), `${suffix.length}`);
+// The send handler's own 80-character cap, independent of the input's maxlength: put a 200-character note straight into the
+// hidden field (as a re-rendered or scripted page could) and send.
+await page.evaluate(() => { const c = document.querySelector('#campRoster .dm-impose-draw-btn').getAttribute('data-cid');
+  document.querySelector('#campRoster .dm-impose-draw-btn').disabled = false;
+  document.querySelector('#campRoster .dm-impose-draw-sel[data-cid="' + c + '"]').value = 'Bad Knee';
+  document.querySelector('#campRoster .dm-impose-draw-note[data-cid="' + c + '"]').value = 'q'.repeat(200);
+  document.querySelector('#campRoster .dm-impose-draw-btn').click(); });
+await page.waitForFunction(() => window.__calls.length === 5, { timeout: 5000 });
+const capped = await page.evaluate(() => window.__calls[4].events[0].label.split('(DM imposed): ')[1] || '');
+check('the send handler itself caps the text at 80 characters', capped.length === 80, `${capped.length}`);
+check('...the real drawback name is still the payload, so buy-off matches by the drawback and not the text', lab4.payload.v === 'Bad Knee' && lab4.cost === 0);
+check('...and it travels as an ordinary event (the same keys as before, plus nothing new)',
+  JSON.stringify(Object.keys(lab4).sort()) === JSON.stringify(Object.keys(await page.evaluate(() => window.__calls[0].events[0])).sort()));
+
+// ---- 8. a send that cannot happen says so, and keeps the window open ---------------------------------------------------
+console.log('Failure handling');
+await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-btn').disabled = true; });
+await openIt();
+await pickItem('Lame');
+await page.click('#dpImpose');
+const dis = await page.evaluate(() => ({ open: document.getElementById('dmDrawPick').classList.contains('on'), msg: document.getElementById('dpMsg').textContent, calls: window.__calls.length, sel: document.getElementById('dpImposeLbl').textContent }));
+check('while the previous impose is still being sent: the window stays open, says why, and sends nothing', dis.open && /still being sent/.test(dis.msg) && dis.calls === 5, JSON.stringify(dis));
+check('...and keeps the DM\'s choice', dis.sel === 'Impose Lame');
+await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-btn').disabled = false; });
+await page.click('#dpImpose');
+await page.waitForFunction(() => window.__calls.length === 6, { timeout: 5000 });
+check('once the button is free the same click sends it', (await page.evaluate(() => window.__calls[5].events[0].payload.v)) === 'Lame');
+
+await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-btn').disabled = false; });
+await openIt();
+await pickItem('Bad Knee');
+await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-hidden').remove(); });   // as if the roster re-rendered under the window
+await page.click('#dpImpose');
+const gone = await page.evaluate(() => ({ open: document.getElementById('dmDrawPick').classList.contains('on'), msg: document.getElementById('dpMsg').textContent, calls: window.__calls.length }));
+check('if the card was refreshed under the window: it stays open, says so, and sends nothing', gone.open && /refreshed/.test(gone.msg) && gone.calls === 6, JSON.stringify(gone));
+await page.click('#dpCancel');
+check('Cancel still closes it and releases the page', !(await isOpen()) && (await page.evaluate(() => !document.getElementById('campSection').closest('[inert]'))));
+
+// ---- 9. the player's side: the text is shown, and markup in it is inert ----------------------------------------------------
+console.log('The player\'s Live Sheet');
+{
+  const lctx = await browser.newContext();
+  const lp = await lctx.newPage();
+  const lerrs = []; lp.on('pageerror', e => lerrs.push(String(e)));
+  const NOTE = 'crushed by a gantry <img src=x onerror="window.__xss=1"> <b>bold</b>';
+  const LLOG = [
+    { type: 'award', amount: 79, seq: 1, label: 'Award' },
+    { type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0, level: 1, seq: 2, label: 'Fighter' },
+    { type: 'buy', cat: 'drawback', payload: { v: 'Bad Knee' }, cost: 0, level: 1, seq: 3, dmEdit: true, dmId: 'dm', dmLocked: true, dmRemovalCost: 'flat',
+      label: 'Drawback — Bad Knee (DM imposed): ' + NOTE },
+  ];
+  await lp.addInitScript((env) => { try { localStorage.setItem('pactLiveSheet', JSON.stringify(env)); } catch (e) {} },
+    { schema: 'pact-character/1', LOG: LLOG, SEQ: LLOG.length + 1 });
+  await lp.goto(`http://localhost:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' });
+  await lp.waitForFunction(() => window.DATA && window._engineFold && document.body && document.body.textContent.length > 2000, { timeout: 25000 });
+  // The history/ledger is drawn on demand; try the common ways a player would open it.
+  await lp.evaluate(() => { try { if (typeof showLog === 'function') showLog(); } catch (e) {} try { document.querySelectorAll('[onclick*="og"], #logBtn, [data-tab="log"]').forEach(b => b.click && b.click()); } catch (e) {} });
+  await lp.waitForTimeout(500);
+  const seen = await lp.evaluate(() => ({ text: document.body.textContent.includes('crushed by a gantry'), img: !!document.querySelector('img[src="x"]'),
+    xss: window.__xss === 1, rawTag: document.body.innerHTML.includes('<img src="x" onerror') }));
+  check('the DM\'s "how it happened" text is shown to the player (CONTROL — otherwise the safety checks below prove nothing)', seen.text, JSON.stringify(seen));
+  check('markup inside it is NOT parsed: no <img> was created and no script ran', !seen.img && !seen.xss && !seen.rawTag, JSON.stringify(seen));
+  check('no page errors on the Live Sheet', lerrs.length === 0, lerrs.join(' | '));
+  await lctx.close();
+
+  // The same character opened in CharGen: whatever it draws from the label must not turn the markup into elements either.
+  const cctx = await browser.newContext();
+  const cp = await cctx.newPage();
+  const cerrs = []; cp.on('pageerror', e => cerrs.push(String(e)));
+  await cp.goto(`http://localhost:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' });
+  await cp.waitForFunction(() => window.DATA && typeof window._cgApplyEnvelope === 'function', { timeout: 25000 });
+  await cp.evaluate((log) => { window._cgApplyEnvelope({ schema: 'pact-character/1', rules: window.DATA.version, name: 'Wounded', LOG: log, SEQ: log.length + 1,
+    id: '11111111-2222-3333-4444-555555555555' }, { clearHistory: true }); }, LLOG);
+  await cp.waitForTimeout(500);
+  const cseen = await cp.evaluate(() => ({ img: !!document.querySelector('img[src="x"]'), xss: window.__xss === 1, rawTag: document.body.innerHTML.includes('<img src="x" onerror') }));
+  check('CharGen: markup in the text is NOT parsed there either', !cseen.img && !cseen.xss && !cseen.rawTag, JSON.stringify(cseen));
+  check('no page errors on CharGen', cerrs.length === 0, cerrs.join(' | '));
+  await cctx.close();
+}
 
 check('no page errors', errs.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e)).length === 0, errs.join(' | '));
 await ctx.close();
