@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.571.html**-->
+<!--**PACT-Live-Char-Sheet v1.577.html**-->
 
 <!doctype html>
 <!--
@@ -842,11 +842,10 @@ async function _lsResolveDmAp(campaignId){
 // Pricing now lives in js/engine.js (refactor/engine-priceof) — this is only the tool-side signature, kept so every
 // existing caller (buy(), the buy panel, legality checks) is unchanged. `_cur` is an optional pre-folded build.
 function priceOf(cat,payload,_cur){ return window._enginePriceOf(_cur||foldBuild(null),cat,payload); }
-function legalCheck(cat,payload,_cur){
-  const cur=_cur||foldBuild(null); const cand=clone(cur); (MUT[cat]||(()=>{}))(cand,payload);
-  const seen={}; compute(cur).warnings.forEach(w=>{seen[w]=(seen[w]||0)+1;});
-  return compute(cand).warnings.filter(w=>{ if(/OVER BUDGET/.test(w))return false; if(seen[w]>0){seen[w]--;return false;} return true; }); // OVER BUDGET is a soft planning advisory only — the live economy (apAvailable(), frozen prices) already gates affordability in buy(); never hard-block a purchase you can actually pay for. Otherwise: new warnings introduced — by content, not count (so Vigor 1→2→3 each flag)
-}
+// The "is this purchase legal" rules (this function's old body, SOFT_WARN, EXPECTED_FOLLOWUP, DUP_FIELD and the hard/soft/follow-up split in
+// buy()) now live in js/engine.js as purchaseLegality() — CharGen's after-lock purchases use the SAME rule (refactor/engine-purchase-legality).
+// This is only the tool-side signature, kept so every caller is unchanged. `_cur` is an optional pre-folded build. Returns the NEW warnings.
+function legalCheck(cat,payload,_cur){ return window._enginePurchaseLegality(_cur||foldBuild(null),cat,payload).warnings; }
 
 function _viewOnlyBlock(){ if(!VIEW_ONLY) return false; if(typeof flash==='function') flash('👁 Read-only DM view — nothing here can be changed or saved.'); return true; }
 // fix/duplicate-name-and-campaign-suffix: blocks renaming a character to a name that collides with
@@ -883,16 +882,16 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
 // was never checked at purchase time; routing it through buy() would have turned it into a hard block
 // with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
+// SOFT_WARN now lives in js/engine.js (purchaseLegality) — moved verbatim, refactor/engine-purchase-legality.
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
 // raises "<boon>: choose an ability to raise (+2)" (js/engine.js:145). Classified as neither hard nor
 // soft — blocking it made all 12 epic boons unbuyable, and confirm()ing it would ask the player to
 // approve a rules warning that isn't one. buy() points at the dialog instead.
-const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
+// EXPECTED_FOLLOWUP now lives in js/engine.js (purchaseLegality) — moved verbatim, refactor/engine-purchase-legality.
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
-const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
+// DUP_FIELD now lives in js/engine.js (purchaseLegality) — moved verbatim, refactor/engine-purchase-legality.
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}
 function buy(cat,payload,label){
   // Fold the LOG once and reuse it for every read below (dup guard, pricing, availability, hd, legal check).
@@ -902,7 +901,8 @@ function buy(cat,payload,label){
   // _apRemaining(compute(foldBuild(null),_dmOpts()).spendable, economy(null).spent).
   const b0=foldBuild(null);
   // (B1) duplicate guard — block re-buying an owned single-instance proficiency
-  if(DUP_FIELD[cat] && payload && payload.v!=null && (b0[DUP_FIELD[cat]]||[]).indexOf(payload.v)>=0){
+  const _lg=window._enginePurchaseLegality(b0,cat,payload);   // one fold of the candidate build answers the duplicate guard AND the rules check below
+  if(_lg.dup){
     alert('⛔ Already owned — "'+payload.v+'" can only be bought once.'); return; }
   const cost=priceOf(cat,payload,b0); const avail=_apRemaining(compute(b0,_dmOpts()).spendable,economy(null).spent);
   if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
@@ -920,11 +920,7 @@ function buy(cat,payload,label){
   }
 
   // (B2) split rules warnings: hard violations are blocked with a popup; intended-but-flagged ones stay confirm-through
-  const warns=legalCheck(cat,payload,b0);
-  const followup=warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
-  const rest    =warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
-  const hard=rest.filter(function(w){return !SOFT_WARN.test(w);});
-  const soft=rest.filter(function(w){return  SOFT_WARN.test(w);});
+  const warns=_lg.warnings, followup=_lg.followup, rest=_lg.rest, hard=_lg.hard, soft=_lg.soft;
   if(hard.length){ alert('⛔ Purchase blocked — it breaks a rules limit:\n\n• '+hard.join('\n• ')); return; }
   if(soft.length && !confirm('This purchase raises a rules warning:\n• '+soft.join('\n• ')+'\n\nBuy anyway (it will be flagged for review)?')) return;
   var _preSwap=(cat==='hd')?_swapAvailFrom((b0.hd)||1,LOG):null;
@@ -1783,7 +1779,7 @@ function buildBuyPanel(b,r,eco,head){
     if(b.hd<_need)return 'needs '+_need+' Hit Dice (T'+r.tier+')';
     if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
-    const cost=priceOf(cat,payload); const warns=legalCheck(cat,payload);
+    const cost=priceOf(cat,payload); const _lg=window._enginePurchaseLegality(foldBuild(null),cat,payload); const warns=_lg.warnings;
     const unaff = cat!=='drawback' && cat!=='mbound' && cat!=='dbound' && cost>eco.available;
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
@@ -1792,8 +1788,8 @@ function buildBuyPanel(b,r,eco,head){
     // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
     // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
     // boons would otherwise be the only permanently-warned tiles in the panel.
-    const _fu   = warns.filter(function(w){return  EXPECTED_FOLLOWUP.test(w);});
-    const _rest = warns.filter(function(w){return !EXPECTED_FOLLOWUP.test(w);});
+    const _fu   = _lg.followup;
+    const _rest = _lg.rest;
     const soft = (!hardReason && _rest.length)?_rest[0]:'';
     const followup = (!hardReason && !soft && _fu.length)?_fu[0]:'';
     const blocked=!!hardReason;
@@ -2665,7 +2661,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.367</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.368</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
@@ -2688,7 +2684,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -2696,7 +2692,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
-  window._enginePriceOf = _enginePriceOf;
+  window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };

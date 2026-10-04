@@ -76,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.571";
+export const BUILD = "v1.577";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -788,7 +788,8 @@ export function compute(b, opts){
     // penalty. Without this a DEX 16 character imposed Peg Leg showed "⛔ … requires DEX 12 or lower".
     const _dmx=_impIdx.has(_dIdx)?{}:(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{});for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
     const _drq=DATA.drawbackReq&&DATA.drawbackReq[lab];if(_drq&&_drq.caster&&!_hasDisc) W.push('⛔ '+lab+': requires at least one spellcasting discipline');
-    // A WOUND-ONLY drawback (DATA.wounds[name].dmOnly: Maimed Hand, Bad Knee, Brittle Bones, Withered Arm) is
+    // A WOUND-ONLY drawback (DATA.wounds[name].dmOnly — 19 entries: the original four, 8 same-effect aliases and 7 newer
+    // mechanics; read the data, not a list typed here) is
     // something only a DM can impose — players never see it in a picker and cannot take it. A copy that is NOT a
     // DM-imposed slot (hand-edited, or a build with no marker) is a hard violation, the same ⛔ marker as the
     // caster gate above. (feat/permanent-wounds, D-GH-2026-10-04-permanent-wounds.)
@@ -2442,6 +2443,40 @@ export function priceOf(cur, cat, payload) {
   const before = compute(cur).total;
   const cand = clone(cur); (MUT[cat] || (() => {}))(cand, payload);
   return compute(cand).total - before;
+}
+
+// purchaseLegality(cur, cat, payload) — may this purchase be made, and what must the player be told?
+//
+// MOVED VERBATIM from the Live Sheet (refactor/engine-purchase-legality, 2026-10-04), where it lived as legalCheck() + SOFT_WARN +
+// EXPECTED_FOLLOWUP + DUP_FIELD and the hard/soft/follow-up split inside buy(). CharGen records a post-lock purchase through the same
+// mutation vocabulary (docs/plans/2026-10-04-chargen-post-lock-purchases.md), and its own guard only blocked warnings that start with
+// "\u26D4", which is narrower than the Live Sheet's rule — so a purchase the Live Sheet refuses (Vigor past CON mod, found by the phase-2a
+// head-to-head test) went through CharGen. One copy of the rule, here, closes that. testing/scripts/engine-legality-ci.mjs compares this with
+// a frozen copy of the original over every build fixture and a wide sweep of purchases.
+//
+// The answer, for the build BEFORE the purchase:
+//   warnings  the NEW warnings the purchase would raise (by content, not count, so Vigor 1->2->3 each flag; OVER BUDGET never counts — the
+//             live economy gates affordability, and a purchase you can pay for is never hard-blocked on a planning advisory)
+//   followup  an expected next step, not a warning (an epic boon still needs its ability picked) — neither hard nor soft
+//   rest      warnings that are not follow-ups = hard + soft
+//   hard      anything in `rest` that is not on the SOFT_WARN list: the purchase is refused
+//   soft      a flagged-but-allowed warning: the player is asked to confirm, and the event records it
+//   dup       a single-instance proficiency the build already owns: never legal (it cannot stack)
+// Uses compute() WITHOUT per-campaign options, exactly as the Live Sheet always did.
+// SOFT_WARN: warnings that are advisory — the DM adjudicates (a drawback surplus is clamped, not blocked; see the drawback-cap comments in compute()).
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
+const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
+const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
+export function purchaseLegality(cur, cat, payload) {
+  const cand = clone(cur); (MUT[cat] || (() => {}))(cand, payload);
+  const seen = {}; compute(cur).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
+  const warnings = compute(cand).warnings.filter(w => { if (/OVER BUDGET/.test(w)) return false; if (seen[w] > 0) { seen[w]--; return false; } return true; });
+  const followup = warnings.filter(w => EXPECTED_FOLLOWUP.test(w));
+  const rest = warnings.filter(w => !EXPECTED_FOLLOWUP.test(w));
+  const hard = rest.filter(w => !SOFT_WARN.test(w));
+  const soft = rest.filter(w => SOFT_WARN.test(w));
+  const dup = !!(DUP_FIELD[cat] && payload && payload.v != null && (cur[DUP_FIELD[cat]] || []).indexOf(payload.v) >= 0);
+  return { warnings, followup, rest, hard, soft, dup };
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so

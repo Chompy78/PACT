@@ -28,6 +28,32 @@
   and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
   identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
   change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
+- **2026-10-04 · feat(rules): 15 more DM-only wounds — 8 same-effect aliases and 7 new mechanics; rules `v0.367` → `v0.368`** — a count of
+  skill names across the 94 drawback texts found 10 of 18 skills named by only one drawback (an Affliction). Added 15 wound-only
+  entries (DM-impose only, not on `drawbackList`, appended to `DATA.drawbacks`, no stat cap). **Aliases** (a new name and flavour with
+  the same price, tier, place and mechanics): Crushed Leg = Lame, Shattered Hand and Lost Fingers = Maimed Hand, Burned Eye = One-Eyed,
+  Ruined Hearing = Hard of Hearing, Scorched Lungs = Asthmatic, Cracked Ribs = Brittle Bones, Mangled Arm = Withered Arm. **New
+  mechanics** (2 AP each): Addled Memory (History, Religion, Arcana), Rattled Skull (Investigation, Nature), Scarred Throat
+  (Intimidation, Performance), Shell-Shocked (Insight, Medicine), Frostbitten Limbs (Survival, speed in cold), Torn Shoulder (thrown
+  attacks, climbing), Wrenched Back (carrying limits). Every skill is now named by at least two drawbacks, and `wounds-ci.mjs` pins
+  that. The impose picker lists them with no code change. Guide: the Wounds table and its "which drawbacks are wounds" paragraph
+  rewritten in both the served copy and the `pact-guide` master (`verify-guide` "drawback text" 15 missing → passes). New `head` and
+  `throat` places. Each alias records the wound it repeats in `DATA.wounds[..].sameAs` (display-only), shown in the impose picker. Nothing
+  existing changes (the 15 names are new). See `D-GH-2026-10-04-wound-aliases`.
+- **2026-10-04 · feat(dm-console): "Impose a drawback" is now a pop-up that shows each drawback's impact** — the dropdown gave a name and a
+  price and nothing else. The card now has a "Choose a drawback…" button that opens a window: a searchable list (wounds first, then the
+  rest) beside a detail pane showing the effect text, wound tier and body place, the buy-off cost flat and tripled, that a DM-imposed
+  drawback pays 0 AP and skips its normal stat cap, the caster-discipline warning, and a warning when it would stack on a wound in the
+  same place or add a second copy of one the character already has. Locked and removal cost are in the window; moving between wounds
+  leaves the DM's changes alone; the page behind is made inert; a send that cannot happen (previous impose still in flight, or the card
+  was refreshed) says so and keeps the window open instead of closing silently. **New: an optional "how it happened" line** (80
+  characters, e.g. "crushed by a collapsing gantry") is appended to the event label, so the player sees it on their sheet and history;
+  it changes no rules (buy-off still matches the real drawback name) and needs no SQL (the server passes a buy event's label through).
+  The old controls stay in the page, hidden (the select is now a hidden input, so no per-card option list), as the single send path:
+  the event is otherwise unchanged. Found by `/code-review high` and fixed: dead change handler removed, a search can no longer strand
+  a hidden selection, scoped listeners, no listbox roles without keyboard support, the "3×" comment no longer claims nothing is
+  copied. New gate `dm-impose-picker-e2e.mjs` (60 checks; five mutations caught; proves the text is shown to the player and that markup
+  in it is inert on the Live Sheet and CharGen); the DM Console half of `wounds-ui-e2e.mjs` moved into it. Wired into `dm-console-ui.yml`.
 - **2026-10-04 · chore(release): build `v1.554` → `v1.568`** — the `preview` → `main` promotion (PR #568) carries rules `v0.367` (DM-imposed drawbacks, DM unlock, Wounds). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched.
 - **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
   a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
@@ -39,6 +65,37 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.577` (PR #577)** — ships #573 (CharGen: nothing bought can be unticked after the lock, new drawbacks refused,
+  flat purchases priced and charged in play), #575 (the Live Sheet's purchase-legality rules moved into the engine as `purchaseLegality`; CharGen uses them), #576 (CharGen
+  phase 2a: languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency and free subclass as in-play purchases), plus the already-merged DM-imposed wounds
+  (rules v0.368) and the DM Console impose-a-drawback picker. `BUILD` synced `v1.571` → `v1.577` across `js/engine.js` and the three tools; `DATA.version` untouched by the
+  bump. No tag (not a milestone).
+- **2026-10-04 · feat(chargen): after "Finish creating", raising languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency or a free subclass is an in-play purchase**
+  (`fix/chargen-post-lock-purchases-2a-flat`; phase 2a of `fix/chargen-post-lock-purchases`) — those slots used to rewrite their creation-era patch event in place after the
+  lock (a refund route and no in-play price). They now append the Live Sheet's own events (`language`, `vigor`, `grit`, `ki`, `sorcery`, `attune`, `armour`, `wprof`,
+  `freesub`; worn armour is a free, unchecked `wornArmour` event, as the Live Sheet's `setWornArmour` records it), priced by the engine's `priceOf`, gold/downtime stamped when
+  the economy charges, checked by the shared `purchaseLegality` rule, one undo step per edit. Lowering, giving up armour or weapon training, and swapping a chosen free
+  subclass are refused; **`customProfs` (free-text proficiencies; the Live Sheet has no equivalent) is refused after the lock** — it is the DM's to add. 17 new browser
+  checks, including a head-to-head against the Live Sheet's `buy()` with the economy on (same events, same total, same spent). Not in this PR: spellcasting (`traditions`),
+  innate spells and `misc` (phase 2b), and the wallet-short warning / §16 trade offer (Q2). No `DATA.version` change.
+- **2026-10-04 · refactor(engine): the Live Sheet's "may this purchase be made" rules move into the engine as `purchaseLegality()`; CharGen's after-lock purchases use them**
+  (`refactor/engine-purchase-legality`) — found by the phase-2a head-to-head test: Vigor 1 on a CON-10 character is refused by the Live Sheet ("Vigor 1 exceeds cap")
+  but CharGen's after-lock helper let it through, because it blocked only warnings starting with the stop-sign marker while the Live Sheet blocks every new warning not on its
+  soft list. The rule (`legalCheck` + `SOFT_WARN` + `EXPECTED_FOLLOWUP` + `DUP_FIELD` + `buy()`'s hard/soft/follow-up split and duplicate guard) now lives once in
+  `js/engine.js`, moved verbatim; the Live Sheet's `legalCheck`, `buy()` and buy tiles delegate to it (no behaviour change), and CharGen's `_cgPostLockAppend` uses it
+  (so the Hit Dice / ability / flat-purchase paths from #565 and #573 now refuse what the Live Sheet refuses, ask the same soft-warning confirm and record the same
+  `warns`). New gate `testing/scripts/engine-legality-ci.mjs` + frozen reference `lib/ls-legality-reference.js`: 57,051 comparisons over 156 builds with every outcome
+  exercised (hard, soft, follow-up, duplicate); it goes red under the old CharGen rule (6,611 mismatches). Wired as the `engine-legality` job in `engine-parity.yml`.
+  New browser check: a boon with an unmet prerequisite is refused after the lock. No `DATA.version` change. Next: PR 2a (flat slots), rebased on this.
+- **2026-10-04 · fix(chargen): after "Finish creating", nothing bought can be unticked, a new drawback is refused, and a new flat purchase is an in-play purchase**
+  (`fix/chargen-flat-purchases-after-lock`; owner P1) — found with a real-browser probe: skills, boons, tools, arts, features and drawbacks are flat
+  checklist purchases, and `retractFlatEvent()` only stopped at the last award or seal, so a locked character with no award yet could untick a purchase made
+  during creation and get the AP back (a 6 AP boon unticked after the lock was deleted and `spent` fell by 6). Now `retractFlatEvent()` refuses everything once
+  locked (purchases made after the lock too; Undo is how the latest one is taken back), and a tick after the lock goes through the same shared helper as the
+  phase-1 slots (`_cgPostLockAppend`): priced by the engine's `priceOf`, gold/downtime stamped when the economy charges, legality and affordability checked,
+  refused whole if it fails. A new drawback after the lock is refused (it would hand out AP; the DM can still impose one). Measured live first: 50 characters,
+  14 locked, 3 locked with no award or seal — all solo, one owner; all six Amble characters are sealed. 13 new checks in `chargen-flows-e2e.mjs`, including a
+  head-to-head against the Live Sheet's `buy()` with the economy on. No `DATA.version` change. Next: PR 2a (flat slots), then the wallet warning (Q2).
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.571` (PR #571)** — ships #564 (the Live Sheet's in-play purchase pricer
   moved into the engine as `priceOf`), #565 (CharGen records a post-lock Hit Dice / proficiency / ability raise as an appended in-play
   purchase, phase 1) and the Amble repair records. `BUILD` synced `v1.568` → `v1.571` across `js/engine.js` and the three tools;

@@ -10,6 +10,13 @@
 
 ## Index
 
+## D-GH-2026-10-04-wound-aliases — 15 more DM-only wounds: 8 same-effect aliases and 7 new mechanics
+- A count of skill names in the drawback texts showed 10 of 18 skills named by only one drawback (an Affliction). Added 15
+  wound-only entries, DM-impose only: 8 aliases (a new name and flavour, the same price/tier/place/mechanics as Lame, Maimed Hand
+  x2, One-Eyed, Hard of Hearing, Asthmatic, Brittle Bones, Withered Arm) and 7 new 2 AP mechanics (Addled Memory, Rattled Skull,
+  Scarred Throat, Shell-Shocked, Frostbitten Limbs, Torn Shoulder, Wrenched Back) so every skill is named by at least two drawbacks.
+  Each alias is its own drawback (buy-off matches by name); aliases share the original's place so stacking still warns. Gate pins the
+  skill coverage. `v0.368`. Full record: `decisions/2026/D-GH-2026-10-04-wound-aliases.md`.
 ## D-GH-2026-10-04-permanent-wounds — a DM-only Wounds system (minor and moderate only)
 - Wounds are lasting injuries a DM imposes in play on campaign characters: never chosen, 0 AP, locked until a story beat, bought
   off at 2 (minor) or 3–4 (moderate) AP; no Grievous tier. Four new wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones,
