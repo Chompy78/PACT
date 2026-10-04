@@ -41,9 +41,13 @@ as creation. Needed: a post-lock phase that appends purchases one at a time thro
 spend-shape machinery (tryAct, buckets). OWNER DECISION 2026-10-04 on (1): a rolled character CAN be re-rolled. The roll therefore stays unlocked and ends at the
 limit (as #561 does); a persistent "Accept rolled character" button, visible after a roll and until it is pressed (or
 the character is locked), does the finish: it locks the character and then spends the rest in play. That also settles
-the undo question: the roll stays ONE undoable step, and Accept is the barrier. STILL OPEN with the owner: (2) should the
-in-play phase stamp gold/downtime? (3) does the button survive a reload (a flag kept with the autosave) and does cloud
-autosave keep running while a roll awaits acceptance?
+the undo question: the roll stays ONE undoable step, and Accept is the barrier. DECIDED later the
+same day: (2) the in-play purchases made on Accept DO cost gold and downtime, like any in-play purchase (stamped per the
+campaign economy); (3) undo after Accept steps back ONE PURCHASE AT A TIME (each in-play purchase is its own undo step) and
+stops at the lock, which stays the wall — the owner said "maybe", so confirm when building, and note the interplay with
+fix/no-purchase-refunds (undoing a post-lock purchase that has already been saved to the cloud). STILL OPEN: does the
+button survive a reload (a flag kept with the autosave) and does cloud autosave keep running while a roll awaits
+acceptance? (Recommended: yes to both.)
 ```
 **Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
 
