@@ -12,6 +12,12 @@
   that pays AP (cost < 0) stays capped too. New fixtures EV-021–EV-023 (EV-021/022 differential-verified
   against the pre-fix engine); parity 76/0. DM Console impose tooltip now says imposed drawbacks carry no
   stat cap. No `DATA.version` bump. See `D-GH-2026-09-30-imposed-drawback-cap-bypass`.
+- **2026-10-04 · docs+data: Amble creation-lock handoff** — review sheet corrected for Skylar and Moss
+  (priced by current rules, Q1); interim locks re-applied to Skylar and Archer after a stale local copy
+  dropped them; six "lock check (DM copy)" characters created on the DM's account for sign-off (originals
+  untouched); draft server-guard migration `sql/migrations/2026-10-04-creation-lock-guard.sql` (**not
+  applied**); forensic scripts in `testing/scripts/creation-lock-forensics/`; restart note
+  `docs/sessions/2026-10-04-creation-lock-restart.md` and a NOW task to continue.
 - **2026-10-01 · chore(release): promote `preview` → `main` as `v1.554` (PR #554)** — ships #553 (CharGen
   reload no longer un-finishes creation), #549 (account popover, in-app password change, sign-out fix) and
   #552 (economy-ui CI wiring). `BUILD` synced `v1.546` → `v1.554` across `js/engine.js` and the three
