@@ -655,6 +655,37 @@ check('...but not the drawback trade (award ignored, drawback kept: 0 + 6 + 33 â
 check('...total drops back to 39 with the award ignored (0 + 6 + 33)',
       dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal === '39', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal);
 
+// feat/dm-roster-lock-icon: each character shows a locked/unlocked icon after its tier. Characters are imported
+// the way a DM imports a file (the hidden #fileInput) so the real analyser and renderers run. The state is the
+// engine's creationLockState(), never re-derived, so this only checks it is shown and shown correctly.
+console.log('\n[dm-console-ui] roster lock icons');
+{
+  const lp = await browser.newPage();
+  const lerrs = []; lp.on('pageerror', e => lerrs.push(String(e)));
+  await lp.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil:'load' });
+  await lp.waitForFunction(() => !!window._campBridge, { timeout: 15000 });
+  const env = (name, extra) => ({ schema:'pact-character/1', rules:'v0.365', name, id: name.toLowerCase().replace(/\W/g,'-'), SEQ: 9,
+    LOG: [ { seq:1, type:'name', name, label:'Name â€” '+name, rules:'v0.365' }, ...extra ] });
+  const file = (n, o) => ({ name:n+'.json', mimeType:'application/json', buffer: Buffer.from(JSON.stringify(o)) });
+  await lp.setInputFiles('#fileInput', [
+    file('locked-one', env('Locked One', [ { seq:2, type:'creationLocked', label:'Creation locked', rules:'v0.365' } ])),
+    file('open-one',   env('Open One',   [])),
+    file('reopened',   env('Reopened One', [ { seq:2, type:'creationLocked', label:'Creation locked', rules:'v0.365' },
+                                             { seq:3, type:'creationUnlocked', label:'Creation reopened by DM', rules:'v0.365' } ])),
+  ]);
+  await lp.waitForFunction(() => document.querySelectorAll('.lockico').length >= 3, { timeout: 8000 }).catch(() => {});
+  const icons = await lp.evaluate(() => [...document.querySelectorAll('.lockico')].map(e => ({
+    cls: e.className, label: e.getAttribute('aria-label'), text: e.textContent,
+    afterTier: /T\d+\s*$/.test((e.previousSibling && e.previousSibling.textContent) || '') || !!(e.previousElementSibling && e.previousElementSibling.classList.contains('tier')) })));
+  const locked = icons.filter(i => i.cls.includes('locked')), open = icons.filter(i => i.cls.includes('open'));
+  check('a locked character shows the locked icon', locked.length >= 1 && locked.every(i => i.label === 'Creation locked' && i.text === '\uD83D\uDD12'), JSON.stringify(icons));
+  check('an open character and a DM-reopened one both show the open icon', open.length >= 2 && open.every(i => i.label.startsWith('Creation open') && i.text === '\uD83D\uDD13'), JSON.stringify(icons));
+  check('the icon sits right after the tier', icons.length > 0 && icons.every(i => i.afterTier), JSON.stringify(icons.map(i => i.afterTier)));
+  const lfatal = lerrs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors importing characters', lfatal.length === 0, lfatal.slice(0,2).join(' | '));
+  await lp.close();
+}
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();

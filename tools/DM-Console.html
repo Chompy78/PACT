@@ -191,6 +191,8 @@
   .card .chead{padding:14px 16px 12px; border-bottom:1px solid var(--line); position:relative}
   .card .cname{font-size:20px; font-weight:700; color:var(--heading); line-height:1.2; padding-right:42px; word-break:break-word}
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
+  .lockico{margin-left:4px;font-size:12px;cursor:default}
+  .lockico.open{opacity:.65}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
     /* 40x40 touch target (was 28x28) to match this file's other controls (.btn's min-height:40px)
@@ -1383,6 +1385,15 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // Unsigned files (older exports, hand-built) are NOT flagged — absence of a signature is not evidence
   // of tampering, and the badge would otherwise nag on every legitimate legacy file.
   function isTampered(a){ return !!(a && a.integrity && a.integrity.tampered); }
+  // feat/dm-roster-lock-icon: a locked/unlocked icon after the tier, wherever the console shows one. The state
+  // is creationLockState()'s own answer (a.creationLock, computed once in the analyser) — never re-derived here.
+  // Static strings only, so nothing player-controlled reaches the markup. No icon when the engine gave no state.
+  function lockIconHTML(a){
+    var cl = a && a.creationLock; if(!cl) return '';
+    var on = !!cl.locked;
+    var label = on ? 'Creation locked' : 'Creation open (not locked)';
+    return ' <span class="lockico '+(on?'locked':'open')+'" role="img" aria-label="'+label+'" title="'+label+'">'+(on?'\uD83D\uDD12':'\uD83D\uDD13')+'</span>';
+  }
   function tamperBadge(a){ return isTampered(a) ? ' <span class="tamper" title="This character file was edited outside PACT — its signature no longer matches. Treat its numbers with suspicion.">⚠ edited</span>' : ''; }
   function handleFiles(fileList){
     var files = Array.prototype.slice.call(fileList||[]);
@@ -1957,7 +1968,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         (dm ? '' : '<button type="button" class="rmcard" title="Remove from console" aria-label="Remove from console" data-rm="'+esc(r.id)+'">×</button>') +
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
-            ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
+            ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span>'+lockIconHTML(s)+'</div>' +
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
@@ -2022,7 +2033,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     {key:'class',    label:'Class',    type:'text', get:function(a){return classText(a);}, disp:function(a){return esc(classText(a));}},
     {key:'species2', label:'Species 2',type:'text', get:function(a){return (a.species2&&a.species2!=='(none)')?a.species2:'';}, disp:function(a){return esc((a.species2&&a.species2!=='(none)')?a.species2:'—');}},
     {key:'class2',   label:'Class 2',  type:'text', get:function(a){return (a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'';}, disp:function(a){return esc((a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'—');}},
-    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return a.hd||0;}, disp:function(a){return 'HD '+(a.hd||0)+' · T'+(a.tier||0);}},
+    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return a.hd||0;}, disp:function(a){return 'HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a);}},
     {key:'hp',       label:'HP',       type:'num',  cls:'num', get:function(a){return a.hp||0;}, disp:function(a){return a.hp;}},
     {key:'ac',       label:'AC',       type:'num',  cls:'num', get:function(a){return a.ac||0;}, disp:function(a){return acCellHTML(a.ac, a.name);}},
     {key:'dc',       label:'DC',       type:'num',  cls:'num', get:function(a){return a.saveDC==null?-1:a.saveDC;}, disp:function(a){return dcDisp(a);}},
@@ -2066,7 +2077,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(isSel?'true':'false')+'" aria-label="'+esc(a.name||'New Character')+' — press Enter for full detail">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ function toggle(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } tr.addEventListener('click',toggle); tr.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
-  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
+  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
   // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
@@ -2567,7 +2578,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     }).join('');
     return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
       '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
-      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
+      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div>'+
       '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
       '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock))+'</div></div>';

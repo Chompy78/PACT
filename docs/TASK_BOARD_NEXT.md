@@ -27,6 +27,28 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
+Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.
+
+```text
+GAP. docs/plans/2026-08-30-creation-ceiling.md "Done when" #2 says a purchase past the ceiling is refused in
+BOTH CharGen and Live Sheet. Only Live Sheet got it: tools/PACT-CharGen-Webtool.html imports and exposes
+wouldExceedCeiling() but never calls it (0 call sites, 2026-10-04). CharGen only shows "Finish creating" with the
+numbers in a tooltip. Evidence: Moss, Skylar, Fenwick and Archer — all CharGen characters — spent 101/98/97/79 AP
+against real limits of 83/80/78/68, while Anders and Caspian (Live Sheet) kept their block. Missing limits made it
+worse (Moss's was never stamped; Skylar's, Fenwick's and Archer's were deleted by the reload / stale-copy bugs, now
+fixed), but even with a limit stamped CharGen would not have refused.
+
+DO (owner decisions W1 + W2, 2026-10-04):
+  W1  Refuse, in CharGen, any edit that INCREASES spend and ends past the ceiling (unlocked + limit stamped only),
+      with the same message and both exits Live Sheet already shows. Edits that lower spend, locked characters,
+      characters with no stamped limit, and loads/imports/handoffs are never blocked.
+  W2  When an accepted edit lands the character exactly at its limit (0 left), prompt once: "Finish creating now?"
+      (reusing cgFinishCreating's flow; "Not yet" keeps building). Re-arm only after spend drops below the limit again.
+Follow the plan's design and answer its three open questions with the owner before writing code.
+```
+**Done when:** `chargen-flows-e2e.mjs` has new checks proving an over-limit edit is refused and reverted (state and form unchanged), an under-limit edit and a spend-lowering edit are accepted, a locked character and a no-limit character are unaffected, and the reach-the-limit prompt fires once; the Players Guide wording on the creation limit is checked and reconciled in the same change; no `DATA.version` bump unless pricing changes (it should not).
+
 ## fix/no-purchase-refunds — nothing bought can be un-bought for AP (engine rule) — TODO
 Branch fix/no-purchase-refunds. **Effort:** high · **Risk:** high — damage scale (edits js/engine.js, changes
 totals for existing characters) and damage likelihood (two known live characters already carry a refund) drive it.
