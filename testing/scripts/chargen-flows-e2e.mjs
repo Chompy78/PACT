@@ -772,6 +772,91 @@ section('CharGen records a post-lock purchase as an appended in-play event (B2, 
   await ctx.close();
 }
 
+// fix/chargen-flat-purchases-after-lock (S1; owner P1, 2026-10-04). Skills, boons, tools, arts, features, drawbacks... are flat
+// checklist purchases, not patch slots. Found by a real-browser probe: after "Finish creating" (and before any DM award or seal) unticking
+// a purchase made during creation DELETED the event and gave the AP back (a 6 AP boon -> spent fell by 6), because the retraction floor
+// followed awards and seals, not the lock. A post-lock tick was also priced by a plain compute() delta with no gold/downtime stamp, and a
+// player could tick a drawback (which GIVES AP) after creation. Rules now: nothing bought can be removed once locked (post-lock purchases
+// included), a new drawback is refused, and a post-lock tick is an in-play purchase priced by priceOf and stamped like the Live Sheet's.
+section('CharGen: flat purchases after the lock — no refunds, no new drawbacks, priced and charged in play (S1)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const tick = async (cls, val, on) => { await p.evaluate(([cls, val, on]) => { const el = [...document.querySelectorAll('.' + cls)].find(e => e.value === val);
+    if (!el) throw new Error('no .' + cls + ' ' + val); el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }, [cls, val, on]); await p.waitForTimeout(300); };
+  const isTicked = (cls, val) => p.evaluate(([c, v]) => [...document.querySelectorAll('.' + c)].find(e => e.value === v).checked, [cls, val]);
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+  const boonEv = (l, v) => l.filter(e => e.type === 'buy' && e.cat === 'boon' && e.payload && e.payload.v === v);
+  const [B1, B2] = await (async () => { await fresh(); return p.evaluate(() => [...document.querySelectorAll('.boonck')].slice(0, 2).map(e => e.value)); })();
+  const [D1] = await p.evaluate(() => [...document.querySelectorAll('.drawck')].slice(0, 1).map(e => e.value));
+
+  // ---- before the lock: unchanged — a ticked boon can still be unticked (it is a draft) ----
+  await tick('boonck', B1, true);
+  const pre1 = await snap();
+  check('before the lock: ticking a boon records a purchase', boonEv(pre1.log, B1).length === 1 && boonEv(pre1.log, B1)[0].cost > 0, JSON.stringify(boonEv(pre1.log, B1).map(e => e.cost)));
+  await tick('boonck', B1, false);
+  check('before the lock: unticking it removes the purchase (drafts are free to change)', boonEv((await snap()).log, B1).length === 0);
+  await tick('boonck', B1, true);
+
+  // ---- after the lock ----
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  const l0 = await snap(); const li = lockIdx(l0.log);
+  check('Finish creating records the lock', li >= 0);
+  dialogs = [];
+  await tick('boonck', B1, false);
+  const l1 = await snap();
+  check('after the lock: unticking a boon bought DURING CREATION is refused — the purchase stays and no AP comes back',
+    boonEv(l1.log, B1).length === 1 && l1.spent === l0.spent, JSON.stringify({ n: boonEv(l1.log, B1).length, spent0: l0.spent, spent1: l1.spent }));
+  check('...and the tick is put back so the form agrees with the character', await isTicked('boonck', B1));
+
+  const priceBefore = await p.evaluate(v => priceOf(foldBuild(LOG), 'boon', { v }), B2);
+  await tick('boonck', B2, true);
+  const l2 = await snap(); const e2 = boonEv(l2.log, B2)[0];
+  check('after the lock: ticking a new boon appends an in-play purchase AFTER the lock', !!e2 && l2.log.indexOf(e2) > lockIdx(l2.log), JSON.stringify(e2));
+  check('...priced by the engine\'s priceOf (the Live Sheet\'s pricer), and spent rises by exactly that', !!e2 && e2.cost === priceBefore && l2.spent === l1.spent + priceBefore, JSON.stringify({ cost: e2 && e2.cost, priceBefore, s1: l1.spent, s2: l2.spent }));
+  await tick('boonck', B2, false);
+  const l3 = await snap();
+  check('after the lock: a purchase made AFTER the lock cannot be unticked either', boonEv(l3.log, B2).length === 1 && l3.spent === l2.spent && await isTicked('boonck', B2));
+
+  dialogs = [];
+  const nBeforeDraw = (await snap()).log.length;
+  await tick('drawck', D1, true);
+  const l4 = await snap();
+  check('after the lock: ticking a NEW drawback is refused (it would hand out AP) — nothing appended', l4.log.length === nBeforeDraw && l4.spent === l3.spent, JSON.stringify({ n0: nBeforeDraw, n1: l4.log.length }));
+  check('...the player is told why, and the drawback tick is cleared', dialogs.some(d => /Drawbacks can.t be taken once creation is finished/.test(d.msg)) && !(await isTicked('drawck', D1)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60))));
+
+  // ---- head to head with the Live Sheet, economy on: the same purchase records the same event ----
+  await fresh();
+  await tick('boonck', B1, true);
+  await p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar \u2014 Standard' }); render(); });
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  await tick('boonck', B2, true);
+  const cg = await snap();
+  const pick = e => ({ cat: e.cat, payload: e.payload, cost: e.cost, level: e.level, gp: e.gp, days: e.days });
+  const cgEvs = cg.log.slice(lockIdx(cg.log) + 1).filter(e => e.type === 'buy').map(pick);
+  const lp = await ctx.newPage(); lp.on('dialog', d => d.accept());
+  await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+  await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+  await lp.evaluate(v => { buy('boon', { v }, 'Boon \u2014 ' + v); }, B2);
+  const ls = await lp.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(null).spent }));
+  const lsEvs = ls.log.slice(lockIdx(ls.log) + 1).filter(e => e.type === 'buy').map(pick);
+  check('with the economy on, the post-lock boon carries a frozen gold and downtime charge', cgEvs.length === 1 && typeof cgEvs[0].gp === 'number' && typeof cgEvs[0].days === 'number' && (cgEvs[0].gp > 0 || cgEvs[0].days > 0), JSON.stringify(cgEvs));
+  check('head to head: CharGen and Live Sheet record the same post-lock event (cat, payload, cost, level, gold, downtime) and the same spent',
+    JSON.stringify(cgEvs) === JSON.stringify(lsEvs) && cg.spent === ls.spent, JSON.stringify({ cg: cgEvs, ls: lsEvs, spent: [cg.spent, ls.spent] }));
+  await lp.close();
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.

@@ -53,6 +53,15 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · fix(chargen): after "Finish creating", nothing bought can be unticked, a new drawback is refused, and a new flat purchase is an in-play purchase**
+  (`fix/chargen-flat-purchases-after-lock`; owner P1) — found with a real-browser probe: skills, boons, tools, arts, features and drawbacks are flat
+  checklist purchases, and `retractFlatEvent()` only stopped at the last award or seal, so a locked character with no award yet could untick a purchase made
+  during creation and get the AP back (a 6 AP boon unticked after the lock was deleted and `spent` fell by 6). Now `retractFlatEvent()` refuses everything once
+  locked (purchases made after the lock too; Undo is how the latest one is taken back), and a tick after the lock goes through the same shared helper as the
+  phase-1 slots (`_cgPostLockAppend`): priced by the engine's `priceOf`, gold/downtime stamped when the economy charges, legality and affordability checked,
+  refused whole if it fails. A new drawback after the lock is refused (it would hand out AP; the DM can still impose one). Measured live first: 50 characters,
+  14 locked, 3 locked with no award or seal — all solo, one owner; all six Amble characters are sealed. 13 new checks in `chargen-flows-e2e.mjs`, including a
+  head-to-head against the Live Sheet's `buy()` with the economy on. No `DATA.version` change. Next: PR 2a (flat slots), then the wallet warning (Q2).
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.571` (PR #571)** — ships #564 (the Live Sheet's in-play purchase pricer
   moved into the engine as `priceOf`), #565 (CharGen records a post-lock Hit Dice / proficiency / ability raise as an appended in-play
   purchase, phase 1) and the Amble repair records. `BUILD` synced `v1.568` → `v1.571` across `js/engine.js` and the three tools;
