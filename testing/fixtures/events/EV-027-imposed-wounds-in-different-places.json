@@ -1,0 +1,12 @@
+{
+  "description": "feat/permanent-wounds (D-GH-2026-10-04-permanent-wounds): a DM imposes FOUR wounds in four different places on a Fighter — Bad Knee (leg), Withered Arm (arm), One-Eyed (eye), Brittle Bones (bones); three of them are wound-only entries no player can take. Each is DM-imposed, so: no '⛔ … only a DM can impose it' (the imposition marker is what lets a wound-only entry through), no 'both injure the same place' warning (four different slots), no cap warning and no AP (the player is paid nothing). EV-028 is the same-place case; EV-029 is a player-taken wound-only entry.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Bad Knee" }, "cost": 0, "level": 1, "seq": 3, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — Bad Knee (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Withered Arm" }, "cost": 0, "level": 1, "seq": 4, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — Withered Arm (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "One-Eyed" }, "cost": 0, "level": 1, "seq": 5, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — One-Eyed (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Brittle Bones" }, "cost": 0, "level": 1, "seq": 6, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — Brittle Bones (DM imposed)" }
+  ]
+}

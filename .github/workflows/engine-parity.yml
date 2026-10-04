@@ -22,6 +22,7 @@ on:
       - "testing/scripts/undo-barrier-ci.mjs"
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
       - "testing/scripts/imposed-drawback-grants-ci.mjs"
+      - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -123,6 +124,25 @@ jobs:
 
       - name: Run the imposed-drawback grants gate
         run: node testing/scripts/imposed-drawback-grants-ci.mjs
+
+  wounds:
+    # feat/permanent-wounds. DATA.wounds says which drawbacks are lasting injuries a DM imposes (tier, body location, and
+    # which four are wound-only). Wound-only entries are hidden from players purely by being in DATA.drawbacks but NOT in
+    # DATA.drawbackList — a split that is easy to break silently (a name in the wrong place either lets a player pick a
+    # DM-only injury or stops a DM imposing one) — and compute() carries two rules on top (a non-imposed wound-only entry
+    # is a hard block; two wounds in one place is a soft warning). Pinned here, with controls. Wired in the same change
+    # as the gate, because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the wounds data and rules gate
+        run: node testing/scripts/wounds-ci.mjs
 
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all

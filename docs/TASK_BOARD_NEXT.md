@@ -1178,43 +1178,6 @@ cold plan review (/make-code-cold-plan-review) BEFORE implementing.
 (and could not before), an unlock for an unlocked or player-taken drawback is rejected server-side,
 `get_advisors` shows nothing new, and `testing/tests/engine-parity.html` reports 0 failed.
 
-## feat/permanent-wounds — a DM-only Wounds section (minor and moderate only) — TODO
-Branch feat/permanent-wounds. Third task; depends on fix/imposed-drawback-cap-bypass and
-feat/dm-unlock-drawback. Design decided 2026-09-30 (A2 in-play and DM-imposed; B1 buy-off with a story;
-C2 reuse existing drawbacks; G2 reused entries stay player-takable, only NEW wound entries are hidden
-from players; J1 no stat cap on imposed wounds). An imposed drawback pays 0 AP, so a wound's table value
-is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — there is no Grievous tier.**
-**Effort:** high · **Risk:** medium — ambiguity medium (prices are judgement calls); damage scale medium
-(new DATA entries, DM Console and both player pickers, plus the guide in two repos); likelihood low.
-
-```text
-(a) DATA — APPEND new wound-only entries to the END of DATA.drawbacks (key order is load-bearing, see
-    D-GH-2026-08-19-drawbacks-phobias-expansion), each with drawbackFx + drawbackCat, and NO drawbackMaxStats:
-      Maimed Hand 2   — disadvantage on Sleight of Hand and tool/instrument checks
-      Bad Knee 2      — cannot Dash as a bonus action; jump distance halved; disadvantage on Acrobatics
-      Brittle Bones 2 — fall damage doubled; bludgeoning crits against you deal an extra weapon die
-      Withered Arm 4  — the arm can carry a strapped shield but cannot hold a weapon, cast a somatic
-                        component or grip
-    Add a wound tier + body-location map (DATA.wounds or similar). MINOR: Trembling Hands, Hard of Hearing,
-    Asthmatic, one Affliction, and the new 2s. MODERATE: Lame 3, Old Wound 3, Frightening Visage 3,
-    Peg Leg 4, One-Eyed 4, Frail 4, Withered Arm 4. One wound per body location (Lame + Peg Leg must not
-    stack) — warn. NOT wounds, stay ordinary player drawbacks: Missing Arm, Glass Frame, Slow to Mend, Mute.
-(b) UI — DM Console's impose-a-drawback gets a Wounds group (default Locked, default flat removal cost).
-    CharGen and Live Sheet player pickers hide the NEW wound-only entries; reused entries stay takable.
-(c) Guide — a Wounds section in BOTH the pact-guide master and the served docs/PACT-Players-Guide.html per
-    docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
-    needs the DM to unlock it after a story beat. ALSO document that a DM-imposed drawback carries no stat
-    cap (engine behaviour landed in D-GH-2026-09-30-imposed-drawback-cap-bypass; the guide has no text on
-    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands. Likewise state
-    that an imposed drawback grants NO AP, is not counted toward the "2–3 drawbacks" guideline or a campaign's
-    drawback cap, and is listed at 0 (engine behaviour landed in D-GH-2026-10-04-imposed-drawbacks-grant-no-ap).
-(d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
-    plus a one-line pointer in DECISIONS.md.
-```
-**Done when:** a DM can impose each wound from a Wounds group in DM Console, locked by default; players
-cannot pick the four new wound-only entries in either tool; the guide and engine agree (verify-guide.mjs
-clean, both copies); and `testing/tests/engine-parity.html` reports 0 failed.
-
 ## feat/server-enforced-drawback-lock — enforce the DM drawback lock (and unlock) server-side — TODO
 Branch feat/server-enforced-drawback-lock. Owner decision T1 (2026-10-04): the drawback lock (`dmLocked`)
 and the DM unlock from feat/dm-unlock-drawback ship **client-honoured** and are documented as *advisory

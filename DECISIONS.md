@@ -10,6 +10,13 @@
 
 ## Index
 
+## D-GH-2026-10-04-permanent-wounds — a DM-only Wounds system (minor and moderate only)
+- Wounds are lasting injuries a DM imposes in play on campaign characters: never chosen, 0 AP, locked until a story beat, bought
+  off at 2 (minor) or 3–4 (moderate) AP; no Grievous tier. Four new wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones,
+  Withered Arm) live in `DATA.drawbacks` but not `drawbackList`, which hides them from players; `DATA.wounds` holds tier and
+  place. `compute()` hard-blocks a non-imposed wound-only entry and soft-warns on two wounds in one place. Judgement calls
+  (Afflictions/Frail slotless, soft slot warning, EV-025/026 swapped to Frightening Visage) are in the record. `v0.367`.
+  Full record: `decisions/2026/D-GH-2026-10-04-permanent-wounds.md`.
 ## D-GH-2026-10-04-missing-arm-penalty-undefined — `Missing Arm` gets a real penalty
 - `Missing Arm` paid 5 AP but its text ("defined mechanical penalty") defined nothing — free AP, the failure the drawback-pricing
   decision prices against. It now states one-hand gear/casting limits plus disadvantage on physical checks where one arm

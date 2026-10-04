@@ -40,8 +40,8 @@ const oclass = { type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0,
 const imposed = (seq, v) => ({ type: 'buy', cat: 'drawback', payload: { v }, cost: 0, level: 1, seq,
   dmEdit: true, dmId: 'dm', dmLocked: true, dmRemovalCost: 'flat', label: `${v} (DM imposed)` });
 const taken = (seq, v, ap) => ({ type: 'buy', cat: 'drawback', payload: { v }, cost: -ap, level: 1, seq, label: `${v} (+${ap} AP)` });
-// Peg Leg 4 + Lame 3 + Old Wound 3 + One-Eyed 4 = 14 table AP. Chosen so no stat cap fires at the default stats.
-const FOUR = [['Peg Leg', 4], ['Lame', 3], ['Old Wound', 3], ['One-Eyed', 4]];
+// Peg Leg 4 + Frightening Visage 3 + Old Wound 3 + One-Eyed 4 = 14 table AP. Chosen so no stat cap fires at the default stats.
+const FOUR = [['Peg Leg', 4], ['Frightening Visage', 3], ['Old Wound', 3], ['One-Eyed', 4]];
 const allImposed = [award, oclass, ...FOUR.map(([v], i) => imposed(3 + i, v))];
 const allTaken = [award, oclass, ...FOUR.map(([v, ap], i) => taken(3 + i, v, ap))];
 
