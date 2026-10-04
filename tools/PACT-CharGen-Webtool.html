@@ -3285,7 +3285,7 @@ function _cgSealPatchRefusal(patch){
 // purchase the Live Sheet records (cat hd / prof / abil, priced by the engine's priceOf(), gold/downtime stamped when
 // the economy charges), and a DECREASE is refused ("nothing bought can be removed once creation is finished"). Every
 // other slot still takes the old path until its phase lands. Pre-lock behaviour is untouched.
-var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1};
+var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1,languages:1,vigor:1,ki:1,sorcery:1,attunement:1,armour:1,weaponProf:1,freeSub:1,customProfs:1};   // phase 2a added all but the first two
 function _cgIsLocked(){try{return !!creationCeiling(LOG,_cgCeilOpts()).locked;}catch(e){return false;}}
 // render() alone does NOT repaint a form control from the LOG (a refused Hit Dice edit left the select showing the refused value
 // while the character stayed put — found by the phase-1 test). restoreFrame() does: it repaints every control from a frame with
@@ -3311,7 +3311,7 @@ function _cgPostLockQuote(cost){   // mirrors the Live Sheet's _lsQuote(): null 
 }
 // What an edit to `slot` would ADD, and whether it tries to take something away. Pure: reads `cur`, returns steps.
 function _cgPostLockSteps(slot,patch,cur){
-  var steps=[],refuse=null;
+  var steps=[],refuse=null,tail='Nothing you have bought can be removed or lowered once creation is finished. You can still RAISE it by spending AP.';
   if(slot==='hdProf'){
     var hd=cur.hd||1, pb=cur.profBonus||2;
     var toHd=(patch.hd!=null)?(+patch.hd||hd):hd, toPb=(patch.profBonus!=null)?(+patch.profBonus||pb):pb;
@@ -3330,9 +3330,53 @@ function _cgPostLockSteps(slot,patch,cur){
       for(var v=was;v<now;){ var nx=Math.min(now,Math.min(20,v+2));   // the Live Sheet raises +2 at a time
         if(nx<=v) break; steps.push({cat:'abil',payload:{ab:ab,to:nx},label:ab+' '+v+'\u2192'+nx}); v=nx; }
     });
+  }else if(slot==='languages'){
+    var lg=cur.languages||1, tl=(patch.languages!=null)?(+patch.languages||lg):lg;
+    if(tl<lg) refuse='Languages can only go up once creation is finished (you have '+lg+').';
+    else for(var l=lg+1;l<=tl;l++) steps.push({cat:'language',payload:{to:l},label:'+1 Language ('+l+')'});
+  }else if(slot==='vigor'){
+    var hv=cur.hardy||0, tv=cur.tough||0, nh=(patch.hardy!=null)?(+patch.hardy||0):hv, nt=(patch.tough!=null)?(+patch.tough||0):tv;
+    if(nh<hv) refuse='Vigor can only go up once creation is finished (you have rank '+hv+').';
+    else if(nt<tv) refuse='Grit can only go up once creation is finished (you have '+tv+').';
+    else{
+      for(var a=hv+1;a<=nh;a++) steps.push({cat:'vigor',payload:{to:a},label:'Vigor rank '+a});
+      for(var c=tv+1;c<=nt;c++) steps.push({cat:'grit',payload:{to:c},label:'Grit +4 HP ('+c+')'});
+    }
+  }else if(slot==='ki'||slot==='sorcery'||slot==='attunement'){
+    var key=(slot==='attunement')?'attune':slot, nice={ki:'Ki / Focus point',sorcery:'Sorcery point',attune:'Attunement slot'}[key];
+    var cv=cur[key]||0, nv=(patch[key]!=null)?(+patch[key]||0):cv;
+    if(nv<cv) refuse=nice.replace(/ point$| slot$/,'')+' can only go up once creation is finished (you have '+cv+').';
+    else for(var k=cv+1;k<=nv;k++) steps.push({cat:key,payload:{to:k},label:nice+' '+k});
+  }else if(slot==='armour'){
+    var ca=cur.armour||{}, na=(patch.armour)||{}, names={light:'Light armour',medium:'Medium armour',heavy:'Heavy armour',shield:'Shield'};
+    ['light','medium','heavy','shield'].forEach(function(pc){
+      if(refuse) return;
+      if(ca[pc]&&!na[pc]) refuse=names[pc]+' training can\'t be given up once creation is finished.';
+      else if(!ca[pc]&&na[pc]) steps.push({cat:'armour',payload:{v:pc},label:names[pc]});   // light -> medium -> heavy order keeps each prerequisite satisfied
+    });
+    if(!refuse&&patch.wornArmour!=null&&(patch.wornArmour||'')!==(cur.wornArmour||''))   // what you are wearing is a choice, not a purchase: free, both ways
+      steps.push({cat:'wornArmour',payload:{v:patch.wornArmour||''},label:patch.wornArmour?('Worn armour \u2014 '+patch.wornArmour):'Worn armour \u2014 none (unarmoured)'});
+  }else if(slot==='weaponProf'){
+    var cw=Object.assign({},cur.weaponProf||{}), nw=(patch.weaponProf)||{};
+    if((cw.simple&&!nw.simple)||(cw.allMartial&&!nw.allMartial)||(cw.improvised&&!nw.improvised)||((+cw.martial||0)>(+nw.martial||0)&&!nw.allMartial))
+      refuse='Weapon proficiencies can\'t be given up once creation is finished.';
+    else{
+      var w=Object.assign({},cw);
+      if(nw.simple&&!w.simple){ w.simple=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Simple weapons'}); }
+      if(nw.allMartial&&!w.allMartial){ w.simple=true; w.allMartial=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'All martial'}); }
+      else if(!w.allMartial&&(+nw.martial||0)>(+w.martial||0)){ w.martial=+nw.martial; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Martial weapons ('+w.martial+')'}); }
+      if(nw.improvised&&!w.improvised){ w.improvised=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Improvised weapons'}); }
+    }
+  }else if(slot==='freeSub'){
+    var cf=cur.freeSub||{}, nf=(patch.freeSub)||{};
+    Object.keys(cf).forEach(function(cl){ if(!refuse&&cf[cl]&&nf[cl]!==cf[cl]) refuse=(nf[cl]?'A free subclass, once chosen, can\'t be swapped':'A free subclass can\'t be given up')+' after creation (you chose '+cf[cl]+' for '+cl+').'; });
+    if(!refuse) Object.keys(nf).forEach(function(cl){ if(nf[cl]&&!cf[cl]) steps.push({cat:'freesub',payload:{cls:cl,sub:nf[cl]},label:'Free subclass \u2192 '+nf[cl]}); });
+  }else if(slot==='customProfs'){
+    // The free-text proficiencies a player types. The Live Sheet has no equivalent, so there is no vetted price or identity to record: after
+    // the lock this is the DM's to add (plan §9, corrected 2026-10-04). A write that changes nothing is already a no-op.
+    if(!_cgDeepEq(cur.customProfs||[],patch.customProfs||[])){ refuse='Custom proficiencies are chosen during creation.'; tail='Ask your DM if you need one added now.'; }
   }
-  if(refuse) refuse='\uD83D\uDD12 '+refuse+'\n\nNothing you have bought can be removed or lowered once creation is finished. '
-    +'You can still RAISE it by spending AP.';
+  if(refuse) refuse='\uD83D\uDD12 '+refuse+'\n\n'+tail;
   return {steps:steps,refuse:refuse};
 }
 // Price, legality-check and affordability-check a list of in-play purchases for the WHOLE list before anything is appended, so a
@@ -3348,9 +3392,13 @@ function _cgPostLockAppend(steps){
     var before=(compute(b,_cgDmOpts()).warnings||[]), after=(compute(next,_cgDmOpts()).warnings||[]);
     var hard=after.filter(function(w){return /^\u26D4/.test(w)&&before.indexOf(w)<0;});
     if(hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+hard.join('\n\u2022 ')); _cgRepaint(); return false; }
-    var q=_cgPostLockQuote(cost);
-    var ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:[]};
-    if(q){ ev.gp=q.gp; ev.days=q.days; }
+    var ev;
+    if(st.cat==='wornArmour'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unstamped
+    else{
+      var q=_cgPostLockQuote(cost);
+      ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:[]};
+      if(q){ ev.gp=q.gp; ev.days=q.days; }
+    }
     evs.push(ev); total+=cost; b=next;
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
