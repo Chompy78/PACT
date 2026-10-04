@@ -1,0 +1,57 @@
+{
+  "description": "fix/imposed-drawback-cap-bypass (D-GH-2026-09-30-imposed-drawback-cap-bypass): a DM-IMPOSED capped drawback is exempt from drawbackMaxStats in BOTH directions. A DEX 16 Fighter is imposed Peg Leg (cap DEX 12, cost:0 so it pays no AP) and then raises DEX to 18: no ⛔ warning at either point. Before the fix the engine emitted '⛔ Peg Leg: drawback requires DEX 12 or lower' because MUT.drawback keeps only the name and compute() could not tell imposed from chosen. The marker is dmEdit, stamped server-side.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 79,
+      "note": "Level 1 starting budget",
+      "label": "Award — Level 1 (79 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "oclass",
+      "payload": {
+        "v": "Fighter"
+      },
+      "cost": 0,
+      "level": 1,
+      "label": "Origin class — Fighter"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "DEX",
+        "to": 16
+      },
+      "cost": 16,
+      "level": 1,
+      "label": "DEX → 16"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Peg Leg"
+      },
+      "cost": 0,
+      "level": 1,
+      "dmEdit": true,
+      "dmLocked": true,
+      "dmRemovalCost": "flat",
+      "label": "DM imposed — Peg Leg"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "DEX",
+        "to": 18
+      },
+      "cost": 10,
+      "level": 1,
+      "label": "DEX → 18"
+    }
+  ]
+}

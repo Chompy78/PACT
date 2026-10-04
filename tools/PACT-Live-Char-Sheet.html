@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.554.html**-->
+<!--**PACT-Live-Char-Sheet v1.568.html**-->
 
 <!doctype html>
 <!--
@@ -962,7 +962,7 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
 // was never checked at purchase time; routing it through buy() would have turned it into a hard block
 // with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at/i;
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
@@ -994,15 +994,7 @@ function buy(cat,payload,label){
   // all decided by the engine, see wouldExceedCeiling().
   if(typeof wouldExceedCeiling === 'function' && wouldExceedCeiling(LOG, cost, _ceilOpts(b0))){
     var _c = creationCeiling(LOG, _ceilOpts(b0));
-    alert('\u26D4 That would take you past your creation limit.\n\n'
-      + 'Creation budget: ' + _c.ceiling + ' AP'
-      + (_c.drawbackBonus ? ('  (' + _c.base + ' set by your DM + ' + _c.drawbackBonus + ' from your drawbacks)') : '')
-      + '\nAlready spent: ' + _c.spent + ' AP'
-      + '\nThis purchase: ' + cost + ' AP\n\n'
-      + 'Two ways forward:\n'
-      + '  \u2022 If you have FINISHED building this character, use "Finish creating" \u2014 after that you\n'
-      + '    spend at in-play prices and this limit no longer applies.\n'
-      + '  \u2022 If you are still building and need more budget, ask your DM to raise your limit.');
+    alert(creationLimitRefusalText(_c, cost, 'This purchase'));
     return;
   }
 
@@ -1045,23 +1037,35 @@ function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
 // specific event's dmEdit/dmLocked/dmRemovalCost flags, not just DATA.drawbacks[v].
-function _openDrawbackEvent(v){
-  const {evs,boughtOff}=activeEvents(null);
+function _openDrawbackEvent(v,ae){
+  const {evs,boughtOff}=ae||activeEvents(null);
   for(let i=0;i<evs.length;i++){const e=evs[i];
     if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
   return null;
 }
+// feat/dm-unlock-drawback: has a DM released this locked, imposed purchase? Returns the dmUnlockDrawback
+// event (so callers can show the DM's note), or null while it is still locked. Takes the activeEvents()
+// result so the ledger can ask about the same (possibly time-travelled) slice it is rendering. The ENGINE does
+// the matching (by seq, never by name) and hands back the unlock event itself via activeEvents().unlockedBy —
+// this function only looks the answer up, so the rule lives in exactly one place. ADVISORY: the lock is
+// honoured by this app, not enforced by the server (feat/server-enforced-drawback-lock tracks enforcement).
+function _unlockOf(ae,e){
+  const i=ae.evs.indexOf(e);
+  return i<0?null:(ae.unlockedBy.get(i)||null);
+}
 function buyoffDrawback(v){
   const refund=DATA.drawbacks[v]||0;
-  const src=_openDrawbackEvent(v);
+  const _ae=activeEvents(null);   // folded ONCE per click; the open-purchase lookup and the unlock lookup share it
+  const src=_openDrawbackEvent(v,_ae);
   // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
   let cost, rateNote;
   if(src&&src.dmEdit){
-    if(src.dmLocked){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
+    const _unl=src.dmLocked?_unlockOf(_ae,src):null;
+    if(src.dmLocked&&!_unl){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
     const rate=(src.dmRemovalCost==='expensive')?3:1;
     cost=refund*rate;
-    rateNote=(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)');
+    rateNote=(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)')+(_unl?' — unlocked by your DM':'');
   } else {
     cost=refund*3;
     rateNote=' (3×)';
@@ -1135,7 +1139,28 @@ const KEY='pactLiveSheet';
 // routes through emit(). Blocking here (not just in emit()) also stops a read-only tab open in a
 // second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
 // character might be using in another tab of the same browser.
-function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+// fix/stale-autosave-guard (L3, mirrors CharGen's L2): the local copy records which cloud version it descends
+// from (cloudBase) so a reload can prove the restored copy is current — or
+// refuse to push it over a newer cloud save. See the _restored block in js/sync.js. null cloudBase = never synced.
+var _lsRestoredProv=null;   // {base} from the restored copy, until js/sync.js has adopted it
+function _lsAutosaveEnvelope(nm){
+  var e=buildCharacterEnvelope({name:nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false});
+  try{
+    // Until the bridge has adopted the restored copy, write back the provenance we RESTORED, not storage's
+    // base (which a background reconcile may already have moved forward).
+    if(_lsRestoredProv)e.cloudBase=_lsRestoredProv.base;
+    else if(window._syncBridge&&window._syncBridge.getPageBase)e.cloudBase=window._syncBridge.getPageBase(currentCharId());
+  }catch(x){}
+  return e;
+}
+function _lsAdoptRestoredProvenance(d){
+  var id=currentCharId();
+  _lsRestoredProv={base:d.cloudBase};
+  var go=function(){try{window._syncBridge.adoptRestoredCopy(id,{base:d.cloudBase});}catch(e){}_lsRestoredProv=null;};
+  if(window._syncBridge&&window._syncBridge.adoptRestoredCopy) go();
+  else document.addEventListener('sync-ready',go,{once:true});
+}
+function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(_lsAutosaveEnvelope(_nm)));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
   // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
   // on every edit, synchronously — noteEdit() is what lets the chip see "unsaved" immediately rather
   // than only after a cloud push is actually attempted.
@@ -1256,7 +1281,9 @@ async function _lsCloudPushOnce(){
     if(res&&res.id) __charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
     if(res&&res.conflict&&!_lsConflictWarned){
       _lsConflictWarned=true;
-      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
+      if(typeof flash==='function')flash(res.staleCopy
+        ?'⚠ This copy is out of date, so it was NOT saved to the cloud (nothing was overwritten). Please reload your character: ☁ Cloud → Load.'
+        :'⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
     }
     // AUTOSAVE IS WHERE THE FIRST REFUSAL LANDS. A seal rejection is a RETURN VALUE, not a throw, so the
     // deliberately-silent catch below never sees it, and the one-shot notice used to be reachable only
@@ -1363,7 +1390,7 @@ async function _lsCheckFreshnessNow(){
 // async cloud round-trip in refreshCloudCampaignRules(). That is the owner's "refresh loses the
 // connection to campaign" report. This is the tab's OWN autosave, so adopting its binding is just
 // restoring what this tab already had; it grants no access the server's RLS doesn't already allow.
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;_lsAdoptRestoredProvenance(d);}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -1730,6 +1757,15 @@ function render(){
   // rebought boon's) row is not "dead" even though an earlier buyoff/removal for the same value exists
   // (D-GH-2026-08-06-buyoff-keyed-by-event; boonRemoved mirrors the same FIFO-by-purchase match).
   const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
+  // Which still-open purchase of each drawback NAME a buy-off would actually remove: the OLDEST (the engine's
+  // by-name FIFO — a buy-off event carries only the name). Only that row gets a buy-off button; showing one on a
+  // newer same-named row promised a price (e.g. the DM's flat rate on an unlocked imposed drawback) that the
+  // click would not deliver, because it would remove the older purchase instead. (code-review finding on
+  // feat/dm-unlock-drawback; the by-name FIFO itself is deliberately unchanged.)
+  const _nextOpen={};
+  _ae.evs.forEach((x,i)=>{
+    if(x&&x.type==='buy'&&x.cat==='drawback'&&x.payload&&x.payload.v!=null&&!boff.has(i)&&!(x.payload.v in _nextOpen)) _nextOpen[x.payload.v]=i;
+  });
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     // Same treatment as rulesSnapshot above: the coin-and-calendar band switch is a SETTING, not an
@@ -1741,11 +1777,20 @@ function render(){
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback'){
-        if(e.dmEdit&&e.dmLocked){
+        // feat/dm-unlock-drawback: a locked imposed drawback the DM has since unlocked shows its buy-off
+        // button again, with the DM's recorded story beat as a tooltip. The note is player/DM-controlled
+        // free text rendered into an attribute in ANOTHER user's browser, so it goes through esc().
+        const _unl=(e.dmEdit&&e.dmLocked)?_unlockOf(_ae,e):null;
+        if(_nextOpen[e.payload.v]!==_li){
+          // A same-named purchase older than this one is still open, and a buy-off removes THAT one first.
+          act=(_unl?'<span class="dmlocked" title="Unlocked by your DM'+(_unl.note?' — '+esc(_unl.note):'')+'">🔓</span> ':'')
+            +'<span class="dmlocked" title="Buying off '+esc(e.payload.v||'')+' removes the older one first; this one can be bought off after it">waits for the older one</span>';
+        } else if(e.dmEdit&&e.dmLocked&&!_unl){
           act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
         } else {
           const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
-          act='<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
+          act=(_unl?'<span class="dmlocked" title="Unlocked by your DM'+(_unl.note?' — '+esc(_unl.note):'')+'">🔓</span> ':'')
+            +'<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
         }
       }
       // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.
@@ -1937,7 +1982,10 @@ function buildBuyPanel(b,r,eco,head){
      // was the literal UI manifestation of the underlying engine bug: once bought off, the tile went
      // permanently grey (ibOwned renders a disabled button) and `takeDrawback()` was never reachable
      // again through the panel, regardless of what the build actually held.
-     const avail=DATA.drawbackList.filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
+     // A wound-only drawback a DM imposed is deliberately not in drawbackList (players cannot pick it), but a held one must
+     // still show as an Active tile, as CharGen does — so add the held ones to the list this panel is built from.
+     const _heldWounds=b.drawbacks.filter((x,i,arr)=>arr.indexOf(x)===i&&DATA.wounds&&DATA.wounds[x]&&DATA.wounds[x].dmOnly&&DATA.drawbackList.indexOf(x)<0);
+     const avail=DATA.drawbackList.concat(_heldWounds).filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      const grid=cats.map(c=>{
@@ -2696,7 +2744,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.365</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.367</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
@@ -2744,13 +2792,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
   // always-available self-unset control (decision A3).
   import { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
   window._authBridge = { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };

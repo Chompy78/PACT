@@ -18,12 +18,27 @@
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
  *                       boons (feat/ledger-show-lost-purchases); absent on a hand-built b, same as
  *                       b._raceTraitLocked/b._vigorRankTier. NEVER store its output — derive at runtime.
+ *                       Also reads b._imposedDrawbackIdx (stamped by _replay: positions in b.drawbacks of
+ *                       DM-imposed drawbacks — dmEdit AND cost >= 0, i.e. the player was paid nothing). Those
+ *                       slots (1) are exempt from drawbackMaxStats, and (2) GRANT NO AP: they add 0 to
+ *                       drawbackAp / spendable, are itemised at 0 as "<name> (DM imposed)", and count toward
+ *                       neither the "Drawbacks grant N AP" nor the "N drawbacks chosen" warning. Their penalty
+ *                       is unchanged. A hand-built b without the marker gets neither: every drawback in it is
+ *                       treated as player-chosen and paid, as it always was. (Every tool's compute() input comes
+ *                       from foldBuild(LOG), so a character opened in any tool carries the marker.)
+ *                       Wounds (DATA.wounds, feat/permanent-wounds): a wound-only drawback (dmOnly) held in a
+ *                       slot that is NOT DM-imposed raises a hard ⛔, and two drawbacks sharing a body `slot`
+ *                       raise a soft "both injure the same place" warning (only when one of them is DM-imposed). Neither changes any AP figure.
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost}: live events + a bought-off-drawback map +
- *                          a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
- *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes.
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy}: live events + a bought-off-drawback
+ *                          map + a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
+ *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes +
+ *                          `unlocked`, a Set of indices of DM-imposed locked drawback purchases a later
+ *                          `dmUnlockDrawback` event released, and `unlockedBy`, the same indices mapped to
+ *                          that unlock event (feat/dm-unlock-drawback; additive — no build or AP effect, read
+ *                          only by the Live Sheet's buy-off gate and the DM Console's Unlock list).
  *   creationLockState(events) — {locked, armed, confirmed, threshold, spentTowardThreshold, …} for one
  *                          log. spentTowardThreshold is the LOCK's accounting, never economy().spent.
  *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
@@ -61,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.554";
+export const BUILD = "v1.568";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -749,16 +764,43 @@ export function compute(b, opts){
   // slot yet", so it must not count as having a Foundation. An earlier version of this check used
   // `(t.disciplines||[]).length`, which a bare placeholder object satisfies with no name at all.
   const _hasDisc=(b.traditions||[]).some(function(t){return t&&(t.disciplines||[]).some(function(d){return d&&d.name&&d.name!=='(none)';});});
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
+  // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
+  // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
+  const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;
+    // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
+    // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
+    // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed drawbacks
+    // (Peg Leg 4, Lame 3, Old Wound 3, One-Eyed 4 — fixture EV-025) compute().remaining read 93 against a true
+    // 79 and warned "Drawbacks grant 14 AP". The marker is the one
+    // _replay() stamps (b._imposedDrawbackIdx, same dmEdit && cost>=0 rule the stat-cap exemption uses). The row
+    // is still listed — at 0 and labelled — so a DM can see which penalties they have imposed.
+    const _imp=_impIdx.has(_dIdx);drawGain+=_imp?0:v;_DI.push([_imp?lab+' (DM imposed)':lab,_imp?0:-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
     // not raise the score past it while holding one ("your score can never exceed 12"). Without the
     // second half the drawback is a loan: take Frail at CON 10, keep the AP, buy CON to 16.
     // The Live Sheet's buy() already blocks anything not matched by SOFT_WARN, so both directions were
     // already refused there; the marker makes the intent explicit and lets CharGen classify it too.
-    const _dmx=DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{};for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
+    // A DM-IMPOSED drawback is exempt from BOTH halves (owner decision J1, 2026-09-30, D-GH-2026-09-30-
+    // imposed-drawback-cap-bypass). The cap exists to stop AP being taken for a stat you never use; an
+    // imposed drawback pays 0 AP, so there is no loan to police — and the wound already carries its own
+    // penalty. Without this a DEX 16 character imposed Peg Leg showed "⛔ … requires DEX 12 or lower".
+    const _dmx=_impIdx.has(_dIdx)?{}:(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{});for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
     const _drq=DATA.drawbackReq&&DATA.drawbackReq[lab];if(_drq&&_drq.caster&&!_hasDisc) W.push('⛔ '+lab+': requires at least one spellcasting discipline');
+    // A WOUND-ONLY drawback (DATA.wounds[name].dmOnly: Maimed Hand, Bad Knee, Brittle Bones, Withered Arm) is
+    // something only a DM can impose — players never see it in a picker and cannot take it. A copy that is NOT a
+    // DM-imposed slot (hand-edited, or a build with no marker) is a hard violation, the same ⛔ marker as the
+    // caster gate above. (feat/permanent-wounds, D-GH-2026-10-04-permanent-wounds.)
+    const _wd=DATA.wounds&&DATA.wounds[lab];if(_wd&&_wd.dmOnly&&!_imp) W.push('⛔ '+lab+': a wound — only a DM can impose it');
   }
+  // One wound per place on the body (DATA.wounds[name].slot): Lame + Peg Leg, or Maimed Hand + Withered Arm, would
+  // stack penalties on the same limb. Only when at least one of the pair is DM-IMPOSED — two drawbacks a player
+  // chose themselves are the player's own build, not a DM's story choice. Counted by POSITION so two copies of the
+  // same wound (an imposed Peg Leg on a player who took Peg Leg) still count as two. A SOFT warning, not a block —
+  // the DM decides (the Live Sheet lists it in SOFT_WARN) — and it names the pair.
+  const _wSlots={};(b.drawbacks||[]).forEach(function(_l,_i){const _w=DATA.wounds&&DATA.wounds[_l];if(_w&&_w.slot){const _a=(_wSlots[_w.slot]=_wSlots[_w.slot]||{names:[],n:0,imp:false});_a.n++;if(_impIdx.has(_i))_a.imp=true;if(_a.names.indexOf(_l)<0)_a.names.push(_l);}});
+  for(const _s of Object.keys(_wSlots)) if(_wSlots[_s].n>1&&_wSlots[_s].imp) W.push((_wSlots[_s].names.length>1?_wSlots[_s].names.join(' and ')+' both':_wSlots[_s].names[0]+' held twice — both')+" injure the same place ("+_s+") — a DM normally imposes only one");
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.
@@ -793,7 +835,10 @@ export function compute(b, opts){
     W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
   else if(_dCap==null&&drawGain>DATA.drawbackCap)
     W.push("Drawbacks grant "+drawGain+" AP — the guide caps them at "+DATA.drawbackCap+" AP (check with your DM)");
-  if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
+  // "Chosen" means chosen: a DM-imposed drawback is not the player's pick, so it does not count toward the
+  // 2–3 guideline (that guideline exists to stop a build becoming an AP farm, and an imposed drawback pays 0).
+  const _nChosen=(b.drawbacks||[]).filter(function(_x,_i){return !_impIdx.has(_i);}).length;
+  if(_nChosen>3) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
   // absent from b.drawbacks/b.boons, so neither line above nor the Boons line below can show it. Yet the
@@ -1013,11 +1058,38 @@ export function activeEvents(events) {
   // these fields) — needs an already-malformed LOG (hand-edited, or a future bug elsewhere) — but a
   // silent cross-match on `undefined` is exactly the "missing validation on event payloads" gap this
   // file's own review standard calls out. `v == null` (not `===`) catches both null and undefined.
+  // unlocked (feat/dm-unlock-drawback): the SET of indices of DM-imposed, LOCKED drawback purchases that a
+  // later `dmUnlockDrawback` event has released. Unlike the buyoff/removal matches above this one IS keyed by
+  // `seq` — deliberately and only here. It can't be keyed by name: a character may hold a player-taken and an
+  // imposed purchase of the same name, and an unlock must release exactly the imposed one. `seq` on a DM
+  // purchase is stamped server-side by dm_edit_character_log and was verified unique per log in live data
+  // (2026-09-30, 491 events, no duplicates); if a log ever carried two matches the unlock is ambiguous and
+  // releases NOTHING (fail-safe: the drawback stays locked). The FIFO buy-off resolution above is untouched.
+  // An unlock only counts when it follows its target and is itself DM-stamped (dmEdit), the same marker that
+  // makes the imposed purchase an undo barrier. It moves no AP and never alters the build — it is read by
+  // the Live Sheet to decide whether a locked drawback may be bought off. NOTE: advisory against a hostile
+  // owner, exactly like the lock itself (see D-GH-2026-10-04-dm-unlock-drawback).
+  // `unlockedBy` is the same answer as a Map (purchase index -> the unlock event that released it), so a caller
+  // that wants the DM's note reads it from HERE instead of re-implementing this match. The stamps are compared
+  // STRICTLY (=== true), exactly as dm_edit_character_log compares them (jsonb equality): a log whose flags are
+  // 1 or "true" is neither imposed nor locked to either side, so the console never offers an unlock the server
+  // would refuse.
+  const unlocked = new Set();
+  const unlockedBy = new Map();
+  const _lockedBySeq = {};   // `${seq}|${drawback}` -> index of the imposed locked purchase, or -1 if ambiguous
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
       if (v == null) return;
       (_openDraws[v] = _openDraws[v] || []).push(i);
+      if (e.dmEdit === true && e.dmLocked === true && e.seq != null) {
+        const k = e.seq + '|' + v;
+        _lockedBySeq[k] = (k in _lockedBySeq) ? -1 : i;
+      }
+    } else if (e.type === 'dmUnlockDrawback') {
+      if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return;
+      const j = _lockedBySeq[e.targetSeq + '|' + e.refVal];
+      if (j != null && j >= 0) { unlocked.add(j); if (!unlockedBy.has(j)) unlockedBy.set(j, e); }
     } else if (e.type === 'buyoff') {
       if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
@@ -1032,7 +1104,7 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost };
+  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
@@ -1919,6 +1991,18 @@ function _replay(b, log, onApplied) {
       b._vigorRankTier = (b._vigorRankTier || []).slice(0, _to);
       for (let n = _from + 1; n <= _to; n++) b._vigorRankTier[n-1] = _tier;
     }
+    // Record WHICH drawback slots a DM imposed (dmEdit is stamped server-side, so the client cannot forge
+    // it). MUT.drawback keeps only the name, so without this compute() cannot tell imposed from chosen.
+    // Read before the mutator runs, while b.drawbacks.length is still this drawback's future index.
+    // "Imposed" means dmEdit AND pays no AP (cost >= 0): the cap exemption rests on there being no AP loan
+    // to police, and the server does not check a drawback's cost, so a dmEdit event that DID grant AP
+    // (cost < 0) must stay capped (code review of D-GH-2026-09-30-imposed-drawback-cap-bypass).
+    if (e.cat === 'drawback' && e.dmEdit && (Number(e.cost) || 0) >= 0)
+      (b._imposedDrawbackIdx = b._imposedDrawbackIdx || []).push((b.drawbacks || []).length);
+    // The indices are positions in b.drawbacks, so a legacy `patch` that replaces the whole list (the LS-001
+    // bundle shape) invalidates them — reset rather than let them land on whatever now sits at that slot.
+    if (e.cat === 'patch' && e.payload && e.payload.patch && 'drawbacks' in e.payload.patch)
+      b._imposedDrawbackIdx = [];
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
     if (onApplied) onApplied(e, b, _wasLocked);
   }

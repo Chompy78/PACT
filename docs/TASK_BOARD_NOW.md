@@ -27,6 +27,23 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+## Creation-lock integrity — server guard, stale-copy bug, Amble repair — TODO
+```
+Continue the creation-lock work handed over on 2026-10-04. Read
+docs/sessions/2026-10-04-creation-lock-restart.md FIRST — it holds the live state, every owner decision
+(do not re-ask them), and the work order. In short: (1) re-check the six Amble characters are still
+locked and re-lock any that are not; ask the owner for their verdict on the six "lock check (DM copy)"
+characters; (2) settle decision T (recommended: test on a Supabase branch); (3) test, then apply
+sql/migrations/2026-10-04-creation-lock-guard.sql (server guard D1 + L1 campaign moves + S1 backup
+retention) with owner approval, run advisors/logs, mirror into sql/schema.sql; (4) root-cause the
+stale-local-copy overwrite that unlocked Skylar (2 Oct) and Archer (3 Oct); (5) Part 3: backdate each
+Amble lock to its agreed point with owner sign-off of before/after AP and gold/downtime; (6) Part 1b:
+CharGen whole-log rebuilds merge instead of rewrite.
+```
+**Done when:** the guard is live and tested (a player save that drops or reopens a lock is refused), all
+six Amble characters carry their lock at the agreed point (owner signed off), the stale-copy cause is
+fixed or tracked, and CHANGELOG/DECISIONS record it.
+
 ## Random roller: two build shapes it still cannot produce — TODO
 Branch `feat/roller-build-shapes-2`. Follow-on from the Grit and Hit-Dice fixes closed in #525. Evidence is
 **3,264 characters rolled through `testing/scripts/roll-headless.mjs`** — the real tool in a real browser,

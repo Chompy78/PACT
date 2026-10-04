@@ -191,6 +191,9 @@
   .card .chead{padding:14px 16px 12px; border-bottom:1px solid var(--line); position:relative}
   .card .cname{font-size:20px; font-weight:700; color:var(--heading); line-height:1.2; padding-right:42px; word-break:break-word}
   .card .csub{font-size:13px; color:var(--muted); margin-top:3px}
+  .lockico{margin-left:4px;font-size:12px;cursor:default}
+  .lockico.open{opacity:.65}
+  .nolimit{margin-left:4px;font-size:11px;font-weight:700;color:var(--warn,#b45309);white-space:nowrap}
   .card .csub .tier{display:inline-block;background:var(--light);color:var(--navy);border-radius:6px;padding:1px 7px;font-weight:600;font-size:12px;margin-left:2px}
   .rmcard{
     /* 40x40 touch target (was 28x28) to match this file's other controls (.btn's min-height:40px)
@@ -1221,6 +1224,20 @@ function dmAnalyze(exported, apOpts){
       var _bo=((b.houseRules&&b.houseRules.boons)||{})[l]||(DATA.boons&&DATA.boons[l]);
       return (_bo&&(b.hd||1)<(Number(_bo.hd)||1))?(l+' ⛔ blocked'):l;}),
     drawbacks: (b.drawbacks||[]).slice(),
+    // feat/dm-unlock-drawback: the DM-imposed LOCKED drawbacks still waiting for the story beat — open (not
+    // bought off) and not yet unlocked. Derived from the LOG by the engine's own matching (activeEvents()),
+    // never re-implemented here; the Unlock control in dmEditBody() lists exactly these, keyed by the imposed
+    // purchase's seq so a same-named player-taken drawback can never be the one released.
+    lockedDraws: (function(){
+      var ae = activeEvents(null), out = [];
+      ae.evs.forEach(function(e, i){
+        // === true, not truthy: the server compares these stamps strictly (jsonb equality) and the engine now
+        // does too, so a hand-edited log with dmLocked:1 is not offered an Unlock the server would refuse.
+        if(e.type==='buy' && e.cat==='drawback' && e.dmEdit===true && e.dmLocked===true && e.seq!=null && e.payload && e.payload.v
+           && !ae.boughtOff.has(i) && !ae.unlocked.has(i)) out.push({name:e.payload.v, seq:e.seq});
+      });
+      return out;
+    })(),
     features: (b.features||[]).map(function(l){
       var _a=(typeof FEAT_ALIAS==='function')?FEAT_ALIAS(l):l, _f=DATA.features&&DATA.features[_a];
       return (_f&&typeof requiredHD==='function'&&(b.hd||1)<requiredHD(_f))?(l+' ⛔ blocked'):l;}),
@@ -1260,7 +1277,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.554';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.568';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1369,6 +1386,26 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // Unsigned files (older exports, hand-built) are NOT flagged — absence of a signature is not evidence
   // of tampering, and the badge would otherwise nag on every legitimate legacy file.
   function isTampered(a){ return !!(a && a.integrity && a.integrity.tampered); }
+  // feat/dm-roster-lock-icon: a locked/unlocked icon after the tier, wherever the console shows one. The state
+  // is creationLockState()'s own answer (a.creationLock, computed once in the analyser) — never re-derived here.
+  // Static strings only, so nothing player-controlled reaches the markup. No icon when the engine gave no state.
+  //
+  // feat/dm-no-limit-flag (owner decision T1, 2026-10-04): a CAMPAIGN character that is still building and has
+  // NO per-character limit stamped (creationLockState().confirmed === false) gets a "no limit" flag too. With no
+  // limit the engine's block is fail-open — nothing stops spending at creation prices — and Moss, Skylar, Fenwick
+  // and Archer overspent that way (their limit was never set, or was deleted by the reload / stale-copy bugs).
+  // Locally imported files are not flagged: a file has no DM, so there is nobody to set a limit.
+  function _isCampaignSummary(a){ return cloudRoster.some(function(r){ return r.summary === a; }); }
+  function lockIconHTML(a){
+    var cl = a && a.creationLock; if(!cl) return '';
+    var on = !!cl.locked;
+    var label = on ? 'Creation locked' : 'Creation open (not locked)';
+    var h = ' <span class="lockico '+(on?'locked':'open')+'" role="img" aria-label="'+label+'" title="'+label+'">'+(on?'\uD83D\uDD12':'\uD83D\uDD13')+'</span>';
+    if(!on && !cl.confirmed && _isCampaignSummary(a)){
+      h += ' <span class="nolimit" title="No creation limit is set for this character, so nothing stops it spending at creation prices. Use Set limit in its DM tools.">\u26A0 no limit</span>';
+    }
+    return h;
+  }
   function tamperBadge(a){ return isTampered(a) ? ' <span class="tamper" title="This character file was edited outside PACT — its signature no longer matches. Treat its numbers with suspicion.">⚠ edited</span>' : ''; }
   function handleFiles(fileList){
     var files = Array.prototype.slice.call(fileList||[]);
@@ -1598,7 +1635,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
   // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
   // no-build-data-yet placeholder card, where there is nothing to remove.
-  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp){
+  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp, lockedDraws){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk">DM-granted AP <button type="button" class="infobtn" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">&#9432;</button></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     // ---- Basic mode (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode) -----------------
@@ -1626,7 +1663,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
          '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
-    h += dmEditBody(id, curBoons);
+    h += dmEditBody(id, curBoons, lockedDraws);
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -1784,13 +1821,27 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // Every write goes through dm_edit_character_log (SECURITY DEFINER) — this UI never touches
   // characters.stats directly. Scope: boons and drawbacks only (owner, 2026-08-05 — "not a general
   // editor"); the server enforces the same allowlist independently.
-  function dmEditBody(id, curBoons){
+  function dmEditBody(id, curBoons, lockedDraws){
     var boonOpts = DATA.boonList.map(function(n){
       return '<option value="'+esc(n)+'">'+esc(n)+' ('+((DATA.boons[n]&&DATA.boons[n].ap)||0)+' AP)</option>';
     }).join('');
-    var drawOpts = DATA.drawbackList.map(function(n){
-      return '<option value="'+esc(n)+'">'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP)</option>';
-    }).join('');
+    // feat/permanent-wounds: the impose dropdown lists EVERY drawback, not just the player-pickable
+    // DATA.drawbackList — the four wound-only entries (Maimed Hand, Bad Knee, Brittle Bones, Withered Arm) exist
+    // only for a DM to impose. Wounds come first, grouped by tier, each priced as what it costs to BUY OFF (an
+    // imposed drawback pays the player nothing, so its table value is its flat removal price); then the rest.
+    // Choosing a wound defaults the control to Locked + flat (see the change handler in wireCloudRosterDelegation).
+    var _W = DATA.wounds || {};
+    function _drawOpt(n, isWound){
+      return '<option value="'+esc(n)+'"'+(isWound?' data-wound="1"':'')+'>'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP'+(isWound?' flat buy-off':'')+')</option>';
+    }
+    var drawOpts = '';
+    [['minor','Wounds — minor'],['moderate','Wounds — moderate']].forEach(function(g){
+      var names = Object.keys(_W).filter(function(n){ return _W[n].tier===g[0] && DATA.drawbacks[n]!==undefined; })
+        .sort(function(a,b){ return (DATA.drawbacks[a]-DATA.drawbacks[b]) || a.localeCompare(b); });
+      if(names.length) drawOpts += '<optgroup label="'+esc(g[1])+'">'+names.map(function(n){ return _drawOpt(n,true); }).join('')+'</optgroup>';
+    });
+    var _others = Object.keys(DATA.drawbacks).filter(function(n){ return !_W[n]; }).sort(function(a,b){ return a.localeCompare(b); });
+    drawOpts += '<optgroup label="Other drawbacks">'+_others.map(function(n){ return _drawOpt(n,false); }).join('')+'</optgroup>';
     var h = '<div class="ruleblock"><div class="lbl">DM edit — grant a boon <button type="button" class="infobtn" title="Adds the boon AND grants matching bonus AP in the same write, so it never costs the player anything — net 0 change to their spendable AP. Recorded in their log as a DM edit; they can see it but cannot undo past it.">&#9432;</button></div>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       '<select class="field dm-grant-boon-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a boon —</option>'+boonOpts+'</select>' +
@@ -1805,13 +1856,28 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<button type="button" class="btn sm danger dm-remove-boon-btn" data-cid="'+esc(id)+'">Remove</button>' +
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="remove-boon" style="font-size:11px;color:var(--muted)"></span></div>';
     }
-    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. You choose whether/how they can buy it off.">&#9432;</button></div>' +
+    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. Any stat cap the drawback normally carries (e.g. Peg Leg: DEX 12) is NOT applied to an imposed one. You choose whether/how they can buy it off. WOUNDS (the first two groups) are lasting injuries only you can impose: choosing one defaults to Locked at the flat price, shown as what it costs to buy off — unlock it below once the story beat has happened.">&#9432;</button></div>' +
       '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
       '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
       '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap"><input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'"> Locked</label>' +
       '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px">Removal cost<select class="field dm-impose-draw-rate" data-cid="'+esc(id)+'"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select></label>' +
       '<button type="button" class="btn sm dm-impose-draw-btn" data-cid="'+esc(id)+'">Impose</button>' +
       '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="impose-draw" style="font-size:11px;color:var(--muted)"></span></div>';
+    // feat/dm-unlock-drawback: release a drawback imposed LOCKED once the story beat has happened. Only
+    // purchases the engine reports as imposed + locked + still open are offered (s.lockedDraws), identified
+    // by the imposed purchase's seq, so a same-named player-taken drawback can never be the one released.
+    // The story beat is required (owner decision B1) and recorded in the player's log; it is free text shown
+    // to another user, so it is length-capped here (the server caps it too) and esc()'d wherever rendered.
+    if((lockedDraws||[]).length){
+      h += '<div class="ruleblock"><div class="lbl">DM edit — unlock a locked drawback <button type="button" class="infobtn" title="Lets the player buy this drawback off, at the removal cost you chose when you imposed it — they still pay the AP. Your story beat is recorded in their log and shown to them. This is advisory: the player\'s app honours the lock, but the server does not enforce it, so it stops an honest player rather than a determined one.">&#9432;</button></div>' +
+        '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
+        '<select class="field dm-unlock-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 200px">'+
+          lockedDraws.map(function(d){return '<option value="'+esc(d.seq)+'" data-name="'+esc(d.name)+'">'+esc(d.name)+' (event #'+esc(d.seq)+')</option>';}).join('')+
+        '</select>' +
+        '<input type="text" class="field dm-unlock-draw-note" data-cid="'+esc(id)+'" maxlength="200" placeholder="Story beat (required) — e.g. found a surgeon who could fit a prosthetic" style="flex:2 1 260px">' +
+        '<button type="button" class="btn sm dm-unlock-draw-btn" data-cid="'+esc(id)+'">Unlock</button>' +
+        '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="unlock-draw" style="font-size:11px;color:var(--muted)"></span></div>';
+    }
     return h;
   }
   // Heritage-pack traits are owned by virtue of species and are NOT in s.racialTraits (they are derived,
@@ -1832,7 +1898,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -1928,7 +1994,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         (dm ? '' : '<button type="button" class="rmcard" title="Remove from console" aria-label="Remove from console" data-rm="'+esc(r.id)+'">×</button>') +
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
-            ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span></div>' +
+            ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span>'+lockIconHTML(s)+'</div>' +
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
@@ -1993,7 +2059,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     {key:'class',    label:'Class',    type:'text', get:function(a){return classText(a);}, disp:function(a){return esc(classText(a));}},
     {key:'species2', label:'Species 2',type:'text', get:function(a){return (a.species2&&a.species2!=='(none)')?a.species2:'';}, disp:function(a){return esc((a.species2&&a.species2!=='(none)')?a.species2:'—');}},
     {key:'class2',   label:'Class 2',  type:'text', get:function(a){return (a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'';}, disp:function(a){return esc((a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'—');}},
-    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return a.hd||0;}, disp:function(a){return 'HD '+(a.hd||0)+' · T'+(a.tier||0);}},
+    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return a.hd||0;}, disp:function(a){return 'HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a);}},
     {key:'hp',       label:'HP',       type:'num',  cls:'num', get:function(a){return a.hp||0;}, disp:function(a){return a.hp;}},
     {key:'ac',       label:'AC',       type:'num',  cls:'num', get:function(a){return a.ac||0;}, disp:function(a){return acCellHTML(a.ac, a.name);}},
     {key:'dc',       label:'DC',       type:'num',  cls:'num', get:function(a){return a.saveDC==null?-1:a.saveDC;}, disp:function(a){return dcDisp(a);}},
@@ -2037,7 +2103,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(isSel?'true':'false')+'" aria-label="'+esc(a.name||'New Character')+' — press Enter for full detail">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ function toggle(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } tr.addEventListener('click',toggle); tr.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
-  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
+  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
   // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
@@ -2538,7 +2604,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     }).join('');
     return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
       '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
-      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
+      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div>'+
       '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
       '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock))+'</div></div>';
@@ -2609,6 +2675,26 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   (function wireCloudRosterDelegation(){
     var el = document.getElementById('campRoster');
     if(!el) return;
+    // feat/permanent-wounds: picking a WOUND in the impose dropdown defaults the control to what a wound should be —
+    // Locked (bought off only after a story beat, which the DM then unlocks) and the flat removal price (the 3×
+    // deterrent exists to stop a player gaming a cheap AP loan, which does not apply to a drawback they never chose).
+    // Picking an ordinary drawback — or moving between two wounds — leaves whatever the DM already set untouched, and the DM can still change both.
+    el.addEventListener('change', function(ev){
+      var sel = ev.target;
+      if(!sel || !sel.classList || !sel.classList.contains('dm-impose-draw-sel')) return;
+      var opt = sel.options[sel.selectedIndex];
+      // Only on the move FROM a non-wound TO a wound: switching between two wounds to compare them must not
+      // re-tick Locked or reset the removal cost the DM has since changed.
+      var wasWound = sel.getAttribute('data-was-wound') === '1';
+      var isWound = !!(opt && opt.hasAttribute('data-wound'));
+      sel.setAttribute('data-was-wound', isWound ? '1' : '0');
+      if(!isWound || wasWound) return;
+      var cid = sel.getAttribute('data-cid');
+      var locked = el.querySelector('.dm-impose-draw-locked[data-cid="'+cid+'"]');
+      var rate = el.querySelector('.dm-impose-draw-rate[data-cid="'+cid+'"]');
+      if(locked) locked.checked = true;
+      if(rate) rate.value = 'flat';
+    });
     el.addEventListener('click', function(ev){
       var t = ev.target;
       var srow = t.closest ? t.closest('.secrow') : null;
@@ -2623,7 +2709,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-unlock-draw-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.dm-basicmode-btn') ||
           t.closest('.cf-val-save'))){
@@ -2798,6 +2884,41 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         }).catch(function(err){
           imposeDrawBtn.disabled = false; if(idStatus) idStatus.textContent = '';
           alert('Impose failed: '+err.message);
+        });
+        return;
+      }
+
+      // feat/dm-unlock-drawback: release a locked imposed drawback. The event is keyed to the imposed
+      // purchase's seq (the <option> value) plus its name; the server validates both against the stored
+      // log and rejects anything that isn't an imposed, locked, not-yet-unlocked purchase. The story beat
+      // is required and capped at 200 chars (the server enforces the same).
+      var unlockDrawBtn = t.closest ? t.closest('.dm-unlock-draw-btn') : null;
+      if(unlockDrawBtn && card){
+        var udcid = unlockDrawBtn.getAttribute('data-cid');
+        var udSel = card.querySelector('.dm-unlock-draw-sel[data-cid="'+udcid+'"]');
+        var udNote = card.querySelector('.dm-unlock-draw-note[data-cid="'+udcid+'"]');
+        var udStatus = card.querySelector('.dm-status[data-cid="'+udcid+'"][data-kind="unlock-draw"]');
+        var udOpt = udSel && udSel.options[udSel.selectedIndex];
+        var udSeq = udOpt ? Number(udOpt.value) : NaN;
+        var udName = udOpt ? udOpt.getAttribute('data-name') : '';
+        var udText = udNote ? udNote.value.trim() : '';
+        if(!udOpt || !udName || !Number.isFinite(udSeq)){ alert('Choose a locked drawback first.'); return; }
+        if(!udText){ alert('Describe the story beat that justifies unlocking it — it is recorded in the player\'s log.'); return; }
+        if(udText.length > 200){ alert('Keep the story beat to 200 characters or fewer.'); return; }
+        unlockDrawBtn.disabled = true; if(udStatus) udStatus.textContent = 'Unlocking…';
+        B.dmEditCharacterLog(udcid, [
+          {type:'dmUnlockDrawback', refVal:udName, targetSeq:udSeq, note:udText, label:'DM unlocked — '+udName}
+        ]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          unlockDrawBtn.disabled = false; if(udStatus) udStatus.textContent = '';
+          // Two refusals a DM can actually hit get a plain-language reason instead of a raw database error:
+          // the server not yet carrying this feature (the migration is applied separately, before the client
+          // ships), and an event number that is not unique in the log (can't be released automatically).
+          var udMsg = String(err && err.message || err);
+          if(/unsupported event type/i.test(udMsg)) udMsg = 'The server has not been updated to support unlocking yet. Ask the app owner to apply the latest database update, then try again.';
+          else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
+          alert('Unlock failed: '+udMsg);
         });
         return;
       }

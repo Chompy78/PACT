@@ -10,6 +10,47 @@
 
 ## Index
 
+## D-GH-2026-10-04-permanent-wounds — a DM-only Wounds system (minor and moderate only)
+- Wounds are lasting injuries a DM imposes in play on campaign characters: never chosen, 0 AP, locked until a story beat, bought
+  off at 2 (minor) or 3–4 (moderate) AP; no Grievous tier. Four new wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones,
+  Withered Arm) live in `DATA.drawbacks` but not `drawbackList`, which hides them from players; `DATA.wounds` holds tier and
+  place. `compute()` hard-blocks a non-imposed wound-only entry and soft-warns on two wounds in one place. Judgement calls
+  (Afflictions/Frail slotless, soft slot warning, EV-025/026 swapped to Frightening Visage) are in the record. `v0.367`.
+  Full record: `decisions/2026/D-GH-2026-10-04-permanent-wounds.md`.
+## D-GH-2026-10-04-missing-arm-penalty-undefined — `Missing Arm` gets a real penalty
+- `Missing Arm` paid 5 AP but its text ("defined mechanical penalty") defined nothing — free AP, the failure the drawback-pricing
+  decision prices against. It now states one-hand gear/casting limits plus disadvantage on physical checks where one arm
+  reasonably matters (Athletics, Animal Handling, Sleight of Hand — at the DM's call, an owner addition). 5 AP kept after
+  checking against `Peg Leg`/`Thin-Skinned`/`Leaden Reflexes`; fairest for martials, weaker for pure casters (the lever there is
+  a gate or a split, not a repricing). Both guide copies and the engine text edited in place, never copied over each other;
+  display-only, no version bump. Full record: `decisions/2026/D-GH-2026-10-04-missing-arm-penalty-undefined.md`.
+## D-GH-2026-10-04-imposed-drawbacks-grant-no-ap — a DM-imposed drawback grants no AP in `compute()`
+- `compute()` derives the drawback grant from the drawback names, which cannot tell imposed from chosen, so a drawback the
+  DM imposed at cost 0 was credited at its table value — inflating "AP remaining", firing cap warnings at a player for
+  drawbacks they never chose, and raising the creation ceiling (the Live Sheet feeds it `compute().drawbackAp`). An
+  imposed slot, identified by the same `b._imposedDrawbackIdx` marker the stat-cap exemption uses, now contributes 0, is
+  listed at 0 labelled "(DM imposed)", and counts toward neither warning; its penalty is unchanged. Fixed in the engine
+  rather than per tool, so the DM Console row and the ceiling are corrected at the source. `DATA.version` v0.365 → v0.366
+  (output changes for an imposed build). Full record: `decisions/2026/D-GH-2026-10-04-imposed-drawbacks-grant-no-ap.md`.
+
+## D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
+- A DM-imposed drawback can be locked so the player may not buy it off, but nothing could ever clear the lock.
+  New `dmUnlockDrawback` event (a required story-beat note), appended through `dm_edit_character_log`, **keyed to the
+  imposed purchase's `seq` and name — never name alone**, because a player-taken and an imposed purchase of the same
+  name can coexist and buy-off matches by name. The server validates it against the stored log and rebuilds it from a
+  whitelist (no AP can ride along); the engine exposes `activeEvents().unlocked`; the Live Sheet and DM Console use it.
+  The already-bought-off check deliberately stays out of SQL (it is the engine's FIFO rule). **Advisory against a hostile
+  owner** — real enforcement is `feat/server-enforced-drawback-lock`. Migration applied to production 2026-10-04 (verified);
+  the client ships with the next promotion. Full record: `decisions/2026/D-GH-2026-10-04-dm-unlock-drawback.md`.
+
+## D-GH-2026-09-30-imposed-drawback-cap-bypass — a DM-imposed drawback is exempt from its stat cap
+- Imposing `Peg Leg` on a DEX 16 character made `compute()` raise `⛔ … requires DEX 12 or lower`, though an
+  imposed drawback pays 0 AP and so there is no AP loan for the cap to police. `MUT.drawback` kept only the
+  name, dropping the server-stamped `dmEdit` flag. `_replay()` now records the positions of imposed
+  drawbacks in `b._imposedDrawbackIdx` and `compute()` skips the cap for exactly those — positional, not by
+  name, so a player-taken drawback of the same name is still capped. Both halves of the cap (entry and
+  ceiling) are exempt (owner decision J1). No `DATA.version` bump: no existing fixture's output changed.
+  Full record: `decisions/2026/D-GH-2026-09-30-imposed-drawback-cap-bypass.md`.
 ## D-GH-2026-10-01-creation-lock-integrity — a finished character stays finished
 - A plain CharGen reload deleted the finished-creation lock and the DM's creation limit: `_cgBoot()`
   restored the saved LOG verbatim, then its boot seed rebuilt the LOG from the form, which cannot represent

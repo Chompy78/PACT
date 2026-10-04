@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.554.html**-->
+<!--**PACT-CharGen-Webtool v1.568.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.554 · Rules v0.365</title><style>
+<title>PACT Character Generator — Web Tool v1.568 · Rules v0.367</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.554</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.365</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.568</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.367</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -649,12 +649,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -2201,6 +2201,10 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
+    // Wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones, Withered Arm — DATA.wounds[k].dmOnly) are imposed
+    // by a DM and never picked by a player, so they are not offered here. One the character ALREADY holds (a DM
+    // imposed it) stays listed and checked, like every other held drawback. (feat/permanent-wounds)
+    if(!chk.includes(k)&&DATA.wounds&&DATA.wounds[k]&&DATA.wounds[k].dmOnly)return;
     if(!chk.includes(k)&&cloudRuleBarred('draws',k))return;   // cloud campaign rules — hide banned drawbacks (mirror boons live-filter); keep already-selected. 'draws' is aliased to bannedDrawbacks in RULE_BAN_FIELDS
     const dr=D[k];
     if(q && (k+' '+(dr.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
@@ -2857,7 +2861,7 @@ function _commitWholeBuildFrame(){
   if(HIST.length>HIST_MAX)HIST.shift();
   REDO.length=0;_openKey=null;
 }
-function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
+function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;_cgLastGood=null;_cgLimitPrompted=false;}
 // Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
 function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();_cgResetCloudApState();applyBuild({});}
 // New Character (D-GH-2026-08-08-header-declutter, relabeled from "Reset"): resetBuild() already
@@ -3007,7 +3011,7 @@ function _cgCeilOpts(){
   var b = readBuild();
   return { drawbackAp: compute(b, _cgDmOpts()).drawbackAp || 0, spent: economy(LOG).spent };
 }
-function cgFinishCreating(){
+function cgFinishCreating(skipConfirm){
   var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _cgCeilOpts()) : null;
   if(st && st.locked){ alert('This character has already finished creation.'); return; }
   var msg = 'Finish creating this character?\n\n';
@@ -3017,7 +3021,7 @@ function cgFinishCreating(){
       +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
       +  'Only your DM can reopen creation afterwards.';
-  if(!confirm(msg)) return;
+  if(!skipConfirm && !confirm(msg)) return;   // skipConfirm: the reach-the-limit prompt already asked
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
   // This is a bare LOG.push, deliberately (it must not be undoable), which means it does NOT go through
@@ -4571,7 +4575,9 @@ async function _cgCloudPushOnce(){
     // below is that this runs on every edit.
     if(res&&res.conflict&&!_cgConflictWarned){
       _cgConflictWarned=true;
-      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
+      if(typeof flash==='function')flash(res.staleCopy
+        ?'⚠ This copy is out of date, so it was NOT saved to the cloud (nothing was overwritten). Please reload your character: ☁ Cloud → Load.'
+        :'⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
     }
     // Mirrors the Live Sheet: autosave is where the first locked-history refusal lands, and it is a
     // return value rather than a throw, so the silent catch below cannot see it. Without this the one
@@ -4635,7 +4641,20 @@ window.addEventListener('pagehide',function(){
     _cgCloudPush();
   }catch(e){ /* best-effort only — see comment above */ }
 });
-function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
+// fix/stale-autosave-guard (L2): the autosave records which cloud version this copy descends from (cloudBase)
+// so a later reload can prove the restored copy is current — or refuse to
+// push it over a newer cloud save. See the _restored block in js/sync.js. null cloudBase = never synced.
+var _cgRestoredProv=null;   // {base} from the restored autosave, until js/sync.js has adopted it (see _cgAdoptRestoredProvenance)
+function _cgAutosaveEnvelope(){var e=_cgEnvelope(false);
+  try{
+    // Until the sync bridge has adopted the restored copy's provenance, keep writing back the PROVENANCE WE
+    // RESTORED — asking the bridge now would read storage's base, which a background reconcile may already
+    // have moved forward (the very mismatch this guards against).
+    if(_cgRestoredProv)e.cloudBase=_cgRestoredProv.base;
+    else if(window._syncBridge&&window._syncBridge.getPageBase)e.cloudBase=window._syncBridge.getPageBase(currentCharId());
+  }catch(x){}
+  return e;}
+function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgAutosaveEnvelope()));}catch(e){}
   // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
   // on every edit, synchronously, well before _cgCloudAutosave()'s 3s debounce fires — noteEdit() is
   // what lets the chip see "unsaved" immediately instead of only after a push is actually attempted.
@@ -4763,10 +4782,20 @@ function _cgConsumeHandoff(){
     return true;
   }catch(e){console.error('PACT CharGen: handoff consume failed',e);return false;}
 }
+// fix/stale-autosave-guard (L2): tell js/sync.js where the restored copy came from. The sync bridge is a
+// separate module that may not exist yet when boot runs, so wait for `sync-ready` rather than racing it —
+// no save can leave the page before the bridge exists (every push goes through it).
+function _cgAdoptRestoredProvenance(d){
+  var id=currentCharId();
+  _cgRestoredProv={base:d.cloudBase};
+  var go=function(){try{window._syncBridge.adoptRestoredCopy(id,{base:d.cloudBase});}catch(e){}_cgRestoredProv=null;};
+  if(window._syncBridge&&window._syncBridge.adoptRestoredCopy) go();
+  else document.addEventListener('sync-ready',go,{once:true});
+}
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);
@@ -4976,7 +5005,17 @@ function randomizeRoll(themeKey,lvlWanted){
   }
   // `let`, not `const`: a drawback bought below raises compute().spendable, and the ceiling must
   // follow it (see the drawback loop). Never lowered — only ever raised by a granted refund.
-  let budget=_spendable;
+  // fix/chargen-creation-ceiling (owner decision B): a roll on a character that is still in creation and has a
+  // DM limit stamped is capped at that ceiling (limit + the drawback AP it grants), not at everything it could
+  // spend — otherwise it would overshoot the limit the new render() check refuses edits past. The cap follows
+  // drawbacks the roll takes (see the drawback loop). Uncapped when locked, unlimited, or the limit exceeds the
+  // spendable AP anyway. The remainder is spent in play, after "Finish creating".
+  let _capBase=null;
+  try{
+    const _ce=creationCeiling(LOG,_cgCeilOpts());
+    if(_ce.enforced&&!_ce.locked&&_ce.ceiling<_spendable)_capBase=_ce.base;
+  }catch(e){}
+  let budget=(_capBase!=null)?Math.min(_spendable,_capBase+(compute(b,_dmO).drawbackAp||0)):_spendable;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   // weighted pick over [value,weight] pairs; falls back to uniform if every weight is 0
@@ -5197,7 +5236,7 @@ function randomizeRoll(themeKey,lvlWanted){
   for(let q=0;q<_maxDraws;q++){
     if(rnd(100)>=(q===0?55:30))break;
     if(!tryAct(actDraw))break;
-    _draws++; budget=Math.max(budget,_cur.spendable||budget);
+    _draws++; budget=Math.max(budget,(_capBase!=null)?Math.min(_cur.spendable||budget,_capBase+(_cur.drawbackAp||0)):(_cur.spendable||budget));
   }
 
   // ── IDENTITY FIRST: buy the class's defining feature before the general spend ────────────────
@@ -5393,7 +5432,7 @@ function randomizeRoll(themeKey,lvlWanted){
   const spent=_cur.total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a '+TH.label+' — '+spent+' / '+budget+' AP spent, Lv '+b.hd
-    +(trad?' (incl. a starter spell kit)':'')+'.'+(_lvlClamped?(' Level '+_lvlAsked+' needs more AP than you have, so this is '+b.hd+' Hit Dice.'):'')):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
+    +(trad?' (incl. a starter spell kit)':'')+(_capBase!=null?' Capped at your creation limit \u2014 Finish creating to spend the rest in play.':'')+'.'+(_lvlClamped?(' Level '+_lvlAsked+' needs more AP than you have, so this is '+b.hd+' Hit Dice.'):'')):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
 }
 
 
@@ -6179,7 +6218,7 @@ function _cgSyncArmourPicker(){
     opt.title = reasons.length ? ("Can't wear yet — "+reasons.join('; ')) : '';
   });
 }
-function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
   try{_cgSyncArmourPicker();}catch(e){}
   try{_cgLockSealedControls();}catch(e){}
   // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
@@ -6200,6 +6239,56 @@ function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
       }
     }
   }catch(e){ /* display-only */ }
+}
+// ---- fix/chargen-creation-ceiling (owner decisions W1 + W2, 2026-10-04) ----------------------------------
+// CharGen never refused a purchase past the DM's creation limit (docs/plans/2026-08-30-creation-ceiling.md,
+// "Done when" #2 shipped in Live Sheet only), which is how four CharGen characters overspent. CharGen is a whole-
+// build editor, so there is no single "cost" to test beforehand; instead every edit funnels through render(), and
+// this compares the state it is about to show with the last ACCEPTED one:
+//   refuse  = unlocked + a limit is stamped + the edit INCREASED spend + spend is now OVER the ceiling
+//             (reaching the ceiling exactly is allowed, as in Live Sheet). Restores the last accepted state with
+//             the same primitive undo uses, drops the undo frame the refused edit recorded, and says why.
+//   never refuses: an edit that lowers or keeps spend (even if already over), a drawback (raises the ceiling),
+//             a locked character, a character with no stamped limit, and anything that runs with history
+//             suspended (loads, imports, handoffs, undo/redo, the random roll's own apply).
+// _clearHistory() drops the baseline, so a freshly loaded character is never judged against the previous one.
+var _cgLastGood=null;          // {frame, spent} — the last accepted state, kept only while a limit is enforced
+var _cgLimitPrompted=false;    // W2: prompt once per reach; re-armed when spend falls below the limit again
+function _cgCeilingState(){try{return creationCeiling(LOG,_cgCeilOpts());}catch(e){return null;}}
+function _cgCeilingCheck(){
+  if(_histSuspended||!_cgLastGood) return false;
+  var st=_cgCeilingState();
+  if(!st||!st.enforced||st.locked) return false;
+  var inc=st.spent-_cgLastGood.spent;
+  if(!(inc>0)||!(st.spent>st.ceiling)) return false;
+  var msg=creationLimitRefusalText(Object.assign({},st,{spent:_cgLastGood.spent}),'+'+inc,'This change');   // 'already spent' = the accepted state, not the refused total
+  restoreFrame(_cgLastGood.frame);   // repaints LOG + every control; re-enters render() with history suspended
+  try{   // the refused edit's own pre-edit frame is now identical to the restored state: drop it, leave no undo step
+    var top=HIST[HIST.length-1];
+    if(top&&JSON.stringify(canonicalBuild(foldBuild(top.log)))===JSON.stringify(canonicalBuild(foldBuild(LOG))))HIST.pop();
+  }catch(e){}
+  alert(msg);
+  return true;
+}
+function _cgCeilingAccept(){
+  var st=_cgCeilingState(), prev=_cgLastGood;
+  if(!st||!st.enforced||st.locked){_cgLastGood=null;_cgLimitPrompted=false;return;}
+  _cgLastGood={frame:_snapshotFrame(),spent:st.spent};
+  if(st.remaining>0){_cgLimitPrompted=false;return;}
+  // W2: prompt when an EDIT lands exactly on the limit (0 left) — never on a load, a restore or a roll's apply
+  if(st.remaining===0&&prev&&st.spent>prev.spent&&!_cgLimitPrompted&&!_histSuspended){
+    _cgLimitPrompted=true;
+    setTimeout(function(){
+      var cur=_cgCeilingState(); if(!cur||cur.locked||cur.remaining!==0) return;
+      if(confirm('You have used all '+cur.spent+' of your '+cur.ceiling+' creation AP.\n\nFinish creating this character now?\n\n'
+          +'OK = finish (you then build at in-play prices)\nCancel = not yet, keep building'))cgFinishCreating(true);
+    },0);
+  }
+}
+function render(){
+  if(_cgCeilingCheck()) return;      // refused: restoreFrame() has already repainted the accepted state
+  _cgRenderAll();
+  _cgCeilingAccept();
 }
 function _cgRenderInner(){
   const b=readBuild();

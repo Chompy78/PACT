@@ -19,6 +19,42 @@
   fixtures, same `expected-results.csv` + `expected-warnings.json`, same assertions, no browser needed. Runs automatically in CI (see
   `.github/workflows/engine-parity.yml`) on PRs touching `js/engine.js` or `testing/**`; a CLI agent should
   run it directly (`node testing/scripts/engine-parity-ci.mjs`) rather than opening the browser page.
+- **`scripts/undo-barrier-ci.mjs`** — gate for `isUndoBarrier()`/`undoFloor()`/`sealedFloor()`, the one
+  "this history can no longer be taken back" rule both player tools rely on. Pure Node. Runs in CI as the
+  `undo-barrier` job of `.github/workflows/engine-parity.yml`: `node testing/scripts/undo-barrier-ci.mjs`.
+- **`scripts/dm-unlock-drawback-ci.mjs`** (`feat/dm-unlock-drawback`) — gate for `activeEvents().unlocked`:
+  a `dmUnlockDrawback` event releases exactly the DM-imposed, locked purchase it names by `seq` (never a
+  same-named player-taken one), is ignored if unstamped / out of order / ambiguous, moves no AP, is an undo
+  barrier covering the original imposed buy, and leaves FIFO buy-off resolution untouched. Pure Node. Runs in
+  CI as the `dm-unlock-drawback` job of `.github/workflows/engine-parity.yml`:
+  `node testing/scripts/dm-unlock-drawback-ci.mjs`. Note the lock and unlock are client-honoured, not
+  server-enforced — see `feat/server-enforced-drawback-lock`.
+- **`scripts/imposed-drawback-grants-ci.mjs`** (`fix/imposed-drawbacks-grant-no-ap`) — gate for "a DM-imposed drawback
+  grants no AP in `compute()`": four imposed drawbacks leave `compute().remaining` equal to the frozen ledger (no phantom
+  AP), fire neither the "Drawbacks grant N AP" nor the "N drawbacks chosen" warning, list each row at 0 labelled
+  "(DM imposed)", do not raise `creationCeiling`'s bonus, and do not consume a campaign cap — each case with a
+  player-taken control that must still pay and still warn. Pure Node. Runs in CI as the `imposed-drawback-grants` job of
+  `.github/workflows/engine-parity.yml`: `node testing/scripts/imposed-drawback-grants-ci.mjs`. Parity fixtures
+  EV-025/EV-026 pin the warning lists.
+- **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`) — gates for the DM-only Wounds
+  section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier; the four
+  Grievous drawbacks are not wounds), the **wound-only split** (the four new entries are in `DATA.drawbacks` but NOT in
+  `DATA.drawbackList`, which is what hides them from players; appended at the end of `DATA.drawbacks`; no stat cap), and the two
+  `compute()` rules — a wound-only entry that is not DM-imposed is a hard ⛔, and two wounds in one body location is a soft
+  warning — each with a control. `wounds-ui-e2e.mjs` (browser, no Supabase) proves CharGen's grid and the Live Sheet's panel do
+  not offer the four (while CharGen still lists one a character already holds), and the DM Console's impose dropdown offers all
+  of them grouped as Wounds, defaults to Locked + flat on choosing a wound, and sends exactly that. Parity fixtures
+  EV-027/028/029 pin the warning lists. Run in CI as the `wounds` job of `.github/workflows/engine-parity.yml` and a step of
+  `.github/workflows/dm-console-ui.yml`.
+- **`scripts/live-sheet-unlock-e2e.mjs`** and **`scripts/dm-console-unlock-e2e.mjs`**
+  (`feat/dm-unlock-drawback`) — the two tools' halves of the DM unlock, driven in a real browser with no
+  Supabase and no sign-in (a seeded `localStorage` character; stubbed + recorded bridge calls). The Live
+  Sheet gate proves a locked imposed drawback shows 🔒 and cannot be bought off, an unlocked one shows 🔓
+  with the DM's note (HTML-escaped) and can be, and that a same-named player-taken drawback keeps its own
+  3× path. The DM Console gate proves which purchases the Unlock control offers (imposed + locked +
+  still-locked only, identified by seq), what the button sends (one `dmUnlockDrawback`, trimmed required
+  note, nothing that could move AP), and that the archived-campaign peek blocks it. Both run in CI as steps
+  of `.github/workflows/dm-console-ui.yml`. Needs Playwright (`cd testing && npm ci`).
 - **`campaign-test.html`** — end-to-end harness for `js/campaign.js` and `js/dm.js` (requires Supabase sign-in).
 - **`sync-test.html`** — end-to-end harness for `js/sync.js` (requires Supabase sign-in).
 - **`scripts/sync-state-machine-ci.mjs`** — gate for `getSyncState()`/`noteEdit()`/`checkFreshness()`

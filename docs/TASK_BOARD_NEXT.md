@@ -27,6 +27,164 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/free-subclass-bare-pick — a free-subclass pick with nothing bought from it must not count (rules change) — TODO
+Branch feat/free-subclass-bare-pick. **Effort:** medium · **Risk:** high — a rules change (engine AND Players Guide must both land, `DATA.version` bumped once) that can lower existing characters' prices, so the live blast radius must be measured first.
+
+```text
+Owner decision N3 (2026-10-04). Players Guide §13/§14: "Your first subclass in each class you can build from is free to open — but
+opening it is all that's free. Pick it, then buy each piece you want." js/engine.js (~line 573): `free = freeSub[cls] || used[0]`, then
+EVERY other subclass used in that class pays DATA.subUnlock (15 AP). So a free-subclass pick that has NOTHING bought from it still
+holds the "free" slot: name Circle of the Moon for free, buy nothing from it, then buy abilities from Circle of the Land -> the
+Land abilities are charged the 15 AP unlock, although it is the only subclass the player actually opened.
+
+DO:
+  1. Engine: honour freeSub[cls] only if the pick has at least one piece bought (an ability in subAbilities or a bundle in
+     subSpellBundles); otherwise treat it as unset, so the first subclass actually used is the free one.
+  2. CharGen (and anywhere else that writes it): stop recording a freeSub pick until a piece of that subclass is bought.
+  3. Players Guide: say it in the subclass paragraphs (both live in the master and the served copy; run verify-guide.mjs before and
+     after) and bump DATA.version once.
+  4. MEASURE FIRST: query the live characters table for every character with a bare freeSub pick AND abilities in a different
+     subclass of the same class — those prices fall by 15 AP; list them for the owner (event-sourced characters keep their frozen
+     ledger, but their displayed total will move). Today's six Amble characters: Moss (Druid -> Circle of the Moon) and Skylar
+     (Sorcerer -> Wild Magic Sorcery) each have one bare pick and NO other subclass in that class, so neither is affected.
+```
+**Done when:** new engine-parity fixtures cover a bare pick (ignored), a used pick (honoured) and the Moon/Land case; `expected-results.csv` updated in the same change; CharGen no longer writes a bare pick; the Guide states the rule and `verify-guide.mjs` passes; the live measurement has been shown to the owner.
+
+## feat/dm-console-award-seal — the campaign-wide Award AP tile cannot lock history; the per-character form can — TODO
+Branch feat/dm-console-award-seal. **Effort:** medium · **Risk:** medium — touches the DM's award flow (live AP) and calls `award_ap_and_seal()`; the idempotency and per-character failure handling are the fiddly parts.
+
+```text
+FOUND 2026-10-04 (owner, after awarding session 9): DM Console has TWO places to award AP. The campaign-wide tile "Award AP —
+Tick whoever earned it, set an amount and a note, and award every ticked character" (tools/DM-Console.html ~line 644) has NO
+"lock history" option; the per-character form ("Award AP, gold & bonus time") has an "and lock history" tick that is OFF by default.
+The owner used the tile, so nothing was sealed (no sessionSeal event on any of the six Amble histories) even though a seal is what
+freezes what a player bought up to that award. Sealing was deliberately never automatic (D-GH-2026-09-01-session-seal, option A1: an
+award event in the log as well as the server award would double-count AP) — but the tick only exists on the form most DMs don't use.
+
+DO (owner, 2026-10-04):
+  1. Add an "and lock history" checkbox, TICKED BY DEFAULT, to the campaign-wide Award AP tile; each ticked character goes through
+     award_ap_and_seal() (one atomic call per character, fresh idempotency key per click, as the per-character form does).
+  2. Remove the AP amount (and its lock-history tick) from the per-character form where the tile now covers it. KEEP what the tile
+     does not do: per-character gold and bonus time, and the standalone "Lock history" button.
+  3. DECIDE with the owner: seal only characters that have FINISHED creation (locked)? Sealing one still in creation freezes a
+     half-built character. Recommended: seal locked characters, award-only the rest, and say which in the result message.
+  4. A per-character failure must not abort the others, and the result lists who was awarded and who was sealed.
+```
+**Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
+
+## feat/server-freeze-at-lock — server freezes history before the lock and priced patch events after a lock/award — TODO
+Branch feat/server-freeze-at-lock. **Effort:** high · **Risk:** high — a new trigger rule on every campaign character save; a wrong rule refuses legitimate saves. Staged WITH `fix/chargen-post-lock-purchases` and AFTER the Amble repair (`docs/plans/2026-10-04-amble-lock-repair.md`). Spec: `docs/plans/2026-10-04-chargen-post-lock-purchases.md` §7.
+
+```text
+Owner decisions D2 + E1 (2026-10-04). Extend pact_enforce_locked_history()/pact_ap_ledger_protected() (sql/migrations/,
+mirrored in sql/rls-policies.sql):
+  D2  For a campaign character that has a creationLocked event, every event BEFORE the last creationLocked is frozen:
+      no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
+  E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
+      innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
+      content, stamped cost, position and existence frozen. No-AP slots (appearance, names, houseRules, misc) stay editable.
+Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
+change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
+STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
+testing/scripts/creation-lock-guard-test/guard-cases.sql. Apply to live only after the Amble repair, with the owner's approval.
+```
+**Done when:** the Docker harness shows each rule refusing the attack and allowing every legitimate save (a normal in-play purchase, a DM edit, an admin session, a solo character); the six Amble characters re-checked locked after applying; advisors/logs run; CHANGELOG + decision addendum written.
+
+## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
+Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
+
+```text
+OBSERVED (2026-10-04, real browser): in CharGen, Finish creating then raise Hit Dice 3 -> 4. replacePatchSlot() rewrites
+the existing "Hit Dice & Proficiency" event IN PLACE (seq 10, still BEFORE the lock at seq 11, cost 5 -> 8): no new event,
+no in-play price, no gold/downtime stamp, and creation history is rewritten. In place is right pre-lock (readable ledger) and
+wrong after it. Live Sheet appends one fine-grained event per purchase (hd / abil / armour / ... from the engine's MUT table)
+with cost and a frozen gp/days.
+
+DO (owner decision B2, 2026-10-04): for a LOCKED character, route a patch-slot edit through a new _cgPostLockSlotEdit():
+diff the slot against its folded value; each increase becomes the matching in-play event, appended after commitHistory()
+(one undo step per purchase), priced as the compute() delta, legality-checked and gold/downtime-stamped like Live Sheet;
+each DECREASE is refused ("nothing bought can be removed once creation is finished"); no-AP slots (appearance, names) stay
+in place; species/origin class are refused. Pre-lock behaviour must stay byte-identical. Phase 1 = hdProf + stats +
+the parity test; then the other priced slots; then hardening; then the roll Accept button. Answer the plan's three open
+questions with the owner before writing code.
+```
+**Done when:** a differential test builds the same purchase through CharGen's new path and Live Sheet's buy() and asserts identical event cat/payload/cost/gp/days and byte-identical folded builds; a locked-character HD and ability raise in CharGen append in-play events after the lock with the creation event untouched; a decrease is refused; undo steps back one purchase at a time and stops at the lock; pre-lock tests stay green.
+
+## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
+Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
+
+```text
+Owner decision B (2026-10-04): a roll on a character with a DM creation limit should be capped at that limit, THEN the
+character is locked, THEN the rest of the spendable AP is rolled automatically as in-play purchases. #561 built only the
+cap. WHY THE REST IS NOT TRIVIAL: randomizeRoll() applies its result as one burst through replaceWholeLogFromBuild()
+and re-appends any carried lock AFTER the burst on purpose (a lock placed before it re-prices every burst event at
+in-play rates — D-GH34), so a second randomizeRoll() pass after a lock re-creates the whole character and prices it all
+as creation. Needed: a post-lock phase that appends purchases one at a time through the normal purchase path
+(emit/MUT, in-play pricing, gold + downtime stamps if the campaign economy is on) using the same legality and
+spend-shape machinery (tryAct, buckets). OWNER DECISION 2026-10-04 on (1): a rolled character CAN be re-rolled. The roll therefore stays unlocked and ends at the
+limit (as #561 does); a persistent "Accept rolled character" button, visible after a roll and until it is pressed (or
+the character is locked), does the finish: it locks the character and then spends the rest in play. That also settles
+the undo question: the roll stays ONE undoable step, and Accept is the barrier. DECIDED later the
+same day: (2) the in-play purchases made on Accept DO cost gold and downtime, like any in-play purchase (stamped per the
+campaign economy); (3) undo after Accept steps back ONE PURCHASE AT A TIME (each in-play purchase is its own undo step) and
+stops at the lock, which stays the wall — the owner said "maybe", so confirm when building, and note the interplay with
+fix/no-purchase-refunds (undoing a post-lock purchase that has already been saved to the cloud). STILL OPEN: does the
+button survive a reload (a flag kept with the autosave) and does cloud autosave keep running while a roll awaits
+acceptance? (Recommended: yes to both.)
+```
+**Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
+
+## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
+Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.
+
+```text
+GAP. docs/plans/2026-08-30-creation-ceiling.md "Done when" #2 says a purchase past the ceiling is refused in
+BOTH CharGen and Live Sheet. Only Live Sheet got it: tools/PACT-CharGen-Webtool.html imports and exposes
+wouldExceedCeiling() but never calls it (0 call sites, 2026-10-04). CharGen only shows "Finish creating" with the
+numbers in a tooltip. Evidence: Moss, Skylar, Fenwick and Archer — all CharGen characters — spent 101/98/97/79 AP
+against real limits of 83/80/78/68, while Anders and Caspian (Live Sheet) kept their block. Missing limits made it
+worse (Moss's was never stamped; Skylar's, Fenwick's and Archer's were deleted by the reload / stale-copy bugs, now
+fixed), but even with a limit stamped CharGen would not have refused.
+
+DO (owner decisions W1 + W2, 2026-10-04):
+  W1  Refuse, in CharGen, any edit that INCREASES spend and ends past the ceiling (unlocked + limit stamped only),
+      with the same message and both exits Live Sheet already shows. Edits that lower spend, locked characters,
+      characters with no stamped limit, and loads/imports/handoffs are never blocked.
+  W2  When an accepted edit lands the character exactly at its limit (0 left), prompt once: "Finish creating now?"
+      (reusing cgFinishCreating's flow; "Not yet" keeps building). Re-arm only after spend drops below the limit again.
+Follow the plan's design and answer its three open questions with the owner before writing code.
+```
+**Done when:** `chargen-flows-e2e.mjs` has new checks proving an over-limit edit is refused and reverted (state and form unchanged), an under-limit edit and a spend-lowering edit are accepted, a locked character and a no-limit character are unaffected, and the reach-the-limit prompt fires once; the Players Guide wording on the creation limit is checked and reconciled in the same change; no `DATA.version` bump unless pricing changes (it should not).
+
+## fix/no-purchase-refunds — nothing bought can be un-bought for AP (engine rule) — TODO
+Branch fix/no-purchase-refunds. **Effort:** high · **Risk:** high — damage scale (edits js/engine.js, changes
+totals for existing characters) and damage likelihood (two known live characters already carry a refund) drive it.
+
+```text
+Owner rule (2026-10-04): you can't un-buy anything except drawbacks (buy-off).
+  1. BEFORE the creation lock: dumping a score below 10 for AP stays exactly as the Players Guide has it. But
+     lowering a score that was raised above 10 — or undoing any saved/ledgered ability purchase — must NOT
+     return AP. A lowered score keeps the AP paid at its highest point; only the part below 10 pays out.
+  2. AFTER the creation lock: nothing purchased can be removed or lowered — stats and every other purchase —
+     except drawbacks (buy-off). A post-lock reduction prices at 0 refund (or is rejected — decide which,
+     then say so in the Guide).
+Fix in js/engine.js so every tool, import and DM edit is covered (don't patch the UIs only). Add the
+matching append-only rule to the server guard (sql/migrations/2026-10-04-creation-lock-guard.sql follow-up).
+
+Evidence (lock-check copies, 2026-10-04): Caspian seq 29 lowered STR 12->10 and WIS 16->14 for -11 AP;
+Skylar seq 27 raised an ability +4 then lowered it -4 after the lock, then bought Proficiency +3 for 18.
+
+Before changing anything: query the LIVE characters table for every character whose log already carries a
+refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and list them for the owner.
+Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
+(engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
+
+```
+**Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
+reduction giving no refund, (b) a below-10 dump still paying out, (c) a post-lock removal or reduction
+refunding nothing; the Guide states the rule; `DATA.version` is bumped once; and the list of live
+characters already carrying a refund has been shown to the owner.
+
 ## feat/ap-award-edit-transparency — player-facing display of AP award edits — TODO
 ```
 D-GH-2026-09-08-ap-award-editing shipped the DM side (edit_ap_award() RPC, ap_award_edits audit table,
@@ -1030,40 +1188,12 @@ writing it from the outside would be reconstruction, which is what this rule exi
 **Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
 agent wonder why this was done this way?"
 
-
-## fix/imposed-drawback-cap-bypass — a DM-imposed capped drawback raises a hard ⛔ warning — TODO
-Branch fix/imposed-drawback-cap-bypass. First of four tasks from the 2026-09-30 permanent-wounds design
-session (order: this → feat/dm-unlock-drawback → feat/permanent-wounds; fix/missing-arm-penalty-undefined
-is independent). Standalone bug fix, ships on its own.
-**Effort:** medium · **Risk:** medium — ambiguity low (owner decided J1: no cap at all on an imposed
-drawback); damage scale high (edits `compute()`, the engine's source of truth); likelihood low (the
-parity gate catches drift, and a 2026-09-30 live check found 0 DM-imposed drawbacks, so no live
-character's output changes).
-
-```text
-Verified 2026-09-30: compute() on a DEX 16 build holding Peg Leg emits "⛔ Peg Leg: drawback requires DEX
-12 or lower" (engine.js ~line 758). The DM Console's "impose a drawback" already lets a DM do this, and
-the cap's purpose (stop AP being taken for a stat you don't use) does not apply — an imposed drawback pays
-0 AP. Cause: MUT.drawback (engine.js:951) pushes only the NAME into b.drawbacks, so the dmEdit stamp on
-the log event is lost and compute() cannot tell imposed from chosen.
-
-1. Carry the marker through the replay fold into the build (e.g. b.imposedDrawbacks, a list of names).
-   Handle a player-taken and an imposed drawback of the same name (match per purchase event, as
-   D-GH-2026-08-06-buyoff-keyed-by-event does).
-2. compute() skips BOTH halves of drawbackMaxStats for imposed drawbacks — the entry check and the
-   going-forward "can never exceed" ceiling (owner decision J1). Player-taken drawbacks are unchanged.
-3. Keep engine.js's public API stable. Update the header comment and the DM-Console impose tooltip if
-   either mentions caps.
-4. Fixtures: (a) DEX 16 + DM-imposed Peg Leg → no ⛔, DEX may be raised; (b) same build, player-taken →
-   still ⛔. Bump DATA.version once ONLY if compute() output changes for an existing fixture, and update
-   testing/expected/ in the same change. Re-measure live data first (dated snapshot, 2026-09-30: 42
-   characters, 11 with a drawback purchase, 0 imposed).
-5. CHANGELOG entry; DECISIONS record D-GH-2026-<date>-imposed-drawback-cap-bypass.
-```
-**Done when:** a DM-imposed Peg Leg on a DEX 16 character produces no ⛔ warning and no stat ceiling, the
-same drawback player-taken still does, and `testing/tests/engine-parity.html` reports 0 failed.
-
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
+**STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
+`D-GH-2026-10-04-dm-unlock-drawback`):** `sql/migrations/2026-10-04-dm-unlock-drawback.sql` was applied to production
+08:39 UTC and verified (guards, grants, hashes, advisors, logs). PR #557 is MERGED into `preview` (9d92088). **What remains:**
+ship the client in the next `preview` → `main` promotion (a release decision), then graduate this entry. Safe order held: the server accepts the event before any client
+can send it.
 Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
 bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
 stamped on the immutable drawback event, and `dm_edit_character_log` only accepts buy(boon|drawback),
@@ -1074,7 +1204,11 @@ cold plan review (/make-code-cold-plan-review) BEFORE implementing.
 
 ```text
 1. New event type (e.g. dmUnlockDrawback) keyed to the SPECIFIC open drawback purchase, using the same
-   FIFO-by-purchase matching as D-GH-2026-08-06-buyoff-keyed-by-event (not name matching).
+   FIFO-by-purchase matching as D-GH-2026-08-06-buyoff-keyed-by-event (not name matching). Known quirk
+   to design around (found in the fix/imposed-drawback-cap-bypass review): buy-off and Live Sheet's
+   _openDrawbackEvent(v) match the OLDEST open purchase of a name, imposed or player-taken, so with a
+   player-taken and an imposed drawback of the same name the lock/unlock check reads the wrong event.
+   The unlock must target the specific imposed purchase, and the lock check should follow.
 2. New sql/migrations file widening dm_edit_character_log's allowlist for it. The server keeps stamping
    seq/ts/dmEdit/dmId itself. It must move no AP so pact_ap_ledger_spend accepts it, exactly as
    dmRemoveBoon does. Reject an unlock for a drawback that isn't locked/imposed.
@@ -1089,52 +1223,53 @@ cold plan review (/make-code-cold-plan-review) BEFORE implementing.
 (and could not before), an unlock for an unlocked or player-taken drawback is rejected server-side,
 `get_advisors` shows nothing new, and `testing/tests/engine-parity.html` reports 0 failed.
 
-## feat/permanent-wounds — a DM-only Wounds section (minor and moderate only) — TODO
-Branch feat/permanent-wounds. Third task; depends on fix/imposed-drawback-cap-bypass and
-feat/dm-unlock-drawback. Design decided 2026-09-30 (A2 in-play and DM-imposed; B1 buy-off with a story;
-C2 reuse existing drawbacks; G2 reused entries stay player-takable, only NEW wound entries are hidden
-from players; J1 no stat cap on imposed wounds). An imposed drawback pays 0 AP, so a wound's table value
-is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — there is no Grievous tier.**
-**Effort:** high · **Risk:** medium — ambiguity medium (prices are judgement calls); damage scale medium
-(new DATA entries, DM Console and both player pickers, plus the guide in two repos); likelihood low.
+## feat/server-enforced-drawback-lock — enforce the DM drawback lock (and unlock) server-side — TODO
+Branch feat/server-enforced-drawback-lock. Owner decision T1 (2026-10-04): the drawback lock (`dmLocked`)
+and the DM unlock from feat/dm-unlock-drawback ship **client-honoured** and are documented as *advisory
+against a hostile character owner*; real enforcement is this separate security task. Depends on
+feat/dm-unlock-drawback. Independent of feat/permanent-wounds. Related: it is the concrete fix for one finding
+the broader "Security audit: privilege boundaries + character/AP integrity against a malicious client" task
+would classify as client-trusted-only — if that audit lands first, fold this into its findings list instead.
+**Effort:** high · **Risk:** high — ambiguity high (a trust-model redesign, not a patch); damage scale high
+(triggers on `characters.stats` that guard AP, plus RLS/grants); damage likelihood medium (this project's
+RLS/grant drift has bitten it before per D-GH15/D-GH12). Worst-of is high — **never eligible for
+`/sweep-code-tasks`**. **Run `/make-code-cold-plan-review` before implementing** — it meets AGENTS.md's trigger.
 
 ```text
-(a) DATA — APPEND new wound-only entries to the END of DATA.drawbacks (key order is load-bearing, see
-    D-GH-2026-08-19-drawbacks-phobias-expansion), each with drawbackFx + drawbackCat, and NO drawbackMaxStats:
-      Maimed Hand 2   — disadvantage on Sleight of Hand and tool/instrument checks
-      Bad Knee 2      — cannot Dash as a bonus action; jump distance halved; disadvantage on Acrobatics
-      Brittle Bones 2 — fall damage doubled; bludgeoning crits against you deal an extra weapon die
-      Withered Arm 4  — the arm can carry a strapped shield but cannot hold a weapon, cast a somatic
-                        component or grip
-    Add a wound tier + body-location map (DATA.wounds or similar). MINOR: Trembling Hands, Hard of Hearing,
-    Asthmatic, one Affliction, and the new 2s. MODERATE: Lame 3, Old Wound 3, Frightening Visage 3,
-    Peg Leg 4, One-Eyed 4, Frail 4, Withered Arm 4. One wound per body location (Lame + Peg Leg must not
-    stack) — warn. NOT wounds, stay ordinary player drawbacks: Missing Arm, Glass Frame, Slow to Mend, Mute.
-(b) UI — DM Console's impose-a-drawback gets a Wounds group (default Locked, default flat removal cost).
-    CharGen and Live Sheet player pickers hide the NEW wound-only entries; reused entries stay takable.
-(c) Guide — a Wounds section in BOTH the pact-guide master and the served docs/PACT-Players-Guide.html per
-    docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
-    needs the DM to unlock it after a story beat.
-(d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
-    plus a one-line pointer in DECISIONS.md.
-```
-**Done when:** a DM can impose each wound from a Wounds group in DM Console, locked by default; players
-cannot pick the four new wound-only entries in either tool; the guide and engine agree (verify-guide.mjs
-clean, both copies); and `testing/tests/engine-parity.html` reports 0 failed.
+Why this is not a small add-on (established in the cold plan review of feat/dm-unlock-drawback, judged by a
+fresh no-history agent):
+ (1) characters.stats is ONE JSON column on one row and its LOG is a JSON array inside it — there is no events
+     table, so no UNIQUE constraint or per-event index is possible.
+ (2) The character's OWNER can already write their own stats through ordinary RLS UPDATE (recorded in
+     D-GH-2026-08-10-dm-edit-events), so they can forge a dmEdit:true event, a forged dmUnlockDrawback event,
+     edit dmLocked on an existing event, or append a buyoff directly. A trigger that reads lock/unlock state out
+     of that same LOG checks attacker-controlled data and adds no real security.
+ (3) The engine matches a buyoff to the OLDEST still-open purchase of a drawback NAME (FIFO), so a trigger that
+     looks at "the most recent buy of that name" disagrees with the engine.
+ (4) pact_enforce_locked_history compares only the protected prefix up to the latest sessionSeal or
+     non-discretionary award, so the existing triggers do not guard the log tail.
 
-## fix/missing-arm-penalty-undefined — Missing Arm pays 5 AP for no defined penalty — TODO
-Branch fix/missing-arm-penalty-undefined. Independent of the wounds tasks (it is a Grievous drawback,
-not a wound). `Missing Arm`'s `drawbackFx` says only "Lost an arm; defined mechanical penalty." and
-nothing is defined, so it pays 5 AP for no restriction — the "free AP" failure mode
-D-GH-2026-08-19-drawbacks-phobias-expansion prices against.
-**Effort:** low · **Risk:** low — ambiguity low; damage scale low (a 2026-09-30 live check found 0
-holders); likelihood low. Probably display-only, so no DATA.version bump — confirm.
-
-```text
-Define the penalty in drawbackFx and in the guide (BOTH the pact-guide master and the served copy, per
-docs/VERSION-SYNC.md). Suggested: no two-handed weapons; cannot wield a weapon and a shield together;
-somatic components need your one hand. Keep the existing DEX ≤ 12 cap. Re-check the 5 AP price against
-Thin-Skinned and Slow to Mend (both 5) once the penalty is written. Run verify-guide.mjs before and after.
+What a sound design needs:
+ a. An unforgeable DM-authorship signal the owner cannot write: a DM-only column/table holding locks and
+    unlocks, written only by the SECURITY DEFINER dm_edit_character_log, owner UPDATE revoked on it — or a
+    database-held HMAC stamp on DM events.
+ b. A BEFORE UPDATE trigger on characters.stats that diffs old vs new LOG over the WHOLE log and rejects:
+    removal/alteration of DM-stamped events; any new dmEdit/dmUnlockDrawback event from a non-DM caller; any
+    buyoff that FIFO-matches a locked, not-yet-unlocked purchase.
+ c. Caller-role detection, so the trigger can tell the DM function path from a direct owner write.
+ d. A SQL replay of the engine's by-name FIFO matching kept in lockstep with js/engine.js activeEvents(), with
+    tests proving the two agree. This is deliberate, scoped rules-duplication — decide in the plan whether it is
+    acceptable or whether the match should move to one shared definition.
+ e. Migration discipline per sql/migrations/README.md: start from the LIVE definition (pg_get_functiondef),
+    never a dated file; fold into sql/rls-policies.sql; update the hardcoded migration list in
+    testing/sql/rls-baseline-test.sql.
+ f. Blast radius against live characters — measure, do not quote (dated snapshot 2026-09-30: 42 characters, 11
+    with a drawback purchase, 0 DM-imposed drawbacks) — and get_advisors + get_logs after applying.
+ g. Once enforcement is real, change the DM Console / Live Sheet copy that says the lock is honoured by the
+    player's app, and the guide wording that calls it advisory.
 ```
-**Done when:** `Missing Arm` states a concrete mechanical penalty in `drawbackFx` and the guide, the two
-guide copies agree (verify-guide.mjs clean), and `testing/tests/engine-parity.html` reports 0 failed.
+**Done when:** a character owner who hand-edits their own `stats` to forge an unlock, strip a lock, or append a
+buyoff for a locked drawback is **rejected server-side** with a clear error; the legitimate DM impose → unlock →
+player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
+includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
+`testing/tests/engine-parity.html` and the SQL drift guard are green.

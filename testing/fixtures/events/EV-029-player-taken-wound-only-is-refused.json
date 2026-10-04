@@ -1,0 +1,9 @@
+{
+  "description": "feat/permanent-wounds: the CONTROL for EV-027 — a wound-only drawback (Maimed Hand, 2 AP) that is NOT DM-imposed: a player-style purchase paying +2 AP income. Players never see wound-only entries in a picker, so this can only be hand-edited or built without the imposition marker, and it must raise the hard warning '⛔ Maimed Hand: a wound — only a DM can impose it'. Without this control EV-027's empty warning list could mean the wound-only check is simply broken.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Maimed Hand" }, "cost": -2, "level": 1, "seq": 3, "label": "Drawback — Maimed Hand (+2 AP)" }
+  ]
+}

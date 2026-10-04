@@ -58,6 +58,51 @@ export const isNewerInstant = (a, b) => Date.parse(a) > Date.parse(b);
  */
 const _pageBase = new Map();
 
+/**
+ * Restored-copy provenance (fix/stale-autosave-guard, owner decisions L2 + L3, 2026-10-04).
+ *
+ * THE BUG THIS CLOSES. CharGen and the Live Sheet each keep their OWN local copy of the character (their
+ * autosave) apart from this module's record. On a reload the tool puts its autosave back on screen, while
+ * a background reconcile() may meanwhile have adopted a NEWER cloud row into this module's record and moved
+ * its base_updated_at forward. The first save then presented stale content with a fresh base, the
+ * compare-and-swap in pushCharacter() passed, and the newer cloud save was overwritten — the way Skylar
+ * (2 Oct) and Archer (3 Oct) lost their creation locks after the reload fix (#553) had shipped.
+ *
+ * THE FIX. A tool records the page's base in its autosave (getPageBase) and hands it back on restore
+ * (adoptRestoredCopy), which pins it for the page exactly as loadCharacter() would. The existing guard then
+ * refuses the save if the cloud row has moved on. An autosave with NO recorded base (written before this
+ * existed) cannot be proven current, so it is refused whenever a cloud row exists — the player reloads from
+ * the cloud once and the next autosave carries a base. (An earlier draft judged such a copy by the record's
+ * edit time or an 8-hour age; both are unusable: reconcile() overwrites that edit time with the newer row's,
+ * and a copy whose base IS known needs no clock at all, because it is checked against the row directly.)
+ */
+const _restored = new Map();   // id -> { known: bool, base: string|null } while a restored copy is unproven
+
+/** The base this PAGE's content descends from — what a tool should write into its autosave. Falls back to
+ *  storage only when the page has not pinned one (it has loaded nothing yet). null = never synced. */
+export function getPageBase(id) {
+  // A restored copy of UNKNOWN provenance must keep saying "unknown" (undefined → the field is omitted from
+  // the autosave) — stamping a base onto it would launder a stale copy into a "verified" one. Checked first
+  // because adoptRestoredCopy() also pins null for it.
+  const r = _restored.get(id);
+  if (r && !r.known) return undefined;
+  if (_pageBase.has(id)) return _pageBase.get(id) ?? null;
+  return lsGet(id)?.base_updated_at ?? null;
+}
+
+/** Called by a tool right after it restores its own local autosave onto the page. `base` is the autosave's
+ *  recorded cloud base (undefined = an autosave written before this existed). No-op once the page has pinned
+ *  a base (it loaded or saved the character already). */
+export function adoptRestoredCopy(id, { base } = {}) {
+  if (!id || _pageBase.has(id)) return;
+  const known = base !== undefined;
+  // Unknown provenance pins null, NOT storage's base: that base may already have been moved forward by a
+  // background reconcile(), and saving against it is the bug. null sends pushCharacter() down its
+  // restored-copy check above instead.
+  _pageBase.set(id, known ? base : null);
+  _restored.set(id, { known, base: base ?? null });
+}
+
 // --- sync-state machine (feat/sync-state-machine, Part B step B1 of
 // docs/plans/2026-08-08-shared-sync-chip-part-b.md) ---------------------------------------------
 //
@@ -248,7 +293,7 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     // Nothing is left to keep "dirty" (deleteCharacter() already lsRemove()'d the local record), and
     // unlike a conflict, retrying this write could never succeed.
     if (error && error.deleted) return { id, synced: false, deleted: true, error, migratedFrom };
-    return { id, synced: false, conflict: !!error.conflict, error, migratedFrom };   // stays dirty, will retry
+    return { id, synced: false, conflict: !!error.conflict, staleCopy: !!error.staleCopy, error, migratedFrom };   // stays dirty, will retry
   }
   finally { _pushInFlight.delete(id); }
 }
@@ -342,9 +387,12 @@ async function _existingIdInCampaign(campaignId) {
 /** Push one local record to Supabase. Insert if new, else update the writable
  *  columns only (owner_id/ap are intentionally never sent on update). */
 export class ConflictError extends Error {
-  constructor(id) {
+  constructor(id, opts = {}) {
     super('This character was changed elsewhere since you last loaded it.');
     this.name = 'ConflictError'; this.conflict = true; this.id = id;
+    // true when the refusal is about a copy restored from the tool's own autosave (see _restored above):
+    // lets the tool say "this copy is out of date — reload" instead of the generic wording.
+    this.staleCopy = !!opts.staleCopy;
   }
 }
 
@@ -391,7 +439,16 @@ async function pushCharacter(rec, capturedSeq) {
     const { data: cur, error: curErr } = await supabase
       .from('characters').select('updated_at').eq('id', rec.id).maybeSingle();
     if (curErr) throw curErr;
-    if (cur) base = cur.updated_at;   // row absent => a genuine insert below, nothing to clobber
+    if (cur) {
+      // A page that booted from its tool's own autosave and could not prove which cloud version that copy
+      // came from must NOT adopt the row's current value here — that is the loophole that let a stale copy
+      // overwrite a newer save (see _restored above). Either the copy never synced yet a row exists, or it is
+      // a legacy autosave that cannot be proven. Refused as an ordinary conflict, so the tool's existing "changed on
+      // another device — reload" handling applies unchanged.
+      const r = _restored.get(rec.id);
+      if (r && (!r.known || r.base == null)) throw new ConflictError(rec.id, { staleCopy: true });
+      base = cur.updated_at;
+    }   // row absent => a genuine insert below, nothing to clobber
   }
   const guarded = base != null;
   let q = supabase
@@ -426,7 +483,7 @@ async function pushCharacter(rec, capturedSeq) {
       .from('characters').select('id').eq('id', rec.id).maybeSingle();
     if (exErr) throw exErr;
     // Leave the record dirty — the local edit is NOT discarded, same as an offline failure.
-    if (exists) throw new ConflictError(rec.id);
+    if (exists) throw new ConflictError(rec.id, { staleCopy: _restored.has(rec.id) });
   }
 
   const user = await currentUser();
@@ -460,6 +517,7 @@ function applyServerMeta(rec, server, capturedSeq) {
   // This page's own push just succeeded, so the copy it holds IS the server's copy — pin the new base
   // for this page too, or the very next save would present the now-stale pin and be refused forever.
   _pageBase.set(rec.id, server.updated_at);
+  _restored.delete(rec.id);   // the copy now IS the server's — provenance proven
   rec.ap = server.ap;     // server is authoritative for ap
   // Same two-pool, server-authoritative story as `ap` immediately above, for gold (Players Guide
   // §16): pushCharacter() never names this column (award_gold() is its only writer, and a player
@@ -525,6 +583,7 @@ export async function loadCharacter(id, opts = {}) {
   // here rather than inside reconcile() on purpose: reconcile also runs from syncAll() in the
   // background, and a base adopted there belongs to storage, not to whatever build the page is showing.
   if (rec) _pageBase.set(id, rec.base_updated_at);
+  _restored.delete(id);   // an explicit load replaces whatever copy the page restored
   return rec;
 }
 

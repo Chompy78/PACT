@@ -20,6 +20,9 @@ on:
       - "testing/scripts/engine-parity-ci.mjs"
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
+      - "testing/scripts/dm-unlock-drawback-ci.mjs"
+      - "testing/scripts/imposed-drawback-grants-ci.mjs"
+      - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -84,6 +87,62 @@ jobs:
 
       - name: Run the shared undo-barrier / sealed-floor gate
         run: node testing/scripts/undo-barrier-ci.mjs
+
+  dm-unlock-drawback:
+    # feat/dm-unlock-drawback. activeEvents().unlocked decides whether a DM-imposed locked drawback may be
+    # bought off, and it is keyed by `seq` rather than by name so a player-taken and an imposed purchase of
+    # the same name are told apart. A name-keyed or too-loose match fails silently (it releases the wrong
+    # purchase, or a lock the DM never lifted), so the rules are pinned here. Wired in the same change as
+    # the gate, because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the DM unlock-drawback gate
+        run: node testing/scripts/dm-unlock-drawback-ci.mjs
+
+  imposed-drawback-grants:
+    # fix/imposed-drawbacks-grant-no-ap. compute() once credited a DM-imposed drawback's table value as income
+    # although the player was paid nothing: it inflated "AP remaining", fired cap warnings at a player for
+    # drawbacks they never chose, and raised the creation ceiling. The parity fixtures pin the warning lists;
+    # parity records only total/warnings, so remaining / the ledger rows / the ceiling are asserted here against
+    # the frozen ledger, each with a player-taken control. Wired in the same change as the gate, because a
+    # previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the imposed-drawback grants gate
+        run: node testing/scripts/imposed-drawback-grants-ci.mjs
+
+  wounds:
+    # feat/permanent-wounds. DATA.wounds says which drawbacks are lasting injuries a DM imposes (tier, body location, and
+    # which four are wound-only). Wound-only entries are hidden from players purely by being in DATA.drawbacks but NOT in
+    # DATA.drawbackList — a split that is easy to break silently (a name in the wrong place either lets a player pick a
+    # DM-only injury or stops a DM imposing one) — and compute() carries two rules on top (a non-imposed wound-only entry
+    # is a hard block; two wounds in one place is a soft warning). Pinned here, with controls. Wired in the same change
+    # as the gate, because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the wounds data and rules gate
+        run: node testing/scripts/wounds-ci.mjs
 
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all

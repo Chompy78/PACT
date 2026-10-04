@@ -4,6 +4,126 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
+  a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
+  no Grievous tier). New `Maimed Hand` 2, `Bad Knee` 2, `Brittle Bones` 2, `Withered Arm` 4 sit in `DATA.drawbacks` but not
+  `drawbackList`, so players cannot pick them (CharGen also hides them unless already held); `DATA.wounds` records tier and body
+  place for 19 drawbacks (the rest are reused and stay player-takable). `compute()` adds a hard `⛔` for a non-imposed wound-only
+  entry and a soft warning for two wounds in the same place when one is DM-imposed (the Live Sheet treats it as advisory, not a purchase block). DM Console impose dropdown is grouped into Wounds (minor /
+  moderate) and Other drawbacks, and choosing a wound defaults to Locked + flat. Guide: new "Wounds" section in the served copy
+  and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
+  new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
+  See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.568` (PR #568)** — ships the creation-lock work (#559–#561 DM Console
+  lock icon and "no limit" flag, CharGen over-limit refusal), imposed drawbacks grant no AP (rules v0.366), DM-imposed Wounds (rules v0.367),
+  the Missing Arm text, and the Amble repair tooling and records. `BUILD` synced `v1.554` → `v1.568` across `js/engine.js` and the three
+  tools; `DATA.version` untouched by the bump. No tag (not a milestone).
+- **2026-10-04 · data(repair): the six Amble histories are repaired, locked and sealed** — live data, no code or `DATA.version`
+  change. Each character's creation lock now sits where the owner's rule puts it (everything up to and including the lock is creation;
+  the lock goes **before** the first purchase past limit + drawback AP), each has its limit restored (= the AP earned through chapter 4:
+  Skylar 80, Fenwick 78, Archer 68, Moss 79, Caspian 78, Anders 76), prices re-stamped by current rules (Q1), gold and downtime charged
+  retroactively in play (Skylar 750 gp / 90 d, Moss 425 / 63, Anders 275 / 63, Fenwick 150 / 35, Archer 75 / 21, Caspian none), Archer's
+  lost name restored, and a `sessionSeal` appended to each. Awards and the `ap` column are untouched. One guarded UPDATE per character
+  (id + `updated_at` + event count + SEQ + md5); the history-lock and AP-budget triggers were off for one transaction each for
+  Moss (rewrite), Caspian and Anders only, and verified re-enabled. Tooling: `testing/scripts/creation-lock-forensics/` (`repair.mjs`,
+  `rehearse.mjs`, `verify-live.mjs`). Party downtime window changed 60 → 365 days. See `docs/plans/2026-10-04-amble-lock-repair.md` §8–9
+  and `D-GH-2026-10-01-creation-lock-integrity`. The server freeze (D2/E1) is unblocked.
+- **2026-10-04 · fix(content): `Missing Arm` (5 AP) now states its penalty** — its description said only "Lost an arm;
+  defined mechanical penalty" and nothing was defined, so a player took 5 AP for a restriction that did not exist. It now
+  reads: one hand free (no two-handed weapons, no weapon and shield together, somatic components need that hand free), plus
+  **disadvantage on physical ability checks where one arm reasonably matters, such as Athletics, Animal Handling or Sleight of
+  Hand, at the DM's call** (the last part is the owner's addition). The DEX ≤ 12 cap is unchanged. Edited in place in the engine's
+  `drawbackFx`, the served guide, and the `pact-guide` master (never copied over each other); `verify-guide.mjs` before and after
+  shows an identical result. 5 AP re-checked against `Peg Leg` 4 / `Thin-Skinned` 5 / `Leaden Reflexes` 6 and kept. Display
+  text only (`engine.js` never reads `drawbackFx`), so no `DATA.version` bump; 0 of 50 live characters hold it. See
+  `D-GH-2026-10-04-missing-arm-penalty-undefined`.
+- **2026-10-04 · fix(engine): a DM-imposed drawback grants no AP in `compute()`; rules `v0.365` → `v0.366`** — `compute()`
+  derived the drawback grant from the drawback names, so a drawback the DM imposed at cost 0 (player paid nothing) was
+  credited at its table value: four imposed wounds showed 93 AP remaining against a true 79, fired "Drawbacks grant 14 AP —
+  the guide caps them at 12" and "4 drawbacks chosen" at the player, and raised the creation ceiling (Live Sheet feeds it
+  `compute().drawbackAp`). An imposed slot (`b._imposedDrawbackIdx`) now contributes 0, is still listed — at 0, labelled
+  "(DM imposed)" — and counts toward neither warning; its penalty is unchanged and Frail + Glass Frame still warns. The
+  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (28/0; 17 of 28 fail on
+  the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
+  0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
+- **2026-10-04 · fix(chargen): CharGen now refuses an edit past the DM's creation limit, prompts at the limit, and
+  caps the random roll** — `docs/plans/2026-08-30-creation-ceiling.md` "Done when" #2 ("refused in both CharGen and
+  Live Sheet") only ever shipped in Live Sheet; CharGen imported `wouldExceedCeiling` and never called it, which is how
+  Moss, Skylar, Fenwick and Archer (all CharGen characters) overspent. `render()` now compares each state with the last
+  accepted one: an unlocked character with a stamped limit whose edit INCREASES spend and ends past the ceiling is
+  put back (same snapshot restore undo uses, no undo step left) with Live Sheet's message; edits that lower spend,
+  drawbacks, locked characters, characters with no stamped limit, and loads/imports/undo are never refused. Landing
+  exactly on the limit prompts once to finish creating (owner decision: 0 left only). The 🎲 roll is capped at the
+  ceiling (limit + drawback AP). The refusal text is shared via `js/ui-helpers.js` (`creationLimitRefusalText`) so Live
+  Sheet and CharGen cannot drift. **Not built:** locking after the roll and spending the remainder as in-play
+  purchases — the roller applies its result as a creation-priced burst and re-appends any lock after it, so that needs
+  its own change (see the plan, §8). 11 new checks in `chargen-flows-e2e.mjs`; parity 76/0, roller quality gate 74/0,
+  economy-ui 155/0. No `DATA.version` bump; the Players Guide says nothing about the creation limit.
+- **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no
+  creation limit set** — with no stamped limit the engine's spend block is fail-open, which is how Moss, Skylar,
+  Fenwick and Archer overspent (their limit was never set, or was deleted by the reload / stale-copy bugs).
+  Shown next to the lock icon, only for campaign characters that are unlocked and have no `creationLockConfig`
+  threshold (`creationLockState().confirmed === false`); locked characters, characters with a limit, and locally
+  imported files are never flagged. Tooltip points at Set limit in the DM tools. New checks in
+  `dm-console-ui-e2e.mjs` (109 pass). No engine change, no `DATA.version` bump. Owner decision T1.
+- **2026-10-04 · feat: a DM can unlock a drawback they imposed locked** — new `dmUnlockDrawback` event (required story-beat
+  note, ≤200 chars) keyed to the imposed purchase's `seq` + name, appended through `dm_edit_character_log`, which validates
+  it against the stored log (imposed + locked + not already unlocked) and rebuilds it from a whitelist so it cannot move
+  AP; it joins `pact_ap_ledger_protected`'s types. `activeEvents().unlocked` (additive) feeds the Live Sheet — locked rows
+  show 🔒, unlocked ones 🔓 with the DM's escaped note and the buy-off at the DM's chosen rate — and a DM Console Unlock
+  control behind the archived-campaign peek guard. A buy-off removes the OLDEST open purchase of a name, so the Live Sheet
+  now shows its button only on that purchase and says "waits for the older one" on newer same-named rows (UI only; the
+  engine's by-name FIFO is unchanged). **Migration `2026-10-04-dm-unlock-drawback.sql` (+ rollback) was APPLIED to
+  production on 2026-10-04 (08:39 UTC) after re-verifying the live function hashes; post-apply guards, grants and hashes
+  were checked (live == the migration file, hashed independently), and the advisors show nothing attributable to it. The
+  client has not shipped to `main` yet — the safe order.** The lock/unlock are advisory against a hostile owner
+  (`feat/server-enforced-drawback-lock`). Tests: 77-assertion Postgres 16 harness incl. RPC behaviour,
+  `dm-unlock-drawback-ci.mjs` 30/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 25/0, `dm-console-unlock-e2e` 19/0, all
+  wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
+- **2026-10-04 · feat(dm-console): a locked/unlocked icon after each character's tier** — 🔒 for a finished
+  (locked) character, 🔓 for one still in creation (including one the DM reopened), in the full card, the table's
+  Lvl column, the detail card and the compact card. The state is `creationLockState()`'s own answer (computed once
+  in the analyser), never re-derived; the icon carries an `aria-label`/`title`. New check in
+  `dm-console-ui-e2e.mjs` (imports three characters through the real file input). No engine change, no
+  `DATA.version` bump.
+- **2026-10-04 · fix(sync): a restored local copy can no longer overwrite a newer cloud save (CharGen + Live
+  Sheet)** — the second cause of the lost Amble locks (Skylar 2 Oct, Archer 3 Oct, after #553). Each tool keeps
+  its own local copy apart from `js/sync.js`'s record; on reload the tool restored its copy while a background
+  `syncAll()` had already adopted the newer cloud row and moved the record's base forward, so the first save
+  presented stale content with a fresh base and passed the stale-save guard. Now the autosave records
+  `cloudBase` (`getPageBase()`), the tool hands it back on restore (`adoptRestoredCopy()`), and the existing
+  guard refuses the save as a conflict if the cloud moved on ("this copy is out of date … reload"; nothing is
+  overwritten). An autosave with no recorded base (written before this) cannot be proven current, so it is
+  refused whenever a cloud row exists until the player reloads from the cloud once. New cases in
+  `sync-concurrency-ci.mjs` (differential: the old behaviour clobbers, the fix refuses; no false refusal for a
+  current copy) and a wiring check in `chargen-flows-e2e.mjs`. No `DATA.version` bump. See
+  `D-GH-2026-10-01-creation-lock-integrity`.
+- **2026-10-04 · feat(sql): server guard for creation locks — live** — a player save can no longer remove or
+  change a creation-lock entry (`creationLocked` / `creationUnlocked` / `creationLockConfig`) on a campaign
+  character; only the campaign DM can append `creationUnlocked` or a limit (D1). A campaign move no longer
+  reopens creation (L1; the limit figure is still cleared). A campaign character's backups are never pruned
+  (S1; solo characters keep the newest 50). Applied to live as migration `creation_lock_guard`; refused saves
+  say "locked character history", which `js/sync.js` already maps to its reload path. Tested first on a
+  throwaway Docker Postgres (`testing/scripts/creation-lock-guard-test/run.sh`: 22 guard cases that fail
+  before and pass after, the DM tools `dm_reopen_creation`/`dm_set_creation_ceiling`, L1, S1). Advisors show
+  nothing new; the Postgres log skim could not be run (the log tool rejected the query). Mirrored into
+  `sql/rls-policies.sql` (also adds the previously missing `pact_campaign_move_clears_creation` + trigger) and
+  `sql/schema.sql` (S1 retention). Not covered: moving a post-lock purchase before the lock (review H3), the
+  stale-local-copy cause in CharGen (still open). See `D-GH-2026-10-01-creation-lock-integrity`.
+- **2026-09-30 · fix(engine): a DM-imposed drawback is exempt from its stat cap** — `compute()` raised
+  `⛔ Peg Leg: drawback requires DEX 12 or lower` on a DEX 16 character the DM had imposed it on, though an
+  imposed drawback pays 0 AP. `_replay()` now stamps `b._imposedDrawbackIdx` from the server-stamped
+  `dmEdit` flag and `compute()` skips `drawbackMaxStats` for those slots (both the entry check and the
+  ceiling). Positional, so a player-taken drawback of the same name stays capped, and a `dmEdit` drawback
+  that pays AP (cost < 0) stays capped too. New fixtures EV-021–EV-023 (EV-021/022 differential-verified
+  against the pre-fix engine); parity 76/0. DM Console impose tooltip now says imposed drawbacks carry no
+  stat cap. No `DATA.version` bump. See `D-GH-2026-09-30-imposed-drawback-cap-bypass`.
+- **2026-10-04 · docs+data: Amble creation-lock handoff** — review sheet corrected for Skylar and Moss
+  (priced by current rules, Q1); interim locks re-applied to Skylar and Archer after a stale local copy
+  dropped them; six "lock check (DM copy)" characters created on the DM's account for sign-off (originals
+  untouched); draft server-guard migration `sql/migrations/2026-10-04-creation-lock-guard.sql` (**not
+  applied**); forensic scripts in `testing/scripts/creation-lock-forensics/`; restart note
+  `docs/sessions/2026-10-04-creation-lock-restart.md` and a NOW task to continue.
 - **2026-10-01 · chore(release): promote `preview` → `main` as `v1.554` (PR #554)** — ships #553 (CharGen
   reload no longer un-finishes creation), #549 (account popover, in-app password change, sign-out fix) and
   #552 (economy-ui CI wiring). `BUILD` synced `v1.546` → `v1.554` across `js/engine.js` and the three

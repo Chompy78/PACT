@@ -1,0 +1,67 @@
+{
+  "description": "fix/imposed-drawback-cap-bypass: the exemption is per PURCHASE, not per name. The same DEX 18 Fighter holds a PLAYER-TAKEN Peg Leg (+4 AP) AND a DM-imposed Peg Leg (0 AP). Exactly ONE ⛔ warning remains, the player-taken one, so imposing a drawback the player already chose does not launder the player's own cap violation. Index-based (b._imposedDrawbackIdx), not name-based.",
+  "baseSnapshot": {},
+  "events": [
+    {
+      "type": "award",
+      "amount": 79,
+      "note": "Level 1 starting budget",
+      "label": "Award — Level 1 (79 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "oclass",
+      "payload": {
+        "v": "Fighter"
+      },
+      "cost": 0,
+      "level": 1,
+      "label": "Origin class — Fighter"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "DEX",
+        "to": 16
+      },
+      "cost": 16,
+      "level": 1,
+      "label": "DEX → 16"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Peg Leg"
+      },
+      "cost": -4,
+      "level": 1,
+      "label": "Drawback — Peg Leg (+4 AP)"
+    },
+    {
+      "type": "buy",
+      "cat": "drawback",
+      "payload": {
+        "v": "Peg Leg"
+      },
+      "cost": 0,
+      "level": 1,
+      "dmEdit": true,
+      "dmLocked": true,
+      "dmRemovalCost": "flat",
+      "label": "DM imposed — Peg Leg"
+    },
+    {
+      "type": "buy",
+      "cat": "abil",
+      "payload": {
+        "ab": "DEX",
+        "to": 18
+      },
+      "cost": 10,
+      "level": 1,
+      "label": "DEX → 18"
+    }
+  ]
+}

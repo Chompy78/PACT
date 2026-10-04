@@ -128,10 +128,14 @@ begin
     src like '%has no matching award%');
   perform pg_temp.ok('...and accepts a sessionSeal (feat/session-seal)',
     src like '%sessionSeal%');
+  perform pg_temp.ok('...and accepts a dmUnlockDrawback (feat/dm-unlock-drawback)',
+    src like '%dmUnlockDrawback%');
 
   select prosrc into src from pg_proc where proname = 'pact_ap_ledger_protected';
   perform pg_temp.ok('the protected projection covers dmRemoveBoon',
     src like '%dmRemoveBoon%');
+  perform pg_temp.ok('...and dmUnlockDrawback (feat/dm-unlock-drawback)',
+    src like '%dmUnlockDrawback%');
   perform pg_temp.ok('...and projects the whole event, not six enumerated fields',
     src like '%- ''seq'' - ''ts'' - ''rules'' - ''label''%');
 
@@ -335,6 +339,165 @@ begin
 end $$;
 
 \echo ''
+\echo 'feat/dm-unlock-drawback — the RPC validates, stamps, and refuses'
+-- Exercises dm_edit_character_log's new 'dmUnlockDrawback' branch against the FRESH-INSTALL build (the baseline,
+-- before the migrations are loaded over it). The character holds a player-taken Peg Leg (seq 2), a DM-imposed
+-- LOCKED Peg Leg (seq 3) and a DM-imposed UNLOCKED Lame (seq 4): the same-name pair is the case the seq keying
+-- exists for.
+do $$
+declare
+  c constant uuid := '00000000-0000-0000-0000-0000000000c1';
+  v_dm uuid; v_dm2 uuid; v_player uuid; v_camp uuid; v_camp2 uuid;
+  v_res jsonb; v_log jsonb; v_len int; v_spent_b numeric; v_earned_b numeric; v_spent_a numeric; v_earned_a numeric;
+  v_call text := 'select public.dm_edit_character_log(%L, %L::jsonb)';
+begin
+  insert into auth.users (email) values ('ul-dm@example.test') returning id into v_dm;
+  insert into auth.users (email) values ('ul-dm2@example.test') returning id into v_dm2;
+  insert into auth.users (email) values ('ul-player@example.test') returning id into v_player;
+
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Unlock probe') returning id into v_camp;
+  perform set_config('pact.test_uid', v_dm2::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm2, 'Unlock probe — another table') returning id into v_camp2;
+
+  insert into public.characters (id, owner_id, name, campaign_id, stats) values (c, v_player, 'Unlock probe', v_camp,
+    jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',5,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','buy','cat','oclass','cost',0,'payload',jsonb_build_object('v','Fighter')),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','drawback','cost',-4,'payload',jsonb_build_object('v','Peg Leg')),
+      jsonb_build_object('seq',3,'ts',3,'type','buy','cat','drawback','cost',0,'dmEdit',true,'dmLocked',true,
+        'dmRemovalCost','flat','payload',jsonb_build_object('v','Peg Leg')),
+      jsonb_build_object('seq',4,'ts',4,'type','buy','cat','drawback','cost',0,'dmEdit',true,'dmLocked',false,
+        'dmRemovalCost','flat','payload',jsonb_build_object('v','Lame')))));
+  perform pg_temp.ok('the probe character is bound to the first DM''s campaign',
+    (select campaign_id from public.characters where id = c) = v_camp);
+
+  -- ---- refusals, as the right DM, before anything is written -----------------------------------------
+  perform set_config('pact.test_uid', v_dm::text, false);
+  perform pg_temp.rejects('refuses an unlock of a PLAYER-TAKEN drawback (seq 2)',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":2,"note":"x"}]'),
+    'dm_edit_character_log: no single DM-imposed%');
+  perform pg_temp.rejects('refuses an unlock of an imposed drawback that is already UNLOCKED (never locked)',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Lame","targetSeq":4,"note":"x"}]'),
+    'dm_edit_character_log: no single DM-imposed%');
+  perform pg_temp.rejects('refuses a seq that is not in the log',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":99,"note":"x"}]'),
+    'dm_edit_character_log: no single DM-imposed%');
+  perform pg_temp.rejects('refuses the right seq under the wrong drawback name',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Lame","targetSeq":3,"note":"x"}]'),
+    'dm_edit_character_log: no single DM-imposed%');
+  perform pg_temp.rejects('refuses a missing targetSeq',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","note":"x"}]'),
+    'dm_edit_character_log: dmUnlockDrawback needs targetSeq%');
+  perform pg_temp.rejects('refuses a non-integer targetSeq',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":"3; drop table characters","note":"x"}]'),
+    'dm_edit_character_log: dmUnlockDrawback needs targetSeq%');
+  perform pg_temp.rejects('refuses a missing drawback name',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","targetSeq":3,"note":"x"}]'),
+    'dm_edit_character_log: dmUnlockDrawback needs refVal%');
+  perform pg_temp.rejects('refuses an empty story beat (the beat is required)',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"   "}]'),
+    'dm_edit_character_log: dmUnlockDrawback needs a story-beat note%');
+  perform pg_temp.rejects('refuses a story beat over 200 characters',
+    format(v_call, c, jsonb_build_array(jsonb_build_object('type','dmUnlockDrawback','refVal','Peg Leg','targetSeq',3,
+      'note', repeat('x', 201)))::text),
+    'dm_edit_character_log: dmUnlockDrawback needs a story-beat note%');
+  perform pg_temp.rejects('refuses the same unlock sent twice in ONE call',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"a"},{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"b"}]'),
+    'dm_edit_character_log: drawback % is already unlocked');
+  perform pg_temp.rejects('a batch is atomic: a valid unlock plus an invalid one writes NOTHING',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"ok"},{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":2,"note":"bad"}]'),
+    'dm_edit_character_log: no single DM-imposed%');
+  perform pg_temp.ok('...and the stored log is untouched by every refusal above',
+    jsonb_array_length((select stats->'LOG' from public.characters where id = c)) = 4
+    and (select stats->>'SEQ' from public.characters where id = c) = '5');
+
+  -- ---- the wrong caller ------------------------------------------------------------------------------
+  perform set_config('pact.test_uid', v_player::text, false);
+  perform pg_temp.rejects('the character''s OWNER cannot use the RPC to unlock their own drawback',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"x"}]'),
+    'Only a campaign DM can edit this character');
+  perform set_config('pact.test_uid', v_dm2::text, false);
+  perform pg_temp.rejects('a DM of a DIFFERENT campaign cannot unlock it either',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"x"}]'),
+    'Only a campaign DM can edit this character');
+
+  -- ---- the happy path, with junk the client should not be able to smuggle in -------------------------
+  perform set_config('pact.test_uid', v_dm::text, false);
+  select spent, player_earned into v_spent_b, v_earned_b
+    from public.pact_ap_ledger_spend((select stats->'LOG' from public.characters where id = c));
+  v_res := public.dm_edit_character_log(c, jsonb_build_array(jsonb_build_object(
+    'type','dmUnlockDrawback','refVal','Peg Leg','targetSeq',3,'note','  found a surgeon  ',
+    'cost',-5,'amount',99,'disc',true,'payload',jsonb_build_object('v','x'),'dmLocked',false,'label','DM unlocked — Peg Leg')));
+  perform pg_temp.ok('a DM can unlock their own locked, imposed drawback (one event returned)',
+    jsonb_array_length(v_res) = 1 and v_res->0->>'type' = 'dmUnlockDrawback');
+  perform pg_temp.ok('...the server stamps seq (5), dmEdit and dmId (the calling DM)',
+    (v_res->0->>'seq') = '5' and (v_res->0->'dmEdit') = 'true'::jsonb and (v_res->0->>'dmId') = v_dm::text);
+  perform pg_temp.ok('...keeps the target (name + seq) and the TRIMMED story beat',
+    v_res->0->>'refVal' = 'Peg Leg' and (v_res->0->>'targetSeq') = '3' and v_res->0->>'note' = 'found a surgeon');
+  perform pg_temp.ok('...and nothing else the client sent rode along (no cost, amount, disc, payload, dmLocked)',
+    not (v_res->0 ? 'cost') and not (v_res->0 ? 'amount') and not (v_res->0 ? 'disc')
+    and not (v_res->0 ? 'payload') and not (v_res->0 ? 'dmLocked'));
+  select spent, player_earned into v_spent_a, v_earned_a
+    from public.pact_ap_ledger_spend((select stats->'LOG' from public.characters where id = c));
+  perform pg_temp.ok('...and the unlock moved NO AP (ledger spend/earn identical before and after)',
+    v_spent_a = v_spent_b and v_earned_a = v_earned_b);
+  perform pg_temp.ok('...SEQ advanced and the event is on the stored log',
+    (select stats->>'SEQ' from public.characters where id = c) = '6'
+    and jsonb_array_length((select stats->'LOG' from public.characters where id = c)) = 5);
+  perform pg_temp.rejects('a second unlock of the same drawback is refused',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"again"}]'),
+    'dm_edit_character_log: drawback % is already unlocked');
+
+  -- ---- the unlock is protected history once an AP award follows it -----------------------------------
+  -- (the locked-history trigger compares the protected prefix up to the latest award or seal; a bare award
+  -- appended by the DM is allowed by the RPC and draws that line AFTER the unlock)
+  perform public.dm_edit_character_log(c, '[{"type":"award","amount":5,"note":"session reward"}]'::jsonb);
+  perform pg_temp.ok('the protected projection now includes the unlock event',
+    exists (select 1 from jsonb_array_elements(public.pact_ap_ledger_protected(
+              (select stats->'LOG' from public.characters where id = c))) e where e->>'type' = 'dmUnlockDrawback'));
+  perform set_config('pact.test_uid', v_player::text, false);
+  perform pg_temp.rejects('once an award follows it, the owner cannot strip the unlock back out',
+    format($f$update public.characters set stats = jsonb_set(stats,'{LOG}',
+        (select jsonb_agg(e order by ord) from jsonb_array_elements(stats->'LOG') with ordinality t(e, ord)
+          where e->>'type' <> 'dmUnlockDrawback')) where id = %L$f$, c),
+    'PACT: locked character history%');
+
+  -- ---- an archived campaign is read-only for DM edits, unlock included -------------------------------
+  perform set_config('pact.test_uid', v_dm::text, false);
+  update public.campaigns set archived_at = now() where id = v_camp;
+  perform pg_temp.rejects('an unlock in an ARCHIVED campaign is refused (assert_campaign_active survives)',
+    format(v_call, c, '[{"type":"dmUnlockDrawback","refVal":"Peg Leg","targetSeq":3,"note":"x"}]'),
+    'This campaign is archived and read-only');
+end $$;
+
+-- KNOWN LIMIT, pinned on purpose. The lock and the unlock are honoured by the player's own app; the server does
+-- NOT enforce them. A character's owner can write their own `stats`, so with no award after it an owner can still
+-- append a forged unlock. This assertion exists so the limit is visible in the suite rather than only in prose:
+-- when feat/server-enforced-drawback-lock lands, this is the assertion that must flip to a rejection.
+do $$
+declare
+  v_owner uuid; v_camp uuid; v_dm uuid;
+begin
+  select id into v_owner from auth.users where email = 'ul-player@example.test';
+  select id into v_dm from auth.users where email = 'ul-dm2@example.test';
+  perform set_config('pact.test_uid', v_dm::text, false);
+  select id into v_camp from public.campaigns where dm_id = v_dm limit 1;
+  insert into public.characters (id, owner_id, name, campaign_id, stats) values
+    ('00000000-0000-0000-0000-0000000000c2', v_owner, 'Unlock forgery probe', v_camp,
+     jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',4,'LOG', jsonb_build_array(
+       jsonb_build_object('seq',1,'ts',1,'type','buy','cat','oclass','cost',0,'payload',jsonb_build_object('v','Fighter')),
+       jsonb_build_object('seq',2,'ts',2,'type','buy','cat','drawback','cost',0,'dmEdit',true,'dmLocked',true,
+         'dmRemovalCost','flat','payload',jsonb_build_object('v','Peg Leg')))));
+  perform set_config('pact.test_uid', v_owner::text, false);
+  update public.characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') || jsonb_build_array(
+      jsonb_build_object('seq',3,'ts',3,'type','dmUnlockDrawback','dmEdit',true,'refVal','Peg Leg','targetSeq',2,'note','forged')))
+    where id = '00000000-0000-0000-0000-0000000000c2';
+  perform pg_temp.ok('KNOWN LIMIT (feat/server-enforced-drawback-lock): an owner can still forge an unlock in their own '
+    || 'log — the lock is advisory, not enforced. If this fails, enforcement has landed: flip it to a rejection.',
+    jsonb_array_length((select stats->'LOG' from public.characters where id = '00000000-0000-0000-0000-0000000000c2')) = 3);
+end $$;
+
+\echo ''
 \echo 'Every checked function pins its search_path — the check that agreement cannot make'
 -- THE DRIFT GUARD BELOW CANNOT CATCH THIS, BY CONSTRUCTION. It asserts the baseline and the migrations
 -- say the SAME thing; it is satisfied when both are wrong in the same way. That is exactly what
@@ -425,6 +588,7 @@ end $$;
 \ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql
+\ir ../../sql/migrations/2026-10-04-dm-unlock-drawback.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;

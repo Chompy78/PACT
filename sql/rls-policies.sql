@@ -682,9 +682,13 @@ $$;
 -- dm_edit_character_log(character, events) — feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events).
 -- The ONLY path a DM can append to a player's own stats->LOG through — characters_update's row policy
 -- is owner-only, same SECURITY DEFINER-bypass pattern as award_ap/dm_unbind_character just above,
--- extended to `stats`. Scope allowlist (owner: "not a general editor"): buy/cat:boon, buy/cat:drawback,
--- award, dmRemoveBoon only. Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the
--- client sent for them — the caller cannot forge who made the edit, when, or where in the log it lands.
+-- extended to `stats`. Scope (owner: "not a general editor") is a FIXED allowlist of audited event types,
+-- never arbitrary events: buy/cat:boon, buy/cat:drawback, award, dmRemoveBoon, sessionSeal, dmUnlockDrawback.
+-- The last two are MARKERS rather than ledger transactions (they move no AP), and dmUnlockDrawback also changes
+-- what the player's own client allows (a locked drawback may then be bought off) — which is why it is validated
+-- against the stored log and rebuilt from a whitelist, not just allowlisted.
+-- Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the client sent for them — the caller
+-- cannot forge who made the edit, when, or where in the log it lands.
 -- Accepts a JSON ARRAY so a DM-granted boon's matched buy+award pair lands in ONE atomic write (see
 -- the migration file's header for why two separate calls would leave a real, if brief, non-neutral
 -- moment). See sql/migrations/2026-08-10-dm-edit-character-log.sql for the full design/compatibility
@@ -714,6 +718,11 @@ declare
   v_matched    boolean;
   v_i          integer;
   v_j          integer;
+  -- feat/dm-unlock-drawback (D-GH-2026-10-04-dm-unlock-drawback): scratch for validating 'dmUnlockDrawback'.
+  v_name       text;
+  v_target     integer;
+  v_note       text;
+  v_matches    integer;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -749,7 +758,9 @@ begin
       end if;
     -- [SEAL] 'sessionSeal' added by 2026-09-01-session-seal.sql so a DM can draw the line
     -- through the same audited, dm-stamped path as every other DM-authored event.
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal') then
+    -- [UNLOCK] 'dmUnlockDrawback' added by 2026-10-04-dm-unlock-drawback.sql: a DM releases a drawback they
+    -- imposed LOCKED once the story beat has happened. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -760,6 +771,53 @@ begin
     -- pact_ap_ledger_spend's sums and out of the boon/award matching arrays above.
     if v_type = 'sessionSeal' then
       v_ev := v_ev - 'amount' - 'cost';
+    end if;
+
+    -- [UNLOCK] An unlock is a marker, not a transaction, and it must name ONE specific purchase. Keyed by the
+    -- imposed purchase's server-stamped seq plus its drawback name — never by name alone, because a character
+    -- can hold a player-taken and an imposed purchase of the same name and js/engine.js's buy-off match is
+    -- by name (FIFO). The target must already be in the STORED log: an imposition and its unlock cannot be
+    -- sent in the same call. Validated against the stored log, not the client, so a DM cannot unlock a
+    -- player-taken drawback, an unlocked one, one that does not exist, or the same one twice.
+    -- Deliberately NOT checked here: whether the target has since been bought off. That is js/engine.js's
+    -- by-name FIFO match; re-implementing it in SQL would duplicate a rules decision in a second place. An
+    -- unlock of a bought-off purchase is a harmless no-op the engine ignores, and DM Console only ever offers
+    -- purchases the engine reports as open.
+    if v_type = 'dmUnlockDrawback' then
+      v_name := btrim(coalesce(v_ev->>'refVal', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if v_name = '' then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs refVal (the drawback name)';
+      end if;
+      if coalesce(v_ev->>'targetSeq', '') !~ '^[0-9]{1,9}$' then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs targetSeq (the integer seq of the imposed purchase)';
+      end if;
+      v_target := (v_ev->>'targetSeq')::integer;
+      if v_note = '' or char_length(v_note) > 200 then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs a story-beat note of 1 to 200 characters';
+      end if;
+      -- jsonb equality, not ::boolean casts: a hand-edited log can hold any value in these fields, and a
+      -- cast error here would abort the DM's call instead of cleanly refusing it.
+      select count(*) into v_matches
+        from jsonb_array_elements(v_log) as t(e)
+       where e->>'type' = 'buy' and e->>'cat' = 'drawback'
+         and e#>>'{payload,v}' = v_name
+         and e->>'seq' = v_target::text
+         and e->'dmEdit' = 'true'::jsonb
+         and e->'dmLocked' = 'true'::jsonb;
+      if v_matches <> 1 then
+        raise exception 'dm_edit_character_log: no single DM-imposed, locked drawback "%" at seq % to unlock (found %)', v_name, v_target, v_matches;
+      end if;
+      if exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                  where e->>'type' = 'dmUnlockDrawback' and e->>'refVal' = v_name
+                    and e->>'targetSeq' = v_target::text) then
+        raise exception 'dm_edit_character_log: drawback "%" at seq % is already unlocked', v_name, v_target;
+      end if;
+      -- Rebuild from a whitelist instead of stripping fields: nothing else the client sent (cost, amount, disc,
+      -- payload, ...) may ride along, so the event cannot move AP or masquerade as another type.
+      v_ev := jsonb_build_object('type', 'dmUnlockDrawback', 'refVal', v_name, 'targetSeq', v_target,
+                                 'note', v_note,
+                                 'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM unlocked — ' || v_name), 120));
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -850,7 +908,7 @@ returns jsonb
 language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
-  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon')
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
 $$;
 
@@ -1007,6 +1065,115 @@ drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history
   before update on public.characters
   for each row execute function public.pact_enforce_locked_history();
+
+-- ---------------------------------------------------------------------------
+-- Creation-lock guard (D1), campaign moves keep the lock (L1) — applied to live 2026-10-04 as migration
+-- creation_lock_guard (sql/migrations/2026-10-04-creation-lock-guard.sql). See
+-- D-GH-2026-10-01-creation-lock-integrity. NOTE: pact_campaign_move_clears_creation() and its trigger were
+-- previously missing from this file (the 2026-09-01 migration is their only other definition).
+-- ---------------------------------------------------------------------------
+create or replace function public.pact_lock_family(p_log jsonb)
+returns jsonb
+language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
+  from jsonb_array_elements(coalesce(p_log, '[]'::jsonb)) with ordinality as t(ev, ord)
+  where (ev->>'type') in ('creationLocked', 'creationUnlocked', 'creationLockConfig');
+$$;
+revoke execute on function public.pact_lock_family(jsonb) from public, anon, authenticated;
+
+create or replace function public.pact_enforce_creation_lock()
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old jsonb; v_new jsonb; v_ev jsonb; i int;
+  v_moved boolean := OLD.campaign_id is distinct from NEW.campaign_id;
+begin
+  if NEW.stats is not distinct from OLD.stats then return NEW; end if;
+  if OLD.campaign_id is null and NEW.campaign_id is null then return NEW; end if;   -- solo character
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;  -- admin session
+  if (OLD.campaign_id is not null and public.is_campaign_dm(OLD.campaign_id))
+     or (NEW.campaign_id is not null and public.is_campaign_dm(NEW.campaign_id)) then
+    return NEW;
+  end if;
+
+  v_old := public.pact_lock_family(OLD.stats->'LOG');
+  v_new := public.pact_lock_family(NEW.stats->'LOG');
+
+  if jsonb_array_length(v_new) < jsonb_array_length(v_old) then
+    raise exception 'PACT: locked character history — a creation-lock entry cannot be removed'
+      using hint = 'Reload the character — this copy is older than the saved one.';
+  end if;
+  for i in 0 .. jsonb_array_length(v_old) - 1 loop
+    if (v_old -> i) is distinct from (v_new -> i) then
+      raise exception 'PACT: locked character history — a creation-lock entry cannot be changed (entry %)', i
+        using hint = 'Reload the character — this copy is older than the saved one.';
+    end if;
+  end loop;
+
+  for i in jsonb_array_length(v_old) .. jsonb_array_length(v_new) - 1 loop
+    v_ev := v_new -> i;
+    if v_ev->>'type' = 'creationLocked' then
+      continue;
+    elsif v_ev->>'type' = 'creationLockConfig' and not (coalesce(v_ev->'payload', '{}'::jsonb) ? 'threshold') then
+      continue;
+    elsif v_moved and v_ev->>'type' = 'creationLockConfig'
+          and (v_ev->'payload'->'threshold') = 'null'::jsonb and coalesce((v_ev->>'systemEdit')::boolean, false) then
+      continue;
+    end if;
+    raise exception 'PACT: locked character history — only the campaign DM can reopen creation or set its limit'
+      using hint = 'Ask your DM to reopen creation in DM Console.';
+  end loop;
+  return NEW;
+end;
+$$;
+revoke execute on function public.pact_enforce_creation_lock() from public, anon, authenticated;
+
+drop trigger if exists trg_pact_creation_lock_guard on public.characters;
+create trigger trg_pact_creation_lock_guard
+  before update on public.characters
+  for each row execute function public.pact_enforce_creation_lock();
+
+
+create or replace function public.pact_campaign_move_clears_creation()
+returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_log jsonb; v_seq integer;
+  v_ts bigint := (extract(epoch from now()) * 1000)::bigint;
+  v_note text;
+begin
+  if NEW.campaign_id is not distinct from OLD.campaign_id then return NEW; end if;
+  if NEW.stats is null or not (NEW.stats ? 'LOG') then return NEW; end if;
+
+  v_log := coalesce(NEW.stats->'LOG', '[]'::jsonb);
+  v_seq := coalesce((NEW.stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
+
+  v_note := case
+    when OLD.campaign_id is null then 'joined a campaign'
+    when NEW.campaign_id is null then 'left the campaign'
+    else 'moved to a different campaign'
+  end;
+
+  v_log := v_log || jsonb_build_object(
+    'seq', v_seq, 'ts', v_ts,
+    'type', 'creationLockConfig',
+    'payload', jsonb_build_object('threshold', null),
+    'systemEdit', true,
+    'label', 'Creation limit cleared - ' || v_note);
+  v_seq := v_seq + 1;
+
+  -- L1 (2026-10-01): no creationUnlocked here any more. A finished character stays finished; the new
+  -- table's DM reopens creation explicitly if they want it.
+
+  NEW.stats := jsonb_set(jsonb_set(NEW.stats, '{LOG}', v_log), '{SEQ}', to_jsonb(v_seq));
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_campaign_move_clears_creation on public.characters;
+create trigger trg_pact_campaign_move_clears_creation
+  before update on public.characters
+  for each row execute function public.pact_campaign_move_clears_creation();
 
 -- ---------------------------------------------------------------------------
 -- Account-level "basic mode" (feat/player-basic-mode). Restricts a flagged player to one active
@@ -1268,6 +1435,7 @@ revoke execute on function public.pact_ap_ledger_spend(jsonb)            from pu
 revoke execute on function public.pact_ap_ledger_protected(jsonb)        from public, anon, authenticated;
 revoke execute on function public.pact_enforce_ap_budget_consistency()   from public, anon, authenticated;
 revoke execute on function public.pact_enforce_locked_history()          from public, anon, authenticated;
+revoke execute on function public.pact_enforce_creation_lock()          from public, anon, authenticated;
 
 -- The seal RPCs ARE meant to be called by a signed-in user; both gate authorisation internally.
 revoke execute on function public.seal_character_history(uuid, text, text) from public, anon;
