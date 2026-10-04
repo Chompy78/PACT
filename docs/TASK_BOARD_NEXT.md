@@ -27,6 +27,37 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## fix/no-purchase-refunds — nothing bought can be un-bought for AP (engine rule) — TODO
+Branch fix/no-purchase-refunds. **Effort:** high · **Risk:** high — damage scale (edits js/engine.js, changes
+totals for existing characters) and damage likelihood (two known live characters already carry a refund) drive it.
+
+```text
+Owner rule (2026-10-04): you can't un-buy anything except drawbacks (buy-off).
+  1. BEFORE the creation lock: dumping a score below 10 for AP stays exactly as the Players Guide has it. But
+     lowering a score that was raised above 10 — or undoing any saved/ledgered ability purchase — must NOT
+     return AP. A lowered score keeps the AP paid at its highest point; only the part below 10 pays out.
+  2. AFTER the creation lock: nothing purchased can be removed or lowered — stats and every other purchase —
+     except drawbacks (buy-off). A post-lock reduction prices at 0 refund (or is rejected — decide which,
+     then say so in the Guide).
+Fix in js/engine.js so every tool, import and DM edit is covered (don't patch the UIs only). Add the
+matching append-only rule to the server guard (sql/migrations/2026-10-04-creation-lock-guard.sql follow-up).
+
+Evidence (lock-check copies, 2026-10-04): Caspian seq 29 lowered STR 12->10 and WIS 16->14 for -11 AP;
+Skylar seq 27 raised an ability +4 then lowered it -4 after the lock, then bought Proficiency +3 for 18.
+
+Before changing anything: query the LIVE characters table for every character whose log already carries a
+refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and list them for the owner.
+Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
+(engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
+
+Separate, unresolved — do NOT fold in without a decision: the engine credits the first Hit Die's 2 AP
+(Hit Dice -> 3 costs 5, not 7) while the Guide's worked examples charge the full 14 for 5 Hit Dice.
+```
+**Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
+reduction giving no refund, (b) a below-10 dump still paying out, (c) a post-lock removal or reduction
+refunding nothing; the Guide states the rule; `DATA.version` is bumped once; and the list of live
+characters already carrying a refund has been shown to the owner.
+
 ## feat/ap-award-edit-transparency — player-facing display of AP award edits — TODO
 ```
 D-GH-2026-09-08-ap-award-editing shipped the DM side (edit_ap_award() RPC, ap_award_edits audit table,
