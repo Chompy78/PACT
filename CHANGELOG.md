@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · fix(engine): a DM-imposed drawback grants no AP in `compute()`; rules `v0.365` → `v0.366`** — `compute()`
+  derived the drawback grant from the drawback names, so a drawback the DM imposed at cost 0 (player paid nothing) was
+  credited at its table value: four imposed wounds showed 93 AP remaining against a true 79, fired "Drawbacks grant 14 AP —
+  the guide caps them at 12" and "4 drawbacks chosen" at the player, and raised the creation ceiling (Live Sheet feeds it
+  `compute().drawbackAp`). An imposed slot (`b._imposedDrawbackIdx`) now contributes 0, is still listed — at 0, labelled
+  "(DM imposed)" — and counts toward neither warning; its penalty is unchanged and Frail + Glass Frame still warns. The
+  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (22/0; 13 of its 22 fail on
+  the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
+  0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
 - **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no
   creation limit set** — with no stamped limit the engine's spend block is fail-open, which is how Moss, Skylar,
   Fenwick and Archer overspent (their limit was never set, or was deleted by the reload / stale-copy bugs).

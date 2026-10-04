@@ -759,7 +759,14 @@ export function compute(b, opts){
   // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
   // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
   const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;drawGain+=v;_DI.push([lab,-v]);
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;
+    // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
+    // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
+    // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed wounds
+    // compute().remaining read 95 against a true 79 and warned "Drawbacks grant 16 AP". The marker is the one
+    // _replay() stamps (b._imposedDrawbackIdx, same dmEdit && cost>=0 rule the stat-cap exemption uses). The row
+    // is still listed — at 0 and labelled — so a DM can see which penalties they have imposed.
+    const _imp=_impIdx.has(_dIdx);drawGain+=_imp?0:v;_DI.push([_imp?lab+' (DM imposed)':lab,_imp?0:-v]);
     // ⛔ = a HARD rules violation, the same marker reqRace/minHD use. Owner's ruling 2026-08-19: a stat
     // cap is enforced in BOTH directions — you may not take a capped drawback above the cap, and you may
     // not raise the score past it while holding one ("your score can never exceed 12"). Without the
@@ -807,7 +814,10 @@ export function compute(b, opts){
     W.push("Drawbacks grant "+drawGain+" AP but this campaign caps them at "+_dCap+" — "+(drawGain-_dCap)+" AP not granted");
   else if(_dCap==null&&drawGain>DATA.drawbackCap)
     W.push("Drawbacks grant "+drawGain+" AP — the guide caps them at "+DATA.drawbackCap+" AP (check with your DM)");
-  if((b.drawbacks||[]).length>3) W.push((b.drawbacks||[]).length+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
+  // "Chosen" means chosen: a DM-imposed drawback is not the player's pick, so it does not count toward the
+  // 2–3 guideline (that guideline exists to stop a build becoming an AP farm, and an imposed drawback pays 0).
+  const _nChosen=(b.drawbacks||[]).filter(function(_x,_i){return !_impIdx.has(_i);}).length;
+  if(_nChosen>3) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
   // absent from b.drawbacks/b.boons, so neither line above nor the Boons line below can show it. Yet the

@@ -1169,7 +1169,9 @@ is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — th
     docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
     needs the DM to unlock it after a story beat. ALSO document that a DM-imposed drawback carries no stat
     cap (engine behaviour landed in D-GH-2026-09-30-imposed-drawback-cap-bypass; the guide has no text on
-    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands.
+    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands. Likewise state
+    that an imposed drawback grants NO AP, is not counted toward the "2–3 drawbacks" guideline or a campaign's
+    drawback cap, and is listed at 0 (engine behaviour landed in D-GH-2026-10-04-imposed-drawbacks-grant-no-ap).
 (d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
     plus a one-line pointer in DECISIONS.md.
 ```
@@ -1244,33 +1246,3 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
-
-## fix/imposed-drawbacks-grant-no-ap — compute() credits a DM-imposed drawback's table value as income — TODO
-Branch fix/imposed-drawbacks-grant-no-ap. A DM-imposed drawback is recorded at `cost:0` and pays the player nothing
-(`economy().drawbackEarned` = 0), but `compute()` derives its grant from the drawback NAMES in `b.drawbacks`, so it credits
-the table value anyway. Found 2026-10-04 while building feat/dm-unlock-drawback. Matters as soon as wounds are imposed
-(feat/permanent-wounds): measured on the current engine — one imposed Peg Leg: `compute().remaining` 83 against 79 earned;
-four imposed wounds (4+4+5+3): 95, plus the warnings "Drawbacks grant 16 AP — the guide caps them at 12 AP" and "4 drawbacks
-chosen — most DMs cap this at 2–3". The frozen ledger (`economy()`) is right, so the Live Sheet's AP-left is right, but the
-DM Console's "Granted by drawbacks" row reads `compute().drawbackAp`, and `creationCeiling` takes its `drawbackBonus` from
-`compute()`'s grant too (engine.js, near `opts.drawbackAp`) — verify whether imposed values inflate a still-building
-character's ceiling.
-**Effort:** medium · **Risk:** medium — ambiguity low (the marker exists); damage scale high (edits `compute()`, the engine's
-source of truth, and changes its output); likelihood low (parity catches drift; live data 2026-09-30 had 0 DM-imposed
-drawbacks, so no live character changes — re-measure).
-
-```text
-1. In compute()'s drawback loop, an IMPOSED slot (b._imposedDrawbackIdx, the marker from
-   D-GH-2026-09-30-imposed-drawback-cap-bypass, same cost >= 0 rule) contributes 0 to drawGain, is listed at 0 in the
-   itemised "Drawbacks" rows (so the DM still sees it), and is excluded from BOTH cap warnings ("grant N AP", "N drawbacks
-   chosen"). Decide in the plan whether "Frail and Glass Frame can't be taken together" still applies to an imposed pair.
-2. Check creationCeiling()/DM Console summary consume the corrected figure (drawbackAp), not a re-derived one.
-3. Fixtures: a new event fixture with four imposed wounds — remaining 79, no cap warnings; assert it against a player-taken
-   control of the same four, which still grants 16 and still warns. Update any expected file the change moves.
-4. compute() output changes, so bump DATA.version ONCE and say so in the CHANGELOG. Coordinate the guide wording with
-   feat/permanent-wounds (imposed drawbacks are undocumented there today).
-5. CHANGELOG; DECISIONS record D-GH-<date>-imposed-drawbacks-grant-no-ap.
-```
-**Done when:** with four DM-imposed wounds `compute().remaining` equals `economy().available` (79 on the 79-AP fixture), no
-"Drawbacks grant…" or "N drawbacks chosen" warning appears for them, the same four player-taken still grant 16 and warn, and
-`testing/tests/engine-parity.html` reports 0 failed.

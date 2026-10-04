@@ -1,0 +1,12 @@
+{
+  "description": "fix/imposed-drawbacks-grant-no-ap: the CONTROL for EV-025 — the same four drawbacks (Peg Leg 4, Lame 3, Old Wound 3, One-Eyed 4 = 14 AP) but PLAYER-TAKEN, each paying its table value as income (cost -4/-3/-3/-4). These ARE the player's picks and the player WAS paid, so both warnings must still fire: 'Drawbacks grant 14 AP — the guide caps them at 12 AP (check with your DM)' and '4 drawbacks chosen — most DMs cap this at 2–3'. Without this control EV-025's empty warning list could be a symptom of the warnings being broken for everyone rather than of imposed drawbacks being exempt.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Peg Leg" }, "cost": -4, "level": 1, "seq": 3, "label": "Drawback — Peg Leg (+4 AP)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Lame" }, "cost": -3, "level": 1, "seq": 4, "label": "Drawback — Lame (+3 AP)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Old Wound" }, "cost": -3, "level": 1, "seq": 5, "label": "Drawback — Old Wound (+3 AP)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "One-Eyed" }, "cost": -4, "level": 1, "seq": 6, "label": "Drawback — One-Eyed (+4 AP)" }
+  ]
+}
