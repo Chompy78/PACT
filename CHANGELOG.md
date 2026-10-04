@@ -4,6 +4,20 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · fix(chargen): after "Finish creating", raising Hit Dice, proficiency or an ability score APPENDS the same in-play
+  purchase the Live Sheet records, and lowering them is refused (phase 1 of `fix/chargen-post-lock-purchases`)** — CharGen used to
+  rewrite the slot's creation-era event in place after the lock (Hit Dice 3 → 4 turned that event from 5 to 8 AP, still before
+  the lock: no in-play price, no gold/downtime, creation history rewritten — and the route Caspian's −11 AP refund took). For a
+  locked character the `hdProf` and `stats` slots now go through `_cgPostLockSlotEdit()`: an increase becomes one `hd` / `prof` /
+  `abil` purchase per step (+2 at a time for abilities, as the Live Sheet does), priced by the engine's `priceOf()` (moved there
+  by the previous entry), legality-checked, affordability-checked for the whole edit before anything is appended, and stamped with
+  gold/downtime when the economy charges; a decrease is refused ("nothing you have bought can be removed once creation is
+  finished"). A locked character's write that changes nothing now writes nothing (it used to append a zero-cost armour slot event
+  whenever STR changed). Also fixed: a refused edit left the form control showing the refused value (`render()` does not repaint
+  controls; `restoreFrame()` does). Other slots keep the old path until their phase lands. Pre-lock behaviour unchanged. 17 new
+  checks in `chargen-flows-e2e.mjs`, including a **head-to-head** that makes the same purchases in CharGen and in the Live Sheet
+  and requires identical events (cat, payload, cost, label, level, gold, downtime) and identical totals, with the economy on
+  (both: 25 gp / 7 days). Not yet in CharGen: the Live Sheet's wallet-short and §16 trade prompts. No `DATA.version` bump.
 - **2026-10-04 · refactor(engine): the in-play purchase pricer moves from the Live Sheet into `js/engine.js`
   (`priceOf(cur, cat, payload)`)** — it was rules logic with exactly one copy, inside the Live Sheet tool file
   (`priceOf` + `_CTX_PRICERS`: ability raises, level-ups with the HD-gate "what this level-up legalises" correction,

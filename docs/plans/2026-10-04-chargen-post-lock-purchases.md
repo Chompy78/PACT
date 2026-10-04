@@ -126,3 +126,24 @@ test fails.
 - **Why the Caspian refund got through:** it was recorded as a priced `patch` event *after* the automatic lock and *before*
   any award; the server's freeze only starts at the last award/seal and never covered patch events.
 
+## 8. Phase 1 — built (2026-10-04)
+
+Shipped on `fix/chargen-post-lock-purchases` (stacked on `refactor/engine-priceof`, PR #564). Slots: `hdProf` and `stats`.
+
+- **Prerequisite found and done first.** The Live Sheet's pricer (`priceOf` + `_CTX_PRICERS`, with the HD-gate "what this
+  level-up legalises" correction) lived **only in the tool file**. It moved verbatim into `js/engine.js` as `priceOf(cur, cat,
+  payload)`; a frozen copy of the original is compared with the engine over 5,720 purchases, and the test was proven to go red
+  under mutation. CharGen now prices through the same function.
+- **Behaviour.** Raising appends `hd` / `prof` / `abil` purchases after the lock (one per die / point step, +2 at a time for
+  abilities), stamped `gp`/`days` when the economy charges; lowering is refused; an unaffordable or rules-breaking edit is
+  refused whole, before anything is appended; a multi-step edit is one undo frame and undo stops at the lock.
+- **Two bugs found by the tests and fixed:** `render()` does not repaint a control from the LOG (a refused edit left the control
+  showing the refused value — now `restoreFrame(snapshot)`), and a locked character's no-change write appended a zero-cost armour
+  slot event whenever STR changed (now skipped).
+- **Proof of parity.** A head-to-head test makes the same purchases in both tools and requires identical events and totals, with
+  the economy on (25 gp / 7 days each).
+- **Not in phase 1:** the other priced slots (languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement, innate,
+  customProfs, freeSub) still use the old in-place path after the lock; the Live Sheet's wallet-short warning and §16 trade offer
+  are not reproduced in CharGen (the charge is stamped; the player is not asked); the server freeze (`feat/server-freeze-at-lock`)
+  still waits for the Amble repair.
+
