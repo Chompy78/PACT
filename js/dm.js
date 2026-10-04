@@ -348,7 +348,8 @@ export async function getDowntimeHistory(campaignId) {
 
 /**
  * feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events): append DM-attributed events to a campaign
- * character's own LOG — grant/remove a boon, impose a drawback. `events` must be a non-empty array;
+ * character's own LOG — grant/remove a boon, impose a drawback, unlock a locked imposed drawback
+ * (`dmUnlockDrawback`, feat/dm-unlock-drawback). `events` must be a non-empty array;
  * a DM-granted boon needs its matched [buy, award] pair passed together so they land in one atomic
  * write (see the migration's header for why). The server stamps seq/ts/dmEdit/dmId on every event —
  * whatever the caller sets for those fields here is discarded, never trusted. Throws if the caller is
