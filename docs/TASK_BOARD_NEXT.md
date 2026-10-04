@@ -27,6 +27,51 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/free-subclass-bare-pick — a free-subclass pick with nothing bought from it must not count (rules change) — TODO
+Branch feat/free-subclass-bare-pick. **Effort:** medium · **Risk:** high — a rules change (engine AND Players Guide must both land, `DATA.version` bumped once) that can lower existing characters' prices, so the live blast radius must be measured first.
+
+```text
+Owner decision N3 (2026-10-04). Players Guide §13/§14: "Your first subclass in each class you can build from is free to open — but
+opening it is all that's free. Pick it, then buy each piece you want." js/engine.js (~line 573): `free = freeSub[cls] || used[0]`, then
+EVERY other subclass used in that class pays DATA.subUnlock (15 AP). So a free-subclass pick that has NOTHING bought from it still
+holds the "free" slot: name Circle of the Moon for free, buy nothing from it, then buy abilities from Circle of the Land -> the
+Land abilities are charged the 15 AP unlock, although it is the only subclass the player actually opened.
+
+DO:
+  1. Engine: honour freeSub[cls] only if the pick has at least one piece bought (an ability in subAbilities or a bundle in
+     subSpellBundles); otherwise treat it as unset, so the first subclass actually used is the free one.
+  2. CharGen (and anywhere else that writes it): stop recording a freeSub pick until a piece of that subclass is bought.
+  3. Players Guide: say it in the subclass paragraphs (both live in the master and the served copy; run verify-guide.mjs before and
+     after) and bump DATA.version once.
+  4. MEASURE FIRST: query the live characters table for every character with a bare freeSub pick AND abilities in a different
+     subclass of the same class — those prices fall by 15 AP; list them for the owner (event-sourced characters keep their frozen
+     ledger, but their displayed total will move). Today's six Amble characters: Moss (Druid -> Circle of the Moon) and Skylar
+     (Sorcerer -> Wild Magic Sorcery) each have one bare pick and NO other subclass in that class, so neither is affected.
+```
+**Done when:** new engine-parity fixtures cover a bare pick (ignored), a used pick (honoured) and the Moon/Land case; `expected-results.csv` updated in the same change; CharGen no longer writes a bare pick; the Guide states the rule and `verify-guide.mjs` passes; the live measurement has been shown to the owner.
+
+## feat/dm-console-award-seal — the campaign-wide Award AP tile cannot lock history; the per-character form can — TODO
+Branch feat/dm-console-award-seal. **Effort:** medium · **Risk:** medium — touches the DM's award flow (live AP) and calls `award_ap_and_seal()`; the idempotency and per-character failure handling are the fiddly parts.
+
+```text
+FOUND 2026-10-04 (owner, after awarding session 9): DM Console has TWO places to award AP. The campaign-wide tile "Award AP —
+Tick whoever earned it, set an amount and a note, and award every ticked character" (tools/DM-Console.html ~line 644) has NO
+"lock history" option; the per-character form ("Award AP, gold & bonus time") has an "and lock history" tick that is OFF by default.
+The owner used the tile, so nothing was sealed (no sessionSeal event on any of the six Amble histories) even though a seal is what
+freezes what a player bought up to that award. Sealing was deliberately never automatic (D-GH-2026-09-01-session-seal, option A1: an
+award event in the log as well as the server award would double-count AP) — but the tick only exists on the form most DMs don't use.
+
+DO (owner, 2026-10-04):
+  1. Add an "and lock history" checkbox, TICKED BY DEFAULT, to the campaign-wide Award AP tile; each ticked character goes through
+     award_ap_and_seal() (one atomic call per character, fresh idempotency key per click, as the per-character form does).
+  2. Remove the AP amount (and its lock-history tick) from the per-character form where the tile now covers it. KEEP what the tile
+     does not do: per-character gold and bonus time, and the standalone "Lock history" button.
+  3. DECIDE with the owner: seal only characters that have FINISHED creation (locked)? Sealing one still in creation freezes a
+     half-built character. Recommended: seal locked characters, award-only the rest, and say which in the result message.
+  4. A per-character failure must not abort the others, and the result lists who was awarded and who was sealed.
+```
+**Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
+
 ## feat/server-freeze-at-lock — server freezes history before the lock and priced patch events after a lock/award — TODO
 Branch feat/server-freeze-at-lock. **Effort:** high · **Risk:** high — a new trigger rule on every campaign character save; a wrong rule refuses legitimate saves. Staged WITH `fix/chargen-post-lock-purchases` and AFTER the Amble repair (`docs/plans/2026-10-04-amble-lock-repair.md`). Spec: `docs/plans/2026-10-04-chargen-post-lock-purchases.md` §7.
 
@@ -1178,58 +1223,6 @@ cold plan review (/make-code-cold-plan-review) BEFORE implementing.
 (and could not before), an unlock for an unlocked or player-taken drawback is rejected server-side,
 `get_advisors` shows nothing new, and `testing/tests/engine-parity.html` reports 0 failed.
 
-## feat/permanent-wounds — a DM-only Wounds section (minor and moderate only) — TODO
-Branch feat/permanent-wounds. Third task; depends on fix/imposed-drawback-cap-bypass and
-feat/dm-unlock-drawback. Design decided 2026-09-30 (A2 in-play and DM-imposed; B1 buy-off with a story;
-C2 reuse existing drawbacks; G2 reused entries stay player-takable, only NEW wound entries are hidden
-from players; J1 no stat cap on imposed wounds). An imposed drawback pays 0 AP, so a wound's table value
-is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — there is no Grievous tier.**
-**Effort:** high · **Risk:** medium — ambiguity medium (prices are judgement calls); damage scale medium
-(new DATA entries, DM Console and both player pickers, plus the guide in two repos); likelihood low.
-
-```text
-(a) DATA — APPEND new wound-only entries to the END of DATA.drawbacks (key order is load-bearing, see
-    D-GH-2026-08-19-drawbacks-phobias-expansion), each with drawbackFx + drawbackCat, and NO drawbackMaxStats:
-      Maimed Hand 2   — disadvantage on Sleight of Hand and tool/instrument checks
-      Bad Knee 2      — cannot Dash as a bonus action; jump distance halved; disadvantage on Acrobatics
-      Brittle Bones 2 — fall damage doubled; bludgeoning crits against you deal an extra weapon die
-      Withered Arm 4  — the arm can carry a strapped shield but cannot hold a weapon, cast a somatic
-                        component or grip
-    Add a wound tier + body-location map (DATA.wounds or similar). MINOR: Trembling Hands, Hard of Hearing,
-    Asthmatic, one Affliction, and the new 2s. MODERATE: Lame 3, Old Wound 3, Frightening Visage 3,
-    Peg Leg 4, One-Eyed 4, Frail 4, Withered Arm 4. One wound per body location (Lame + Peg Leg must not
-    stack) — warn. NOT wounds, stay ordinary player drawbacks: Missing Arm, Glass Frame, Slow to Mend, Mute.
-(b) UI — DM Console's impose-a-drawback gets a Wounds group (default Locked, default flat removal cost).
-    CharGen and Live Sheet player pickers hide the NEW wound-only entries; reused entries stay takable.
-(c) Guide — a Wounds section in BOTH the pact-guide master and the served docs/PACT-Players-Guide.html per
-    docs/VERSION-SYNC.md; run node testing/scripts/verify-guide.mjs before AND after. State that buy-off
-    needs the DM to unlock it after a story beat. ALSO document that a DM-imposed drawback carries no stat
-    cap (engine behaviour landed in D-GH-2026-09-30-imposed-drawback-cap-bypass; the guide has no text on
-    DM-imposed drawbacks at all today) — this is where that half of the engine-and-guide rule lands.
-(d) One DATA.version bump. CHANGELOG; DECISIONS record decisions/2026/D-GH-2026-09-30-permanent-wounds.md
-    plus a one-line pointer in DECISIONS.md.
-```
-**Done when:** a DM can impose each wound from a Wounds group in DM Console, locked by default; players
-cannot pick the four new wound-only entries in either tool; the guide and engine agree (verify-guide.mjs
-clean, both copies); and `testing/tests/engine-parity.html` reports 0 failed.
-
-## fix/missing-arm-penalty-undefined — Missing Arm pays 5 AP for no defined penalty — TODO
-Branch fix/missing-arm-penalty-undefined. Independent of the wounds tasks (it is a Grievous drawback,
-not a wound). `Missing Arm`'s `drawbackFx` says only "Lost an arm; defined mechanical penalty." and
-nothing is defined, so it pays 5 AP for no restriction — the "free AP" failure mode
-D-GH-2026-08-19-drawbacks-phobias-expansion prices against.
-**Effort:** low · **Risk:** low — ambiguity low; damage scale low (a 2026-09-30 live check found 0
-holders); likelihood low. Probably display-only, so no DATA.version bump — confirm.
-
-```text
-Define the penalty in drawbackFx and in the guide (BOTH the pact-guide master and the served copy, per
-docs/VERSION-SYNC.md). Suggested: no two-handed weapons; cannot wield a weapon and a shield together;
-somatic components need your one hand. Keep the existing DEX ≤ 12 cap. Re-check the 5 AP price against
-Thin-Skinned and Slow to Mend (both 5) once the penalty is written. Run verify-guide.mjs before and after.
-```
-**Done when:** `Missing Arm` states a concrete mechanical penalty in `drawbackFx` and the guide, the two
-guide copies agree (verify-guide.mjs clean), and `testing/tests/engine-parity.html` reports 0 failed.
-
 ## feat/server-enforced-drawback-lock — enforce the DM drawback lock (and unlock) server-side — TODO
 Branch feat/server-enforced-drawback-lock. Owner decision T1 (2026-10-04): the drawback lock (`dmLocked`)
 and the DM unlock from feat/dm-unlock-drawback ship **client-honoured** and are documented as *advisory
@@ -1280,33 +1273,3 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
-
-## fix/imposed-drawbacks-grant-no-ap — compute() credits a DM-imposed drawback's table value as income — TODO
-Branch fix/imposed-drawbacks-grant-no-ap. A DM-imposed drawback is recorded at `cost:0` and pays the player nothing
-(`economy().drawbackEarned` = 0), but `compute()` derives its grant from the drawback NAMES in `b.drawbacks`, so it credits
-the table value anyway. Found 2026-10-04 while building feat/dm-unlock-drawback. Matters as soon as wounds are imposed
-(feat/permanent-wounds): measured on the current engine — one imposed Peg Leg: `compute().remaining` 83 against 79 earned;
-four imposed wounds (4+4+5+3): 95, plus the warnings "Drawbacks grant 16 AP — the guide caps them at 12 AP" and "4 drawbacks
-chosen — most DMs cap this at 2–3". The frozen ledger (`economy()`) is right, so the Live Sheet's AP-left is right, but the
-DM Console's "Granted by drawbacks" row reads `compute().drawbackAp`, and `creationCeiling` takes its `drawbackBonus` from
-`compute()`'s grant too (engine.js, near `opts.drawbackAp`) — verify whether imposed values inflate a still-building
-character's ceiling.
-**Effort:** medium · **Risk:** medium — ambiguity low (the marker exists); damage scale high (edits `compute()`, the engine's
-source of truth, and changes its output); likelihood low (parity catches drift; live data 2026-09-30 had 0 DM-imposed
-drawbacks, so no live character changes — re-measure).
-
-```text
-1. In compute()'s drawback loop, an IMPOSED slot (b._imposedDrawbackIdx, the marker from
-   D-GH-2026-09-30-imposed-drawback-cap-bypass, same cost >= 0 rule) contributes 0 to drawGain, is listed at 0 in the
-   itemised "Drawbacks" rows (so the DM still sees it), and is excluded from BOTH cap warnings ("grant N AP", "N drawbacks
-   chosen"). Decide in the plan whether "Frail and Glass Frame can't be taken together" still applies to an imposed pair.
-2. Check creationCeiling()/DM Console summary consume the corrected figure (drawbackAp), not a re-derived one.
-3. Fixtures: a new event fixture with four imposed wounds — remaining 79, no cap warnings; assert it against a player-taken
-   control of the same four, which still grants 16 and still warns. Update any expected file the change moves.
-4. compute() output changes, so bump DATA.version ONCE and say so in the CHANGELOG. Coordinate the guide wording with
-   feat/permanent-wounds (imposed drawbacks are undocumented there today).
-5. CHANGELOG; DECISIONS record D-GH-<date>-imposed-drawbacks-grant-no-ap.
-```
-**Done when:** with four DM-imposed wounds `compute().remaining` equals `economy().available` (79 on the 79-AP fixture), no
-"Drawbacks grant…" or "N drawbacks chosen" warning appears for them, the same four player-taken still grant 16 and warn, and
-`testing/tests/engine-parity.html` reports 0 failed.

@@ -13,6 +13,7 @@ on:
     paths:
       - "tools/DM-Console.html"
       - "tools/PACT-Live-Char-Sheet.html"
+      - "tools/PACT-CharGen-Webtool.html"
       - "js/engine.js"
       - "js/engine-data.js"
       - "js/ap-by-level.js"
@@ -22,6 +23,7 @@ on:
       - "testing/scripts/dm-console-ui-e2e.mjs"
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
+      - "testing/scripts/wounds-ui-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -70,3 +72,8 @@ jobs:
 
       - name: DM Console — the Unlock control offers the right drawbacks and sends the right event
         run: node testing/scripts/dm-console-unlock-e2e.mjs
+
+      # feat/permanent-wounds: players can't pick the four wound-only drawbacks in CharGen or the Live Sheet, and a DM can
+      # impose all of them (grouped, defaulting to Locked + flat) from the DM Console. Same cost profile as the steps above.
+      - name: Wounds — hidden from players, imposable by a DM
+        run: node testing/scripts/wounds-ui-e2e.mjs

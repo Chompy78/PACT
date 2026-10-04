@@ -134,3 +134,24 @@ parity 73/0). Interim end-of-log locks applied to the four unlocked Amble charac
   player could lower Hit Dice, strip proficiencies, set a stamped cost to 0 or delete the event. That is how Caspian's
   −11 AP refund and Skylar's post-lock "Ability scores −4" got through. Both rules come after the repair.
 
+## Addendum — 2026-10-04 (the Amble repair is done)
+
+- **Rule as applied (S1/Y):** everything up to and including the creation lock is creation; everything after is in play. The lock goes
+  right **before** the first purchase whose spend ends past the ceiling (limit + drawback AP), whatever that purchase costs (1 AP or 18). This
+  replaces G2's "lock after the crossing purchase". A character that never ends over its ceiling (Caspian) is locked at the end. Multi-step
+  bundles (Archer's 8-step Spellcasting) are split per step so the lock can fall inside them.
+- **Limits (U2):** every limit is the AP the character earned through chapter 4 (session 4 ended 2026-08-23, when the lock was meant to fire
+  and was missed — the root of the mess), summed from `ap_awards`. The log entry records where the figure came from.
+- **Gold and downtime (O1/G1):** charged retroactively in full using Amble's "standard" band, removed where a purchase moved before the lock.
+  Amble has no gold awards, so every charge is a debt. The party downtime window was widened 60 → 365 days by editing the one declaration
+  (a new declaration would have restarted the window).
+- **Seal (H2/J1):** after the last repair, a `sessionSeal` was appended to all six. The DM Console award tile cannot seal
+  (`feat/dm-console-award-seal`).
+- **Safeguards that held:** every write was a single UPDATE guarded by id, `updated_at`, event count, SEQ and the md5 of the candidate;
+  pre-write copies kept; the history-lock and AP-budget triggers disabled only for one transaction each (Moss rewrite, Caspian, Anders) and
+  verified re-enabled; the forensics scripts were rehearsed against the real triggers in Docker first.
+- **Bugs found in the repair tooling, worth remembering:** `foldBuild()` aliases event payloads, so a log with a spellcasting patch plus later
+  indexed steps silently rewrites the patch — always fold a deep copy; and "drop repeated records" must be limited to zero-cost `patch` events
+  or it eats real step events.
+- **Left alone:** Caspian's pre-lock −11 AP ability refund; bare free-subclass picks (N3).
+

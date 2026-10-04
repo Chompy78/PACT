@@ -1277,7 +1277,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.554';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.568';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1825,9 +1825,23 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var boonOpts = DATA.boonList.map(function(n){
       return '<option value="'+esc(n)+'">'+esc(n)+' ('+((DATA.boons[n]&&DATA.boons[n].ap)||0)+' AP)</option>';
     }).join('');
-    var drawOpts = DATA.drawbackList.map(function(n){
-      return '<option value="'+esc(n)+'">'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP)</option>';
-    }).join('');
+    // feat/permanent-wounds: the impose dropdown lists EVERY drawback, not just the player-pickable
+    // DATA.drawbackList — the four wound-only entries (Maimed Hand, Bad Knee, Brittle Bones, Withered Arm) exist
+    // only for a DM to impose. Wounds come first, grouped by tier, each priced as what it costs to BUY OFF (an
+    // imposed drawback pays the player nothing, so its table value is its flat removal price); then the rest.
+    // Choosing a wound defaults the control to Locked + flat (see the change handler in wireCloudRosterDelegation).
+    var _W = DATA.wounds || {};
+    function _drawOpt(n, isWound){
+      return '<option value="'+esc(n)+'"'+(isWound?' data-wound="1"':'')+'>'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP'+(isWound?' flat buy-off':'')+')</option>';
+    }
+    var drawOpts = '';
+    [['minor','Wounds — minor'],['moderate','Wounds — moderate']].forEach(function(g){
+      var names = Object.keys(_W).filter(function(n){ return _W[n].tier===g[0] && DATA.drawbacks[n]!==undefined; })
+        .sort(function(a,b){ return (DATA.drawbacks[a]-DATA.drawbacks[b]) || a.localeCompare(b); });
+      if(names.length) drawOpts += '<optgroup label="'+esc(g[1])+'">'+names.map(function(n){ return _drawOpt(n,true); }).join('')+'</optgroup>';
+    });
+    var _others = Object.keys(DATA.drawbacks).filter(function(n){ return !_W[n]; }).sort(function(a,b){ return a.localeCompare(b); });
+    drawOpts += '<optgroup label="Other drawbacks">'+_others.map(function(n){ return _drawOpt(n,false); }).join('')+'</optgroup>';
     var h = '<div class="ruleblock"><div class="lbl">DM edit — grant a boon <button type="button" class="infobtn" title="Adds the boon AND grants matching bonus AP in the same write, so it never costs the player anything — net 0 change to their spendable AP. Recorded in their log as a DM edit; they can see it but cannot undo past it.">&#9432;</button></div>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
       '<select class="field dm-grant-boon-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a boon —</option>'+boonOpts+'</select>' +
@@ -1842,7 +1856,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<button type="button" class="btn sm danger dm-remove-boon-btn" data-cid="'+esc(id)+'">Remove</button>' +
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="remove-boon" style="font-size:11px;color:var(--muted)"></span></div>';
     }
-    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. Any stat cap the drawback normally carries (e.g. Peg Leg: DEX 12) is NOT applied to an imposed one. You choose whether/how they can buy it off.">&#9432;</button></div>' +
+    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. Any stat cap the drawback normally carries (e.g. Peg Leg: DEX 12) is NOT applied to an imposed one. You choose whether/how they can buy it off. WOUNDS (the first two groups) are lasting injuries only you can impose: choosing one defaults to Locked at the flat price, shown as what it costs to buy off — unlock it below once the story beat has happened.">&#9432;</button></div>' +
       '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
       '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
       '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap"><input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'"> Locked</label>' +
@@ -2661,6 +2675,26 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   (function wireCloudRosterDelegation(){
     var el = document.getElementById('campRoster');
     if(!el) return;
+    // feat/permanent-wounds: picking a WOUND in the impose dropdown defaults the control to what a wound should be —
+    // Locked (bought off only after a story beat, which the DM then unlocks) and the flat removal price (the 3×
+    // deterrent exists to stop a player gaming a cheap AP loan, which does not apply to a drawback they never chose).
+    // Picking an ordinary drawback — or moving between two wounds — leaves whatever the DM already set untouched, and the DM can still change both.
+    el.addEventListener('change', function(ev){
+      var sel = ev.target;
+      if(!sel || !sel.classList || !sel.classList.contains('dm-impose-draw-sel')) return;
+      var opt = sel.options[sel.selectedIndex];
+      // Only on the move FROM a non-wound TO a wound: switching between two wounds to compare them must not
+      // re-tick Locked or reset the removal cost the DM has since changed.
+      var wasWound = sel.getAttribute('data-was-wound') === '1';
+      var isWound = !!(opt && opt.hasAttribute('data-wound'));
+      sel.setAttribute('data-was-wound', isWound ? '1' : '0');
+      if(!isWound || wasWound) return;
+      var cid = sel.getAttribute('data-cid');
+      var locked = el.querySelector('.dm-impose-draw-locked[data-cid="'+cid+'"]');
+      var rate = el.querySelector('.dm-impose-draw-rate[data-cid="'+cid+'"]');
+      if(locked) locked.checked = true;
+      if(rate) rate.value = 'flat';
+    });
     el.addEventListener('click', function(ev){
       var t = ev.target;
       var srow = t.closest ? t.closest('.secrow') : null;
