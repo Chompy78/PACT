@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat(dm-console): a locked/unlocked icon after each character's tier** — 🔒 for a finished
+  (locked) character, 🔓 for one still in creation (including one the DM reopened), in the full card, the table's
+  Lvl column, the detail card and the compact card. The state is `creationLockState()`'s own answer (computed once
+  in the analyser), never re-derived; the icon carries an `aria-label`/`title`. New check in
+  `dm-console-ui-e2e.mjs` (imports three characters through the real file input). No engine change, no
+  `DATA.version` bump.
 - **2026-10-04 · fix(sync): a restored local copy can no longer overwrite a newer cloud save (CharGen + Live
   Sheet)** — the second cause of the lost Amble locks (Skylar 2 Oct, Archer 3 Oct, after #553). Each tool keeps
   its own local copy apart from `js/sync.js`'s record; on reload the tool restored its copy while a background
