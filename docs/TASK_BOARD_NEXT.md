@@ -27,6 +27,29 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/free-subclass-bare-pick — a free-subclass pick with nothing bought from it must not count (rules change) — TODO
+Branch feat/free-subclass-bare-pick. **Effort:** medium · **Risk:** high — a rules change (engine AND Players Guide must both land, `DATA.version` bumped once) that can lower existing characters' prices, so the live blast radius must be measured first.
+
+```text
+Owner decision N3 (2026-10-04). Players Guide §13/§14: "Your first subclass in each class you can build from is free to open — but
+opening it is all that's free. Pick it, then buy each piece you want." js/engine.js (~line 573): `free = freeSub[cls] || used[0]`, then
+EVERY other subclass used in that class pays DATA.subUnlock (15 AP). So a free-subclass pick that has NOTHING bought from it still
+holds the "free" slot: name Circle of the Moon for free, buy nothing from it, then buy abilities from Circle of the Land -> the
+Land abilities are charged the 15 AP unlock, although it is the only subclass the player actually opened.
+
+DO:
+  1. Engine: honour freeSub[cls] only if the pick has at least one piece bought (an ability in subAbilities or a bundle in
+     subSpellBundles); otherwise treat it as unset, so the first subclass actually used is the free one.
+  2. CharGen (and anywhere else that writes it): stop recording a freeSub pick until a piece of that subclass is bought.
+  3. Players Guide: say it in the subclass paragraphs (both live in the master and the served copy; run verify-guide.mjs before and
+     after) and bump DATA.version once.
+  4. MEASURE FIRST: query the live characters table for every character with a bare freeSub pick AND abilities in a different
+     subclass of the same class — those prices fall by 15 AP; list them for the owner (event-sourced characters keep their frozen
+     ledger, but their displayed total will move). Today's six Amble characters: Moss (Druid -> Circle of the Moon) and Skylar
+     (Sorcerer -> Wild Magic Sorcery) each have one bare pick and NO other subclass in that class, so neither is affected.
+```
+**Done when:** new engine-parity fixtures cover a bare pick (ignored), a used pick (honoured) and the Moon/Land case; `expected-results.csv` updated in the same change; CharGen no longer writes a bare pick; the Guide states the rule and `verify-guide.mjs` passes; the live measurement has been shown to the owner.
+
 ## feat/dm-console-award-seal — the campaign-wide Award AP tile cannot lock history; the per-character form can — TODO
 Branch feat/dm-console-award-seal. **Effort:** medium · **Risk:** medium — touches the DM's award flow (live AP) and calls `award_ap_and_seal()`; the idempotency and per-character failure handling are the fiddly parts.
 
