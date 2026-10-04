@@ -36,8 +36,10 @@
   player-taken control that must still pay and still warn. Pure Node. Runs in CI as the `imposed-drawback-grants` job of
   `.github/workflows/engine-parity.yml`: `node testing/scripts/imposed-drawback-grants-ci.mjs`. Parity fixtures
   EV-025/EV-026 pin the warning lists.
-- **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`) — gates for the DM-only Wounds
-  section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier; the four
+- **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`, extended by `feat/wound-aliases`) — gates for the
+  DM-only Wounds section. As of `feat/wound-aliases` there are 19 wound-only entries (the original four, 8 aliases pinned to their
+  original's price/tier/place/mechanics, and 7 new mechanics), and `wounds-ci.mjs` also pins that **every skill is named by at least two
+  drawbacks**, with a control that the counter can fail; `wounds-ui-e2e.mjs` reads the wound-only names from the engine data. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier; the four
   Grievous drawbacks are not wounds), the **wound-only split** (the four new entries are in `DATA.drawbacks` but NOT in
   `DATA.drawbackList`, which is what hides them from players; appended at the end of `DATA.drawbacks`; no stat cap), and the two
   `compute()` rules — a wound-only entry that is not DM-imposed is a hard ⛔, and two wounds in one body location is a soft

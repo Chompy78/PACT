@@ -28,6 +28,17 @@
   and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
   identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
   change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
+- **2026-10-04 · feat(rules): 15 more DM-only wounds — 8 same-effect aliases and 7 new mechanics; rules `v0.367` → `v0.368`** — a count of
+  skill names across the 94 drawback texts found 10 of 18 skills named by only one drawback (an Affliction). Added 15 wound-only
+  entries (DM-impose only, not on `drawbackList`, appended to `DATA.drawbacks`, no stat cap). **Aliases** (a new name and flavour with
+  the same price, tier, place and mechanics): Crushed Leg = Lame, Shattered Hand and Lost Fingers = Maimed Hand, Burned Eye = One-Eyed,
+  Ruined Hearing = Hard of Hearing, Scorched Lungs = Asthmatic, Cracked Ribs = Brittle Bones, Mangled Arm = Withered Arm. **New
+  mechanics** (2 AP each): Addled Memory (History, Religion, Arcana), Rattled Skull (Investigation, Nature), Scarred Throat
+  (Intimidation, Performance), Shell-Shocked (Insight, Medicine), Frostbitten Limbs (Survival, speed in cold), Torn Shoulder (thrown
+  attacks, climbing), Wrenched Back (carrying limits). Every skill is now named by at least two drawbacks, and `wounds-ci.mjs` pins
+  that. The impose picker lists them with no code change. Guide: the Wounds table and its "which drawbacks are wounds" paragraph
+  rewritten in both the served copy and the `pact-guide` master (`verify-guide` "drawback text" 15 missing → passes). New `head` and
+  `throat` places. Nothing existing changes (the 15 names are new). See `D-GH-2026-10-04-wound-aliases`.
 - **2026-10-04 · feat(dm-console): "Impose a drawback" is now a pop-up that shows each drawback's impact** — the dropdown gave a name and a
   price and nothing else. The card now has a "Choose a drawback…" button that opens a window: a searchable list (wounds first, then the
   rest) beside a detail pane showing the effect text, wound tier and body place, the buy-off cost flat and tripled, that a DM-imposed
