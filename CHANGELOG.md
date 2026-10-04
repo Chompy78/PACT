@@ -17,6 +17,13 @@
   purchases — the roller applies its result as a creation-priced burst and re-appends any lock after it, so that needs
   its own change (see the plan, §8). 11 new checks in `chargen-flows-e2e.mjs`; parity 76/0, roller quality gate 74/0,
   economy-ui 155/0. No `DATA.version` bump; the Players Guide says nothing about the creation limit.
+- **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no
+  creation limit set** — with no stamped limit the engine's spend block is fail-open, which is how Moss, Skylar,
+  Fenwick and Archer overspent (their limit was never set, or was deleted by the reload / stale-copy bugs).
+  Shown next to the lock icon, only for campaign characters that are unlocked and have no `creationLockConfig`
+  threshold (`creationLockState().confirmed === false`); locked characters, characters with a limit, and locally
+  imported files are never flagged. Tooltip points at Set limit in the DM tools. New checks in
+  `dm-console-ui-e2e.mjs` (109 pass). No engine change, no `DATA.version` bump. Owner decision T1.
 - **2026-10-04 · feat: a DM can unlock a drawback they imposed locked** — new `dmUnlockDrawback` event (required story-beat
   note, ≤200 chars) keyed to the imposed purchase's `seq` + name, appended through `dm_edit_character_log`, which validates
   it against the stored log (imposed + locked + not already unlocked) and rebuilds it from a whitelist so it cannot move
