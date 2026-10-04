@@ -65,6 +65,11 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.577` (PR #577)** — ships #573 (CharGen: nothing bought can be unticked after the lock, new drawbacks refused,
+  flat purchases priced and charged in play), #575 (the Live Sheet's purchase-legality rules moved into the engine as `purchaseLegality`; CharGen uses them), #576 (CharGen
+  phase 2a: languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency and free subclass as in-play purchases), plus the already-merged DM-imposed wounds
+  (rules v0.368) and the DM Console impose-a-drawback picker. `BUILD` synced `v1.571` → `v1.577` across `js/engine.js` and the three tools; `DATA.version` untouched by the
+  bump. No tag (not a milestone).
 - **2026-10-04 · feat(chargen): after "Finish creating", raising languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency or a free subclass is an in-play purchase**
   (`fix/chargen-post-lock-purchases-2a-flat`; phase 2a of `fix/chargen-post-lock-purchases`) — those slots used to rewrite their creation-era patch event in place after the
   lock (a refund route and no in-play price). They now append the Live Sheet's own events (`language`, `vigor`, `grit`, `ki`, `sorcery`, `attune`, `armour`, `wprof`,
