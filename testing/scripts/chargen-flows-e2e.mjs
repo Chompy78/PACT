@@ -566,6 +566,107 @@ section('a finished character stays finished across CharGen reloads');
   await ctx.close();
 }
 
+// fix/chargen-creation-ceiling (owner decisions W1 + W2 + B, 2026-10-04): CharGen refuses an edit that INCREASES spend
+// and ends past the DM's creation limit (unlocked + limit stamped only), prompts once when an edit lands exactly on
+// the limit, and caps the random roll at the limit. Hit Dice is the lever: it prices 2, 3, 3, 4 ... AP per die, so the
+// limit can be placed to be reached exactly or crossed. See docs/plans/2026-10-04-chargen-creation-ceiling.md.
+section('CharGen refuses an over-limit edit (W1), prompts at the limit (W2), caps the roll (B)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [], confirmAnswer = true;
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); if (d.type() === 'confirm' && !confirmAnswer) await d.dismiss(); else await d.accept(); });
+  const state = () => p.evaluate(() => { const c = creationCeiling(LOG, _cgCeilOpts());
+    return { spent: c.spent, ceiling: c.ceiling, enforced: c.enforced, locked: c.locked, hd: readBuild().hd, hist: HIST.length, log: LOG.length }; });
+  const setHD = async v => { await p.evaluate(v => { const el = document.getElementById('hd'); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, v); await p.waitForTimeout(300); };
+  const stampLimit = async thr => { await p.evaluate(t => { LOG.push({ seq: SEQ++, ts: Date.now(), type: 'creationLockConfig', payload: { threshold: t }, rules: DATA.version, label: 'test limit' }); render(); }, thr); };
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500); await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; confirmAnswer = true; };
+
+  await fresh();
+  const s0 = await state();
+  await setHD(3);                                   // 5 AP
+  const s1 = await state();
+  await stampLimit(s1.spent + 3);                   // ceiling = spent + 3  → HD 4 (+3) lands exactly on it; HD 5 (+4 more) crosses
+  const sLim = await state();
+  check('no limit stamped: nothing is refused (HD 1 → 3 accepted, no dialog)', s1.hd === 3 && dialogs.length === 0, JSON.stringify({ s0, s1 }));
+  check('with a limit stamped the character reads enforced + unlocked', sLim.enforced === true && sLim.locked === false, JSON.stringify(sLim));
+
+  // W2: an edit that lands exactly on the limit prompts once; Cancel keeps building
+  confirmAnswer = false;
+  await setHD(4);
+  const s2 = await state();
+  const prompts = dialogs.filter(d => d.type === 'confirm' && /Finish creating this character now/.test(d.msg));
+  check('landing exactly on the limit is accepted (HD 4, 0 left)', s2.hd === 4 && s2.spent === s2.ceiling, JSON.stringify(s2));
+  check('...and prompts once to finish creating', prompts.length === 1, JSON.stringify(dialogs.map(d => d.type)));
+  check('...Cancel ("not yet") leaves the character unlocked', s2.locked === false);
+
+  // W1: past the limit → refused, restored, no undo step, message names the composition
+  dialogs = [];
+  const histBefore = (await state()).hist;
+  await setHD(5);
+  const s3 = await state();
+  const refusal = dialogs.find(d => d.type === 'alert' && /past your creation limit/.test(d.msg));
+  check('an edit past the limit is refused (HD stays 4, spend unchanged)', s3.hd === 4 && s3.spent === s2.spent, JSON.stringify(s3));
+  check('...the refusal message names the budget, the accepted spend, the change and both exits',
+    !!refusal && refusal.msg.includes('Creation budget: ' + s2.ceiling) && refusal.msg.includes('Already spent: ' + s2.spent + ' AP')
+      && /This change: \+\d+ AP/.test(refusal.msg) && /Finish creating/.test(refusal.msg) && /ask your DM/.test(refusal.msg), refusal && refusal.msg.slice(0, 160));
+  check('...and the refused edit leaves NO undo step', s3.hist === histBefore, histBefore + ' → ' + s3.hist);
+  check('...the form control was repainted to the accepted value', await p.evaluate(() => document.getElementById('hd').value === '4'));
+  await setHD(4);
+  check('...no second prompt while still sitting on the limit', dialogs.filter(d => d.type === 'confirm').length === 0, JSON.stringify(dialogs.map(d => d.type)));
+
+  // lowering spend is never refused, even when the character is over its ceiling
+  await stampLimit(2);                              // DM lowers the limit below current spend
+  const sOver = await state();
+  dialogs = [];
+  await setHD(3);
+  const sLow = await state();
+  check('a character already over its limit may still LOWER spend (HD 4 → 3 accepted)', sOver.spent > sOver.ceiling && sLow.hd === 3 && dialogs.length === 0, JSON.stringify({ sOver, sLow }));
+  dialogs = [];
+  await setHD(4);
+  check('...but may not raise it again (HD 3 → 4 refused)', (await state()).hd === 3 && dialogs.some(d => /past your creation limit/.test(d.msg)));
+
+  // a load over the limit is not blocked
+  dialogs = [];
+  await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500);
+  check('reloading an over-limit character raises no refusal', !dialogs.some(d => /past your creation limit/.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 40))));
+
+  // locked: never refused or prompted
+  await fresh();
+  await setHD(3); const sA = await state();
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  await stampLimit(sA.spent + 1);
+  dialogs = [];
+  await setHD(6);
+  const sLocked = await state();
+  check('a locked character is never refused (HD 3 → 6)', sLocked.locked === true && sLocked.hd === 6 && dialogs.length === 0, JSON.stringify({ sLocked, d: dialogs.map(d => d.type) }));
+
+  // Cancel path then OK path of the prompt, and "finish" really locks
+  await fresh();
+  await setHD(3); const sB = await state();
+  await stampLimit(sB.spent + 3);
+  confirmAnswer = true;
+  await setHD(4);
+  const sOk = await state();
+  check('answering OK to the prompt finishes creation (locked)', sOk.locked === true && dialogs.filter(d => d.type === 'confirm').length === 1, JSON.stringify(sOk));
+
+  // B: the random roll is capped at the limit and never refused mid-roll
+  await fresh();
+  await p.evaluate(() => { const b = document.getElementById('budget'); b.value = '79'; b.dispatchEvent(new Event('input', { bubbles: true })); b.dispatchEvent(new Event('change', { bubbles: true })); });
+  await p.waitForTimeout(300);
+  await stampLimit(30);
+  dialogs = [];
+  await p.evaluate(() => randomizeRoll('', 0)); await p.waitForTimeout(800);
+  const sRoll = await state();
+  check('a roll on a limited character is capped at the limit (spent ≤ ceiling)', sRoll.enforced && sRoll.spent <= sRoll.ceiling && sRoll.spent > 0, JSON.stringify(sRoll));
+  check('...is not refused part-way and does not lock the character', !dialogs.some(d => /past your creation limit/.test(d.msg)) && sRoll.locked === false, JSON.stringify(dialogs.map(d => d.msg.slice(0, 50))));
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.

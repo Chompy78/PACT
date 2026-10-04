@@ -1,7 +1,7 @@
 # Plan — CharGen refuses a purchase past the DM's creation limit (W1) and prompts at the limit (W2)
 
-> **Status: PLAN FOR OWNER REVIEW — no code written.** Written 2026-10-04. Task: `fix/chargen-creation-ceiling`
-> (NEXT board). Owner decisions W1 + W2 were taken the same day; the three open questions at the end are not.
+> **Status: IMPLEMENTED 2026-10-04 on `fix/chargen-creation-ceiling`** (see §8 for what shipped and the one scoped-down
+> part). Task: `fix/chargen-creation-ceiling` (NEXT board). Owner decisions W1 + W2 and the answers to A/B/C are in §8.
 > Decision record to extend when built: `D-GH-2026-10-01-creation-lock-integrity`.
 
 ## 1. The gap, and the evidence
@@ -116,3 +116,27 @@ Players Guide's text about the creation limit must still be checked and reconcil
   `min(budget, ceiling)` in the roll's setup; bypassing leaves a way around the block.
 - **C. The prompt wording / when.** Prompt at exactly 0 left (this plan), or also at a warning threshold (e.g. ≤ 3 AP
   left)? **Recommendation: exactly 0 only** — anything earlier is nagging.
+
+## 8. Decisions and what shipped (2026-10-04)
+
+**Owner answers.** A: hard refuse. B: cap the roll at the ceiling, *then lock and spend the rest automatically as in-play
+purchases*. C: prompt at exactly 0 left only.
+
+**Shipped.** The `render()` check/accept pair exactly as §3 (hook in `render()`; baseline dropped by `_clearHistory()`),
+the shared `creationLimitRefusalText()` in `js/ui-helpers.js` (Live Sheet now uses it too, wording unchanged), the
+reach-the-limit prompt (`cgFinishCreating(true)` skips its own second confirm), and the roll cap. One correction found in
+testing: the refusal's "Already spent" line must show the *accepted* spend, not the refused total.
+
+**Scoped down — B's second half is NOT built.** The roll is capped at the ceiling (limit + the drawback AP it grants), is
+never refused part-way, and does not lock. Locking and then spending the remainder as *in-play* purchases needs a change
+to the roller itself: `randomizeRoll()` applies its result as a burst through `replaceWholeLogFromBuild()` and then
+re-appends any carried lock **after** the burst, deliberately (the D-GH34 ordering — a lock placed before the burst would
+re-price every burst event at in-play rates). A second pass after a lock would therefore re-create the whole character
+from scratch and put the lock last, pricing everything as creation. Doing it properly means a post-lock phase that
+appends purchases one at a time through the normal purchase path. A second consequence the owner should weigh: a rolled
+campaign character would end *locked*, and a locked character cannot be re-rolled without the DM's "Reopen creation".
+Interim behaviour: the roll stops at the limit and the player finishes creating (the new W2 prompt will offer it at 0 left)
+and spends the rest in play.
+
+**Players Guide.** `docs/PACT-Players-Guide.html` has no text about the creation limit or "Finish creating" at all (checked
+2026-10-04), so there is nothing to reconcile on either side.

@@ -994,15 +994,7 @@ function buy(cat,payload,label){
   // all decided by the engine, see wouldExceedCeiling().
   if(typeof wouldExceedCeiling === 'function' && wouldExceedCeiling(LOG, cost, _ceilOpts(b0))){
     var _c = creationCeiling(LOG, _ceilOpts(b0));
-    alert('\u26D4 That would take you past your creation limit.\n\n'
-      + 'Creation budget: ' + _c.ceiling + ' AP'
-      + (_c.drawbackBonus ? ('  (' + _c.base + ' set by your DM + ' + _c.drawbackBonus + ' from your drawbacks)') : '')
-      + '\nAlready spent: ' + _c.spent + ' AP'
-      + '\nThis purchase: ' + cost + ' AP\n\n'
-      + 'Two ways forward:\n'
-      + '  \u2022 If you have FINISHED building this character, use "Finish creating" \u2014 after that you\n'
-      + '    spend at in-play prices and this limit no longer applies.\n'
-      + '  \u2022 If you are still building and need more budget, ask your DM to raise your limit.');
+    alert(creationLimitRefusalText(_c, cost, 'This purchase'));
     return;
   }
 
