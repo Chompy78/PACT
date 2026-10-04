@@ -24,6 +24,7 @@ on:
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
+      - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -77,3 +78,7 @@ jobs:
       # impose all of them (grouped, defaulting to Locked + flat) from the DM Console. Same cost profile as the steps above.
       - name: Wounds — hidden from players, imposable by a DM
         run: node testing/scripts/wounds-ui-e2e.mjs
+
+      # feat/dm-impose-picker: the impose pop-up (list + detail pane) sends the same event as the old dropdown. Same cost profile.
+      - name: DM impose picker — shows a drawback's impact before it is imposed
+        run: node testing/scripts/dm-impose-picker-e2e.mjs

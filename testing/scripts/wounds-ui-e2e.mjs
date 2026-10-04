@@ -7,9 +7,8 @@
  *   1. CharGen's drawback grid does not offer them — but still shows one the character ALREADY holds (a DM imposed it),
  *      checked, so it can't vanish from view;
  *   2. the Live Sheet's drawback panel does not offer them;
- *   3. the DM Console's impose dropdown offers ALL of them, grouped as Wounds (minor / moderate) before the rest, and
- *      choosing a wound defaults the control to Locked + flat (choosing an ordinary drawback leaves it alone), and the
- *      Impose button then sends exactly that.
+ *   (The DM Console half — every wound offered, grouped wounds-first, Locked + flat by default, and what Impose sends — moved to
+ *   dm-impose-picker-e2e.mjs when the impose dropdown became a pop-up picker.)
  *
  * No Supabase, no sign-in: characters are seeded into localStorage / applied as envelopes, and bridge calls are stubbed and
  * recorded. Every "not offered" check has a control that the panel really rendered (otherwise an empty result could just
@@ -103,77 +102,6 @@ console.log('Live Sheet — the drawback panel');
   check('CONTROL: the drawback panel really rendered (ordinary drawbacks are offered)', ['Lame', 'Peg Leg', 'Missing Arm'].every(n => text.includes(n)));
   check('none of the four wound-only entries is offered', NEW.filter(n => text.includes(n)).length === 0, NEW.filter(n => text.includes(n)).join(', '));
   check('no page errors', errs.length === 0, errs.join(' | '));
-  await ctx.close();
-}
-
-// ---- 3. DM Console ---------------------------------------------------------------------------------------------------
-console.log('DM Console — the impose dropdown');
-{
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  const errs = []; page.on('pageerror', e => errs.push(String(e)));
-  await page.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil: 'load' });
-  await page.waitForFunction(() => !!window._campBridge && typeof window._dmRenderCloudRoster === 'function', { timeout: 20000 });
-  await page.evaluate(() => {
-    window.__calls = []; window.__alerts = [];
-    window._campBridge.listCampaignInvites = () => Promise.resolve([]);
-    window._campBridge.dmEditCharacterLog = (id, events) => { window.__calls.push({ id, events }); return Promise.resolve(events); };
-    window._dmReloadRoster = () => {};
-    window.alert = (m) => { window.__alerts.push(String(m)); };
-  });
-  const LOG = [
-    { type: 'award', amount: 79, seq: 1, label: 'Award' },
-    { type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0, level: 1, seq: 2, label: 'Fighter' },
-  ];
-  await page.evaluate((log) => { window._dmRenderCloudRoster(document.getElementById('campRoster'),
-    [{ id: 'c1', name: 'Wound probe', ap: 0, player: 'Player', playerLabel: '', dmNotes: '', stats: { LOG: log } }]); }, LOG);
-
-  const info = await page.evaluate(() => {
-    const sel = document.querySelector('#campRoster .dm-impose-draw-sel');
-    if (!sel) return null;
-    const groups = [...sel.querySelectorAll('optgroup')].map(g => ({ label: g.label, names: [...g.querySelectorAll('option')].map(o => o.value) }));
-    return { groups, all: [...sel.options].map(o => o.value).filter(Boolean), total: Object.keys(window.DATA.drawbacks).length };
-  });
-  check('the impose dropdown renders', !!info);
-  check('three groups, wounds first: minor, moderate, then the rest',
-    info && JSON.stringify(info.groups.map(g => g.label)) === JSON.stringify(['Wounds — minor', 'Wounds — moderate', 'Other drawbacks']), info && JSON.stringify(info.groups.map(g => g.label)));
-  check('ALL four wound-only entries are offered to the DM', info && NEW.every(n => info.all.includes(n)));
-  check('they sit in the wound groups, not "Other drawbacks"', info && NEW.every(n => !info.groups[2].names.includes(n)));
-  check('every drawback is reachable exactly once (nothing lost, nothing doubled)',
-    info && info.all.length === info.total && new Set(info.all).size === info.total, info && `${info.all.length} options / ${info.total} drawbacks`);
-  check('the Grievous drawbacks stay in "Other drawbacks" (Missing Arm, Glass Frame, Slow to Mend, Mute)',
-    info && ['Missing Arm', 'Glass Frame', 'Slow to Mend', 'Mute'].every(n => info.groups[2].names.includes(n)));
-  check('moderate wounds are listed under moderate (Withered Arm, Peg Leg), minor under minor (Bad Knee)',
-    info && info.groups[1].names.includes('Withered Arm') && info.groups[1].names.includes('Peg Leg') && info.groups[0].names.includes('Bad Knee'));
-
-  // Defaults: a wound defaults to Locked + flat; an ordinary drawback leaves the DM's settings alone.
-  const pick = (name) => page.evaluate((n) => {
-    const sel = document.querySelector('#campRoster .dm-impose-draw-sel');
-    sel.value = n; sel.dispatchEvent(new Event('change', { bubbles: true }));
-    return { locked: document.querySelector('#campRoster .dm-impose-draw-locked').checked, rate: document.querySelector('#campRoster .dm-impose-draw-rate').value };
-  }, name);
-  await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-locked').checked = false; document.querySelector('#campRoster .dm-impose-draw-rate').value = 'expensive'; });
-  const ord = await pick('Mana Leak');
-  check('choosing an ORDINARY drawback leaves the DM\'s Locked/rate settings untouched', ord.locked === false && ord.rate === 'expensive', JSON.stringify(ord));
-  const wnd = await pick('Withered Arm');
-  check('choosing a WOUND defaults the control to Locked', wnd.locked === true, JSON.stringify(wnd));
-  check('...and to the flat removal price', wnd.rate === 'flat', JSON.stringify(wnd));
-  // Moving between two wounds to compare them must not undo what the DM has since changed.
-  await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-locked').checked = false; document.querySelector('#campRoster .dm-impose-draw-rate').value = 'expensive'; });
-  const wnd2 = await pick('Bad Knee');
-  check('switching from one wound to another leaves the DM\'s Locked/rate settings untouched', wnd2.locked === false && wnd2.rate === 'expensive', JSON.stringify(wnd2));
-  await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-locked').checked = true; document.querySelector('#campRoster .dm-impose-draw-rate').value = 'flat'; });
-  await pick('Withered Arm');
-
-  // What the Impose button then sends.
-  await page.evaluate(() => document.querySelector('#campRoster .dm-impose-draw-btn').click());
-  await page.waitForFunction(() => window.__calls.length === 1, { timeout: 5000 });
-  const sent = await page.evaluate(() => window.__calls[0]);
-  const ev = sent && sent.events && sent.events[0];
-  check('Impose sends one drawback purchase for that wound, at cost 0 (the player is paid nothing)',
-    ev && ev.type === 'buy' && ev.cat === 'drawback' && ev.payload && ev.payload.v === 'Withered Arm' && ev.cost === 0, JSON.stringify(ev));
-  check('...Locked and flat, as defaulted', ev && ev.dmLocked === true && ev.dmRemovalCost === 'flat', JSON.stringify(ev));
-  check('no page errors', errs.filter(e => !/Failed to load resource|net::|supabase|fetch|NetworkError|Load failed/i.test(e)).length === 0, errs.join(' | '));
   await ctx.close();
 }
 
