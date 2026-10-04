@@ -28,6 +28,49 @@
   and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
   identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
   change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
+- **2026-10-04 · chore(release): build `v1.554` → `v1.568`** — the `preview` → `main` promotion (PR #568) carries rules `v0.367` (DM-imposed drawbacks, DM unlock, Wounds). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched.
+- **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
+  a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
+  no Grievous tier). New `Maimed Hand` 2, `Bad Knee` 2, `Brittle Bones` 2, `Withered Arm` 4 sit in `DATA.drawbacks` but not
+  `drawbackList`, so players cannot pick them (CharGen also hides them unless already held); `DATA.wounds` records tier and body
+  place for 19 drawbacks (the rest are reused and stay player-takable). `compute()` adds a hard `⛔` for a non-imposed wound-only
+  entry and a soft warning for two wounds in the same place when one is DM-imposed (the Live Sheet treats it as advisory, not a purchase block). DM Console impose dropdown is grouped into Wounds (minor /
+  moderate) and Other drawbacks, and choosing a wound defaults to Locked + flat. Guide: new "Wounds" section in the served copy
+  and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
+  new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
+  See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.568` (PR #568)** — ships the creation-lock work (#559–#561 DM Console
+  lock icon and "no limit" flag, CharGen over-limit refusal), imposed drawbacks grant no AP (rules v0.366), DM-imposed Wounds (rules v0.367),
+  the Missing Arm text, and the Amble repair tooling and records. `BUILD` synced `v1.554` → `v1.568` across `js/engine.js` and the three
+  tools; `DATA.version` untouched by the bump. No tag (not a milestone).
+- **2026-10-04 · data(repair): the six Amble histories are repaired, locked and sealed** — live data, no code or `DATA.version`
+  change. Each character's creation lock now sits where the owner's rule puts it (everything up to and including the lock is creation;
+  the lock goes **before** the first purchase past limit + drawback AP), each has its limit restored (= the AP earned through chapter 4:
+  Skylar 80, Fenwick 78, Archer 68, Moss 79, Caspian 78, Anders 76), prices re-stamped by current rules (Q1), gold and downtime charged
+  retroactively in play (Skylar 750 gp / 90 d, Moss 425 / 63, Anders 275 / 63, Fenwick 150 / 35, Archer 75 / 21, Caspian none), Archer's
+  lost name restored, and a `sessionSeal` appended to each. Awards and the `ap` column are untouched. One guarded UPDATE per character
+  (id + `updated_at` + event count + SEQ + md5); the history-lock and AP-budget triggers were off for one transaction each for
+  Moss (rewrite), Caspian and Anders only, and verified re-enabled. Tooling: `testing/scripts/creation-lock-forensics/` (`repair.mjs`,
+  `rehearse.mjs`, `verify-live.mjs`). Party downtime window changed 60 → 365 days. See `docs/plans/2026-10-04-amble-lock-repair.md` §8–9
+  and `D-GH-2026-10-01-creation-lock-integrity`. The server freeze (D2/E1) is unblocked.
+- **2026-10-04 · fix(content): `Missing Arm` (5 AP) now states its penalty** — its description said only "Lost an arm;
+  defined mechanical penalty" and nothing was defined, so a player took 5 AP for a restriction that did not exist. It now
+  reads: one hand free (no two-handed weapons, no weapon and shield together, somatic components need that hand free), plus
+  **disadvantage on physical ability checks where one arm reasonably matters, such as Athletics, Animal Handling or Sleight of
+  Hand, at the DM's call** (the last part is the owner's addition). The DEX ≤ 12 cap is unchanged. Edited in place in the engine's
+  `drawbackFx`, the served guide, and the `pact-guide` master (never copied over each other); `verify-guide.mjs` before and after
+  shows an identical result. 5 AP re-checked against `Peg Leg` 4 / `Thin-Skinned` 5 / `Leaden Reflexes` 6 and kept. Display
+  text only (`engine.js` never reads `drawbackFx`), so no `DATA.version` bump; 0 of 50 live characters hold it. See
+  `D-GH-2026-10-04-missing-arm-penalty-undefined`.
+- **2026-10-04 · fix(engine): a DM-imposed drawback grants no AP in `compute()`; rules `v0.365` → `v0.366`** — `compute()`
+  derived the drawback grant from the drawback names, so a drawback the DM imposed at cost 0 (player paid nothing) was
+  credited at its table value: four imposed wounds showed 93 AP remaining against a true 79, fired "Drawbacks grant 14 AP —
+  the guide caps them at 12" and "4 drawbacks chosen" at the player, and raised the creation ceiling (Live Sheet feeds it
+  `compute().drawbackAp`). An imposed slot (`b._imposedDrawbackIdx`) now contributes 0, is still listed — at 0, labelled
+  "(DM imposed)" — and counts toward neither warning; its penalty is unchanged and Frail + Glass Frame still warns. The
+  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (28/0; 17 of 28 fail on
+  the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
+  0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
 - **2026-10-04 · fix(chargen): CharGen now refuses an edit past the DM's creation limit, prompts at the limit, and
   caps the random roll** — `docs/plans/2026-08-30-creation-ceiling.md` "Done when" #2 ("refused in both CharGen and
   Live Sheet") only ever shipped in Live Sheet; CharGen imported `wouldExceedCeiling` and never called it, which is how

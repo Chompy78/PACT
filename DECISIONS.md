@@ -10,6 +10,29 @@
 
 ## Index
 
+## D-GH-2026-10-04-permanent-wounds — a DM-only Wounds system (minor and moderate only)
+- Wounds are lasting injuries a DM imposes in play on campaign characters: never chosen, 0 AP, locked until a story beat, bought
+  off at 2 (minor) or 3–4 (moderate) AP; no Grievous tier. Four new wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones,
+  Withered Arm) live in `DATA.drawbacks` but not `drawbackList`, which hides them from players; `DATA.wounds` holds tier and
+  place. `compute()` hard-blocks a non-imposed wound-only entry and soft-warns on two wounds in one place. Judgement calls
+  (Afflictions/Frail slotless, soft slot warning, EV-025/026 swapped to Frightening Visage) are in the record. `v0.367`.
+  Full record: `decisions/2026/D-GH-2026-10-04-permanent-wounds.md`.
+## D-GH-2026-10-04-missing-arm-penalty-undefined — `Missing Arm` gets a real penalty
+- `Missing Arm` paid 5 AP but its text ("defined mechanical penalty") defined nothing — free AP, the failure the drawback-pricing
+  decision prices against. It now states one-hand gear/casting limits plus disadvantage on physical checks where one arm
+  reasonably matters (Athletics, Animal Handling, Sleight of Hand — at the DM's call, an owner addition). 5 AP kept after
+  checking against `Peg Leg`/`Thin-Skinned`/`Leaden Reflexes`; fairest for martials, weaker for pure casters (the lever there is
+  a gate or a split, not a repricing). Both guide copies and the engine text edited in place, never copied over each other;
+  display-only, no version bump. Full record: `decisions/2026/D-GH-2026-10-04-missing-arm-penalty-undefined.md`.
+## D-GH-2026-10-04-imposed-drawbacks-grant-no-ap — a DM-imposed drawback grants no AP in `compute()`
+- `compute()` derives the drawback grant from the drawback names, which cannot tell imposed from chosen, so a drawback the
+  DM imposed at cost 0 was credited at its table value — inflating "AP remaining", firing cap warnings at a player for
+  drawbacks they never chose, and raising the creation ceiling (the Live Sheet feeds it `compute().drawbackAp`). An
+  imposed slot, identified by the same `b._imposedDrawbackIdx` marker the stat-cap exemption uses, now contributes 0, is
+  listed at 0 labelled "(DM imposed)", and counts toward neither warning; its penalty is unchanged. Fixed in the engine
+  rather than per tool, so the DM Console row and the ceiling are corrected at the source. `DATA.version` v0.365 → v0.366
+  (output changes for an imposed build). Full record: `decisions/2026/D-GH-2026-10-04-imposed-drawbacks-grant-no-ap.md`.
+
 ## D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
 - A DM-imposed drawback can be locked so the player may not buy it off, but nothing could ever clear the lock.
   New `dmUnlockDrawback` event (a required story-beat note), appended through `dm_edit_character_log`, **keyed to the

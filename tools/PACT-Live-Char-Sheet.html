@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.554.html**-->
+<!--**PACT-Live-Char-Sheet v1.568.html**-->
 
 <!doctype html>
 <!--
@@ -883,7 +883,7 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // adjudicate for them"). Before this PR, takeDrawback() bypassed legalCheck() entirely so this warning
 // was never checked at purchase time; routing it through buy() would have turned it into a hard block
 // with no rule actually being broken, since it matches neither this regex nor EXPECTED_FOLLOWUP.
-const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at/i;
+const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
 // EXPECTED FOLLOW-UP = not a warning at all. The purchase is legal and complete; a choice that belongs
 // to it is made afterwards, in the ✎ Names dialog. Epic boons are the only case today: MUT.boon pushes
 // the label but cannot set epicBoonAbil (js/engine.js:545), so compute() on the candidate build always
@@ -1903,7 +1903,10 @@ function buildBuyPanel(b,r,eco,head){
      // was the literal UI manifestation of the underlying engine bug: once bought off, the tile went
      // permanently grey (ibOwned renders a disabled button) and `takeDrawback()` was never reachable
      // again through the panel, regardless of what the build actually held.
-     const avail=DATA.drawbackList.filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
+     // A wound-only drawback a DM imposed is deliberately not in drawbackList (players cannot pick it), but a held one must
+     // still show as an Active tile, as CharGen does — so add the held ones to the list this panel is built from.
+     const _heldWounds=b.drawbacks.filter((x,i,arr)=>arr.indexOf(x)===i&&DATA.wounds&&DATA.wounds[x]&&DATA.wounds[x].dmOnly&&DATA.drawbackList.indexOf(x)<0);
+     const avail=DATA.drawbackList.concat(_heldWounds).filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
      const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      const grid=cats.map(c=>{
@@ -2662,7 +2665,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.365</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.367</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
