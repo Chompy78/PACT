@@ -1,0 +1,10 @@
+{
+  "description": "feat/dm-unlock-drawback (D-GH-2026-10-04-dm-unlock-drawback): a DM-imposed LOCKED Peg Leg is later released by a dmUnlockDrawback event keyed to the imposed purchase's seq. The unlock is an event type the fold has no mutator for, so it must change NOTHING in the sheet: same total, same warnings, same remaining AP, and the drawback is still on the build (an unlock lifts the lock on a buy-off, it does not remove the drawback). The unlock state itself lives in activeEvents().unlocked and is pinned by testing/scripts/dm-unlock-drawback-ci.mjs; this fixture pins the 'moves no AP' half through the same totals gate every other fixture uses.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Peg Leg" }, "cost": 0, "level": 1, "seq": 3, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "DM imposed — Peg Leg" },
+    { "type": "dmUnlockDrawback", "refVal": "Peg Leg", "targetSeq": 3, "note": "Recovered the surgeon's journal and paid for the fitting", "seq": 4, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "label": "DM unlocked — Peg Leg" }
+  ]
+}

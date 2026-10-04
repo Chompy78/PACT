@@ -682,9 +682,13 @@ $$;
 -- dm_edit_character_log(character, events) — feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events).
 -- The ONLY path a DM can append to a player's own stats->LOG through — characters_update's row policy
 -- is owner-only, same SECURITY DEFINER-bypass pattern as award_ap/dm_unbind_character just above,
--- extended to `stats`. Scope allowlist (owner: "not a general editor"): buy/cat:boon, buy/cat:drawback,
--- award, dmRemoveBoon only. Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the
--- client sent for them — the caller cannot forge who made the edit, when, or where in the log it lands.
+-- extended to `stats`. Scope (owner: "not a general editor") is a FIXED allowlist of audited event types,
+-- never arbitrary events: buy/cat:boon, buy/cat:drawback, award, dmRemoveBoon, sessionSeal, dmUnlockDrawback.
+-- The last two are MARKERS rather than ledger transactions (they move no AP), and dmUnlockDrawback also changes
+-- what the player's own client allows (a locked drawback may then be bought off) — which is why it is validated
+-- against the stored log and rebuilt from a whitelist, not just allowlisted.
+-- Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the client sent for them — the caller
+-- cannot forge who made the edit, when, or where in the log it lands.
 -- Accepts a JSON ARRAY so a DM-granted boon's matched buy+award pair lands in ONE atomic write (see
 -- the migration file's header for why two separate calls would leave a real, if brief, non-neutral
 -- moment). See sql/migrations/2026-08-10-dm-edit-character-log.sql for the full design/compatibility
@@ -714,6 +718,11 @@ declare
   v_matched    boolean;
   v_i          integer;
   v_j          integer;
+  -- feat/dm-unlock-drawback (D-GH-2026-10-04-dm-unlock-drawback): scratch for validating 'dmUnlockDrawback'.
+  v_name       text;
+  v_target     integer;
+  v_note       text;
+  v_matches    integer;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -749,7 +758,9 @@ begin
       end if;
     -- [SEAL] 'sessionSeal' added by 2026-09-01-session-seal.sql so a DM can draw the line
     -- through the same audited, dm-stamped path as every other DM-authored event.
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal') then
+    -- [UNLOCK] 'dmUnlockDrawback' added by 2026-10-04-dm-unlock-drawback.sql: a DM releases a drawback they
+    -- imposed LOCKED once the story beat has happened. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -760,6 +771,53 @@ begin
     -- pact_ap_ledger_spend's sums and out of the boon/award matching arrays above.
     if v_type = 'sessionSeal' then
       v_ev := v_ev - 'amount' - 'cost';
+    end if;
+
+    -- [UNLOCK] An unlock is a marker, not a transaction, and it must name ONE specific purchase. Keyed by the
+    -- imposed purchase's server-stamped seq plus its drawback name — never by name alone, because a character
+    -- can hold a player-taken and an imposed purchase of the same name and js/engine.js's buy-off match is
+    -- by name (FIFO). The target must already be in the STORED log: an imposition and its unlock cannot be
+    -- sent in the same call. Validated against the stored log, not the client, so a DM cannot unlock a
+    -- player-taken drawback, an unlocked one, one that does not exist, or the same one twice.
+    -- Deliberately NOT checked here: whether the target has since been bought off. That is js/engine.js's
+    -- by-name FIFO match; re-implementing it in SQL would duplicate a rules decision in a second place. An
+    -- unlock of a bought-off purchase is a harmless no-op the engine ignores, and DM Console only ever offers
+    -- purchases the engine reports as open.
+    if v_type = 'dmUnlockDrawback' then
+      v_name := btrim(coalesce(v_ev->>'refVal', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if v_name = '' then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs refVal (the drawback name)';
+      end if;
+      if coalesce(v_ev->>'targetSeq', '') !~ '^[0-9]{1,9}$' then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs targetSeq (the integer seq of the imposed purchase)';
+      end if;
+      v_target := (v_ev->>'targetSeq')::integer;
+      if v_note = '' or char_length(v_note) > 200 then
+        raise exception 'dm_edit_character_log: dmUnlockDrawback needs a story-beat note of 1 to 200 characters';
+      end if;
+      -- jsonb equality, not ::boolean casts: a hand-edited log can hold any value in these fields, and a
+      -- cast error here would abort the DM's call instead of cleanly refusing it.
+      select count(*) into v_matches
+        from jsonb_array_elements(v_log) as t(e)
+       where e->>'type' = 'buy' and e->>'cat' = 'drawback'
+         and e#>>'{payload,v}' = v_name
+         and e->>'seq' = v_target::text
+         and e->'dmEdit' = 'true'::jsonb
+         and e->'dmLocked' = 'true'::jsonb;
+      if v_matches <> 1 then
+        raise exception 'dm_edit_character_log: no single DM-imposed, locked drawback "%" at seq % to unlock (found %)', v_name, v_target, v_matches;
+      end if;
+      if exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                  where e->>'type' = 'dmUnlockDrawback' and e->>'refVal' = v_name
+                    and e->>'targetSeq' = v_target::text) then
+        raise exception 'dm_edit_character_log: drawback "%" at seq % is already unlocked', v_name, v_target;
+      end if;
+      -- Rebuild from a whitelist instead of stripping fields: nothing else the client sent (cost, amount, disc,
+      -- payload, ...) may ride along, so the event cannot move AP or masquerade as another type.
+      v_ev := jsonb_build_object('type', 'dmUnlockDrawback', 'refVal', v_name, 'targetSeq', v_target,
+                                 'note', v_note,
+                                 'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM unlocked — ' || v_name), 120));
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -850,7 +908,7 @@ returns jsonb
 language sql immutable set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
-  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon')
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
 $$;
 

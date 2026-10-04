@@ -19,6 +19,25 @@
   fixtures, same `expected-results.csv` + `expected-warnings.json`, same assertions, no browser needed. Runs automatically in CI (see
   `.github/workflows/engine-parity.yml`) on PRs touching `js/engine.js` or `testing/**`; a CLI agent should
   run it directly (`node testing/scripts/engine-parity-ci.mjs`) rather than opening the browser page.
+- **`scripts/undo-barrier-ci.mjs`** — gate for `isUndoBarrier()`/`undoFloor()`/`sealedFloor()`, the one
+  "this history can no longer be taken back" rule both player tools rely on. Pure Node. Runs in CI as the
+  `undo-barrier` job of `.github/workflows/engine-parity.yml`: `node testing/scripts/undo-barrier-ci.mjs`.
+- **`scripts/dm-unlock-drawback-ci.mjs`** (`feat/dm-unlock-drawback`) — gate for `activeEvents().unlocked`:
+  a `dmUnlockDrawback` event releases exactly the DM-imposed, locked purchase it names by `seq` (never a
+  same-named player-taken one), is ignored if unstamped / out of order / ambiguous, moves no AP, is an undo
+  barrier covering the original imposed buy, and leaves FIFO buy-off resolution untouched. Pure Node. Runs in
+  CI as the `dm-unlock-drawback` job of `.github/workflows/engine-parity.yml`:
+  `node testing/scripts/dm-unlock-drawback-ci.mjs`. Note the lock and unlock are client-honoured, not
+  server-enforced — see `feat/server-enforced-drawback-lock`.
+- **`scripts/live-sheet-unlock-e2e.mjs`** and **`scripts/dm-console-unlock-e2e.mjs`**
+  (`feat/dm-unlock-drawback`) — the two tools' halves of the DM unlock, driven in a real browser with no
+  Supabase and no sign-in (a seeded `localStorage` character; stubbed + recorded bridge calls). The Live
+  Sheet gate proves a locked imposed drawback shows 🔒 and cannot be bought off, an unlocked one shows 🔓
+  with the DM's note (HTML-escaped) and can be, and that a same-named player-taken drawback keeps its own
+  3× path. The DM Console gate proves which purchases the Unlock control offers (imposed + locked +
+  still-locked only, identified by seq), what the button sends (one `dmUnlockDrawback`, trimmed required
+  note, nothing that could move AP), and that the archived-campaign peek blocks it. Both run in CI as steps
+  of `.github/workflows/dm-console-ui.yml`. Needs Playwright (`cd testing && npm ci`).
 - **`campaign-test.html`** — end-to-end harness for `js/campaign.js` and `js/dm.js` (requires Supabase sign-in).
 - **`sync-test.html`** — end-to-end harness for `js/sync.js` (requires Supabase sign-in).
 - **`scripts/sync-state-machine-ci.mjs`** — gate for `getSyncState()`/`noteEdit()`/`checkFreshness()`

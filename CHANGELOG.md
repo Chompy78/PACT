@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat: a DM can unlock a drawback they imposed locked** — new `dmUnlockDrawback` event (required story-beat
+  note, ≤200 chars) keyed to the imposed purchase's `seq` + name, appended through `dm_edit_character_log`, which validates
+  it against the stored log (imposed + locked + not already unlocked) and rebuilds it from a whitelist so it cannot move
+  AP; it joins `pact_ap_ledger_protected`'s types. `activeEvents().unlocked` (additive) feeds the Live Sheet — locked rows
+  show 🔒, unlocked ones 🔓 with the DM's escaped note and the buy-off at the DM's chosen rate — and a DM Console Unlock
+  control behind the archived-campaign peek guard. **Migration `2026-10-04-dm-unlock-drawback.sql` (+ rollback) is written
+  and tested but NOT yet applied to production — apply it before shipping the client.** The lock/unlock are advisory
+  against a hostile owner (`feat/server-enforced-drawback-lock`). Tests: 77-assertion Postgres 16 harness incl. RPC
+  behaviour, `dm-unlock-drawback-ci.mjs` 30/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 19/0, `dm-console-unlock-e2e`
+  19/0, all wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
 - **2026-10-04 · feat(sql): server guard for creation locks — live** — a player save can no longer remove or
   change a creation-lock entry (`creationLocked` / `creationUnlocked` / `creationLockConfig`) on a campaign
   character; only the campaign DM can append `creationUnlocked` or a limit (D1). A campaign move no longer

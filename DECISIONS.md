@@ -10,6 +10,16 @@
 
 ## Index
 
+## D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
+- A DM-imposed drawback can be locked so the player may not buy it off, but nothing could ever clear the lock.
+  New `dmUnlockDrawback` event (a required story-beat note), appended through `dm_edit_character_log`, **keyed to the
+  imposed purchase's `seq` and name — never name alone**, because a player-taken and an imposed purchase of the same
+  name can coexist and buy-off matches by name. The server validates it against the stored log and rebuilds it from a
+  whitelist (no AP can ride along); the engine exposes `activeEvents().unlocked`; the Live Sheet and DM Console use it.
+  The already-bought-off check deliberately stays out of SQL (it is the engine's FIFO rule). **Advisory against a hostile
+  owner** — real enforcement is `feat/server-enforced-drawback-lock`. Migration written and tested but not yet applied to
+  production. Full record: `decisions/2026/D-GH-2026-10-04-dm-unlock-drawback.md`.
+
 ## D-GH-2026-09-30-imposed-drawback-cap-bypass — a DM-imposed drawback is exempt from its stat cap
 - Imposing `Peg Leg` on a DEX 16 character made `compute()` raise `⛔ … requires DEX 12 or lower`, though an
   imposed drawback pays 0 AP and so there is no AP loan for the cap to police. `MUT.drawback` kept only the
