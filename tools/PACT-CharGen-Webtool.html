@@ -596,7 +596,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime };
@@ -609,7 +609,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
-  window.priceOf = priceOf;
+  window.priceOf = priceOf; window.purchaseLegality = purchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
@@ -3345,11 +3345,15 @@ function _cgPostLockAppend(steps){
     var st=steps[i];
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
-    var before=(compute(b,_cgDmOpts()).warnings||[]), after=(compute(next,_cgDmOpts()).warnings||[]);
-    var hard=after.filter(function(w){return /^\u26D4/.test(w)&&before.indexOf(w)<0;});
-    if(hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+hard.join('\n\u2022 ')); _cgRepaint(); return false; }
+    // The Live Sheet's own "may this be bought" rule (js/engine.js purchaseLegality, moved there from the Live Sheet): an already-owned
+    // single-instance proficiency, any hard rules violation, and a soft warning the player must confirm. This used to block only warnings
+    // starting with the stop-sign marker, which let through purchases the Live Sheet refuses (Vigor past CON mod, "boon requires CON 12+").
+    var lg=purchaseLegality(b,st.cat,st.payload);
+    if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
+    if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
+    if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }
     var q=_cgPostLockQuote(cost);
-    var ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:[]};
+    var ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:lg.rest};   // the Live Sheet stores what was flagged and clicked through
     if(q){ ev.gp=q.gp; ev.days=q.days; }
     evs.push(ev); total+=cost; b=next;
   }
