@@ -1215,23 +1215,6 @@ is its flat buy-off cost. **Wounds are MINOR (2) or MODERATE (3–4) only — th
 cannot pick the four new wound-only entries in either tool; the guide and engine agree (verify-guide.mjs
 clean, both copies); and `testing/tests/engine-parity.html` reports 0 failed.
 
-## fix/missing-arm-penalty-undefined — Missing Arm pays 5 AP for no defined penalty — TODO
-Branch fix/missing-arm-penalty-undefined. Independent of the wounds tasks (it is a Grievous drawback,
-not a wound). `Missing Arm`'s `drawbackFx` says only "Lost an arm; defined mechanical penalty." and
-nothing is defined, so it pays 5 AP for no restriction — the "free AP" failure mode
-D-GH-2026-08-19-drawbacks-phobias-expansion prices against.
-**Effort:** low · **Risk:** low — ambiguity low; damage scale low (a 2026-09-30 live check found 0
-holders); likelihood low. Probably display-only, so no DATA.version bump — confirm.
-
-```text
-Define the penalty in drawbackFx and in the guide (BOTH the pact-guide master and the served copy, per
-docs/VERSION-SYNC.md). Suggested: no two-handed weapons; cannot wield a weapon and a shield together;
-somatic components need your one hand. Keep the existing DEX ≤ 12 cap. Re-check the 5 AP price against
-Thin-Skinned and Slow to Mend (both 5) once the penalty is written. Run verify-guide.mjs before and after.
-```
-**Done when:** `Missing Arm` states a concrete mechanical penalty in `drawbackFx` and the guide, the two
-guide copies agree (verify-guide.mjs clean), and `testing/tests/engine-parity.html` reports 0 failed.
-
 ## feat/server-enforced-drawback-lock — enforce the DM drawback lock (and unlock) server-side — TODO
 Branch feat/server-enforced-drawback-lock. Owner decision T1 (2026-10-04): the drawback lock (`dmLocked`)
 and the DM unlock from feat/dm-unlock-drawback ship **client-honoured** and are documented as *advisory

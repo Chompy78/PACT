@@ -4,6 +4,15 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · fix(content): `Missing Arm` (5 AP) now states its penalty** — its description said only "Lost an arm;
+  defined mechanical penalty" and nothing was defined, so a player took 5 AP for a restriction that did not exist. It now
+  reads: one hand free (no two-handed weapons, no weapon and shield together, somatic components need that hand free), plus
+  **disadvantage on physical ability checks where one arm reasonably matters, such as Athletics, Animal Handling or Sleight of
+  Hand, at the DM's call** (the last part is the owner's addition). The DEX ≤ 12 cap is unchanged. Edited in place in the engine's
+  `drawbackFx`, the served guide, and the `pact-guide` master (never copied over each other); `verify-guide.mjs` before and after
+  shows an identical result. 5 AP re-checked against `Peg Leg` 4 / `Thin-Skinned` 5 / `Leaden Reflexes` 6 and kept. Display
+  text only (`engine.js` never reads `drawbackFx`), so no `DATA.version` bump; 0 of 50 live characters hold it. See
+  `D-GH-2026-10-04-missing-arm-penalty-undefined`.
 - **2026-10-04 · fix(engine): a DM-imposed drawback grants no AP in `compute()`; rules `v0.365` → `v0.366`** — `compute()`
   derived the drawback grant from the drawback names, so a drawback the DM imposed at cost 0 (player paid nothing) was
   credited at its table value: four imposed wounds showed 93 AP remaining against a true 79, fired "Drawbacks grant 14 AP —
