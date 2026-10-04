@@ -1086,8 +1086,8 @@ agent wonder why this was done this way?"
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
 **STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
 `D-GH-2026-10-04-dm-unlock-drawback`):** `sql/migrations/2026-10-04-dm-unlock-drawback.sql` was applied to production
-08:39 UTC and verified (guards, grants, hashes, advisors, logs). **What remains:** merge PR #557, ship the client in the next
-`preview` → `main` promotion, then graduate this entry. Safe order held: the server accepts the event before any client
+08:39 UTC and verified (guards, grants, hashes, advisors, logs). PR #557 is MERGED into `preview` (9d92088). **What remains:**
+ship the client in the next `preview` → `main` promotion (a release decision), then graduate this entry. Safe order held: the server accepts the event before any client
 can send it.
 Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
 bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
@@ -1220,3 +1220,33 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
+
+## fix/imposed-drawbacks-grant-no-ap — compute() credits a DM-imposed drawback's table value as income — TODO
+Branch fix/imposed-drawbacks-grant-no-ap. A DM-imposed drawback is recorded at `cost:0` and pays the player nothing
+(`economy().drawbackEarned` = 0), but `compute()` derives its grant from the drawback NAMES in `b.drawbacks`, so it credits
+the table value anyway. Found 2026-10-04 while building feat/dm-unlock-drawback. Matters as soon as wounds are imposed
+(feat/permanent-wounds): measured on the current engine — one imposed Peg Leg: `compute().remaining` 83 against 79 earned;
+four imposed wounds (4+4+5+3): 95, plus the warnings "Drawbacks grant 16 AP — the guide caps them at 12 AP" and "4 drawbacks
+chosen — most DMs cap this at 2–3". The frozen ledger (`economy()`) is right, so the Live Sheet's AP-left is right, but the
+DM Console's "Granted by drawbacks" row reads `compute().drawbackAp`, and `creationCeiling` takes its `drawbackBonus` from
+`compute()`'s grant too (engine.js, near `opts.drawbackAp`) — verify whether imposed values inflate a still-building
+character's ceiling.
+**Effort:** medium · **Risk:** medium — ambiguity low (the marker exists); damage scale high (edits `compute()`, the engine's
+source of truth, and changes its output); likelihood low (parity catches drift; live data 2026-09-30 had 0 DM-imposed
+drawbacks, so no live character changes — re-measure).
+
+```text
+1. In compute()'s drawback loop, an IMPOSED slot (b._imposedDrawbackIdx, the marker from
+   D-GH-2026-09-30-imposed-drawback-cap-bypass, same cost >= 0 rule) contributes 0 to drawGain, is listed at 0 in the
+   itemised "Drawbacks" rows (so the DM still sees it), and is excluded from BOTH cap warnings ("grant N AP", "N drawbacks
+   chosen"). Decide in the plan whether "Frail and Glass Frame can't be taken together" still applies to an imposed pair.
+2. Check creationCeiling()/DM Console summary consume the corrected figure (drawbackAp), not a re-derived one.
+3. Fixtures: a new event fixture with four imposed wounds — remaining 79, no cap warnings; assert it against a player-taken
+   control of the same four, which still grants 16 and still warns. Update any expected file the change moves.
+4. compute() output changes, so bump DATA.version ONCE and say so in the CHANGELOG. Coordinate the guide wording with
+   feat/permanent-wounds (imposed drawbacks are undocumented there today).
+5. CHANGELOG; DECISIONS record D-GH-<date>-imposed-drawbacks-grant-no-ap.
+```
+**Done when:** with four DM-imposed wounds `compute().remaining` equals `economy().available` (79 on the 79-AP fixture), no
+"Drawbacks grant…" or "N drawbacks chosen" warning appears for them, the same four player-taken still grant 16 and warn, and
+`testing/tests/engine-parity.html` reports 0 failed.
