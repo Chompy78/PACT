@@ -216,3 +216,6 @@ frame per edit, lowering refused, an unaffordable or rules-breaking edit refused
 - **Q2 withdrawn (owner, 2026-10-04, after seeing the wallet inputs above):** CharGen will NOT get the wallet-short warning or the §16 trade offer for now.
   It keeps what phase 1 does — stamp the gold and downtime charge on the purchase and say nothing about the wallet. Revisit only if players ask; the
   prerequisite is loading the DM gold pool and party downtime window into CharGen exactly as the Live Sheet does.
+- **Q2 reinstated (owner, 2026-10-04, later):** the owner wants the wallet warning and trade offer after all. Order of work: **S1** (a small PR for the
+  flat-purchase refund route, drawbacks refused per P1, and in-play pricing/stamping of post-lock flat purchases) → **PR 2a** (flat slots) → **Q2's own PR**
+  (load the DM gold pool and party window into CharGen as the Live Sheet does, then the warning and §16 trade offer). The "withdrawn" bullet above is superseded.
