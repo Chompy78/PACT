@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.568.html**-->
+<!--**PACT-CharGen-Webtool v1.571.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.568 · Rules v0.367</title><style>
+<title>PACT Character Generator — Web Tool v1.571 · Rules v0.367</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.568</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.367</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.571</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.367</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -596,7 +596,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime };
@@ -609,6 +609,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
+  window.priceOf = priceOf;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
@@ -3263,10 +3264,92 @@ function _cgSealPatchRefusal(patch){
   }
   return null;
 }
+// ---- fix/chargen-post-lock-purchases, phase 1 (owner decisions B2/C1/C2, 2026-10-04) -----------------------------
+// docs/plans/2026-10-04-chargen-post-lock-purchases.md. After "Finish creating", replacePatchSlot() used to rewrite the
+// slot's creation-era event IN PLACE (Hit Dice 3 -> 4 became seq 10 rewritten from 5 AP to 8 AP, still BEFORE the lock,
+// no in-play price, no gold/downtime) — right while building, wrong afterwards, and a refund route. For a LOCKED
+// character the two slots below now go through _cgPostLockSlotEdit(): an INCREASE is appended as the same in-play
+// purchase the Live Sheet records (cat hd / prof / abil, priced by the engine's priceOf(), gold/downtime stamped when
+// the economy charges), and a DECREASE is refused ("nothing bought can be removed once creation is finished"). Every
+// other slot still takes the old path until its phase lands. Pre-lock behaviour is untouched.
+var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1};
+function _cgIsLocked(){try{return !!creationCeiling(LOG,_cgCeilOpts()).locked;}catch(e){return false;}}
+// render() alone does NOT repaint a form control from the LOG (a refused Hit Dice edit left the select showing the refused value
+// while the character stayed put — found by the phase-1 test). restoreFrame() does: it repaints every control from a frame with
+// history suspended and takes the frame's LOG back verbatim. A frame of the CURRENT state is therefore a safe "put it all back".
+function _cgRepaint(){ restoreFrame(_snapshotFrame()); }
+// A write that would change nothing: every key of the patch already equals the folded build. After the lock such a write must not
+// touch the log at all (it would append a zero-cost slot event, or re-stamp seq/ts on a frozen creation-era one).
+function _cgDeepEq(a,b){
+  if(a===b) return true;
+  if(a==null||b==null||typeof a!=='object'||typeof b!=='object') return false;
+  if(Array.isArray(a)!==Array.isArray(b)) return false;
+  var ka=Object.keys(a), kb=Object.keys(b); if(ka.length!==kb.length) return false;
+  for(var i=0;i<ka.length;i++){ if(!Object.prototype.hasOwnProperty.call(b,ka[i])||!_cgDeepEq(a[ka[i]],b[ka[i]])) return false; }
+  return true;
+}
+function _cgPatchIsNoop(patch){
+  var cur; try{ cur=foldBuild(LOG); }catch(e){ return false; }
+  return Object.keys(patch||{}).every(function(k){ return _cgDeepEq(cur[k],patch[k]); });
+}
+function _cgPostLockQuote(cost){   // mirrors the Live Sheet's _lsQuote(): null unless the economy charges in play
+  var E=window._engineEcon; if(!E||!E.chargesGoldAndTime||!E.chargesGoldAndTime(LOG)) return null;
+  return E.purchaseCost(cost,_cgEconRules());
+}
+// What an edit to `slot` would ADD, and whether it tries to take something away. Pure: reads `cur`, returns steps.
+function _cgPostLockSteps(slot,patch,cur){
+  var steps=[],refuse=null;
+  if(slot==='hdProf'){
+    var hd=cur.hd||1, pb=cur.profBonus||2;
+    var toHd=(patch.hd!=null)?(+patch.hd||hd):hd, toPb=(patch.profBonus!=null)?(+patch.profBonus||pb):pb;
+    if(toHd<hd) refuse='Hit Dice can only go up once creation is finished (you have '+hd+').';
+    else if(toPb<pb) refuse='Proficiency bonus can only go up once creation is finished (you have +'+pb+').';
+    else{
+      for(var h=hd+1;h<=Math.min(20,toHd);h++) steps.push({cat:'hd',payload:{to:h},label:'Level up \u2192 Hit Die '+h});
+      for(var q=pb+1;q<=toPb;q++) steps.push({cat:'prof',payload:{to:q},label:'Proficiency +'+q});
+    }
+  }else if(slot==='stats'){
+    var cs=cur.stats||{}, ns=(patch&&patch.stats)||{};
+    ABILS.forEach(function(ab){
+      if(refuse||typeof ns[ab]!=='number') return;
+      var was=(typeof cs[ab]==='number')?cs[ab]:10, now=ns[ab];
+      if(now<was){ refuse=ab+' can only go up once creation is finished (it is '+was+').'; return; }
+      for(var v=was;v<now;){ var nx=Math.min(now,Math.min(20,v+2));   // the Live Sheet raises +2 at a time
+        if(nx<=v) break; steps.push({cat:'abil',payload:{ab:ab,to:nx},label:ab+' '+v+'\u2192'+nx}); v=nx; }
+    });
+  }
+  if(refuse) refuse='\uD83D\uDD12 '+refuse+'\n\nNothing you have bought can be removed or lowered once creation is finished. '
+    +'You can still RAISE it by spending AP.';
+  return {steps:steps,refuse:refuse};
+}
+function _cgPostLockSlotEdit(slot,patch){
+  var plan=_cgPostLockSteps(slot,patch,foldBuild(LOG));
+  if(plan.refuse){ alert(plan.refuse); _cgRepaint(); return; }       // put the control back from the LOG
+  if(!plan.steps.length){ _cgRepaint(); return; }                   // set back to what it already is: nothing to record
+  // Price, legality and affordability for the WHOLE edit before anything is appended, so a refusal leaves nothing half-applied.
+  var b=foldBuild(LOG), evs=[], total=0;
+  for(var i=0;i<plan.steps.length;i++){
+    var st=plan.steps[i];
+    var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
+    var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
+    var before=(compute(b,_cgDmOpts()).warnings||[]), after=(compute(next,_cgDmOpts()).warnings||[]);
+    var hard=after.filter(function(w){return /^\u26D4/.test(w)&&before.indexOf(w)<0;});
+    if(hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+hard.join('\n\u2022 ')); _cgRepaint(); return; }
+    var q=_cgPostLockQuote(cost);
+    var ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:[]};
+    if(q){ ev.gp=q.gp; ev.days=q.days; }
+    evs.push(ev); total+=cost; b=next;
+  }
+  var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
+  if(total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return; }
+  evs.forEach(function(ev){ emit(ev); });                           // one undo frame per edit (commitHistory latches per handler turn)
+}
 function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
   var _refusal=_cgSealPatchRefusal(patch);
   if(_refusal){ alert(_refusal); render(); return; }   // render() puts the control back from the LOG
+  if(_CG_POSTLOCK_SLOTS[slot]&&_cgIsLocked()){ _cgPostLockSlotEdit(slot,patch); return; }   // phase 1 of fix/chargen-post-lock-purchases
+  if(_cgIsLocked()&&_cgPatchIsNoop(patch)){ render(); return; }   // after the lock a write that changes nothing writes nothing
   _cgEnsureLockArmed();   // this path bypasses emit(), so arm here too — see _cgEnsureLockArmed()
   // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
   // still holds the old contribution and would double-count it) — see the plan's "Coalescing patch cost delta"

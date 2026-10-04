@@ -4,6 +4,31 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · fix(chargen): after "Finish creating", raising Hit Dice, proficiency or an ability score APPENDS the same in-play
+  purchase the Live Sheet records, and lowering them is refused (phase 1 of `fix/chargen-post-lock-purchases`)** — CharGen used to
+  rewrite the slot's creation-era event in place after the lock (Hit Dice 3 → 4 turned that event from 5 to 8 AP, still before
+  the lock: no in-play price, no gold/downtime, creation history rewritten — and the route Caspian's −11 AP refund took). For a
+  locked character the `hdProf` and `stats` slots now go through `_cgPostLockSlotEdit()`: an increase becomes one `hd` / `prof` /
+  `abil` purchase per step (+2 at a time for abilities, as the Live Sheet does), priced by the engine's `priceOf()` (moved there
+  by the previous entry), legality-checked, affordability-checked for the whole edit before anything is appended, and stamped with
+  gold/downtime when the economy charges; a decrease is refused ("nothing you have bought can be removed once creation is
+  finished"). A locked character's write that changes nothing now writes nothing (it used to append a zero-cost armour slot event
+  whenever STR changed). Also fixed: a refused edit left the form control showing the refused value (`render()` does not repaint
+  controls; `restoreFrame()` does). Other slots keep the old path until their phase lands. Pre-lock behaviour unchanged. 17 new
+  checks in `chargen-flows-e2e.mjs`, including a **head-to-head** that makes the same purchases in CharGen and in the Live Sheet
+  and requires identical events (cat, payload, cost, label, level, gold, downtime) and identical totals, with the economy on
+  (both: 25 gp / 7 days). Not yet in CharGen: the Live Sheet's wallet-short and §16 trade prompts. No `DATA.version` bump.
+- **2026-10-04 · refactor(engine): the in-play purchase pricer moves from the Live Sheet into `js/engine.js`
+  (`priceOf(cur, cat, payload)`)** — it was rules logic with exactly one copy, inside the Live Sheet tool file
+  (`priceOf` + `_CTX_PRICERS`: ability raises, level-ups with the HD-gate "what this level-up legalises" correction,
+  class unlocks, the two bonds, drawbacks). CharGen has to record a purchase made after the lock at the same price
+  (`fix/chargen-post-lock-purchases`), and a second hand-written copy is the drift this project keeps paying for. Moved
+  verbatim; the Live Sheet keeps its `priceOf(cat, payload, cur?)` signature as a one-line delegate. New gate
+  `testing/scripts/engine-priceof-ci.mjs` (wired into `engine-parity.yml`) keeps the original code as a frozen reference
+  and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
+  identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
+  change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
+- **2026-10-04 · chore(release): build `v1.554` → `v1.568`** — the `preview` → `main` promotion (PR #568) carries rules `v0.367` (DM-imposed drawbacks, DM unlock, Wounds). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched.
 - **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
   a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
   no Grievous tier). New `Maimed Hand` 2, `Bad Knee` 2, `Brittle Bones` 2, `Withered Arm` 4 sit in `DATA.drawbacks` but not
@@ -14,6 +39,10 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · chore(release): promote `preview` → `main` as `v1.571` (PR #571)** — ships #564 (the Live Sheet's in-play purchase pricer
+  moved into the engine as `priceOf`), #565 (CharGen records a post-lock Hit Dice / proficiency / ability raise as an appended in-play
+  purchase, phase 1) and the Amble repair records. `BUILD` synced `v1.568` → `v1.571` across `js/engine.js` and the three tools;
+  `DATA.version` untouched. No tag (not a milestone).
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.568` (PR #568)** — ships the creation-lock work (#559–#561 DM Console
   lock icon and "no limit" flag, CharGen over-limit refusal), imposed drawbacks grant no AP (rules v0.366), DM-imposed Wounds (rules v0.367),
   the Missing Arm text, and the Amble repair tooling and records. `BUILD` synced `v1.554` → `v1.568` across `js/engine.js` and the three

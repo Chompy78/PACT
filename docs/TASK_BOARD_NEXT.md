@@ -1273,3 +1273,30 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
+
+## fix/random-fighter-int-priming — a Fighter on a caster theme is sometimes primed on INT — TODO
+Branch fix/random-fighter-int-priming. CI check `random-quality-ci.mjs` ("a Fighter on a caster theme still primes a
+Fighter stat, not INT") failed once on PR #569 (run 37203534734, 2026-10-04): 1 of 8 rolled Fighters had INT 20
+against STR 18 / DEX 16 / CON 14. The same code passed 7 of 7 local runs and the same job's third CI run, so it
+fails by chance. The gate itself is unseeded (it rolls `_qaRoll(theme, budget, "Fighter")` for the zealot and
+battlecaster themes with no fixed seed), which is why it looks like a flake. But the assertion encodes a real rule
+(a non-caster must not have a casting stat primed over its own; see the comment above the check about
+`DATA.castAbility` having an entry for every class), so a failure is either a real intermittent priming bug in
+CharGen's random roll or the gate being wrong about when INT may legitimately win. Find out which.
+**Effort:** low–medium · **Risk:** low — ambiguity medium (cause unknown), damage scale low (random-roll output
+only, no stored data), likelihood of harm low. Not blocking: the run passed on re-run.
+
+```text
+(a) Reproduce deterministically: add a seedable RNG (or a loop of a few hundred rolls) to
+    testing/scripts/random-quality-ci.mjs for this one case, so a failure prints its seed and the full stat block.
+    Do NOT just raise the retry count or loosen the assertion before knowing the cause.
+(b) Find why a Fighter's INT can exceed STR/DEX/CON on a caster theme (the priming code path in the CharGen
+    random roller, around _qaRoll). Likely candidates: a late INT bump from the caster theme's prerequisites,
+    a rank/feature gate that wants INT, or stat priming happening before the class is applied.
+(c) Fix the roller if INT really should not win; otherwise fix the assertion to say what is actually allowed.
+    Either way keep the check, and make a failure reproducible from the printed seed.
+(d) CHANGELOG; DECISIONS record only if the fix changes what a roll may produce. No DATA.version bump (random roll
+    only, compute() output unchanged).
+```
+**Done when:** the Fighter-priming check passes on 200 consecutive seeded rolls, a failing seed (if one is found)
+is recorded as a fixture, and `testing/scripts/random-quality-ci.mjs` reports 0 failed on CI across 3 runs.
