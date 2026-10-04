@@ -1,0 +1,10 @@
+{
+  "description": "feat/permanent-wounds: a DM imposes Lame AND Peg Leg — two wounds on the same part of the body (both 'leg' in DATA.wounds). One SOFT warning names the pair ('Lame and Peg Leg both injure the same place (leg) — a DM normally imposes only one'); it is advisory, not a ⛔ block, because the DM decides. Order follows the drawbacks list. No AP effect (both imposed). Pins the one-wound-per-place rule that EV-027's four different places deliberately avoid.",
+  "baseSnapshot": {},
+  "events": [
+    { "type": "award", "amount": 79, "seq": 1, "note": "Level 1 starting budget", "label": "Award — Level 1 (79 AP)" },
+    { "type": "buy", "cat": "oclass", "payload": { "v": "Fighter" }, "cost": 0, "level": 1, "seq": 2, "label": "Origin class — Fighter" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Lame" }, "cost": 0, "level": 1, "seq": 3, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — Lame (DM imposed)" },
+    { "type": "buy", "cat": "drawback", "payload": { "v": "Peg Leg" }, "cost": 0, "level": 1, "seq": 4, "dmEdit": true, "dmId": "00000000-0000-0000-0000-000000000000", "dmLocked": true, "dmRemovalCost": "flat", "label": "Wound — Peg Leg (DM imposed)" }
+  ]
+}

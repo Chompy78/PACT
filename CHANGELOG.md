@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
+  a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
+  no Grievous tier). New `Maimed Hand` 2, `Bad Knee` 2, `Brittle Bones` 2, `Withered Arm` 4 sit in `DATA.drawbacks` but not
+  `drawbackList`, so players cannot pick them (CharGen also hides them unless already held); `DATA.wounds` records tier and body
+  place for 19 drawbacks (the rest are reused and stay player-takable). `compute()` adds a hard `⛔` for a non-imposed wound-only
+  entry and a soft warning for two wounds in the same place when one is DM-imposed (the Live Sheet treats it as advisory, not a purchase block). DM Console impose dropdown is grouped into Wounds (minor /
+  moderate) and Other drawbacks, and choosing a wound defaults to Locked + flat. Guide: new "Wounds" section in the served copy
+  and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
+  new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
+  See `D-GH-2026-10-04-permanent-wounds`.
 - **2026-10-04 · fix(content): `Missing Arm` (5 AP) now states its penalty** — its description said only "Lost an arm;
   defined mechanical penalty" and nothing was defined, so a player took 5 AP for a restriction that did not exist. It now
   reads: one hand free (no two-handed weapons, no weapon and shield together, somatic components need that hand free), plus
