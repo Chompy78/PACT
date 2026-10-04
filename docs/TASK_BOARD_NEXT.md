@@ -38,11 +38,14 @@ and re-appends any carried lock AFTER the burst on purpose (a lock placed before
 in-play rates — D-GH34), so a second randomizeRoll() pass after a lock re-creates the whole character and prices it all
 as creation. Needed: a post-lock phase that appends purchases one at a time through the normal purchase path
 (emit/MUT, in-play pricing, gold + downtime stamps if the campaign economy is on) using the same legality and
-spend-shape machinery (tryAct, buckets). Decide first, with the owner: (1) a rolled campaign character ends LOCKED and
-cannot be re-rolled without the DM's "Reopen creation" — is that wanted, or should the roll keep re-rolls possible?
-(2) should the in-play phase stamp gold/downtime? (3) one undo step or two (the lock is an undo barrier)?
+spend-shape machinery (tryAct, buckets). OWNER DECISION 2026-10-04 on (1): a rolled character CAN be re-rolled. The roll therefore stays unlocked and ends at the
+limit (as #561 does); a persistent "Accept rolled character" button, visible after a roll and until it is pressed (or
+the character is locked), does the finish: it locks the character and then spends the rest in play. That also settles
+the undo question: the roll stays ONE undoable step, and Accept is the barrier. STILL OPEN with the owner: (2) should the
+in-play phase stamp gold/downtime? (3) does the button survive a reload (a flag kept with the autosave) and does cloud
+autosave keep running while a roll awaits acceptance?
 ```
-**Done when:** a roll on a limited, unlocked character produces a locked character whose creation-phase purchases sit before the lock at creation prices and whose remainder sits after it at in-play prices; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
+**Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
 
 ## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
 Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.

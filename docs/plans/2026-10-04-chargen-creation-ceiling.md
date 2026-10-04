@@ -116,3 +116,9 @@ Players Guide's text about the creation limit must still be checked and reconcil
   `min(budget, ceiling)` in the roll's setup; bypassing leaves a way around the block.
 - **C. The prompt wording / when.** Prompt at exactly 0 left (this plan), or also at a warning threshold (e.g. ≤ 3 AP
   left)? **Recommendation: exactly 0 only** — anything earlier is nagging.
+
+**Owner decision on the follow-up (2026-10-04, later).** A rolled character can be re-rolled, so the roll does NOT lock.
+Instead a persistent **"Accept rolled character"** button follows a roll; pressing it locks the character and then spends the
+remainder in play. The roll stays one undoable step and Accept is the undo barrier. Open: gold/downtime on the in-play part;
+whether the button and cloud autosave behave across a reload while a roll awaits acceptance. Task: `feat/roll-lock-then-spend`.
+
