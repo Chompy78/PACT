@@ -219,3 +219,12 @@ frame per edit, lowering refused, an unaffordable or rules-breaking edit refused
 - **Q2 reinstated (owner, 2026-10-04, later):** the owner wants the wallet warning and trade offer after all. Order of work: **S1** (a small PR for the
   flat-purchase refund route, drawbacks refused per P1, and in-play pricing/stamping of post-lock flat purchases) → **PR 2a** (flat slots) → **Q2's own PR**
   (load the DM gold pool and party window into CharGen as the Live Sheet does, then the warning and §16 trade offer). The "withdrawn" bullet above is superseded.
+
+## 11. Phase 2a — built (2026-10-04)
+
+Shipped as `fix/chargen-post-lock-purchases-2a-flat`, after two prerequisites that the work itself exposed: **#573** (flat checklist purchases after the lock: no unticking,
+new drawbacks refused per P1, priced and charged in play) and **#575** (the Live Sheet's "may this be bought" rules moved into the engine as `purchaseLegality`, because CharGen's
+own check was narrower — Vigor past CON mod went through). Slots: languages, vigor (+grit), ki, sorcery, attunement, armour (+ worn armour), weaponProf, freeSub; `customProfs`
+refused (free text, no Live Sheet equivalent). Proof: head-to-head against the Live Sheet's `buy()` with the economy on, and a refusal test per slot. **Next:** phase 2b
+(traditions, innate, misc/`martiallyBound` — the latter refused per P1), then Q2 (wallet warning / trade offer). The server freeze (D2/E1) for the 2a slots can now follow.
+

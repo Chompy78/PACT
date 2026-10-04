@@ -867,6 +867,99 @@ section('CharGen: flat purchases after the lock — no refunds, no new drawbacks
   await ctx.close();
 }
 
+// fix/chargen-post-lock-purchases, phase 2a (owner R1, 2026-10-04): after "Finish creating", the flat patch slots — languages, vigor & grit, ki,
+// sorcery, attunement, armour (+ what you wear), weapon proficiency, free subclass — record an increase as an appended in-play purchase through the
+// same helper as phase 1, lowering/swapping is refused, and customProfs (free text, no Live Sheet equivalent) is refused. Plan §9.
+section('CharGen records post-lock raises of the flat slots as in-play purchases (B2, phase 2a)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const setChk = async (id, on) => { await p.evaluate(([id, on]) => { const el = document.getElementById(id); el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, on]); await p.waitForTimeout(300); };
+  const val = id => p.evaluate(id => { const el = document.getElementById(id); return el.type === 'checkbox' ? el.checked : el.value; }, id);
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent, total: compute(foldBuild(LOG), _cgDmOpts()).total }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+  const pick = e => ({ cat: e.cat, payload: e.payload, cost: e.cost, label: e.label, level: e.level, gp: e.gp, days: e.days });
+  const econOn = () => p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar \u2014 Standard' }); render(); });
+
+  // ---- before the lock: unchanged — one slot event, rewritten in place, nothing appended ----
+  await fresh();
+  await setSel('languages', 3);
+  const pre = await snap();
+  check('before the lock: raising Languages still rewrites the one languages slot event (no appended "language" purchase)',
+    pre.log.filter(e => e.cat === 'patch' && e._slot === 'languages').length === 1 && !pre.log.some(e => e.cat === 'language'), JSON.stringify(pre.log.filter(e => e.cat === 'language')));
+
+  // ---- head to head with the Live Sheet, economy on ----
+  await fresh();
+  await setSel('st_CON', 12);   // Vigor is capped at the CON modifier — CON 12 makes Vigor 1 legal (at CON 10 BOTH tools refuse it; see the refusal check below)
+  await econOn();
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(200);
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const freeSelId = await p.evaluate(() => { const o = readBuild().originClass; const el = [...document.querySelectorAll('.freesub')].find(e => e.dataset.cls === o) || document.querySelector('.freesub'); return el ? [el.dataset.cls, [...el.options].map(x => x.value).filter(Boolean)[0]] : null; });
+  await setSel('languages', 3);
+  await setSel('hardy', 1); await setSel('tough', 1);
+  await setSel('ki', 1); await setSel('attune', 1);
+  await setChk('a_light', true);
+  await setChk('wp_simple', true);
+  await setSel('wornArmour', 'Padded');
+  if (freeSelId) await p.evaluate(([cls, sub]) => { const el = [...document.querySelectorAll('.freesub')].find(e => e.dataset.cls === cls); el.value = sub; el.dispatchEvent(new Event('change', { bubbles: true })); }, freeSelId);
+  await p.waitForTimeout(300);
+  const cg = await snap();
+  const cgEvs = cg.log.slice(lockIdx(cg.log) + 1).filter(e => e.type === 'buy').map(pick);
+  const lp = await ctx.newPage(); lp.on('dialog', d => d.accept());
+  await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+  await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+  await lp.evaluate(fs => {
+    buy('language', { to: 2 }, '+1 Language (2)'); buy('language', { to: 3 }, '+1 Language (3)');
+    buy('vigor', { to: 1 }, 'Vigor rank 1'); buy('grit', { to: 1 }, 'Grit +4 HP (1)');
+    buy('ki', { to: 1 }, 'Ki / Focus point 1'); buy('attune', { to: 1 }, 'Attunement slot 1');
+    buy('armour', { v: 'light' }, 'Light armour');
+    const wp = foldBuild(null).weaponProf || {}; buy('wprof', { wp: { ...wp, simple: true } }, 'Simple weapons');
+    setWornArmour('Padded');
+    if (fs) buy('freesub', { cls: fs[0], sub: fs[1] }, 'Free subclass \u2192 ' + fs[1]);
+  }, freeSelId);
+  const ls = await lp.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), total: compute(foldBuild(null), _dmOpts()).total, spent: economy(null).spent }));
+  const lsEvs = ls.log.slice(lockIdx(ls.log) + 1).filter(e => e.type === 'buy').map(pick);
+  const cats = cgEvs.map(e => e.cat).join(',');
+  check('after the lock each raise is an appended in-play purchase of the right category, one per step', cats.startsWith('language,language,vigor,grit,ki,attune,armour,wprof,wornArmour'), cats);
+  check('...with the economy on, each priced purchase carries a frozen gold and downtime charge (worn armour is free and unstamped)',
+    cgEvs.filter(e => e.cat !== 'wornArmour' && e.cost > 0).every(e => typeof e.gp === 'number' && typeof e.days === 'number'), JSON.stringify(cgEvs.map(e => [e.cat, e.cost, e.gp, e.days])));
+  check('head to head: CharGen and the Live Sheet record the same events (cat, payload, cost, label, level, gold, downtime)',
+    JSON.stringify(cgEvs) === JSON.stringify(lsEvs), JSON.stringify({ cg: cgEvs, ls: lsEvs }));
+  check('...and the two logs fold to the same total and the same spent', cg.total === ls.total && cg.spent === ls.spent, JSON.stringify({ cg: [cg.total, cg.spent], ls: [ls.total, ls.spent] }));
+  await lp.close();
+
+  // ---- lowering / giving up is refused: nothing appended, the control goes back ----
+  const refuse = async (what, act, ctl, expectVal, re) => {
+    dialogs = []; const before = await snap(); await act(); const after = await snap();
+    check(`after the lock: ${what} is refused — nothing appended and spent unchanged`, after.log.length === before.log.length && after.spent === before.spent, JSON.stringify({ n0: before.log.length, n1: after.log.length }));
+    check(`...the player is told why and the control goes back`, dialogs.some(d => re.test(d.msg)) && (await val(ctl)) === expectVal, JSON.stringify({ dialogs: dialogs.map(d => d.msg.slice(0, 40)), now: await val(ctl) }));
+  };
+  await refuse('lowering Languages', () => setSel('languages', 2), 'languages', '3', /Languages can only go up/);
+  await refuse('lowering Vigor', () => setSel('hardy', 0), 'hardy', '1', /Vigor can only go up/);
+  await refuse('raising Vigor past the CON modifier (cap 1) — the Live Sheet\'s legality rule', () => setSel('hardy', 3), 'hardy', '1', /Purchase blocked[\s\S]*Vigor \d exceeds cap/);
+  await refuse('unticking Light armour', () => setChk('a_light', false), 'a_light', true, /Light armour training can.t be given up/);
+  await refuse('unticking Simple weapons', () => setChk('wp_simple', false), 'wp_simple', true, /Weapon proficiencies can.t be given up/);
+
+  // ---- customProfs (free text): refused after the lock ----
+  dialogs = [];
+  const nCp = (await snap()).log.length;
+  await p.evaluate(() => { addRow('cprof', 'Smith\'s tools'); const row = [...document.querySelectorAll('.cprofrow')].pop(); if (row) row.dispatchEvent(new Event('change', { bubbles: true })); });   // the refusal can fire inside addRow itself and repaint the row away
+  await p.waitForTimeout(400);
+  const cp = await snap();
+  check('after the lock: adding a custom (free-text) proficiency is refused — nothing appended, and the player is pointed at the DM',
+    cp.log.length === nCp && dialogs.some(d => /Custom proficiencies are chosen during creation/.test(d.msg) && /ask your DM/i.test(d.msg)), JSON.stringify({ n0: nCp, n1: cp.log.length, d: dialogs.map(d => d.msg.slice(0, 50)) }));
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.

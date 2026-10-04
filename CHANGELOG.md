@@ -65,6 +65,14 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · feat(chargen): after "Finish creating", raising languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency or a free subclass is an in-play purchase**
+  (`fix/chargen-post-lock-purchases-2a-flat`; phase 2a of `fix/chargen-post-lock-purchases`) — those slots used to rewrite their creation-era patch event in place after the
+  lock (a refund route and no in-play price). They now append the Live Sheet's own events (`language`, `vigor`, `grit`, `ki`, `sorcery`, `attune`, `armour`, `wprof`,
+  `freesub`; worn armour is a free, unchecked `wornArmour` event, as the Live Sheet's `setWornArmour` records it), priced by the engine's `priceOf`, gold/downtime stamped when
+  the economy charges, checked by the shared `purchaseLegality` rule, one undo step per edit. Lowering, giving up armour or weapon training, and swapping a chosen free
+  subclass are refused; **`customProfs` (free-text proficiencies; the Live Sheet has no equivalent) is refused after the lock** — it is the DM's to add. 17 new browser
+  checks, including a head-to-head against the Live Sheet's `buy()` with the economy on (same events, same total, same spent). Not in this PR: spellcasting (`traditions`),
+  innate spells and `misc` (phase 2b), and the wallet-short warning / §16 trade offer (Q2). No `DATA.version` change.
 - **2026-10-04 · refactor(engine): the Live Sheet's "may this purchase be made" rules move into the engine as `purchaseLegality()`; CharGen's after-lock purchases use them**
   (`refactor/engine-purchase-legality`) — found by the phase-2a head-to-head test: Vigor 1 on a CON-10 character is refused by the Live Sheet ("Vigor 1 exceeds cap")
   but CharGen's after-lock helper let it through, because it blocked only warnings starting with the stop-sign marker while the Live Sheet blocks every new warning not on its
