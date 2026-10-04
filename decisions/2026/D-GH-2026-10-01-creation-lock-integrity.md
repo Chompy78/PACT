@@ -122,3 +122,15 @@ parity 73/0). Interim end-of-log locks applied to the four unlocked Amble charac
   after it) applies only to *reconstructing old histories* locked by the retired automatic tripwire; in the tools as
   they stand a purchase past the limit is refused, so none can cross.
 
+## Addendum — 2026-10-04 (repair and server-freeze decisions)
+
+- **N1 / O1 (owner):** the Amble repair is planned first and written one guarded transaction per character
+  (`docs/plans/2026-10-04-amble-lock-repair.md`). **O1: gold and downtime are charged retroactively** — and removed where a
+  purchase moves before the lock — using Amble's own economy. Amble has no gold awards, so this is a debt: Skylar's single
+  Proficiency +3 (18 AP) becomes 750 gp / 90 days. Owner to confirm the magnitudes.
+- **B2 / D2 / E1 (owner):** CharGen records post-lock purchases as appended in-play events (decreases refused); the server
+  freezes everything before the lock (D2) and priced patch events after a lock/award (E1). The patch-event hole was found
+  by test on the Docker copy of the live rules: `pact_ap_ledger_protected()` excludes `cat = 'patch'`, so after an award a
+  player could lower Hit Dice, strip proficiencies, set a stamped cost to 0 or delete the event. That is how Caspian's
+  −11 AP refund and Skylar's post-lock "Ability scores −4" got through. Both rules come after the repair.
+

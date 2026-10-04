@@ -27,6 +27,24 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/server-freeze-at-lock — server freezes history before the lock and priced patch events after a lock/award — TODO
+Branch feat/server-freeze-at-lock. **Effort:** high · **Risk:** high — a new trigger rule on every campaign character save; a wrong rule refuses legitimate saves. Staged WITH `fix/chargen-post-lock-purchases` and AFTER the Amble repair (`docs/plans/2026-10-04-amble-lock-repair.md`). Spec: `docs/plans/2026-10-04-chargen-post-lock-purchases.md` §7.
+
+```text
+Owner decisions D2 + E1 (2026-10-04). Extend pact_enforce_locked_history()/pact_ap_ledger_protected() (sql/migrations/,
+mirrored in sql/rls-policies.sql):
+  D2  For a campaign character that has a creationLocked event, every event BEFORE the last creationLocked is frozen:
+      no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
+  E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
+      innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
+      content, stamped cost, position and existence frozen. No-AP slots (appearance, names, houseRules, misc) stay editable.
+Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
+change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
+STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
+testing/scripts/creation-lock-guard-test/guard-cases.sql. Apply to live only after the Amble repair, with the owner's approval.
+```
+**Done when:** the Docker harness shows each rule refusing the attack and allowing every legitimate save (a normal in-play purchase, a DM edit, an admin session, a solo character); the six Amble characters re-checked locked after applying; advisors/logs run; CHANGELOG + decision addendum written.
+
 ## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
 Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
 
