@@ -1111,3 +1111,54 @@ Thin-Skinned and Slow to Mend (both 5) once the penalty is written. Run verify-g
 ```
 **Done when:** `Missing Arm` states a concrete mechanical penalty in `drawbackFx` and the guide, the two
 guide copies agree (verify-guide.mjs clean), and `testing/tests/engine-parity.html` reports 0 failed.
+
+## feat/server-enforced-drawback-lock — enforce the DM drawback lock (and unlock) server-side — TODO
+Branch feat/server-enforced-drawback-lock. Owner decision T1 (2026-10-04): the drawback lock (`dmLocked`)
+and the DM unlock from feat/dm-unlock-drawback ship **client-honoured** and are documented as *advisory
+against a hostile character owner*; real enforcement is this separate security task. Depends on
+feat/dm-unlock-drawback. Independent of feat/permanent-wounds. Related: it is the concrete fix for one finding
+the broader "Security audit: privilege boundaries + character/AP integrity against a malicious client" task
+would classify as client-trusted-only — if that audit lands first, fold this into its findings list instead.
+**Effort:** high · **Risk:** high — ambiguity high (a trust-model redesign, not a patch); damage scale high
+(triggers on `characters.stats` that guard AP, plus RLS/grants); damage likelihood medium (this project's
+RLS/grant drift has bitten it before per D-GH15/D-GH12). Worst-of is high — **never eligible for
+`/sweep-code-tasks`**. **Run `/make-code-cold-plan-review` before implementing** — it meets AGENTS.md's trigger.
+
+```text
+Why this is not a small add-on (established in the cold plan review of feat/dm-unlock-drawback, judged by a
+fresh no-history agent):
+ (1) characters.stats is ONE JSON column on one row and its LOG is a JSON array inside it — there is no events
+     table, so no UNIQUE constraint or per-event index is possible.
+ (2) The character's OWNER can already write their own stats through ordinary RLS UPDATE (recorded in
+     D-GH-2026-08-10-dm-edit-events), so they can forge a dmEdit:true event, a forged dmUnlockDrawback event,
+     edit dmLocked on an existing event, or append a buyoff directly. A trigger that reads lock/unlock state out
+     of that same LOG checks attacker-controlled data and adds no real security.
+ (3) The engine matches a buyoff to the OLDEST still-open purchase of a drawback NAME (FIFO), so a trigger that
+     looks at "the most recent buy of that name" disagrees with the engine.
+ (4) pact_enforce_locked_history compares only the protected prefix up to the latest sessionSeal or
+     non-discretionary award, so the existing triggers do not guard the log tail.
+
+What a sound design needs:
+ a. An unforgeable DM-authorship signal the owner cannot write: a DM-only column/table holding locks and
+    unlocks, written only by the SECURITY DEFINER dm_edit_character_log, owner UPDATE revoked on it — or a
+    database-held HMAC stamp on DM events.
+ b. A BEFORE UPDATE trigger on characters.stats that diffs old vs new LOG over the WHOLE log and rejects:
+    removal/alteration of DM-stamped events; any new dmEdit/dmUnlockDrawback event from a non-DM caller; any
+    buyoff that FIFO-matches a locked, not-yet-unlocked purchase.
+ c. Caller-role detection, so the trigger can tell the DM function path from a direct owner write.
+ d. A SQL replay of the engine's by-name FIFO matching kept in lockstep with js/engine.js activeEvents(), with
+    tests proving the two agree. This is deliberate, scoped rules-duplication — decide in the plan whether it is
+    acceptable or whether the match should move to one shared definition.
+ e. Migration discipline per sql/migrations/README.md: start from the LIVE definition (pg_get_functiondef),
+    never a dated file; fold into sql/rls-policies.sql; update the hardcoded migration list in
+    testing/sql/rls-baseline-test.sql.
+ f. Blast radius against live characters — measure, do not quote (dated snapshot 2026-09-30: 42 characters, 11
+    with a drawback purchase, 0 DM-imposed drawbacks) — and get_advisors + get_logs after applying.
+ g. Once enforcement is real, change the DM Console / Live Sheet copy that says the lock is honoured by the
+    player's app, and the guide wording that calls it advisory.
+```
+**Done when:** a character owner who hand-edits their own `stats` to forge an unlock, strip a lock, or append a
+buyoff for a locked drawback is **rejected server-side** with a clear error; the legitimate DM impose → unlock →
+player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
+includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
+`testing/tests/engine-parity.html` and the SQL drift guard are green.
