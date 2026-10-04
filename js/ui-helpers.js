@@ -111,3 +111,19 @@ function _undoBarrierMsg(ev){
   if(ev&&ev.type==='sessionSeal')return '🔒 Your DM locked this character\'s history up to here — buys made before the lock can\'t be undone.';
   return 'AP awards lock your history — buys made before an award can\'t be undone.';
 }
+
+/* fix/chargen-creation-ceiling: the refusal text for "this would take you past your creation limit", shared by the
+   Live Sheet (purchase-by-purchase) and CharGen (whole-build edits) so the two cannot drift. `c` is
+   creationCeiling()'s result; `amount` is what the purchase/change adds; `noun` labels that line. Static text plus
+   numbers only. */
+function creationLimitRefusalText(c, amount, noun) {
+  return '\u26D4 That would take you past your creation limit.\n\n'
+    + 'Creation budget: ' + c.ceiling + ' AP'
+    + (c.drawbackBonus ? ('  (' + c.base + ' set by your DM + ' + c.drawbackBonus + ' from your drawbacks)') : '')
+    + '\nAlready spent: ' + c.spent + ' AP'
+    + '\n' + (noun || 'This purchase') + ': ' + amount + ' AP\n\n'
+    + 'Two ways forward:\n'
+    + '  \u2022 If you have FINISHED building this character, use "Finish creating" \u2014 after that you\n'
+    + '    spend at in-play prices and this limit no longer applies.\n'
+    + '  \u2022 If you are still building and need more budget, ask your DM to raise your limit.';
+}
