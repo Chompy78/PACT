@@ -28,7 +28,7 @@
  *                       from foldBuild(LOG), so a character opened in any tool carries the marker.)
  *                       Wounds (DATA.wounds, feat/permanent-wounds): a wound-only drawback (dmOnly) held in a
  *                       slot that is NOT DM-imposed raises a hard ⛔, and two drawbacks sharing a body `slot`
- *                       raise a soft "both injure the same place" warning. Neither changes any AP figure.
+ *                       raise a soft "both injure the same place" warning (only when one of them is DM-imposed). Neither changes any AP figure.
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
@@ -795,9 +795,12 @@ export function compute(b, opts){
     const _wd=DATA.wounds&&DATA.wounds[lab];if(_wd&&_wd.dmOnly&&!_imp) W.push('⛔ '+lab+': a wound — only a DM can impose it');
   }
   // One wound per place on the body (DATA.wounds[name].slot): Lame + Peg Leg, or Maimed Hand + Withered Arm, would
-  // stack penalties on the same limb. A SOFT warning, not a block — the DM decides — and it names the pair.
-  const _wSlots={};for(const _l of (b.drawbacks||[])){const _w=DATA.wounds&&DATA.wounds[_l];if(_w&&_w.slot){const _a=(_wSlots[_w.slot]=_wSlots[_w.slot]||[]);if(_a.indexOf(_l)<0)_a.push(_l);}}
-  for(const _s of Object.keys(_wSlots)) if(_wSlots[_s].length>1) W.push(_wSlots[_s].join(' and ')+" both injure the same place ("+_s+") — a DM normally imposes only one");
+  // stack penalties on the same limb. Only when at least one of the pair is DM-IMPOSED — two drawbacks a player
+  // chose themselves are the player's own build, not a DM's story choice. Counted by POSITION so two copies of the
+  // same wound (an imposed Peg Leg on a player who took Peg Leg) still count as two. A SOFT warning, not a block —
+  // the DM decides (the Live Sheet lists it in SOFT_WARN) — and it names the pair.
+  const _wSlots={};(b.drawbacks||[]).forEach(function(_l,_i){const _w=DATA.wounds&&DATA.wounds[_l];if(_w&&_w.slot){const _a=(_wSlots[_w.slot]=_wSlots[_w.slot]||{names:[],n:0,imp:false});_a.n++;if(_impIdx.has(_i))_a.imp=true;if(_a.names.indexOf(_l)<0)_a.names.push(_l);}});
+  for(const _s of Object.keys(_wSlots)) if(_wSlots[_s].n>1&&_wSlots[_s].imp) W.push((_wSlots[_s].names.length>1?_wSlots[_s].names.join(' and ')+' both':_wSlots[_s].names[0]+' held twice — both')+" injure the same place ("+_s+") — a DM normally imposes only one");
   // Rows are NEGATIVE so they sum to the line total (-drawGain), the same relationship the other five
   // itemised lines have with theirs. `v` is the value actually charged, so a house-ruled drawback
   // (b.houseRules.draws) itemises at its overridden AP, not the printed one.

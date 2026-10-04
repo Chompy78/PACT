@@ -158,6 +158,12 @@ console.log('DM Console — the impose dropdown');
   const wnd = await pick('Withered Arm');
   check('choosing a WOUND defaults the control to Locked', wnd.locked === true, JSON.stringify(wnd));
   check('...and to the flat removal price', wnd.rate === 'flat', JSON.stringify(wnd));
+  // Moving between two wounds to compare them must not undo what the DM has since changed.
+  await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-locked').checked = false; document.querySelector('#campRoster .dm-impose-draw-rate').value = 'expensive'; });
+  const wnd2 = await pick('Bad Knee');
+  check('switching from one wound to another leaves the DM\'s Locked/rate settings untouched', wnd2.locked === false && wnd2.rate === 'expensive', JSON.stringify(wnd2));
+  await page.evaluate(() => { document.querySelector('#campRoster .dm-impose-draw-locked').checked = true; document.querySelector('#campRoster .dm-impose-draw-rate').value = 'flat'; });
+  await pick('Withered Arm');
 
   // What the Impose button then sends.
   await page.evaluate(() => document.querySelector('#campRoster .dm-impose-draw-btn').click());

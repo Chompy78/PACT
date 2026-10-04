@@ -1832,7 +1832,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     // Choosing a wound defaults the control to Locked + flat (see the change handler in wireCloudRosterDelegation).
     var _W = DATA.wounds || {};
     function _drawOpt(n, isWound){
-      return '<option value="'+esc(n)+'"'+(isWound?' data-wound="1"':'')+'>'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP'+(isWound?' to buy off':'')+')</option>';
+      return '<option value="'+esc(n)+'"'+(isWound?' data-wound="1"':'')+'>'+esc(n)+' ('+(DATA.drawbacks[n]||0)+' AP'+(isWound?' flat buy-off':'')+')</option>';
     }
     var drawOpts = '';
     [['minor','Wounds — minor'],['moderate','Wounds — moderate']].forEach(function(g){
@@ -2678,12 +2678,17 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     // feat/permanent-wounds: picking a WOUND in the impose dropdown defaults the control to what a wound should be —
     // Locked (bought off only after a story beat, which the DM then unlocks) and the flat removal price (the 3×
     // deterrent exists to stop a player gaming a cheap AP loan, which does not apply to a drawback they never chose).
-    // Picking an ordinary drawback leaves whatever the DM already set untouched, and the DM can still change both.
+    // Picking an ordinary drawback — or moving between two wounds — leaves whatever the DM already set untouched, and the DM can still change both.
     el.addEventListener('change', function(ev){
       var sel = ev.target;
       if(!sel || !sel.classList || !sel.classList.contains('dm-impose-draw-sel')) return;
       var opt = sel.options[sel.selectedIndex];
-      if(!opt || !opt.hasAttribute('data-wound')) return;
+      // Only on the move FROM a non-wound TO a wound: switching between two wounds to compare them must not
+      // re-tick Locked or reset the removal cost the DM has since changed.
+      var wasWound = sel.getAttribute('data-was-wound') === '1';
+      var isWound = !!(opt && opt.hasAttribute('data-wound'));
+      sel.setAttribute('data-was-wound', isWound ? '1' : '0');
+      if(!isWound || wasWound) return;
       var cid = sel.getAttribute('data-cid');
       var locked = el.querySelector('.dm-impose-draw-locked[data-cid="'+cid+'"]');
       var rate = el.querySelector('.dm-impose-draw-rate[data-cid="'+cid+'"]');

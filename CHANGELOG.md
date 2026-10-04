@@ -9,7 +9,7 @@
   no Grievous tier). New `Maimed Hand` 2, `Bad Knee` 2, `Brittle Bones` 2, `Withered Arm` 4 sit in `DATA.drawbacks` but not
   `drawbackList`, so players cannot pick them (CharGen also hides them unless already held); `DATA.wounds` records tier and body
   place for 19 drawbacks (the rest are reused and stay player-takable). `compute()` adds a hard `⛔` for a non-imposed wound-only
-  entry and a soft warning for two wounds in the same place. DM Console impose dropdown is grouped into Wounds (minor /
+  entry and a soft warning for two wounds in the same place when one is DM-imposed (the Live Sheet treats it as advisory, not a purchase block). DM Console impose dropdown is grouped into Wounds (minor /
   moderate) and Other drawbacks, and choosing a wound defaults to Locked + flat. Guide: new "Wounds" section in the served copy
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.

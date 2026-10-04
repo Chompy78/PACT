@@ -30,8 +30,13 @@ imposed drawback (`D-GH-2026-10-04-dm-unlock-drawback`).
 ## Judgement calls (the owner did not rule on these; each is easy to change)
 
 1. The six **Afflictions** are minor and slotless; **Frail** is moderate and slotless — no obvious body place.
-2. Slots are **arm and leg**, plus ear/lungs/bones/torso/face/eye for the rest. Two wounds in one place warn but do not block:
-   a hard block would stop a DM telling a story that needs both.
+2. Slots are **arm and leg**, plus ear/lungs/bones/torso/face/eye for the rest. Two wounds in one place warn but do not block
+   (a hard block would stop a DM telling a story that needs both), and the warning fires **only when at least one of the pair is
+   DM-imposed**, counted by position so an imposed copy of a wound the player already took still counts. Found in code review:
+   firing on two player-chosen drawbacks was wrong (it told a player "a DM normally imposes only one" about their own build) and,
+   because the Live Sheet blocks any purchase raising a warning not in its `SOFT_WARN` list, would have hard-blocked a player
+   buying Lame while holding Peg Leg. `SOFT_WARN` now includes it. `EV-022` (imposed Peg Leg on a player-taken Peg Leg) now
+   expects the extra warning.
 3. A **non-imposed wound-only** drawback is a hard `⛔` rather than a soft warning, because the whole point is that players
    cannot take them.
 4. Fixtures `EV-025`/`EV-026` used `Lame` twice-over with another leg wound; the new slot warning would have changed their

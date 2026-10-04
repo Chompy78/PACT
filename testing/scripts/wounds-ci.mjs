@@ -113,8 +113,12 @@ console.log('one wound per place — a soft warning, never a block');
     const x = samePlace(w('Lame', 'Peg Leg', 'Bad Knee')); return [x.length, /Lame and Peg Leg and Bad Knee/.test(x[0] || '')];
   })(), [1, true]);
   t('it is SOFT: not a ⛔, because the DM decides', samePlace(w('Lame', 'Peg Leg')).every(x => !x.startsWith('⛔')), true);
-  t('it applies to player-taken pairs too (the rule is about the body, not who chose it)',
-    samePlace(run([award, oclass, taken(3, 'Lame'), taken(4, 'Peg Leg')]).warnings).length, 1);
+  t('two PLAYER-chosen leg drawbacks do not warn (their own build, not a DM story choice; and the Live Sheet would block it)',
+    samePlace(run([award, oclass, taken(3, 'Lame'), taken(4, 'Peg Leg')]).warnings), []);
+  t('a player-taken wound plus a DM-imposed one in the same place does warn',
+    samePlace(run([award, oclass, taken(3, 'Lame'), imposed(4, 'Peg Leg')]).warnings).length, 1);
+  t('two copies of the same wound (player took Peg Leg, DM imposes Peg Leg) still count as stacked',
+    samePlace(run([award, oclass, taken(3, 'Peg Leg'), imposed(4, 'Peg Leg')]).warnings).length, 1);
   t('an imposed wound plus an UNRELATED ordinary drawback in no slot does not warn', samePlace(w('Lame', 'Mana-Sick')), []);
   t('wounds with no body location (the Afflictions, Frail) never trigger it',
     samePlace(w('Frail', 'Affliction — Clumsy (DEX)', 'Affliction — Feeble (STR)')), []);
