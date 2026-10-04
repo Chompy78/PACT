@@ -147,6 +147,25 @@ jobs:
       - name: Run the wounds data and rules gate
         run: node testing/scripts/wounds-ci.mjs
 
+  engine-legality:
+    # refactor/engine-purchase-legality. The Live Sheet's "may this purchase be made" rules (legalCheck + SOFT_WARN + EXPECTED_FOLLOWUP +
+    # DUP_FIELD + buy()'s hard/soft split) moved into js/engine.js as purchaseLegality() so CharGen's after-lock purchases obey the same rule
+    # (CharGen only blocked warnings starting with the stop-sign marker, which let through purchases the Live Sheet refuses). This compares
+    # the engine with a frozen copy of the original over every build fixture and a wide sweep of purchases. engine-parity cannot see it: it
+    # asserts compute()'s output, and this rule lives in compute()'s caller. Wired in the same change as the gate, because a previous gate
+    # (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the purchase-legality extraction gate
+        run: node testing/scripts/engine-legality-ci.mjs
+
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
     # read DATA.version live at engine-ready, so the live labels are right — but the hardcoded FALLBACK

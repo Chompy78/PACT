@@ -831,6 +831,16 @@ section('CharGen: flat purchases after the lock — no refunds, no new drawbacks
   check('after the lock: ticking a NEW drawback is refused (it would hand out AP) — nothing appended', l4.log.length === nBeforeDraw && l4.spent === l3.spent, JSON.stringify({ n0: nBeforeDraw, n1: l4.log.length }));
   check('...the player is told why, and the drawback tick is cleared', dialogs.some(d => /Drawbacks can.t be taken once creation is finished/.test(d.msg)) && !(await isTicked('drawck', D1)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60))));
 
+  // ---- the Live Sheet's own legality rule applies after the lock (refactor/engine-purchase-legality) ----
+  // "Hard March: boon requires CON 12+" carries no stop-sign marker, so CharGen's old guard (⛔-prefixed warnings only) let it through while
+  // the Live Sheet's buy() refuses it. Both now ask the engine's purchaseLegality().
+  dialogs = [];
+  const nBeforeHM = (await snap()).log.length;
+  await tick('boonck', 'Hard March', true);
+  const lh = await snap();
+  check('after the lock: a boon whose prerequisite is unmet ("requires CON 12+") is refused, as the Live Sheet refuses it — nothing appended',
+    lh.log.length === nBeforeHM && !(await isTicked('boonck', 'Hard March')) && dialogs.some(d => /Purchase blocked/.test(d.msg) && /CON 12/.test(d.msg)), JSON.stringify({ n0: nBeforeHM, n1: lh.log.length, d: dialogs.map(d => d.msg.slice(0, 80)) }));
+
   // ---- head to head with the Live Sheet, economy on: the same purchase records the same event ----
   await fresh();
   await tick('boonck', B1, true);

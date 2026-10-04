@@ -53,6 +53,15 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · refactor(engine): the Live Sheet's "may this purchase be made" rules move into the engine as `purchaseLegality()`; CharGen's after-lock purchases use them**
+  (`refactor/engine-purchase-legality`) — found by the phase-2a head-to-head test: Vigor 1 on a CON-10 character is refused by the Live Sheet ("Vigor 1 exceeds cap")
+  but CharGen's after-lock helper let it through, because it blocked only warnings starting with the stop-sign marker while the Live Sheet blocks every new warning not on its
+  soft list. The rule (`legalCheck` + `SOFT_WARN` + `EXPECTED_FOLLOWUP` + `DUP_FIELD` + `buy()`'s hard/soft/follow-up split and duplicate guard) now lives once in
+  `js/engine.js`, moved verbatim; the Live Sheet's `legalCheck`, `buy()` and buy tiles delegate to it (no behaviour change), and CharGen's `_cgPostLockAppend` uses it
+  (so the Hit Dice / ability / flat-purchase paths from #565 and #573 now refuse what the Live Sheet refuses, ask the same soft-warning confirm and record the same
+  `warns`). New gate `testing/scripts/engine-legality-ci.mjs` + frozen reference `lib/ls-legality-reference.js`: 57,051 comparisons over 156 builds with every outcome
+  exercised (hard, soft, follow-up, duplicate); it goes red under the old CharGen rule (6,611 mismatches). Wired as the `engine-legality` job in `engine-parity.yml`.
+  New browser check: a boon with an unmet prerequisite is refused after the lock. No `DATA.version` change. Next: PR 2a (flat slots), rebased on this.
 - **2026-10-04 · fix(chargen): after "Finish creating", nothing bought can be unticked, a new drawback is refused, and a new flat purchase is an in-play purchase**
   (`fix/chargen-flat-purchases-after-lock`; owner P1) — found with a real-browser probe: skills, boons, tools, arts, features and drawbacks are flat
   checklist purchases, and `retractFlatEvent()` only stopped at the last award or seal, so a locked character with no award yet could untick a purchase made
