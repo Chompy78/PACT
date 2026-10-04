@@ -1,3 +1,6 @@
+-- APPLIED to live (project piuprrrnaotrtxucrtsb) on 2026-10-04 as migration `creation_lock_guard`; tested first on a
+-- throwaway Docker Postgres — see testing/scripts/creation-lock-guard-test/. (Applied text = this file minus the
+-- header comments.)
 -- PACT — creation-lock guard (D1), campaign moves keep the lock (L1), keep every backup of campaign
 -- characters (S1). docs/plans/2026-10-01-creation-lock-integrity.md, Part 2.
 -- Decision: D-GH-2026-10-01-creation-lock-integrity (+ its 2026-10-04 addendum).

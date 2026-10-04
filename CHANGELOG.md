@@ -4,6 +4,18 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · feat(sql): server guard for creation locks — live** — a player save can no longer remove or
+  change a creation-lock entry (`creationLocked` / `creationUnlocked` / `creationLockConfig`) on a campaign
+  character; only the campaign DM can append `creationUnlocked` or a limit (D1). A campaign move no longer
+  reopens creation (L1; the limit figure is still cleared). A campaign character's backups are never pruned
+  (S1; solo characters keep the newest 50). Applied to live as migration `creation_lock_guard`; refused saves
+  say "locked character history", which `js/sync.js` already maps to its reload path. Tested first on a
+  throwaway Docker Postgres (`testing/scripts/creation-lock-guard-test/run.sh`: 22 guard cases that fail
+  before and pass after, the DM tools `dm_reopen_creation`/`dm_set_creation_ceiling`, L1, S1). Advisors show
+  nothing new; the Postgres log skim could not be run (the log tool rejected the query). Mirrored into
+  `sql/rls-policies.sql` (also adds the previously missing `pact_campaign_move_clears_creation` + trigger) and
+  `sql/schema.sql` (S1 retention). Not covered: moving a post-lock purchase before the lock (review H3), the
+  stale-local-copy cause in CharGen (still open). See `D-GH-2026-10-01-creation-lock-integrity`.
 - **2026-09-30 · fix(engine): a DM-imposed drawback is exempt from its stat cap** — `compute()` raised
   `⛔ Peg Leg: drawback requires DEX 12 or lower` on a DEX 16 character the DM had imposed it on, though an
   imposed drawback pays 0 AP. `_replay()` now stamps `b._imposedDrawbackIdx` from the server-stamped

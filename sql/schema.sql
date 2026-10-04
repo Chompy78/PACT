@@ -1171,7 +1171,7 @@ create index if not exists idx_character_backups_owner
 -- SECURITY DEFINER is load-bearing: the trigger fires as the player (role
 -- `authenticated`), which is granted nothing on character_backups, so without it
 -- every save and delete would fail "permission denied" — a backup system that
--- bricks the app. Retention: newest 50 'update' snapshots per character; 'delete'
+-- bricks the app. Retention: newest 50 'update' snapshots per character (solo characters only — campaign characters keep all); 'delete'
 -- snapshots are never pruned.
 create or replace function public.snapshot_character()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
@@ -1198,7 +1198,8 @@ begin
     (OLD.id, OLD.owner_id, OLD.campaign_id, OLD.name, OLD.kind, OLD.stats, OLD.ap, OLD.archived_at,
      v_reason, OLD.updated_at);
 
-  if v_reason = 'update' then
+  -- S1 (2026-10-04): a campaign character (before or after this update) keeps its FULL backup history.
+  if v_reason = 'update' and OLD.campaign_id is null and NEW.campaign_id is null then
     delete from public.character_backups b
      where b.character_id = OLD.id
        and b.reason = 'update'

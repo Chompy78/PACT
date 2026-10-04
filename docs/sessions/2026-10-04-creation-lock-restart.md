@@ -1,5 +1,9 @@
 # RESTART — Amble creation locks (handoff written 2026-10-04)
 
+> **UPDATE (later 2026-10-04):** work-order step 3 is DONE — the server guard + L1 + S1 are live (tested on Docker; T
+> was settled as G1 after a Supabase branch needed the Pro plan). Steps 4–7 remain. Anders' lock: after the Forgery kit.
+> See `CHANGELOG.md` and the decision's 2026-10-04 addendum. Everything below is the original handoff.
+
 > **Read this first in the new session.** It is the complete state of the creation-lock work carried over
 > from session https://claude.ai/code/session_01Fo8ZLDkMnBkS6uUn9M1Zmq (2026-10-01 → 2026-10-04). The
 > owner's choices below are **decided** — do not re-ask them. Everything is on `preview` as of this file.
