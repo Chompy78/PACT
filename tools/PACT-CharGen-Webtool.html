@@ -3285,7 +3285,8 @@ function _cgSealPatchRefusal(patch){
 // purchase the Live Sheet records (cat hd / prof / abil, priced by the engine's priceOf(), gold/downtime stamped when
 // the economy charges), and a DECREASE is refused ("nothing bought can be removed once creation is finished"). Every
 // other slot still takes the old path until its phase lands. Pre-lock behaviour is untouched.
-var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1,languages:1,vigor:1,ki:1,sorcery:1,attunement:1,armour:1,weaponProf:1,freeSub:1,customProfs:1};   // phase 2a added all but the first two
+var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1,languages:1,vigor:1,ki:1,sorcery:1,attunement:1,armour:1,weaponProf:1,freeSub:1,customProfs:1,
+  traditions:1,innate:1,misc:1,identity:1};   // phase 2a added the middle ones; phase 2b-1 adds the last four, all REFUSED after the lock (no Live Sheet purchase / AP-granting / creation-only)
 function _cgIsLocked(){try{return !!creationCeiling(LOG,_cgCeilOpts()).locked;}catch(e){return false;}}
 // render() alone does NOT repaint a form control from the LOG (a refused Hit Dice edit left the select showing the refused value
 // while the character stayed put — found by the phase-1 test). restoreFrame() does: it repaints every control from a frame with
@@ -3376,6 +3377,26 @@ function _cgPostLockSteps(slot,patch,cur){
     // the lock this is the DM's to add (plan §9, corrected 2026-10-04). A write that changes nothing is already a no-op.
     if(!_cgDeepEq(cur.customProfs||[],patch.customProfs||[])){ refuse='Custom proficiencies are chosen during creation.'; tail='Ask your DM if you need one added now.'; }
   }
+  else if(slot==='traditions'||slot==='innate'||slot==='misc'||slot==='identity'){
+    // Phase 2b-1 (owner decision, cold-reviewed 2026-10-04): these four slots no longer rewrite their creation-era patch event in place after
+    // the lock. An edit that changes nothing is a no-op; anything else is refused, because the Live Sheet records no purchase for it (innate
+    // spells, out-of-tradition cantrips), it GRANTS AP (martial binding — P1), or it is creation-only (species, origin, size, lineage). Spellcasting
+    // is refused for now (reviewers' Alternative A): its nested spell list needs a careful diff (phase 2b-2) and the Live Sheet already records
+    // each rank, cantrip, slot and known spell as an in-play purchase.
+    var N=function(v){ return (v==null||v===''||v==='(none)')?'':v; };
+    var changed=function(key){ return !_cgDeepEq(N(cur[key]),N(patch[key])); };
+    if(slot==='traditions'){
+      if(patch.traditions!==undefined&&!_cgDeepEq(cur.traditions||[],patch.traditions||[])){ refuse='Spellcasting can\'t be changed here once creation is finished.'; tail='Buy ranks, cantrips, spell slots and known spells in the Live Sheet \u2014 it records each one as an in-play purchase.'; }
+    }else if(slot==='innate'){
+      if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
+    }else if(slot==='misc'){
+      if(patch.martiallyBound!==undefined&&changed('martiallyBound')){ refuse='Martial and magical binding give you AP, and after creation only your DM awards AP.'; tail='If it fits the story, ask your DM to impose it.'; }
+      else if(patch.dabblerCantrips!==undefined&&(+cur.dabblerCantrips||0)!==(+patch.dabblerCantrips||0)){ refuse='Out-of-Tradition cantrips are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
+    }else if(slot==='identity'){
+      var idk=['originClass','originClass2','species','species2','size','lineage'].filter(function(k){ return patch[k]!==undefined&&changed(k); });
+      if(idk.length){ refuse='Your origin (species, origin class, size and lineage) is chosen during creation.'; tail='Ask your DM if something needs to change.'; }
+    }
+  }
   if(refuse) refuse='\uD83D\uDD12 '+refuse+'\n\n'+tail;
   return {steps:steps,refuse:refuse};
 }
@@ -3427,7 +3448,13 @@ function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
   var _refusal=_cgSealPatchRefusal(patch);
   if(_refusal){ alert(_refusal); render(); return; }   // render() puts the control back from the LOG
-  if(_CG_POSTLOCK_SLOTS[slot]&&_cgIsLocked()){ _cgPostLockSlotEdit(slot,patch); return; }   // phase 1 of fix/chargen-post-lock-purchases
+  if(_CG_POSTLOCK_SLOTS[slot]&&_cgIsLocked()){
+    // A repaint (restoreFrame/applyBuild) rebuilds form rows — the spell rows call _cgSyncPatchSlot() from addTrad()/addDisc() — while _histSuspended
+    // is set. Those writes are about to be overwritten with the frame's own log, so there is nothing to record or refuse; refusing here would repaint
+    // again from inside the repaint and recurse until the stack overflows (found by the phase-2b-1 browser test).
+    if(_histSuspended) return;
+    _cgPostLockSlotEdit(slot,patch); return;
+  }   // phase 1 of fix/chargen-post-lock-purchases
   if(_cgIsLocked()&&_cgPatchIsNoop(patch)){ render(); return; }   // after the lock a write that changes nothing writes nothing
   _cgEnsureLockArmed();   // this path bypasses emit(), so arm here too — see _cgEnsureLockArmed()
   // price against the build with this slot's OWN PRIOR event removed, not the current full LOG (which
@@ -3514,11 +3541,15 @@ function _cgSyncSingletonEvent(type,makeEvent){
   const norm=function(e){return JSON.stringify(Object.assign({},e,{seq:0,ts:0,rules:0}));};
   if(cur&&norm(cur)===norm(next))return;   // no-op: same value → no event churn, no undo step
   if(type!=='name'){
-    const _floor=_cgSealedFloor();
+    // The server freezes everything before the lock for a campaign character that is currently locked (D2, plan docs/plans/2026-10-04-server-freeze-d2-e1.md),
+    // on top of the seal/award boundary. A client that rewrites the budget award on load — the Live Sheet's "Imported budget" award sits at index 0 and CharGen
+    // re-emits it at the END as "Budget" — would then make an honest save refusable (found by the round-trip audit). So honour the lock here too.
+    const _floor=Math.max(_cgSealedFloor(),_cgLockFloor());
     if(_floor>0){
       const _at=LOG.findIndex(function(e){return e.type===type;});
       if(_at>-1 && _at<_floor){
-        flash('\uD83D\uDD12 That is part of this character\'s locked history and can no longer be changed here.');
+        // While a load/restore is reconciling (history suspended) this is the tool tidying up, not the player editing: skip silently, no warning on every open.
+        if(!_histSuspended) flash('\uD83D\uDD12 That is part of this character\'s locked history and can no longer be changed here.');
         return;
       }
     }
@@ -3531,6 +3562,13 @@ function _cgSyncSingletonEvent(type,makeEvent){
   // the name field, where the whole-log pass is the difference between typing feeling instant and not.
   // If a third singleton type is ever routed through here, check that before reusing this exemption.
   render();
+}
+// The index below which the SERVER freezes history for a campaign character that is currently locked (0 = none: a solo or unlocked character, which the server leaves alone).
+function _cgLockFloor(){
+  const bound=!!(window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'&&_cgPendingCampaignId));
+  if(!bound||!_cgIsLocked())return 0;
+  let li=-1;for(let i=0;i<LOG.length;i++){if(LOG[i]&&LOG[i].type==='creationLocked')li=i;}
+  return li+1;
 }
 function _cgSyncName(){const nm=val('cname')||'';
   _cgSyncSingletonEvent('name',function(){return {type:'name',name:nm,label:'Name — '+(nm||'New Character')};});}

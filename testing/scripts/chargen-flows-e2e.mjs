@@ -960,6 +960,76 @@ section('CharGen records post-lock raises of the flat slots as in-play purchases
   await ctx.close();
 }
 
+// fix/chargen-post-lock-2b1-refusals (phase 2b-1; plan docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md, cold-reviewed 2026-10-04): after the lock
+// the spellcasting, innate, misc (martial binding / out-of-tradition cantrips) and identity (species, origin class, size, lineage) slots no longer rewrite
+// their creation-era patch event in place. A write that changes nothing is a no-op; anything else is refused with a plain message and the control goes back.
+section('CharGen refuses post-lock edits to spellcasting, innate, misc and identity (B2, phase 2b-1)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent, b: (() => { const b = foldBuild(LOG); return { trad: b.traditions, innate: b.innate, mb: b.martiallyBound, dab: b.dabblerCantrips, species: b.species, size: b.size, lineage: b.lineage }; })() }));
+  const TRAD = [{ name: 'Primal', rank: 1, disciplines: [{ name: 'Druid', bound: false, known: [0,0,0,0,0,0,0,0,0], slots: [1,0,0,0,0,0,0,0,0], arcanum: [0,0,0,0], cantrips: 1, pactSlots: 0 }] }];
+  const TRAD2 = JSON.parse(JSON.stringify(TRAD)); TRAD2[0].disciplines[0].cantrips = 2; TRAD2[0].rank = 2;
+
+  // ---- before the lock: unchanged — the spellcasting slot is still one patch event rewritten in place ----
+  await fresh();
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD);
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  const pre = await snap();
+  check('before the lock: spellcasting edits still rewrite the one traditions slot event in place',
+    pre.log.filter(e => e.cat === 'patch' && e._slot === 'traditions').length === 1 && JSON.stringify(pre.b.trad) === JSON.stringify(TRAD2), JSON.stringify(pre.b.trad).slice(0, 120));
+
+  // ---- after the lock ----
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300);
+  const a0 = await snap(); dialogs = [];
+  const refused = async (what, act, re) => { dialogs = []; const before = await snap(); await act(); const after = await snap();
+    check(`after the lock: ${what} is refused — nothing written and spent unchanged`, after.log.length === before.log.length && JSON.stringify(after.b) === JSON.stringify(before.b) && after.spent === before.spent, JSON.stringify({ n0: before.log.length, n1: after.log.length }));
+    check('...the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60)))); };
+  await refused('changing spellcasting', () => p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD), /Spellcasting can.t be changed here[\s\S]*Live Sheet/);
+  await refused('changing innate spells', () => p.evaluate(() => replacePatchSlot(PATCH_SLOTS.INNATE, { innate: [1, 0, 0, 0, 0, 0, 0, 0, 0] })), /Innate spells are chosen during creation/);
+  await refused('taking martial binding (it grants AP)', () => setSel('martiallyBound', 'Fighter'), /binding give you AP/);
+  await refused('adding out-of-tradition cantrips', () => setSel('dabblerCantrips', 2), /Out-of-Tradition cantrips are chosen during creation/);
+  const otherSpecies = await p.evaluate(() => { const cur = document.getElementById('spec').value; return [...document.getElementById('spec').options].map(o => o.value).find(v => v && v !== cur); });
+  await refused('changing species', () => setSel('spec', otherSpecies), /origin .*is chosen during creation/);
+  check('...and each control goes back to what the character is', (await p.evaluate(() => [document.getElementById('martiallyBound').value, document.getElementById('dabblerCantrips').value, document.getElementById('spec').value])).join('|') !== '', '');
+
+  // a write that changes nothing is a no-op: no dialog, nothing appended
+  dialogs = []; const nB = (await snap()).log.length;
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  check('after the lock: writing the spellcasting the character already has is a silent no-op', dialogs.length === 0 && (await snap()).log.length === nB, JSON.stringify(dialogs));
+
+  // a reload of a locked character that has spells raises no refusal (the form re-sync must not look like an edit)
+  await p.evaluate(() => _cgAutosave()); dialogs = [];
+  await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(3000);
+  const rl = await snap();
+  check('reloading a locked spellcaster raises no refusal and keeps the spell slot as it was', dialogs.length === 0 && JSON.stringify(rl.b.trad) === JSON.stringify(TRAD2), JSON.stringify({ d: dialogs.map(d => d.msg.slice(0, 60)) }));
+
+  // A CAMPAIGN character that is locked is frozen by the server up to the lock (D2), so opening it must not rewrite the history before the lock — the
+  // Live Sheet's "Imported budget" award at index 0 used to be re-emitted at the END as "Budget" on every load (round-trip audit, 2026-10-04).
+  await fresh();
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(() => { window._cgCampaignId = '00000000-0000-0000-0000-00000000c001'; });
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const protectedSig = log => JSON.stringify(log.filter(e => e.type === 'award' || (e.type === 'buy' && e.cat !== 'patch')).map(e => { const x = { ...e }; delete x.seq; delete x.ts; delete x.rules; return x; }));
+  const c0 = await snap(); dialogs = [];
+  await p.evaluate(e => { _cgApplyEnvelope(JSON.parse(e), {}); }, env); await p.waitForTimeout(600);
+  const c1 = await snap();
+  check('opening a locked CAMPAIGN character leaves its award and purchases exactly where they were (no rewrite, no warning)',
+    protectedSig(c0.log) === protectedSig(c1.log) && c1.log.findIndex(e => e.type === 'award') === c0.log.findIndex(e => e.type === 'award') && dialogs.length === 0,
+    JSON.stringify({ awardAt0: c0.log.findIndex(e => e.type === 'award'), awardAt1: c1.log.findIndex(e => e.type === 'award'), d: dialogs.map(d => d.msg.slice(0, 50)) }));
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.
