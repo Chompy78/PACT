@@ -788,7 +788,8 @@ export function compute(b, opts){
     // penalty. Without this a DEX 16 character imposed Peg Leg showed "⛔ … requires DEX 12 or lower".
     const _dmx=_impIdx.has(_dIdx)?{}:(DATA.drawbackMaxStats&&DATA.drawbackMaxStats[lab]||{});for(const [_da,_dm] of Object.entries(_dmx)){if((st[_da]||10)>_dm) W.push('⛔ '+lab+': drawback requires '+_da+' '+_dm+' or lower');}
     const _drq=DATA.drawbackReq&&DATA.drawbackReq[lab];if(_drq&&_drq.caster&&!_hasDisc) W.push('⛔ '+lab+': requires at least one spellcasting discipline');
-    // A WOUND-ONLY drawback (DATA.wounds[name].dmOnly: Maimed Hand, Bad Knee, Brittle Bones, Withered Arm) is
+    // A WOUND-ONLY drawback (DATA.wounds[name].dmOnly — 19 entries: the original four, 8 same-effect aliases and 7 newer
+    // mechanics; read the data, not a list typed here) is
     // something only a DM can impose — players never see it in a picker and cannot take it. A copy that is NOT a
     // DM-imposed slot (hand-edited, or a build with no marker) is a hard violation, the same ⛔ marker as the
     // caster gate above. (feat/permanent-wounds, D-GH-2026-10-04-permanent-wounds.)

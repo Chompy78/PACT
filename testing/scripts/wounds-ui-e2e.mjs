@@ -19,6 +19,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
@@ -38,7 +39,10 @@ await new Promise(r => server.listen(PORT, r));
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
 
-const NEW = ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'];
+// Every wound-only entry, READ from the engine data (feat/wound-aliases grew this from four to 19 — a hand-typed list would
+// silently stop covering the new ones). `NEW` keeps its old name so the checks below read as before.
+const { DATA: ENGINE_DATA } = await import(pathToFileURL(path.join(REPO, 'js/engine-data.js')).href);
+const NEW = Object.keys(ENGINE_DATA.wounds).filter(n => ENGINE_DATA.wounds[n].dmOnly);
 const browser = await launchChromium();
 
 // ---- 1. CharGen ------------------------------------------------------------------------------------------------------
@@ -52,7 +56,8 @@ console.log('CharGen — the drawback grid');
   await page.evaluate(() => window.buildDrawGrid());
   const grid = await page.evaluate(() => (document.getElementById('drawgrid') || {}).textContent || '');
   check('CONTROL: the grid really rendered (an ordinary drawback and a Grievous one are listed)', /Lame/.test(grid) && /Missing Arm/.test(grid), `${grid.length} chars`);
-  check('none of the four wound-only entries is offered', NEW.filter(n => grid.includes(n)).length === 0, NEW.filter(n => grid.includes(n)).join(', '));
+  check('CONTROL: the wound-only list really has the 19 entries (4 original + 8 aliases + 7 new mechanics)', NEW.length === 19, `${NEW.length}`);
+  check('none of the wound-only entries is offered', NEW.filter(n => grid.includes(n)).length === 0, NEW.filter(n => grid.includes(n)).join(', '));
   check('reused wounds stay takable (Peg Leg, Old Wound, Trembling Hands are listed)', ['Peg Leg', 'Old Wound', 'Trembling Hands'].every(n => grid.includes(n)));
 
   // A DM imposes Bad Knee; the character is opened in CharGen: it must stay visible and checked.
@@ -73,7 +78,7 @@ console.log('CharGen — the drawback grid');
   check('...checked', held.checked);
   check('...and its build really holds it', held.buildHolds);
   const after = await page.evaluate(() => (document.getElementById('drawgrid') || {}).textContent || '');
-  check('...but the OTHER wound-only entries remain hidden', ['Maimed Hand', 'Brittle Bones', 'Withered Arm'].every(n => !after.includes(n)));
+  check('...but the OTHER wound-only entries remain hidden', NEW.filter(n => n !== 'Bad Knee').every(n => !after.includes(n)));
   check('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }
@@ -100,7 +105,7 @@ console.log('Live Sheet — the drawback panel');
   await page.waitForFunction(() => document.body.textContent.includes('Peg Leg'), { timeout: 10000 });
   const text = await page.evaluate(() => document.body.textContent);
   check('CONTROL: the drawback panel really rendered (ordinary drawbacks are offered)', ['Lame', 'Peg Leg', 'Missing Arm'].every(n => text.includes(n)));
-  check('none of the four wound-only entries is offered', NEW.filter(n => text.includes(n)).length === 0, NEW.filter(n => text.includes(n)).join(', '));
+  check('none of the wound-only entries is offered', NEW.filter(n => text.includes(n)).length === 0, NEW.filter(n => text.includes(n)).join(', '));
   check('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }

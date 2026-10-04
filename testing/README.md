@@ -36,16 +36,18 @@
   player-taken control that must still pay and still warn. Pure Node. Runs in CI as the `imposed-drawback-grants` job of
   `.github/workflows/engine-parity.yml`: `node testing/scripts/imposed-drawback-grants-ci.mjs`. Parity fixtures
   EV-025/EV-026 pin the warning lists.
-- **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`) — gates for the DM-only Wounds
-  section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier; the four
-  Grievous drawbacks are not wounds), the **wound-only split** (the four new entries are in `DATA.drawbacks` but NOT in
-  `DATA.drawbackList`, which is what hides them from players; appended at the end of `DATA.drawbacks`; no stat cap), and the two
-  `compute()` rules — a wound-only entry that is not DM-imposed is a hard ⛔, and two wounds in one body location is a soft
-  warning — each with a control. `wounds-ui-e2e.mjs` (browser, no Supabase) proves CharGen's grid and the Live Sheet's panel do
-  not offer the four (while CharGen still lists one a character already holds); the DM Console half (every wound offered,
-  grouped, Locked + flat by default, and what Impose sends) moved to `dm-impose-picker-e2e.mjs`. Parity fixtures
-  EV-027/028/029 pin the warning lists. Run in CI as the `wounds` job of `.github/workflows/engine-parity.yml` and a step of
-  `.github/workflows/dm-console-ui.yml`.
+- **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`, extended by `feat/wound-aliases`) — gates for the
+  DM-only Wounds section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier;
+  the four Grievous drawbacks are not wounds); the **wound-only split** — the 19 wound-only entries (the original four, 8 aliases and 7
+  newer mechanics) are in `DATA.drawbacks` but NOT in `DATA.drawbackList`, which is what hides them from players, are appended at the
+  end of `DATA.drawbacks` in order, and carry no stat cap; each **alias** has the same price, tier and place as the wound it repeats,
+  shares its mechanical sentence, has its own flavour, and records the original in `sameAs`; **every skill is named by at least two
+  drawbacks** (whole-word match, with a control that the counter can fail); and the two `compute()` rules — a wound-only entry that is
+  not DM-imposed is a hard ⛔, and two wounds in one body location is a soft warning — each with a control. `wounds-ui-e2e.mjs`
+  (browser, no Supabase; the wound-only names are read from the engine data) proves CharGen's grid and the Live Sheet's panel offer
+  none of the 19 (while CharGen still lists one a character already holds); the DM Console half moved to `dm-impose-picker-e2e.mjs`.
+  Parity fixtures EV-027/028/029 pin the warning lists. Run in CI as the `wounds` job of `.github/workflows/engine-parity.yml` and a
+  step of `.github/workflows/dm-console-ui.yml`.
 - **`scripts/dm-impose-picker-e2e.mjs`** (`feat/dm-impose-picker`) — the DM Console's "Impose a drawback" pop-up (browser, no
   Supabase; bridge stubbed). Proves the card has an opener button with the old controls kept hidden as the single send path; the window
   lists every drawback once, wounds first (Grievous ones under "Other"), search narrows it and never strands the chosen item, and the
