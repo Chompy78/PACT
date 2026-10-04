@@ -106,3 +106,19 @@ parity 73/0). Interim end-of-log locks applied to the four unlocked Amble charac
   one "this copy is out of date — reload" refusal per character if a cloud row exists, and one ☁ Cloud → Load
   fixes it. Nothing is overwritten either way.
 
+## Addendum — 2026-10-04 (the block never existed in CharGen)
+
+- **Finding:** the creation-ceiling block shipped in Live Sheet only. CharGen never called `wouldExceedCeiling()` (0
+  call sites), contradicting the 2026-08-30 plan's "Done when" #2. Of the six Amble characters the four that overspent
+  are CharGen characters; the two Live Sheet ones kept a working block. An earlier statement in this work — that the
+  block "lives in the tools and was switched off when the limit was missing" — was true only of Live Sheet.
+- **Owner decisions:** U1 (the lock and limit stay in the event log, protected by the server guard — not moved to
+  columns); T1 (DM Console flags campaign characters building with no limit — PR #560); T2/W1/W2 (CharGen refuses
+  an over-limit edit, hard; prompts at exactly 0 left); B (cap the roll at the ceiling — second half not built, see the
+  plan §8); T3/T4 declined (no automatic lock, no fail-closed default ceiling — both re-create the wrong-number
+  lock that started this).
+- **Lock rule restated for the record:** the lock is a deliberate act (the player's "Finish creating", or the DM). The
+  "crossing purchase" rule (the purchase that takes spend *past* the limit counts as creation and the lock goes straight
+  after it) applies only to *reconstructing old histories* locked by the retired automatic tripwire; in the tools as
+  they stand a purchase past the limit is refused, so none can cross.
+

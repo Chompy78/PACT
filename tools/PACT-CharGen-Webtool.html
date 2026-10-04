@@ -2857,7 +2857,7 @@ function _commitWholeBuildFrame(){
   if(HIST.length>HIST_MAX)HIST.shift();
   REDO.length=0;_openKey=null;
 }
-function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;}
+function _clearHistory(){HIST.length=0;REDO.length=0;_openKey=null;_coalesceKey=null;_turnLatched=false;_cgLastGood=null;_cgLimitPrompted=false;}
 // Reset = one undoable whole-build replace to a blank build (the confirm() stays in the button onclick).
 function resetBuild(){_fileHandle=null;_commitWholeBuildFrame();_cgResetCloudApState();applyBuild({});}
 // New Character (D-GH-2026-08-08-header-declutter, relabeled from "Reset"): resetBuild() already
@@ -3007,7 +3007,7 @@ function _cgCeilOpts(){
   var b = readBuild();
   return { drawbackAp: compute(b, _cgDmOpts()).drawbackAp || 0, spent: economy(LOG).spent };
 }
-function cgFinishCreating(){
+function cgFinishCreating(skipConfirm){
   var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _cgCeilOpts()) : null;
   if(st && st.locked){ alert('This character has already finished creation.'); return; }
   var msg = 'Finish creating this character?\n\n';
@@ -3017,7 +3017,7 @@ function cgFinishCreating(){
       +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
       +  'Only your DM can reopen creation afterwards.';
-  if(!confirm(msg)) return;
+  if(!skipConfirm && !confirm(msg)) return;   // skipConfirm: the reach-the-limit prompt already asked
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
   // This is a bare LOG.push, deliberately (it must not be undoable), which means it does NOT go through
@@ -5001,7 +5001,17 @@ function randomizeRoll(themeKey,lvlWanted){
   }
   // `let`, not `const`: a drawback bought below raises compute().spendable, and the ceiling must
   // follow it (see the drawback loop). Never lowered — only ever raised by a granted refund.
-  let budget=_spendable;
+  // fix/chargen-creation-ceiling (owner decision B): a roll on a character that is still in creation and has a
+  // DM limit stamped is capped at that ceiling (limit + the drawback AP it grants), not at everything it could
+  // spend — otherwise it would overshoot the limit the new render() check refuses edits past. The cap follows
+  // drawbacks the roll takes (see the drawback loop). Uncapped when locked, unlimited, or the limit exceeds the
+  // spendable AP anyway. The remainder is spent in play, after "Finish creating".
+  let _capBase=null;
+  try{
+    const _ce=creationCeiling(LOG,_cgCeilOpts());
+    if(_ce.enforced&&!_ce.locked&&_ce.ceiling<_spendable)_capBase=_ce.base;
+  }catch(e){}
+  let budget=(_capBase!=null)?Math.min(_spendable,_capBase+(compute(b,_dmO).drawbackAp||0)):_spendable;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
   // weighted pick over [value,weight] pairs; falls back to uniform if every weight is 0
@@ -5222,7 +5232,7 @@ function randomizeRoll(themeKey,lvlWanted){
   for(let q=0;q<_maxDraws;q++){
     if(rnd(100)>=(q===0?55:30))break;
     if(!tryAct(actDraw))break;
-    _draws++; budget=Math.max(budget,_cur.spendable||budget);
+    _draws++; budget=Math.max(budget,(_capBase!=null)?Math.min(_cur.spendable||budget,_capBase+(_cur.drawbackAp||0)):(_cur.spendable||budget));
   }
 
   // ── IDENTITY FIRST: buy the class's defining feature before the general spend ────────────────
@@ -5418,7 +5428,7 @@ function randomizeRoll(themeKey,lvlWanted){
   const spent=_cur.total;
   const _changed=JSON.stringify(b)!==_snap0;
   if(typeof flash==='function') flash(_changed?('🎲 Rolled a '+TH.label+' — '+spent+' / '+budget+' AP spent, Lv '+b.hd
-    +(trad?' (incl. a starter spell kit)':'')+'.'+(_lvlClamped?(' Level '+_lvlAsked+' needs more AP than you have, so this is '+b.hd+' Hit Dice.'):'')):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
+    +(trad?' (incl. a starter spell kit)':'')+(_capBase!=null?' Capped at your creation limit \u2014 Finish creating to spend the rest in play.':'')+'.'+(_lvlClamped?(' Level '+_lvlAsked+' needs more AP than you have, so this is '+b.hd+' Hit Dice.'):'')):'🎲 Nothing to add — already near your AP budget. Reset (↺) to roll a fresh one.');
 }
 
 
@@ -6204,7 +6214,7 @@ function _cgSyncArmourPicker(){
     opt.title = reasons.length ? ("Can't wear yet — "+reasons.join('; ')) : '';
   });
 }
-function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
   try{_cgSyncArmourPicker();}catch(e){}
   try{_cgLockSealedControls();}catch(e){}
   // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
@@ -6225,6 +6235,56 @@ function render(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
       }
     }
   }catch(e){ /* display-only */ }
+}
+// ---- fix/chargen-creation-ceiling (owner decisions W1 + W2, 2026-10-04) ----------------------------------
+// CharGen never refused a purchase past the DM's creation limit (docs/plans/2026-08-30-creation-ceiling.md,
+// "Done when" #2 shipped in Live Sheet only), which is how four CharGen characters overspent. CharGen is a whole-
+// build editor, so there is no single "cost" to test beforehand; instead every edit funnels through render(), and
+// this compares the state it is about to show with the last ACCEPTED one:
+//   refuse  = unlocked + a limit is stamped + the edit INCREASED spend + spend is now OVER the ceiling
+//             (reaching the ceiling exactly is allowed, as in Live Sheet). Restores the last accepted state with
+//             the same primitive undo uses, drops the undo frame the refused edit recorded, and says why.
+//   never refuses: an edit that lowers or keeps spend (even if already over), a drawback (raises the ceiling),
+//             a locked character, a character with no stamped limit, and anything that runs with history
+//             suspended (loads, imports, handoffs, undo/redo, the random roll's own apply).
+// _clearHistory() drops the baseline, so a freshly loaded character is never judged against the previous one.
+var _cgLastGood=null;          // {frame, spent} — the last accepted state, kept only while a limit is enforced
+var _cgLimitPrompted=false;    // W2: prompt once per reach; re-armed when spend falls below the limit again
+function _cgCeilingState(){try{return creationCeiling(LOG,_cgCeilOpts());}catch(e){return null;}}
+function _cgCeilingCheck(){
+  if(_histSuspended||!_cgLastGood) return false;
+  var st=_cgCeilingState();
+  if(!st||!st.enforced||st.locked) return false;
+  var inc=st.spent-_cgLastGood.spent;
+  if(!(inc>0)||!(st.spent>st.ceiling)) return false;
+  var msg=creationLimitRefusalText(Object.assign({},st,{spent:_cgLastGood.spent}),'+'+inc,'This change');   // 'already spent' = the accepted state, not the refused total
+  restoreFrame(_cgLastGood.frame);   // repaints LOG + every control; re-enters render() with history suspended
+  try{   // the refused edit's own pre-edit frame is now identical to the restored state: drop it, leave no undo step
+    var top=HIST[HIST.length-1];
+    if(top&&JSON.stringify(canonicalBuild(foldBuild(top.log)))===JSON.stringify(canonicalBuild(foldBuild(LOG))))HIST.pop();
+  }catch(e){}
+  alert(msg);
+  return true;
+}
+function _cgCeilingAccept(){
+  var st=_cgCeilingState(), prev=_cgLastGood;
+  if(!st||!st.enforced||st.locked){_cgLastGood=null;_cgLimitPrompted=false;return;}
+  _cgLastGood={frame:_snapshotFrame(),spent:st.spent};
+  if(st.remaining>0){_cgLimitPrompted=false;return;}
+  // W2: prompt when an EDIT lands exactly on the limit (0 left) — never on a load, a restore or a roll's apply
+  if(st.remaining===0&&prev&&st.spent>prev.spent&&!_cgLimitPrompted&&!_histSuspended){
+    _cgLimitPrompted=true;
+    setTimeout(function(){
+      var cur=_cgCeilingState(); if(!cur||cur.locked||cur.remaining!==0) return;
+      if(confirm('You have used all '+cur.spent+' of your '+cur.ceiling+' creation AP.\n\nFinish creating this character now?\n\n'
+          +'OK = finish (you then build at in-play prices)\nCancel = not yet, keep building'))cgFinishCreating(true);
+    },0);
+  }
+}
+function render(){
+  if(_cgCeilingCheck()) return;      // refused: restoreFrame() has already repainted the accepted state
+  _cgRenderAll();
+  _cgCeilingAccept();
 }
 function _cgRenderInner(){
   const b=readBuild();

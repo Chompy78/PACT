@@ -13,6 +13,19 @@
   DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (28/0; 17 of 28 fail on
   the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
   0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
+- **2026-10-04 · fix(chargen): CharGen now refuses an edit past the DM's creation limit, prompts at the limit, and
+  caps the random roll** — `docs/plans/2026-08-30-creation-ceiling.md` "Done when" #2 ("refused in both CharGen and
+  Live Sheet") only ever shipped in Live Sheet; CharGen imported `wouldExceedCeiling` and never called it, which is how
+  Moss, Skylar, Fenwick and Archer (all CharGen characters) overspent. `render()` now compares each state with the last
+  accepted one: an unlocked character with a stamped limit whose edit INCREASES spend and ends past the ceiling is
+  put back (same snapshot restore undo uses, no undo step left) with Live Sheet's message; edits that lower spend,
+  drawbacks, locked characters, characters with no stamped limit, and loads/imports/undo are never refused. Landing
+  exactly on the limit prompts once to finish creating (owner decision: 0 left only). The 🎲 roll is capped at the
+  ceiling (limit + drawback AP). The refusal text is shared via `js/ui-helpers.js` (`creationLimitRefusalText`) so Live
+  Sheet and CharGen cannot drift. **Not built:** locking after the roll and spending the remainder as in-play
+  purchases — the roller applies its result as a creation-priced burst and re-appends any lock after it, so that needs
+  its own change (see the plan, §8). 11 new checks in `chargen-flows-e2e.mjs`; parity 76/0, roller quality gate 74/0,
+  economy-ui 155/0. No `DATA.version` bump; the Players Guide says nothing about the creation limit.
 - **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no
   creation limit set** — with no stamped limit the engine's spend block is fail-open, which is how Moss, Skylar,
   Fenwick and Archer overspent (their limit was never set, or was deleted by the reload / stale-copy bugs).
