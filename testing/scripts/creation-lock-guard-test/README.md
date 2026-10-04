@@ -17,3 +17,21 @@ RLS, `pact_enforce_ap_budget_consistency`, `pact_enforce_player_ap_ceiling`, `pa
 real Supabase Auth (claims are faked with `request.jwt.claims`). Refresh it when those functions change. The
 real fix for that gap is bringing `sql/schema.sql` + `rls-policies.sql` up to date so CI's `cloud-e2e` can
 test it (the restart note's option T3).
+
+## Server freeze, stage 1 (D2 + E1) — added 2026-10-05
+
+`sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` (+ `-rollback.sql`), plan `docs/plans/2026-10-04-server-freeze-d2-e1.md`. **Not applied to the live database by merging it.**
+
+| File | What |
+|---|---|
+| `freeze-live-defs.sql` | `pact_ap_ledger_protected()` and `pact_enforce_locked_history()` exactly as LIVE on 2026-10-04 (`pg_get_functiondef`); loaded after `base.sql`, whose older copy predates `dmUnlockDrawback` |
+| `freeze-cases.sql` | 61 cases: attacks (refused after), legitimate saves (allowed), the lock lifecycle (reopen, re-lock, seal), solo/unlocked characters, and **one case per patch key** including an unknown future key (fail-closed) |
+| `run-freeze.sh` | `BEFORE` (36 attacks work today) → apply → `AFTER` (all 61 pass) → rollback (byte-identical definitions) → attacks work again. In CI as the `freeze-rehearsal` job |
+| `backup-replay-audit.mjs` | replays every real old→new save from `character_backups` through the OLD then the NEW rule; lists the saves only the new rule refuses |
+| `roundtrip-audit.mjs` | loads every live character in the real CharGen and Live Sheet, autosaves, and checks the frozen part of the history is untouched (`--force-end` stress mode, `--synthetic` Live-Sheet-origin variants) |
+
+Both audits take an export of live rows (made with a read-only query) and **must not be committed** — it holds real player data.
+
+**When the migration is applied to live:** (1) add it to the `\ir` lists in `testing/sql/session-seal-test.sql` and `testing/sql/rls-baseline-test.sql`; (2) fold the two changed functions and the three helpers into `sql/rls-policies.sql`, so a fresh install matches production and
+re-running the baseline file can never revert the freeze; (3) run the Supabase advisors. Until then the baseline correctly describes production.
+

@@ -194,3 +194,15 @@ buys nothing. *"A spurious seal moves the freeze forward"* — a seal only freez
 spellcasting/identity can still be rewritten in place after the lock). *"Review RLS/superuser"* — out of scope.
 
 **Residual / for the owner:** applying the migration to the live database is the owner's decision (see the morning summary); nothing in this plan has been applied to live.
+
+## Results (2026-10-05, after the overnight build)
+
+Built as `sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` + `-rollback.sql`; **not applied to live** (owner's decision). Design as revised in the Review outcome above.
+- **Docker rehearsal** (`run-freeze.sh`): 61 cases; before the migration **36 attacks work today**; after: **61/61 pass**; rollback restores byte-identical function definitions, and the attacks work again after it. One case per patch key,
+  including an unknown future key (fail-closed). In CI as `freeze-rehearsal`.
+- **Backup-replay audit** — acceptance threshold from the reviewers ("0 unexpected refusals"): 573 saved states of 42 characters → 457 real saves; old rule refuses 3, new rule 27, **24 only by the new rule — all 24 are rewrites of history after a lock**
+  (priced events re-stamped or edited in place; logs rebuilt in a different order; four admin repair writes on 2026-10-04). **0 refusals of a flow the current clients make.**
+- **Round-trip audit** — every live character the rule freezes (the six sealed Amble characters), plus a stress mode treating all 18 locked characters as campaign-bound, plus Live-Sheet-origin synthetic variants: **0 differences** in the Live Sheet,
+  CharGen load and CharGen edit. It first **found a real defect** (opening a locked campaign character that began in the Live Sheet moved its "Imported budget" award to the end of the log), fixed in #579 before this was written up.
+- Open for the owner: apply stage 1 (then fold the baseline files — see the harness README), and later stage 2 once phase 2b ships.
+

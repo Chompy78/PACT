@@ -17,6 +17,11 @@
   Scarred Throat, Shell-Shocked, Frostbitten Limbs, Torn Shoulder, Wrenched Back) so every skill is named by at least two drawbacks.
   Each alias is its own drawback (buy-off matches by name); aliases share the original's place so stacking still warns. Gate pins the
   skill coverage. `v0.368`. Full record: `decisions/2026/D-GH-2026-10-04-wound-aliases.md`.
+## D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (migration written, NOT applied)
+- Server-side freeze (D2 lock boundary + E1 priced patch events), fail-closed on field names with a permanent and a temporary exempt list; functions only, rollback alongside. Rehearsed on Docker (36 attacks work today → 61/61 pass, rollback byte-identical),
+  replayed against 457 real saves (all 24 new refusals are history rewrites after a lock) and round-tripped through the real tools (found and fixed a real CharGen load defect). Protects against accidents, not a determined cheater. **Applying it is the owner's decision.**
+  Full record: `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
+
 ## D-GH-2026-10-04-permanent-wounds — a DM-only Wounds system (minor and moderate only)
 - Wounds are lasting injuries a DM imposes in play on campaign characters: never chosen, 0 AP, locked until a story beat, bought
   off at 2 (minor) or 3–4 (moderate) AP; no Grievous tier. Four new wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones,

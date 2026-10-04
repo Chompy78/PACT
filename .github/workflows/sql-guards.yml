@@ -77,3 +77,16 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade; create schema public;"
           psql -v ON_ERROR_STOP=1 -c "drop schema if exists auth cascade;"
           psql -v ON_ERROR_STOP=1 -f testing/sql/rls-baseline-test.sql
+
+  # The server-freeze rehearsal (stage 1: D2 + E1). Runs the migration and its rollback on a throwaway Postgres in Docker against the LIVE trigger
+  # definitions, with attack and legitimate cases (61): before = the attacks work, after = all pass, rollback = byte-identical definitions. The migration
+  # is NOT applied to the live database by merging it; this keeps the file honest until the owner decides to apply it. See
+  # docs/plans/2026-10-04-server-freeze-d2-e1.md. (Docker is preinstalled on ubuntu-latest runners; the script starts its own container.)
+  freeze-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Server freeze stage 1 — migration, attacks, legitimate cases, rollback
+        run: testing/scripts/creation-lock-guard-test/run-freeze.sh
+
