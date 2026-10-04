@@ -90,6 +90,24 @@ testing/scripts/creation-lock-guard-test/guard-cases.sql. Apply to live only aft
 ```
 **Done when:** the Docker harness shows each rule refusing the attack and allowing every legitimate save (a normal in-play purchase, a DM edit, an admin session, a solo character); the six Amble characters re-checked locked after applying; advisors/logs run; CHANGELOG + decision addendum written.
 
+## feat/server-freeze-apply — apply the server-freeze migration to the LIVE database, then remove its temporary exemptions — TODO
+**Supersedes the remaining scope of `feat/server-freeze-at-lock` above** (the migration, rollback, Docker rehearsal and both audits are BUILT and merged — #580; only applying it is left). No code branch for the apply itself (a live migration); the baseline fold is a small `docs/server-freeze-baseline` PR. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves (ambiguity low, damage scale high, likelihood low given the rehearsal and audits; driver: damage scale).
+
+```text
+Owner decision needed (NOT done). Evidence it is safe: sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (+ -rollback.sql); Docker rehearsal
+testing/scripts/creation-lock-guard-test/run-freeze.sh (36 attacks work today -> 61/61 pass after, rollback byte-identical; CI job `freeze-rehearsal`);
+backup-replay audit (457 real saves; every one of the 24 new refusals is a history rewrite after a lock); round-trip audit (0 differences in both real tools).
+Plan docs/plans/2026-10-04-server-freeze-d2-e1.md (cold-reviewed), decision decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md.
+STEPS: (1) owner confirms. (2) Promote preview -> main FIRST, so the shipped clients include #579 (opening a locked campaign character no longer rewrites its
+budget award) and the phase 2a/2b-1 refusals. (3) Re-read the live pact_ap_ledger_protected()/pact_enforce_locked_history() with pg_get_functiondef and confirm they
+still match testing/scripts/creation-lock-guard-test/freeze-live-defs.sql (md5) before applying. (4) Apply stage 1 in one transaction. (5) Verify the functions, then a no-op
+save of each live campaign character in the real tools. (6) Supabase get_advisors (security + performance) and skim get_logs. (7) Add the migration to the \ir lists in
+testing/sql/session-seal-test.sql and testing/sql/rls-baseline-test.sql and fold the changed functions + the three helpers into sql/rls-policies.sql (the harness README says
+how). (8) STAGE 2, once 2b-1 is live in the shipped clients: a second migration that drops pact_patch_temp_exempt_keys() (spellcasting, innate, martial binding, dabbler
+cantrips, species, origin classes, size, lineage), with the same rehearsal. (9) CHANGELOG + decision record status.
+```
+**Done when:** the live functions equal the migration's (checked by `pg_get_functiondef`), advisors are clean, the baseline files are updated and `sql-guards` CI is green, a real campaign character saves normally afterwards, and stage 2 is applied the same way (or consciously deferred and written down).
+
 ## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
 Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
 
