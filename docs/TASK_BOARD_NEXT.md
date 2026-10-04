@@ -1084,6 +1084,11 @@ writing it from the outside would be reconstruction, which is what this rule exi
 agent wonder why this was done this way?"
 
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
+**STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
+`D-GH-2026-10-04-dm-unlock-drawback`):** `sql/migrations/2026-10-04-dm-unlock-drawback.sql` was applied to production
+08:39 UTC and verified (guards, grants, hashes, advisors, logs). **What remains:** merge PR #557, ship the client in the next
+`preview` → `main` promotion, then graduate this entry. Safe order held: the server accepts the event before any client
+can send it.
 Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
 bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
 stamped on the immutable drawback event, and `dm_edit_character_log` only accepts buy(boon|drawback),

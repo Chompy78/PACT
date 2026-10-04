@@ -12,6 +12,7 @@ on:
   pull_request:
     paths:
       - "tools/DM-Console.html"
+      - "tools/PACT-Live-Char-Sheet.html"
       - "js/engine.js"
       - "js/engine-data.js"
       - "js/ap-by-level.js"
@@ -19,6 +20,8 @@ on:
       - "js/campaign.js"
       - "js/supabase-client.js"
       - "testing/scripts/dm-console-ui-e2e.mjs"
+      - "testing/scripts/live-sheet-unlock-e2e.mjs"
+      - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -58,3 +61,12 @@ jobs:
 
       - name: DM Console UI checks
         run: node testing/scripts/dm-console-ui-e2e.mjs
+
+      # feat/dm-unlock-drawback: the Live Sheet half of the same feature. Same cost profile as the step
+      # above (no Supabase, no sign-in, seeded localStorage), so it shares this job's Chromium install
+      # instead of paying for a second one.
+      - name: Live Sheet — a DM-unlocked drawback can be bought off, a locked one cannot
+        run: node testing/scripts/live-sheet-unlock-e2e.mjs
+
+      - name: DM Console — the Unlock control offers the right drawbacks and sends the right event
+        run: node testing/scripts/dm-console-unlock-e2e.mjs
