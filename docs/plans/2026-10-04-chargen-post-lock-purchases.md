@@ -1,0 +1,107 @@
+# Plan — CharGen records a purchase made AFTER the lock as an in-play purchase (B2)
+
+> **Status: PLAN FOR OWNER REVIEW — no code written.** Written 2026-10-04. Task: `fix/chargen-post-lock-purchases` (NEXT
+> board). This is owner decision **B2** from the roll "Accept" discussion; the Accept button itself
+> (`feat/roll-lock-then-spend`) depends on it. Related: `docs/plans/2026-10-04-chargen-creation-ceiling.md` §8, the restart
+> note's follow-up list ("CharGen edits patch slots in place after the lock"), `fix/no-purchase-refunds`.
+
+## 1. The bug, observed
+
+Probe, 2026-10-04, real browser, CharGen: set Hit Dice 3, **Finish creating**, then set Hit Dice 4.
+
+| | Event | Cost |
+|---|---|---|
+| after the lock | `seq 10 · buy · patch · "Hit Dice & Proficiency" · hd 3` (before the lock at seq 11) | 5 |
+| after HD 3 → 4 | the **same** event, seq 10, rewritten to `hd 4` — still **before** the lock | 8 |
+
+No new event, no in-play price, no gold/downtime stamp, and the *creation* history was rewritten.
+
+**Why.** `replacePatchSlot()` replaces a slot's event **in place** on purpose (keeps the ledger readable pre-lock; see its own
+comment on `fix/species-pack-not-charged`). That is right while creating and wrong afterwards. 19 patch slots work this way
+(`PATCH_SLOTS`: identity, stats, hdProf, economy, languages, attunement, ki, sorcery, armour, weaponProf, appearance,
+houseRules, customProfs, freeSub, traditions, names, vigor, innate, misc). Flat categories (skills, boons, feats, arts…)
+already go through `emit()` as appended events and are not the problem.
+
+**Compare Live Sheet.** It never edits history: every purchase is `buy(cat, payload)` → one **appended** event of a
+fine-grained category (`hd`, `abil`, `armour`, `wprof`, `language`, `vigor`, …; the engine's `MUT` table) carrying `cost`, `level`
+and, when the campaign economy charges, a frozen `gp`/`days`. Undo steps back one purchase. Lock integrity (and the server's
+`pact_enforce_locked_history`) assume exactly that shape.
+
+## 2. Goal and non-goals
+
+**Goal.** For a **locked** character, an edit made in CharGen that *adds* something is recorded the way Live Sheet would
+record it: appended after the lock, in-play priced, gold/downtime stamped when the economy charges (owner decision Y1a),
+one undo step per purchase, creation history untouched.
+
+**Non-goals.** Any pre-lock behaviour (unchanged, byte for byte). Pricing rules (no `DATA.version` bump expected). The
+server (the guard already protects lock entries). The Accept button and the roll's in-play remainder (phase 4 below,
+after this lands).
+
+## 3. Design
+
+**Where.** One branch in `replacePatchSlot()`: if the character is locked, hand the slot to
+`_cgPostLockSlotEdit(slot, newPatch)` instead of replacing in place. Pre-lock path untouched.
+
+**What it does, per edit.**
+1. Diff `newPatch` against the slot's *current folded value* (`readBuild()`), field by field.
+2. Each **increase** becomes the matching fine-grained purchase through the *same* mutation vocabulary Live Sheet uses
+   (`MUT` categories), appended with `commitHistory()` first (so undo is one step per purchase), priced as the
+   `compute()` delta of the real folded log (not by re-implementing prices), legality-checked with the same `legalCheck`
+   path Live Sheet calls, gold/downtime stamped by the economy helpers CharGen already imports
+   (`_engineEcon.purchaseCost`/`chargesGoldAndTime`; CharGen already renders "· N gp · M days in play").
+3. Each **decrease** is **refused** with a plain message ("Nothing you've bought can be removed once creation is
+   finished"). This is the owner's rule from `fix/no-purchase-refunds` applied to the form, and it is what stops CharGen
+   being a refund route.
+4. Slots that carry no AP (appearance, names, free text) keep editing in place — they are labels, not purchases.
+
+**Mapping (phase 1 = the first two rows; the rest follow the same shape).**
+
+| Slot | Post-lock event(s) |
+|---|---|
+| `hdProf` | `hd` (`to: N`), `prof` (`to: N`) |
+| `stats` | `abil` (`ab`, `to`) per raised score |
+| `armour`, `weaponProf`, `languages` | `armour`/`wornArmour`, `wprof`, `language` |
+| `vigor` | `vigor`, `grit` |
+| `traditions` | `rank`, `slot`, `known`, `cantrip` per added item |
+| `attunement`, `ki`, `sorcery`, `innate`, `customProfs`, `freeSub` | their `MUT` equivalents |
+| `identity` (species / origin class) | **refused** (the server already freezes species once sealed; creation-only) |
+| appearance / names / houseRules / economy / misc | in place (no AP) or DM-only |
+
+**Parity guarantee (the main safety net).** A differential test builds the *same* purchase twice — once through CharGen's
+new path, once through Live Sheet's `buy()` — and asserts the appended event has the same `cat`, `payload`, `cost`,
+`gp`/`days`, and that the two logs fold to byte-identical builds. If CharGen's result ever differs from Live Sheet's, the
+test fails.
+
+## 4. Phasing (one PR each)
+
+1. **Infrastructure + `hdProf` + `stats`.** The branch, the diff helper, refusal of decreases, the parity test. These two
+   slots are what the roll's remainder needs and what the probe broke.
+2. **Remaining priced slots** from the table.
+3. **Hardening:** reload/restore of a log with post-lock events, cloud round-trip, the Live Sheet opening a CharGen-made
+   post-lock log (handoff), `fix/no-purchase-refunds` interplay.
+4. **The Accept button** (`feat/roll-lock-then-spend`): lock, then drive the roller's remainder through this path.
+
+## 5. Risks
+
+- **Highest:** mapping a *slot diff* back to the right fine-grained events. A slot can change several fields at once
+  (stats edits several abilities; traditions adds a rank and slots together). Mitigation: phase 1 covers the two simplest,
+  most common slots first and proves the parity test before the others are touched.
+- **Price drift between tools.** Mitigated by pricing as the `compute()` delta and by the differential test above — never
+  by a hand-copied price table.
+- **Undo.** Each purchase is its own frame, and the lock stays the undo wall (`undoFloor`), so undo steps back through the
+  in-play purchases one at a time and stops at the lock. The owner marked this "maybe": confirm when phase 1 is in hand.
+- **A locked character edited in CharGen today** (the interim, wrong, in-place behaviour) may already carry rewritten
+  creation events. Measured 2026-10-04: all six campaign characters are locked; this plan does not repair them (that is
+  the separate live-log repair, which should move their locks to the agreed points first).
+
+## 6. Open questions for the owner (not decided)
+
+- **A. Decreases after the lock — refuse (recommended)** or allow with no refund? Refusing matches the "nothing bought can
+  be un-bought" rule; allowing-with-no-refund would let a player drop something they paid for at no benefit, which only
+  creates confusion.
+- **B. Phase 1 scope — `hdProf` + `stats` only (recommended)** versus all priced slots in one PR. The first is reviewable;
+  the second is a large diff in a ~600 KB file.
+- **C. Should CharGen simply be read-only for purchases after the lock** (the player advances in Live Sheet, which already
+  does this correctly) instead of gaining this path? That is far less code, but it changes what CharGen is for after
+  creation and it cannot serve the roll's automatic remainder. **Recommendation: build it** — the owner chose B2 knowing
+  the cost, and the Accept button needs it — but this is the cheaper alternative if the scope worries you.

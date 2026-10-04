@@ -27,6 +27,26 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
+Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
+
+```text
+OBSERVED (2026-10-04, real browser): in CharGen, Finish creating then raise Hit Dice 3 -> 4. replacePatchSlot() rewrites
+the existing "Hit Dice & Proficiency" event IN PLACE (seq 10, still BEFORE the lock at seq 11, cost 5 -> 8): no new event,
+no in-play price, no gold/downtime stamp, and creation history is rewritten. In place is right pre-lock (readable ledger) and
+wrong after it. Live Sheet appends one fine-grained event per purchase (hd / abil / armour / ... from the engine's MUT table)
+with cost and a frozen gp/days.
+
+DO (owner decision B2, 2026-10-04): for a LOCKED character, route a patch-slot edit through a new _cgPostLockSlotEdit():
+diff the slot against its folded value; each increase becomes the matching in-play event, appended after commitHistory()
+(one undo step per purchase), priced as the compute() delta, legality-checked and gold/downtime-stamped like Live Sheet;
+each DECREASE is refused ("nothing bought can be removed once creation is finished"); no-AP slots (appearance, names) stay
+in place; species/origin class are refused. Pre-lock behaviour must stay byte-identical. Phase 1 = hdProf + stats +
+the parity test; then the other priced slots; then hardening; then the roll Accept button. Answer the plan's three open
+questions with the owner before writing code.
+```
+**Done when:** a differential test builds the same purchase through CharGen's new path and Live Sheet's buy() and asserts identical event cat/payload/cost/gp/days and byte-identical folded builds; a locked-character HD and ability raise in CharGen append in-play events after the lock with the creation event untouched; a decrease is refused; undo steps back one purchase at a time and stops at the lock; pre-lock tests stay green.
+
 ## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
 Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
 
@@ -96,8 +116,6 @@ refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and l
 Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
 (engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
 
-Separate, unresolved — do NOT fold in without a decision: the engine credits the first Hit Die's 2 AP
-(Hit Dice -> 3 costs 5, not 7) while the Guide's worked examples charge the full 14 for 5 Hit Dice.
 ```
 **Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
 reduction giving no refund, (b) a below-10 dump still paying out, (c) a post-lock removal or reduction
