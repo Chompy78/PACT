@@ -1805,7 +1805,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<button type="button" class="btn sm danger dm-remove-boon-btn" data-cid="'+esc(id)+'">Remove</button>' +
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="remove-boon" style="font-size:11px;color:var(--muted)"></span></div>';
     }
-    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. You choose whether/how they can buy it off.">&#9432;</button></div>' +
+    h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. Any stat cap the drawback normally carries (e.g. Peg Leg: DEX 12) is NOT applied to an imposed one. You choose whether/how they can buy it off.">&#9432;</button></div>' +
       '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
       '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
       '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap"><input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'"> Locked</label>' +

@@ -4,6 +4,14 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-09-30 · fix(engine): a DM-imposed drawback is exempt from its stat cap** — `compute()` raised
+  `⛔ Peg Leg: drawback requires DEX 12 or lower` on a DEX 16 character the DM had imposed it on, though an
+  imposed drawback pays 0 AP. `_replay()` now stamps `b._imposedDrawbackIdx` from the server-stamped
+  `dmEdit` flag and `compute()` skips `drawbackMaxStats` for those slots (both the entry check and the
+  ceiling). Positional, so a player-taken drawback of the same name stays capped, and a `dmEdit` drawback
+  that pays AP (cost < 0) stays capped too. New fixtures EV-021–EV-023 (EV-021/022 differential-verified
+  against the pre-fix engine); parity 76/0. DM Console impose tooltip now says imposed drawbacks carry no
+  stat cap. No `DATA.version` bump. See `D-GH-2026-09-30-imposed-drawback-cap-bypass`.
 - **2026-10-01 · chore(release): promote `preview` → `main` as `v1.554` (PR #554)** — ships #553 (CharGen
   reload no longer un-finishes creation), #549 (account popover, in-app password change, sign-out fix) and
   #552 (economy-ui CI wiring). `BUILD` synced `v1.546` → `v1.554` across `js/engine.js` and the three
