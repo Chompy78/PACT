@@ -213,3 +213,6 @@ frame per edit, lowering refused, an unaffordable or rules-breaking edit refused
 - **Measured exposure (live `characters`, 2026-10-04):** 50 characters, 14 locked, **3 locked with no award and no seal — all solo (no campaign), one owner**.
   All six Amble characters are sealed, so they are protected. The refund route matters most for a future campaign character between "Finish creating" and
   the DM's first award or seal.
+- **Q2 withdrawn (owner, 2026-10-04, after seeing the wallet inputs above):** CharGen will NOT get the wallet-short warning or the §16 trade offer for now.
+  It keeps what phase 1 does — stamp the gold and downtime charge on the purchase and say nothing about the wallet. Revisit only if players ask; the
+  prerequisite is loading the DM gold pool and party downtime window into CharGen exactly as the Live Sheet does.
