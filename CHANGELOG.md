@@ -12,8 +12,8 @@
   control behind the archived-campaign peek guard. **Migration `2026-10-04-dm-unlock-drawback.sql` (+ rollback) is written
   and tested but NOT yet applied to production — apply it before shipping the client.** The lock/unlock are advisory
   against a hostile owner (`feat/server-enforced-drawback-lock`). Tests: 77-assertion Postgres 16 harness incl. RPC
-  behaviour, `dm-unlock-drawback-ci.mjs` 20/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 19/0, `dm-console-unlock-e2e`
-  16/0, all wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
+  behaviour, `dm-unlock-drawback-ci.mjs` 30/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 19/0, `dm-console-unlock-e2e`
+  19/0, all wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
 - **2026-09-30 · fix(engine): a DM-imposed drawback is exempt from its stat cap** — `compute()` raised
   `⛔ Peg Leg: drawback requires DEX 12 or lower` on a DEX 16 character the DM had imposed it on, though an
   imposed drawback pays 0 AP. `_replay()` now stamps `b._imposedDrawbackIdx` from the server-stamped

@@ -1228,7 +1228,9 @@ function dmAnalyze(exported, apOpts){
     lockedDraws: (function(){
       var ae = activeEvents(null), out = [];
       ae.evs.forEach(function(e, i){
-        if(e.type==='buy' && e.cat==='drawback' && e.dmEdit && e.dmLocked && e.seq!=null && e.payload && e.payload.v
+        // === true, not truthy: the server compares these stamps strictly (jsonb equality) and the engine now
+        // does too, so a hand-edited log with dmLocked:1 is not offered an Unlock the server would refuse.
+        if(e.type==='buy' && e.cat==='drawback' && e.dmEdit===true && e.dmLocked===true && e.seq!=null && e.payload && e.payload.v
            && !ae.boughtOff.has(i) && !ae.unlocked.has(i)) out.push({name:e.payload.v, seq:e.seq});
       });
       return out;
@@ -2568,7 +2570,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+'</div>'+
       '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
-      '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock, undefined, undefined, a.lockedDraws))+'</div></div>';
+      '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock))+'</div></div>';
   }
   function renderCustomRoster(container){
     if(!container) return;
@@ -2853,7 +2855,13 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           if(window._dmReloadRoster) window._dmReloadRoster();
         }).catch(function(err){
           unlockDrawBtn.disabled = false; if(udStatus) udStatus.textContent = '';
-          alert('Unlock failed: '+err.message);
+          // Two refusals a DM can actually hit get a plain-language reason instead of a raw database error:
+          // the server not yet carrying this feature (the migration is applied separately, before the client
+          // ships), and an event number that is not unique in the log (can't be released automatically).
+          var udMsg = String(err && err.message || err);
+          if(/unsupported event type/i.test(udMsg)) udMsg = 'The server has not been updated to support unlocking yet. Ask the app owner to apply the latest database update, then try again.';
+          else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
+          alert('Unlock failed: '+udMsg);
         });
         return;
       }

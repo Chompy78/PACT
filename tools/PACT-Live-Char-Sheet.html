@@ -1045,33 +1045,31 @@ function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
 // specific event's dmEdit/dmLocked/dmRemovalCost flags, not just DATA.drawbacks[v].
-function _openDrawbackEvent(v){
-  const {evs,boughtOff}=activeEvents(null);
+function _openDrawbackEvent(v,ae){
+  const {evs,boughtOff}=ae||activeEvents(null);
   for(let i=0;i<evs.length;i++){const e=evs[i];
     if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
   return null;
 }
 // feat/dm-unlock-drawback: has a DM released this locked, imposed purchase? Returns the dmUnlockDrawback
 // event (so callers can show the DM's note), or null while it is still locked. Takes the activeEvents()
-// result so the ledger can ask about the same (possibly time-travelled) slice it is rendering; the engine
-// does the matching (by seq, never by name) — see activeEvents().unlocked. ADVISORY: the lock is honoured
-// by this app, not enforced by the server (feat/server-enforced-drawback-lock tracks real enforcement).
+// result so the ledger can ask about the same (possibly time-travelled) slice it is rendering. The ENGINE does
+// the matching (by seq, never by name) and hands back the unlock event itself via activeEvents().unlockedBy —
+// this function only looks the answer up, so the rule lives in exactly one place. ADVISORY: the lock is
+// honoured by this app, not enforced by the server (feat/server-enforced-drawback-lock tracks enforcement).
 function _unlockOf(ae,e){
   const i=ae.evs.indexOf(e);
-  if(i<0||!ae.unlocked.has(i))return null;
-  const v=e.payload&&e.payload.v;
-  for(let j=i+1;j<ae.evs.length;j++){const u=ae.evs[j];
-    if(u.type==='dmUnlockDrawback'&&u.dmEdit&&u.targetSeq===e.seq&&u.refVal===v)return u;}
-  return {};   // released, but the unlock event could not be re-found for its note — still unlocked
+  return i<0?null:(ae.unlockedBy.get(i)||null);
 }
 function buyoffDrawback(v){
   const refund=DATA.drawbacks[v]||0;
-  const src=_openDrawbackEvent(v);
+  const _ae=activeEvents(null);   // folded ONCE per click; the open-purchase lookup and the unlock lookup share it
+  const src=_openDrawbackEvent(v,_ae);
   // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
   let cost, rateNote;
   if(src&&src.dmEdit){
-    const _unl=src.dmLocked?_unlockOf(activeEvents(null),src):null;
+    const _unl=src.dmLocked?_unlockOf(_ae,src):null;
     if(src.dmLocked&&!_unl){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
     const rate=(src.dmRemovalCost==='expensive')?3:1;
     cost=refund*rate;

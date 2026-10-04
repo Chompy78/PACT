@@ -682,9 +682,13 @@ $$;
 -- dm_edit_character_log(character, events) — feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events).
 -- The ONLY path a DM can append to a player's own stats->LOG through — characters_update's row policy
 -- is owner-only, same SECURITY DEFINER-bypass pattern as award_ap/dm_unbind_character just above,
--- extended to `stats`. Scope allowlist (owner: "not a general editor"): buy/cat:boon, buy/cat:drawback,
--- award, dmRemoveBoon, sessionSeal, dmUnlockDrawback only. Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the
--- client sent for them — the caller cannot forge who made the edit, when, or where in the log it lands.
+-- extended to `stats`. Scope (owner: "not a general editor") is a FIXED allowlist of audited event types,
+-- never arbitrary events: buy/cat:boon, buy/cat:drawback, award, dmRemoveBoon, sessionSeal, dmUnlockDrawback.
+-- The last two are MARKERS rather than ledger transactions (they move no AP), and dmUnlockDrawback also changes
+-- what the player's own client allows (a locked drawback may then be bought off) — which is why it is validated
+-- against the stored log and rebuilt from a whitelist, not just allowlisted.
+-- Server stamps seq/ts/dmEdit/dmId on every event, discarding whatever the client sent for them — the caller
+-- cannot forge who made the edit, when, or where in the log it lands.
 -- Accepts a JSON ARRAY so a DM-granted boon's matched buy+award pair lands in ONE atomic write (see
 -- the migration file's header for why two separate calls would leave a real, if brief, non-neutral
 -- moment). See sql/migrations/2026-08-10-dm-edit-character-log.sql for the full design/compatibility

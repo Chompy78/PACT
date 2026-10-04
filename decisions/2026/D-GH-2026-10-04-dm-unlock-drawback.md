@@ -73,6 +73,40 @@ finding they disagreed on; outcomes are in `docs/plans/2026-09-30-dm-unlock-draw
 self-ID was false; every finding was checked against the code or live data before use. One gap found in triage, not by
 either reviewer: the Live Sheet's ledger row also rendered "🔒 locked" from the event flags and needed the same change.
 
+## Code review (`/code-review high`, after the PR was opened)
+
+Nine findings, each checked against the code before acting. **Fixed:**
+- **The protected-events CI mirror lacked the new type**, so the CharGen tripwire did not cover it. It now lists
+  `dmUnlockDrawback`, seeds one, and asserts it survives a load (and, as a tripwire, that CharGen's rebuild still drops it).
+- **`_unlockOf` re-implemented the engine's match with different semantics** (strict `===` against the engine's string
+  match) and rescanned the log. The engine now returns `unlockedBy` (purchase index → the unlock event) and the Live Sheet
+  only looks the answer up, so the rule lives in one place.
+- **Engine and server disagreed on what counts as imposed + locked** (truthy vs jsonb `true`). The engine and the DM
+  Console now compare `=== true`, so the console never offers an Unlock the server would refuse.
+- **The Unlock control appeared on local-only roster cards**, where it could only fail. Reverted to the original call.
+- **Raw database errors reached the DM.** "Unsupported event type" (server not yet migrated) and "no single DM-imposed…"
+  (missing, already unlocked, or a non-unique `seq`) now get plain-language messages.
+- **`buyoffDrawback` folded the log twice per click**; it now folds once.
+- **A stale SQL comment** still read as a tiny allowlist; reworded.
+
+**Accepted as is:** two imposed purchases sharing a `seq` and name stay locked with no automatic recovery — fail-safe by
+design, 0 occurrences in live data (491 events), and the DM now sees an explanation rather than a raw error. The extra
+linear pass the DM Console makes per analysed card is negligible at real log sizes.
+
+**Open — decision requested:** the buy-off button on an unlocked imposed row calls `buyoffDrawback(name)`, and a buy-off
+event carries only the drawback's name, so the engine cancels the **oldest** open purchase of that name. With a
+player-taken and an imposed purchase of the same name, clicking the unlocked imposed row's button charges the player-taken
+one's price and cancels *that* one; the DM's chosen rate applies only once it is the oldest. This is the pre-existing
+by-name FIFO (pinned by the browser gate, which called it "untouched"), not a regression — but the unlocked row's tooltip
+promises the DM's rate, so the UI over-promises. Shallow fix: show the buy-off button only on the oldest open purchase of
+each name and a "waits for the older one" note on the rest (UI only). Deep fix: a buy-off carries the purchase's `seq` and
+the engine honours it (changes engine fold semantics; needs fixtures and a version decision). Not fixed in this PR.
+
+**A mistake worth recording:** while adding tests for these fixes I called the `unlock()` helper with its arguments in the
+wrong order, so five new "is refused" assertions passed vacuously. The two assertions that checked a positive result failed
+and exposed it. The block now opens with a control proving the same shapes DO release, so a refusal cannot pass for an
+unrelated reason.
+
 ## Verification
 
 - **SQL, real Postgres 16** (`testing/sql/rls-baseline-test.sql`, run in a throwaway container and by CI's `sql-guards`): 77
@@ -85,11 +119,11 @@ either reviewer: the Live Sheet's ledger row also rendered "🔒 locked" from th
 - **Baseline = production, hashed 2026-10-04** with the drift guard's own normalisation: `dm_edit_character_log`
   `f6476a61e4d504cfb50b14119420641c`, `pact_ap_ledger_protected` `60b099bb2e1b1b8e263ee3bc48bbd6c9`, live == pre-change
   baseline, so the migration starts from the real definitions (the 2026-09-02 mistake was building from a stale file).
-- **Engine:** `dm-unlock-drawback-ci.mjs` 20/20 (seq matching, ambiguity, ordering, stamp, no AP/build effect, FIFO
+- **Engine:** `dm-unlock-drawback-ci.mjs` 30/30 (seq matching, ambiguity, ordering, stamp, no AP/build effect, FIFO
   untouched, undo floor); parity fixture EV-024; `engine-parity-ci.mjs` 77/0.
-- **Browser:** `live-sheet-unlock-e2e.mjs` 19/19, `dm-console-unlock-e2e.mjs` 16/16 (the peek-guard checks were shown to
+- **Browser:** `live-sheet-unlock-e2e.mjs` 19/19, `dm-console-unlock-e2e.mjs` 19/19 (the peek-guard checks were shown to
   fail when the guard is removed); existing `dm-console-ui-e2e` 101/101, `tool-pricing-ci` 189/189,
-  `protected-events-roundtrip-ci` 8/8. `cloud-e2e` needs a local Supabase stack and ran only in CI.
+  `protected-events-roundtrip-ci` 9/9. `cloud-e2e` needs a local Supabase stack and ran only in CI.
 - Live data (dated snapshot, 2026-09-30): 42 characters, **0** DM-imposed drawbacks ever, so no existing log carries the
   new event and nothing in production changes until a DM uses it.
 

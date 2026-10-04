@@ -24,12 +24,13 @@
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked}: live events + a bought-off-drawback
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy}: live events + a bought-off-drawback
  *                          map + a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
  *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes +
  *                          `unlocked`, a Set of indices of DM-imposed locked drawback purchases a later
- *                          `dmUnlockDrawback` event released (feat/dm-unlock-drawback; additive — no build or
- *                          AP effect, read only by the Live Sheet's buy-off gate).
+ *                          `dmUnlockDrawback` event released, and `unlockedBy`, the same indices mapped to
+ *                          that unlock event (feat/dm-unlock-drawback; additive — no build or AP effect, read
+ *                          only by the Live Sheet's buy-off gate and the DM Console's Unlock list).
  *   creationLockState(events) — {locked, armed, confirmed, threshold, spentTowardThreshold, …} for one
  *                          log. spentTowardThreshold is the LOCK's accounting, never economy().spent.
  *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
@@ -1037,21 +1038,27 @@ export function activeEvents(events) {
   // makes the imposed purchase an undo barrier. It moves no AP and never alters the build — it is read by
   // the Live Sheet to decide whether a locked drawback may be bought off. NOTE: advisory against a hostile
   // owner, exactly like the lock itself (see D-GH-2026-10-04-dm-unlock-drawback).
+  // `unlockedBy` is the same answer as a Map (purchase index -> the unlock event that released it), so a caller
+  // that wants the DM's note reads it from HERE instead of re-implementing this match. The stamps are compared
+  // STRICTLY (=== true), exactly as dm_edit_character_log compares them (jsonb equality): a log whose flags are
+  // 1 or "true" is neither imposed nor locked to either side, so the console never offers an unlock the server
+  // would refuse.
   const unlocked = new Set();
+  const unlockedBy = new Map();
   const _lockedBySeq = {};   // `${seq}|${drawback}` -> index of the imposed locked purchase, or -1 if ambiguous
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
       if (v == null) return;
       (_openDraws[v] = _openDraws[v] || []).push(i);
-      if (e.dmEdit && e.dmLocked && e.seq != null) {
+      if (e.dmEdit === true && e.dmLocked === true && e.seq != null) {
         const k = e.seq + '|' + v;
         _lockedBySeq[k] = (k in _lockedBySeq) ? -1 : i;
       }
     } else if (e.type === 'dmUnlockDrawback') {
-      if (!e.dmEdit || e.refVal == null || e.targetSeq == null) return;
+      if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return;
       const j = _lockedBySeq[e.targetSeq + '|' + e.refVal];
-      if (j != null && j >= 0) unlocked.add(j);
+      if (j != null && j >= 0) { unlocked.add(j); if (!unlockedBy.has(j)) unlockedBy.set(j, e); }
     } else if (e.type === 'buyoff') {
       if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
@@ -1066,7 +1073,7 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost, unlocked };
+  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names

@@ -112,6 +112,28 @@ check('...and nothing that could move AP or fake another event type (no cost/amo
   ev && !('cost' in ev) && !('amount' in ev) && !('payload' in ev), JSON.stringify(ev));
 check('...and the roster is reloaded afterwards', await page.evaluate(async () => { await Promise.resolve(); return window.__reloads === 1; }));
 
+console.log('When the server refuses, the DM gets a plain-language reason');
+await render([row('c1', LOG)]);
+const tryUnlockAndReadAlert = (serverMessage) => page.evaluate(async (msg) => {
+  window.__alerts.length = 0;
+  window._campBridge.dmEditCharacterLog = () => Promise.reject(new Error(msg));
+  document.querySelector('#campRoster .dm-unlock-draw-note').value = 'a perfectly good story beat';
+  document.querySelector('#campRoster .dm-unlock-draw-btn').click();
+  for (let i = 0; i < 40 && !window.__alerts.length; i++) await new Promise(r => setTimeout(r, 25));
+  return window.__alerts[window.__alerts.length - 1] || '';
+}, serverMessage);
+const msgOld = await tryUnlockAndReadAlert('dm_edit_character_log: unsupported event type dmUnlockDrawback');
+check('a server without the migration says so, in plain words (not the raw database error)',
+  /has not been updated/i.test(msgOld) && !/dm_edit_character_log/.test(msgOld), msgOld.slice(0, 90));
+const msgDup = await tryUnlockAndReadAlert('dm_edit_character_log: no single DM-imposed, locked drawback "Peg Leg" at seq 4 to unlock (found 2)');
+check('an un-unlockable target (missing, already unlocked, or ambiguous) says so, in plain words',
+  /cannot be unlocked automatically/i.test(msgDup) && !/dm_edit_character_log/.test(msgDup), msgDup.slice(0, 90));
+await page.evaluate(() => { window._campBridge.dmEditCharacterLog = (id, events) => { window.__calls.push({ id, events }); return Promise.resolve(events); }; });
+
+console.log('Hand-edited stamps are not offered an unlock the server would refuse');
+await render([row('c4', [award, oclass, Object.assign(dmBuy(3, 'Peg Leg', true), { dmLocked: 1 })])]);
+check('dmLocked: 1 (truthy, not true) is not offered', (await offered()) === null);
+
 console.log('After the unlock lands, the control goes away');
 await render([row('c1', LOG.concat([{ type: 'dmUnlockDrawback', refVal: 'Peg Leg', targetSeq: 4, note: 'done', seq: 8, dmEdit: true, dmId: 'dm', label: 'DM unlocked — Peg Leg' }]))]);
 check('no locked drawback left -> no Unlock control at all', (await offered()) === null);

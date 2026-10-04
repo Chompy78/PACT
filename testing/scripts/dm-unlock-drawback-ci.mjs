@@ -75,6 +75,38 @@ t('two imposed purchases sharing seq+name are ambiguous: NOTHING is released (fa
 t('two different imposed purchases: unlocking one leaves the other locked',
   idx(activeEvents([award, oclass, imposed(3), imposed(4), unlock(3)]).unlocked), [2]);
 
+console.log('unlockedBy — the engine hands back the unlock event, so no caller re-implements the match');
+{
+  // unlock(targetSeq, drawbackName, extraFields) — the note rides in extraFields.
+  const ae = activeEvents([award, oclass, imposed(3), unlock(3, 'Peg Leg', { note: 'the beat' })]);
+  t('unlockedBy maps the released purchase (idx 2) to its unlock event', [...ae.unlockedBy.keys()], [2]);
+  t('...and the event carries the DM\'s note', ae.unlockedBy.get(2) && ae.unlockedBy.get(2).note, 'the beat');
+  t('unlockedBy and unlocked always agree', idx(ae.unlocked), [...ae.unlockedBy.keys()].sort((a, b) => a - b));
+  t('a numeric-string targetSeq ("3") releases seq 3, exactly as the server\'s text comparison would',
+    idx(activeEvents([award, oclass, imposed(3), unlock('3', 'Peg Leg')]).unlocked), [2]);
+  t('a second unlock of the same purchase keeps the FIRST event',
+    activeEvents([award, oclass, imposed(3), unlock(3, 'Peg Leg', { note: 'first' }), unlock(3, 'Peg Leg', { note: 'second' })])
+      .unlockedBy.get(2).note, 'first');
+}
+
+console.log('strict stamps — the engine agrees with the server about what counts as imposed + locked');
+{
+  const flag = (o) => Object.assign(imposed(3), o);
+  // CONTROL first: the same shapes with the strict stamps DO release, so the refusals below cannot be
+  // passing for an unrelated reason (a first draft of these called unlock() with its arguments in the wrong
+  // order, targeted a seq that does not exist, and "passed" every refusal without testing any of them).
+  t('control: strict dmEdit/dmLocked:true + a matching unlock DOES release (so the refusals below mean something)',
+    idx(activeEvents([award, oclass, flag({}), unlock(3)]).unlocked), [2]);
+  t('dmLocked: 1 (truthy, not true) is NOT a lock the engine will release',
+    idx(activeEvents([award, oclass, flag({ dmLocked: 1 }), unlock(3)]).unlocked), []);
+  t('dmLocked: "true" (a string) is not either',
+    idx(activeEvents([award, oclass, flag({ dmLocked: 'true' }), unlock(3)]).unlocked), []);
+  t('dmEdit: 1 on the imposed purchase is not imposed',
+    idx(activeEvents([award, oclass, flag({ dmEdit: 1 }), unlock(3)]).unlocked), []);
+  t('an unlock whose dmEdit is the string "true" is ignored',
+    idx(activeEvents([award, oclass, imposed(3), unlock(3, 'Peg Leg', { dmEdit: 'true' })]).unlocked), []);
+}
+
 console.log('the unlock changes nothing but that set');
 {
   const base = [award, oclass, imposed(3)];
