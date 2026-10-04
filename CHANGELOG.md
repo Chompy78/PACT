@@ -65,6 +65,13 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-05 · refactor(engine): the Live Sheet's gold-and-downtime wallet, soft shortfall warning and §16 trade-offer decision move into the engine as `walletState()` / `walletCheck()`**
+  (`refactor/engine-wallet-check`; Q2 step 1, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq: "move it into the engine now, do not copy first") — `_lsWallet`, the decision half of
+  `_lsOfferTrade` and `_lsWalletShort` become pure data in `js/engine.js` (what is left of each currency from the character's own log plus the DM-held gold and the party downtime window, composed only when the campaign is confirmed
+  active; whether a coin-for-time trade is worth offering — short of exactly one currency and the traded price would close; and by how much the purchase is short). The Live Sheet delegates and keeps only its own prompt wording; behaviour is
+  unchanged (its 155-check economy browser gate and the 189-check tool-pricing gate pass). New gate `testing/scripts/engine-wallet-ci.mjs` + frozen reference `lib/ls-wallet-reference.js`: 66,589 comparisons over 24,000 seeded scenarios
+  (349 trade offers, 14,002 shortfalls, 4,580 covered), red under mutation (a trade that cannot close: 4,685 mismatches); wired as the `engine-wallet` CI job. Next (Q2 step 2): CharGen loads the DM gold and party window and shows the same
+  warning and trade offer after the lock. No `DATA.version` change.
 - **2026-10-05 · fix(chargen): after "Finish creating", spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields are refused instead of rewritten in place; opening a locked campaign character no longer rewrites its history**
   (`fix/chargen-post-lock-2b1-refusals`; phase 2b-1, plan `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md`, cold-reviewed by Gemini + Groq) — the last four patch slots (`traditions`, `innate`, `misc`, `identity`) used to rewrite
   their creation-era event in place after the lock (a refund route; no Live Sheet purchase exists for innate spells or dabbler cantrips, martial binding GRANTS AP, origin fields are creation-only). A write that changes nothing is a no-op; anything
