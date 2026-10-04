@@ -65,6 +65,14 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-05 · fix(chargen): after "Finish creating", spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields are refused instead of rewritten in place; opening a locked campaign character no longer rewrites its history**
+  (`fix/chargen-post-lock-2b1-refusals`; phase 2b-1, plan `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md`, cold-reviewed by Gemini + Groq) — the last four patch slots (`traditions`, `innate`, `misc`, `identity`) used to rewrite
+  their creation-era event in place after the lock (a refund route; no Live Sheet purchase exists for innate spells or dabbler cantrips, martial binding GRANTS AP, origin fields are creation-only). A write that changes nothing is a no-op; anything
+  else is refused with a plain message (spellcasting points at the Live Sheet, which records each rank, cantrip, slot and known spell as an in-play purchase) and the control goes back. A real defect found on the way, by the browser
+  test: a refused edit repaints the form, the repaint rebuilds the spell rows, and those re-sync the slot — it recursed until the stack overflowed; slot syncs are now skipped while a repaint is in progress. And one found by the server-freeze
+  round-trip audit (`docs/plans/2026-10-04-server-freeze-d2-e1.md`): CharGen's "don't rewrite protected history" guard followed seals and awards but not the lock, so opening a **locked campaign character** that began in the Live Sheet moved its
+  "Imported budget" award from the top of the log to the end and added a `name` event — which the planned server freeze would refuse. The guard now honours the lock too, and stays silent during a load-time reconcile. 18 new browser checks
+  (164 pass, 0 fail). No `DATA.version` change.
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.577` (PR #577)** — ships #573 (CharGen: nothing bought can be unticked after the lock, new drawbacks refused,
   flat purchases priced and charged in play), #575 (the Live Sheet's purchase-legality rules moved into the engine as `purchaseLegality`; CharGen uses them), #576 (CharGen
   phase 2a: languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency and free subclass as in-play purchases), plus the already-merged DM-imposed wounds
