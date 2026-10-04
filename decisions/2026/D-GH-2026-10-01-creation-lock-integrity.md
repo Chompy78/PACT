@@ -54,3 +54,16 @@ a campaign move — the new DM reopens creation explicitly if they want it.
 Part 1a done (tests: new `chargen-flows-e2e.mjs` section fails on the old code, passes on the new; engine
 parity 73/0). Interim end-of-log locks applied to the four unlocked Amble characters (AP unchanged). Parts
 1b, 3 (history repair with DM sign-off) and 2 (server guard + L1) to follow, in that order.
+
+## Addendum — 2026-10-04
+
+- **Second cause found:** Skylar (2 Oct) and Archer (3 Oct) lost their interim locks *after* the reload fix
+  shipped — a stale local copy (pre-lock `seq`) pushed over the newer cloud save. Root cause still open; the
+  server guard (D1) is now prioritised ahead of Part 1b (owner decision **P1**).
+- **Q1 (owner):** lock points are judged on **current-rules prices** (`compute(foldBuild(LOG)).total`), not
+  the stored ledger, which held stale prices (Skylar's Proficiency +3 recorded at 4 AP vs 18; Moss's Wild
+  Shape at 0). This moved Moss's crossing to 8 Sep (Wild Shape) and gave Skylar 14 AP in-play.
+- **R (owner):** no mechanics change — drawback AP stays in the creation limit.
+- **S1 (owner):** campaign characters' backups are never pruned (the 50-version window lost Archer's history).
+- Draft migration `sql/migrations/2026-10-04-creation-lock-guard.sql` (D1 + L1 + S1) — not applied; testing
+  approach (decision T) pending. Handoff: `docs/sessions/2026-10-04-creation-lock-restart.md`.
