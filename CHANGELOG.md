@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · refactor(engine): the in-play purchase pricer moves from the Live Sheet into `js/engine.js`
+  (`priceOf(cur, cat, payload)`)** — it was rules logic with exactly one copy, inside the Live Sheet tool file
+  (`priceOf` + `_CTX_PRICERS`: ability raises, level-ups with the HD-gate "what this level-up legalises" correction,
+  class unlocks, the two bonds, drawbacks). CharGen has to record a purchase made after the lock at the same price
+  (`fix/chargen-post-lock-purchases`), and a second hand-written copy is the drift this project keeps paying for. Moved
+  verbatim; the Live Sheet keeps its `priceOf(cat, payload, cur?)` signature as a one-line delegate. New gate
+  `testing/scripts/engine-priceof-ci.mjs` (wired into `engine-parity.yml`) keeps the original code as a frozen reference
+  and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
+  identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
+  change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
 - **2026-10-04 · chore(release): build `v1.554` → `v1.568`** — the `preview` → `main` promotion (PR #568) carries rules `v0.367` (DM-imposed drawbacks, DM unlock, Wounds). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched.
 - **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
   a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;

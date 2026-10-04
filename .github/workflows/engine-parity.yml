@@ -106,6 +106,9 @@ jobs:
       - name: Run the DM unlock-drawback gate
         run: node testing/scripts/dm-unlock-drawback-ci.mjs
 
+      - name: Run the engine priceOf extraction gate
+        run: node testing/scripts/engine-priceof-ci.mjs
+
   imposed-drawback-grants:
     # fix/imposed-drawbacks-grant-no-ap. compute() once credited a DM-imposed drawback's table value as income
     # although the player was paid nothing: it inflated "AP remaining", fired cap warnings at a player for
