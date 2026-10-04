@@ -17,8 +17,8 @@
   name can coexist and buy-off matches by name. The server validates it against the stored log and rebuilds it from a
   whitelist (no AP can ride along); the engine exposes `activeEvents().unlocked`; the Live Sheet and DM Console use it.
   The already-bought-off check deliberately stays out of SQL (it is the engine's FIFO rule). **Advisory against a hostile
-  owner** — real enforcement is `feat/server-enforced-drawback-lock`. Migration written and tested but not yet applied to
-  production. Full record: `decisions/2026/D-GH-2026-10-04-dm-unlock-drawback.md`.
+  owner** — real enforcement is `feat/server-enforced-drawback-lock`. Migration applied to production 2026-10-04 (verified);
+  the client ships with the next promotion. Full record: `decisions/2026/D-GH-2026-10-04-dm-unlock-drawback.md`.
 
 ## D-GH-2026-09-30-imposed-drawback-cap-bypass — a DM-imposed drawback is exempt from its stat cap
 - Imposing `Peg Leg` on a DEX 16 character made `compute()` raise `⛔ … requires DEX 12 or lower`, though an

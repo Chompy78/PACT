@@ -105,12 +105,37 @@ console.log('Case 3 — a player-taken AND an imposed Peg Leg (the case seq-keyi
   const rows = await ledgerRows(page);
   const t = rows.find(r => /\+4/.test(r.text) && /Peg Leg/.test(r.text) && !/DM imposed/.test(r.text));
   const i = rows.find(r => /DM imposed/.test(r.text));
-  check('the player-taken drawback keeps its ordinary 3x buy-off button', !!t && /buy off 3×/.test(t.text));
-  check('the IMPOSED one shows the unlocked state with a flat buy-off', !!i && /🔓/.test(i.text) && /buy off \(flat\)/.test(i.text));
+  check('the OLDER (player-taken) drawback has the buy-off button, at the ordinary 3x price', !!t && /buy off 3×/.test(t.text));
+  check('the NEWER, imposed one shows 🔓 but NO button: it waits for the older one (a click would remove that one instead)',
+    !!i && /🔓/.test(i.text) && !/buy off/.test(i.text) && /waits for the older one/.test(i.text), i && i.text);
   await page.evaluate(() => buyoffDrawback('Peg Leg'));
   const last = await page.evaluate(() => LOG[LOG.length - 1]);
   check('a buy-off cancels the OLDEST purchase (the player-taken one) at the 3x price (12 AP) — FIFO untouched',
     last && last.type === 'buyoff' && last.cost === 12, JSON.stringify(last));
+  // Now the imposed purchase IS the oldest open one: it gets the button, and the DM's flat rate really applies.
+  const rows2 = await ledgerRows(page);
+  const i2 = rows2.find(r => /DM imposed/.test(r.text));
+  check('...and the imposed drawback now has its (flat) buy-off button', !!i2 && /buy off \(flat\)/.test(i2.text) && !/waits for the older/.test(i2.text), i2 && i2.text);
+  await page.evaluate(() => buyoffDrawback('Peg Leg'));
+  const last2 = await page.evaluate(() => LOG[LOG.length - 1]);
+  check('...and buying it off charges the DM\'s flat price (4 AP) — the rate the unlocked row promised',
+    last2 && last2.type === 'buyoff' && last2.cost === 4, JSON.stringify(last2));
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await close();
+}
+
+console.log('Case 3b — the reverse: an OLDER locked imposed drawback and a NEWER player-taken one of the same name');
+{
+  // imposed LOCKED seq 3 (older), player-taken seq 4 (newer), no unlock.
+  const { page, errs, close } = await open(browser, [award, oclass, imposed(3), taken(4)]);
+  const rows = await ledgerRows(page);
+  const imp = rows.find(r => /DM imposed/.test(r.text));
+  const tkn = rows.find(r => /\+4/.test(r.text) && /Peg Leg/.test(r.text) && !/DM imposed/.test(r.text));
+  check('the older imposed one shows 🔒 locked', !!imp && /🔒 locked/.test(imp.text));
+  check('the newer player-taken one has NO button either — it waits behind the locked one', !!tkn && !/buy off/.test(tkn.text) && /waits for the older one/.test(tkn.text), tkn && tkn.text);
+  const before = await page.evaluate(() => LOG.length);
+  await page.evaluate(() => buyoffDrawback('Peg Leg'));
+  check('and a buy-off attempt does nothing while the older one is locked', (await page.evaluate(() => LOG.length)) === before);
   check('no page errors', errs.length === 0, errs.join(' | '));
   await close();
 }

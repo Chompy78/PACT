@@ -1,7 +1,8 @@
 # D-GH-2026-10-04-dm-unlock-drawback — a DM can release a drawback they imposed locked
 
-**Status:** code DONE on the branch; **the SQL migration is written and tested but NOT yet applied to production** —
-applying it is a separate, owner-approved step (see *Deploy order*). `DATA.version` **not** bumped.
+**Status:** code DONE on the branch; **the SQL migration was APPLIED to production on 2026-10-04 at 08:39 UTC** (recorded
+in the project's migration history as `dm_unlock_drawback`, owner-approved) — the client has **not** shipped to `main`
+yet, which is the safe order (see *Deploy order*). `DATA.version` **not** bumped.
 
 ## Context
 
@@ -93,14 +94,17 @@ Nine findings, each checked against the code before acting. **Fixed:**
 design, 0 occurrences in live data (491 events), and the DM now sees an explanation rather than a raw error. The extra
 linear pass the DM Console makes per analysed card is negligible at real log sizes.
 
-**Open — decision requested:** the buy-off button on an unlocked imposed row calls `buyoffDrawback(name)`, and a buy-off
-event carries only the drawback's name, so the engine cancels the **oldest** open purchase of that name. With a
-player-taken and an imposed purchase of the same name, clicking the unlocked imposed row's button charges the player-taken
-one's price and cancels *that* one; the DM's chosen rate applies only once it is the oldest. This is the pre-existing
-by-name FIFO (pinned by the browser gate, which called it "untouched"), not a regression — but the unlocked row's tooltip
-promises the DM's rate, so the UI over-promises. Shallow fix: show the buy-off button only on the oldest open purchase of
-each name and a "waits for the older one" note on the rest (UI only). Deep fix: a buy-off carries the purchase's `seq` and
-the engine honours it (changes engine fold semantics; needs fixtures and a version decision). Not fixed in this PR.
+**Resolved (owner decision Z1, shallow fix) — the buy-off button over-promised.** A buy-off event carries only the drawback's
+name, so the engine cancels the **oldest** open purchase of that name. With a player-taken and an imposed purchase of the
+same name, the button on the newer, unlocked imposed row promised the DM's rate but would have charged the older
+player-taken one's price and removed *that* one. This is the pre-existing by-name FIFO, not a regression, and the engine is
+deliberately unchanged. **The Live Sheet now shows the buy-off button only on the oldest open purchase of each name**; a
+newer same-named row says "waits for the older one" (still showing 🔓 if the DM has unlocked it). The browser gate proves
+the DM's flat rate then really applies once the imposed purchase is next in line, and the reverse case — an older locked
+imposed drawback blocks a newer player-taken one, now labelled rather than a button that flashes "locked". The deeper fix —
+a buy-off that carries the purchase's `seq` so the player can pick which one — is not built: it changes the engine's fold,
+needs fixtures and a version decision, and same-named pairs are rare (0 imposed drawbacks exist in production). Revisit if
+players routinely hold both.
 
 **A mistake worth recording:** while adding tests for these fixes I called the `unlock()` helper with its arguments in the
 wrong order, so five new "is refused" assertions passed vacuously. The two assertions that checked a positive result failed
@@ -121,7 +125,7 @@ unrelated reason.
   baseline, so the migration starts from the real definitions (the 2026-09-02 mistake was building from a stale file).
 - **Engine:** `dm-unlock-drawback-ci.mjs` 30/30 (seq matching, ambiguity, ordering, stamp, no AP/build effect, FIFO
   untouched, undo floor); parity fixture EV-024; `engine-parity-ci.mjs` 77/0.
-- **Browser:** `live-sheet-unlock-e2e.mjs` 19/19, `dm-console-unlock-e2e.mjs` 19/19 (the peek-guard checks were shown to
+- **Browser:** `live-sheet-unlock-e2e.mjs` 25/25, `dm-console-unlock-e2e.mjs` 19/19 (the peek-guard checks were shown to
   fail when the guard is removed); existing `dm-console-ui-e2e` 101/101, `tool-pricing-ci` 189/189,
   `protected-events-roundtrip-ci` 9/9. `cloud-e2e` needs a local Supabase stack and ran only in CI.
 - Live data (dated snapshot, 2026-09-30): 42 characters, **0** DM-imposed drawbacks ever, so no existing log carries the
@@ -129,10 +133,20 @@ unrelated reason.
 
 ## Deploy order
 
-1. Re-verify production against the hashes above, then **apply the migration first**. Until it is applied the server
-   rejects `dmUnlockDrawback` as an unsupported event type, so the DM Console's Unlock would fail with that error.
-2. Run `get_advisors` and skim `get_logs`; check the four guard markers in the migration header.
-3. Ship the client. An older cached client is safe: it ignores the unknown event and keeps showing the drawback locked.
+1. ✅ **Done 2026-10-04.** Production was re-verified immediately before applying (live hashes still
+   `f6476a61…641c` / `60b099bb…c9`, all three guards present, neither function containing the unlock), then the migration
+   was applied first. Until it was, the server would have rejected `dmUnlockDrawback` as an unsupported event type.
+2. ✅ **Done 2026-10-04.** Post-apply: all four guard markers present on `dm_edit_character_log` (`assert_campaign_active`,
+   `has no matching award`, `sessionSeal`, `dmUnlockDrawback`); `pact_ap_ledger_protected` carries `dmUnlockDrawback`;
+   grants unchanged (`dm_edit_character_log` callable by `authenticated` only, `pact_ap_ledger_protected` by neither
+   `authenticated` nor `anon`); live hashes now `d4068424402eac3b99a053cc44abb6f4` / `4b4f06f94aae25ee7b67ac836d31dc5f`,
+   **identical to the hashes of the migration file's functions computed independently in a clean Postgres 16**.
+   Security and performance advisors show nothing attributable to this change (the 40 "SECURITY DEFINER callable by
+   signed-in users" warnings are the project's RPC design and `dm_edit_character_log` was already among them — grants
+   unchanged; the rest are unrelated pre-existing items). A pre-change advisor snapshot was not captured, so "nothing new"
+   rests on unchanged grants plus long-standing categories. The database log shows no errors, only the migration itself.
+3. **Still to do:** ship the client (merge #557, then the `preview` → `main` promotion). An older cached client is safe: it
+   ignores the unknown event and keeps showing the drawback locked.
 Rollback: `sql/migrations/2026-10-04-dm-unlock-drawback-rollback.sql`.
 
 ## Found on the way (not fixed here)

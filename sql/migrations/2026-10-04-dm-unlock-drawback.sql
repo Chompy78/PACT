@@ -2,6 +2,12 @@
 -- feat/dm-unlock-drawback (D-GH-2026-10-04-dm-unlock-drawback)
 -- A DM can release a drawback they imposed LOCKED, once the story beat has happened.
 --
+-- APPLIED TO PRODUCTION 2026-10-04 08:39 UTC as `dm_unlock_drawback` (the two function definitions below, verbatim).
+-- Post-apply, production's normalised hashes were  dm_edit_character_log     d4068424402eac3b99a053cc44abb6f4
+--                                                  pact_ap_ledger_protected  4b4f06f94aae25ee7b67ac836d31dc5f
+-- which equal the hashes of THIS file's functions computed independently in a clean Postgres 16. If a future
+-- change rebuilds either function, start from production (not this file) and re-verify those guards survive.
+--
 -- WHAT THIS CHANGES — two functions, nothing else:
 --   1. dm_edit_character_log(): accepts one new event type, 'dmUnlockDrawback', validated against the
 --      STORED log (see the [UNLOCK] block). Every other behaviour is unchanged.

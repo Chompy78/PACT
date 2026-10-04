@@ -1742,6 +1742,15 @@ function render(){
   // rebought boon's) row is not "dead" even though an earlier buyoff/removal for the same value exists
   // (D-GH-2026-08-06-buyoff-keyed-by-event; boonRemoved mirrors the same FIFO-by-purchase match).
   const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
+  // Which still-open purchase of each drawback NAME a buy-off would actually remove: the OLDEST (the engine's
+  // by-name FIFO — a buy-off event carries only the name). Only that row gets a buy-off button; showing one on a
+  // newer same-named row promised a price (e.g. the DM's flat rate on an unlocked imposed drawback) that the
+  // click would not deliver, because it would remove the older purchase instead. (code-review finding on
+  // feat/dm-unlock-drawback; the by-name FIFO itself is deliberately unchanged.)
+  const _nextOpen={};
+  _ae.evs.forEach((x,i)=>{
+    if(x&&x.type==='buy'&&x.cat==='drawback'&&x.payload&&x.payload.v!=null&&!boff.has(i)&&!(x.payload.v in _nextOpen)) _nextOpen[x.payload.v]=i;
+  });
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
     // Same treatment as rulesSnapshot above: the coin-and-calendar band switch is a SETTING, not an
@@ -1757,7 +1766,11 @@ function render(){
         // button again, with the DM's recorded story beat as a tooltip. The note is player/DM-controlled
         // free text rendered into an attribute in ANOTHER user's browser, so it goes through esc().
         const _unl=(e.dmEdit&&e.dmLocked)?_unlockOf(_ae,e):null;
-        if(e.dmEdit&&e.dmLocked&&!_unl){
+        if(_nextOpen[e.payload.v]!==_li){
+          // A same-named purchase older than this one is still open, and a buy-off removes THAT one first.
+          act=(_unl?'<span class="dmlocked" title="Unlocked by your DM'+(_unl.note?' — '+esc(_unl.note):'')+'">🔓</span> ':'')
+            +'<span class="dmlocked" title="Buying off '+esc(e.payload.v||'')+' removes the older one first; this one can be bought off after it">waits for the older one</span>';
+        } else if(e.dmEdit&&e.dmLocked&&!_unl){
           act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
         } else {
           const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
