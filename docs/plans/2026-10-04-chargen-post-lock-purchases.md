@@ -167,7 +167,7 @@ frame per edit, lowering refused, an unaffordable or rules-breaking edit refused
 | `armour` (worn) | `wornArmour {v}`, 0 AP | a choice, not a purchase; allowed both ways (Anders already carries "Worn armour — none") |
 | `weaponProf` | `wprof {wp}` — the whole proficiency object | price = delta; any flag turned off is refused |
 | `freeSub` | `freesub {cls, sub}` | adding a pick only; changing an existing pick is refused |
-| `customProfs` (tools, instruments) | `tool {v}` / `instrument {v}` per added item | **to confirm:** exactly which keys the slot's patch holds (expertise?) |
+| `customProfs` | **refused** after the lock | **corrected 2026-10-04:** this slot is the FREE-TEXT proficiencies a player types (counted as paid tools by `compute()`), not the tools list (those are flat `tool`/`instrument` checkboxes). The Live Sheet has no equivalent, so there is no vetted price or identity to record; adding one after the lock is for the DM |
 | `traditions` | `found` / `rank` / `cantrip` / `slot` / `known` / `dbound` with `ti`/`di` indices | **PR 2b — the risky one:** diffing nested arrays by index; also the dabbler-cantrip carry-over |
 | `innate` | no Live Sheet equivalent identified yet | **to investigate before promising a mapping** |
 | `misc` (`martiallyBound`) | `mbound {v}` (grants −2 AP) | **owner question Q1 below** |
@@ -191,3 +191,31 @@ frame per edit, lowering refused, an unaffordable or rules-breaking edit refused
   stamps the charge but asks nothing (phase 1 left this). Recommendation: keep it that way — CharGen is a creation tool, and the player can
   finish in the Live Sheet.
 - **Q3. Split into 2a/2b as above, or one PR.** Recommendation: split; `traditions` alone is as large as everything else together.
+
+## 10. Owner answers to §9 and what the first look at the code found (2026-10-04)
+
+- **Owner answers:** **P1** — after the lock CharGen refuses NEW drawbacks (the DM can still impose them); **Q2** — CharGen gets the Live Sheet's
+  wallet-short warning and §16 coin-for-time trade offer; **R1** — two PRs, 2a (flat slots) then 2b (traditions, innate, misc).
+- **Q2 needs more than a copy of two functions.** The Live Sheet composes the wallet from three inputs: the character's own LOG, the **DM-held gold pool**
+  (`window._dmGold`, fetched from the server) and the **party downtime window** (`window._dmWindow`, from the campaign), gated on the campaign being
+  `active`. CharGen has none of the last two (grep: no `_dmGold` / `_dmWindow` / `_rulesStatus`), and `_engineEcon` lacks `wealthWithDm` and
+  `tradeCoinTime`. A warning built from the LOG alone would be wrong for any campaign character whose DM awards gold through `award_gold()`.
+  So Q2 is its own PR (wire the same two fetches, then warn/trade), not a step inside 2a.
+- **Flat purchases after the lock — found by reading, then proved in a real browser (Chromium, throwaway probe):** skills, boons, tools, arts, features,
+  drawbacks and the other checkbox categories do not go through the slot path. `_cgSyncFlatCategory()` handles them, and:
+  1. **Refund route.** Retraction is allowed down to `sealedFloor()`, which follows awards and seals — NOT the lock. Probe: tick a 6 AP boon, "Finish
+     creating", untick it → the event is deleted and the AP is back (spent fell from 6 to 0, then 4 for a new boon). Blocked only once an award or seal exists.
+  2. **Priced by a plain `compute()` delta, no in-play economy.** The probe's new post-lock boon cost 4 and `priceOf` also says 4, so the price agreed in
+     that case; but the code path never calls `priceOf`, never stamps `gp`/`days`, and has no wallet or legality prompt.
+  3. **Drawbacks are `drawck` checkboxes on this same path**, so P1 has to be enforced here as well as in `misc` (`martiallyBound`).
+  The earlier note in §1 that flat categories "already go through `emit()` … and are not the problem" was only half right: they append, but they are
+  not priced or charged as in-play purchases and they can be retracted past the lock.
+- **Measured exposure (live `characters`, 2026-10-04):** 50 characters, 14 locked, **3 locked with no award and no seal — all solo (no campaign), one owner**.
+  All six Amble characters are sealed, so they are protected. The refund route matters most for a future campaign character between "Finish creating" and
+  the DM's first award or seal.
+- **Q2 withdrawn (owner, 2026-10-04, after seeing the wallet inputs above):** CharGen will NOT get the wallet-short warning or the §16 trade offer for now.
+  It keeps what phase 1 does — stamp the gold and downtime charge on the purchase and say nothing about the wallet. Revisit only if players ask; the
+  prerequisite is loading the DM gold pool and party downtime window into CharGen exactly as the Live Sheet does.
+- **Q2 reinstated (owner, 2026-10-04, later):** the owner wants the wallet warning and trade offer after all. Order of work: **S1** (a small PR for the
+  flat-purchase refund route, drawbacks refused per P1, and in-play pricing/stamping of post-lock flat purchases) → **PR 2a** (flat slots) → **Q2's own PR**
+  (load the DM gold pool and party window into CharGen as the Live Sheet does, then the warning and §16 trade offer). The "withdrawn" bullet above is superseded.

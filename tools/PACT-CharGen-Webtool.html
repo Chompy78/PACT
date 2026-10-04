@@ -3193,6 +3193,19 @@ function _cgBlockedBySeal(what){
 var _cgSealRefusedPass=false;
 function retractFlatEvent(cat,predicate){
   if(!RETRACTABLE_FLAT_CATS.has(cat))throw new Error("retractFlatEvent: '"+cat+"' is not in RETRACTABLE_FLAT_CATS — indexed/coalescing categories must not be retracted in place");
+  // Owner rule (2026-10-04, fix/chargen-flat-purchases-after-lock): once creation is finished NOTHING that was bought can be removed.
+  // _cgSealedFloor() below follows awards and seals only, so before this check a locked character with no award yet could untick a
+  // purchase made during creation and get its AP back (proved in a real browser: a 6 AP boon unticked after "Finish creating" was deleted
+  // and spent fell by 6). It covers purchases made after the lock too — those are in-play purchases, not drafts; Undo (walled at the lock)
+  // is how the latest one is taken back. Callers already treat `false` as "put the tick back".
+  if(_cgIsLocked()){
+    if(!_cgSealRefusedPass){
+      _cgSealRefusedPass=true;
+      flash('\uD83D\uDD12 Once creation is finished, nothing you bought can be removed. Undo takes back your latest purchase.');
+      Promise.resolve().then(function(){ _cgSealRefusedPass=false; try{render();}catch(e){} });
+    }
+    return false;
+  }
   // Search only the MUTABLE region. Skipping the sealed prefix outright, rather than finding a sealed
   // match and refusing, matters for _cgSyncFlatCategory's `while(excess-->0)` loop: that always takes
   // the FIRST match, so a sealed duplicate would otherwise block retraction of a legitimately
@@ -3322,27 +3335,41 @@ function _cgPostLockSteps(slot,patch,cur){
     +'You can still RAISE it by spending AP.';
   return {steps:steps,refuse:refuse};
 }
-function _cgPostLockSlotEdit(slot,patch){
-  var plan=_cgPostLockSteps(slot,patch,foldBuild(LOG));
-  if(plan.refuse){ alert(plan.refuse); _cgRepaint(); return; }       // put the control back from the LOG
-  if(!plan.steps.length){ _cgRepaint(); return; }                   // set back to what it already is: nothing to record
-  // Price, legality and affordability for the WHOLE edit before anything is appended, so a refusal leaves nothing half-applied.
+// Price, legality-check and affordability-check a list of in-play purchases for the WHOLE list before anything is appended, so a
+// refusal leaves nothing half-applied; then append them (one undo frame — commitHistory latches per handler turn). Returns true when
+// they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
+// path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
+function _cgPostLockAppend(steps){
   var b=foldBuild(LOG), evs=[], total=0;
-  for(var i=0;i<plan.steps.length;i++){
-    var st=plan.steps[i];
+  for(var i=0;i<steps.length;i++){
+    var st=steps[i];
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var before=(compute(b,_cgDmOpts()).warnings||[]), after=(compute(next,_cgDmOpts()).warnings||[]);
     var hard=after.filter(function(w){return /^\u26D4/.test(w)&&before.indexOf(w)<0;});
-    if(hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+hard.join('\n\u2022 ')); _cgRepaint(); return; }
+    if(hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+hard.join('\n\u2022 ')); _cgRepaint(); return false; }
     var q=_cgPostLockQuote(cost);
     var ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:[]};
     if(q){ ev.gp=q.gp; ev.days=q.days; }
     evs.push(ev); total+=cost; b=next;
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
-  if(total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return; }
-  evs.forEach(function(ev){ emit(ev); });                           // one undo frame per edit (commitHistory latches per handler turn)
+  if(total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }
+  evs.forEach(function(ev){ emit(ev); });
+  return true;
+}
+function _cgPostLockSlotEdit(slot,patch){
+  var plan=_cgPostLockSteps(slot,patch,foldBuild(LOG));
+  if(plan.refuse){ alert(plan.refuse); _cgRepaint(); return; }       // put the control back from the LOG
+  if(!plan.steps.length){ _cgRepaint(); return; }                   // set back to what it already is: nothing to record
+  _cgPostLockAppend(plan.steps);
+}
+// P1 (owner, 2026-10-04): a drawback GIVES AP, and after creation only the DM hands AP out. A player cannot take a new one once the
+// character is locked (the DM can still impose one; an existing one can still be bought off in the Live Sheet).
+function _cgRefuseNewDrawback(){
+  alert('\uD83D\uDD12 Drawbacks can\'t be taken once creation is finished \u2014 they give you AP, and after creation only your DM awards AP.\n\n'
+    +'If a drawback fits the story, ask your DM to impose it.');
+  _cgRepaint();
 }
 function replacePatchSlot(slot,patch,label){
   if(!Object.values(PATCH_SLOTS).includes(slot))throw new Error("replacePatchSlot: '"+slot+"' is not a canonical PATCH_SLOTS value");
@@ -3567,10 +3594,17 @@ function onChecklistToggle(el){
     // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
     // entry _domReadBuild() would filter out anyway.
     if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
+    if(_cgIsLocked()){
+      // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
+      // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
+      if(cat==='drawback'){ el.checked=false; _cgRefuseNewDrawback(); return; }
+      if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
+    }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
     emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
+    }
   }else{
     // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
     // never shows a purchase the character still owns as absent.
@@ -3693,6 +3727,11 @@ function _cgSyncFlatCategory(cat){
   Object.keys(currentCounts).forEach(function(v){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
+      if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle; stop at the first refusal (it repaints every control)
+        if(cat==='drawback'){ _cgRefuseNewDrawback(); break; }
+        if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v}])) break;
+        continue;
+      }
       const cur=_domReadBuild();const before=compute(cur).total;
       const cand=JSON.parse(JSON.stringify(cur));(MUT[cat]||function(){})(cand,{v:v});
       const cost=compute(cand).total-before;
@@ -3847,6 +3886,13 @@ function _cgReconcileUnlockClass(){
   }});
   domVals.forEach(function(v){
     if(logSet.has(v))return;
+    if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle
+      if(!_cgPostLockAppend([{cat:'unlockclass',payload:{v:v},label:'Class unlocked \u2014 '+v}])){
+        var _ub=[...document.querySelectorAll('.classunlock')].filter(function(el){return el.dataset.cls===v;})[0];
+        if(_ub) _ub.checked=false;
+      }
+      return;
+    }
     const cur=_domReadBuild();const before=compute(cur).total;
     const cand=JSON.parse(JSON.stringify(cur));(MUT.unlockclass||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
