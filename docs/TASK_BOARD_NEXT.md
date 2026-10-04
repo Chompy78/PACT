@@ -27,6 +27,23 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
+Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
+
+```text
+Owner decision B (2026-10-04): a roll on a character with a DM creation limit should be capped at that limit, THEN the
+character is locked, THEN the rest of the spendable AP is rolled automatically as in-play purchases. #561 built only the
+cap. WHY THE REST IS NOT TRIVIAL: randomizeRoll() applies its result as one burst through replaceWholeLogFromBuild()
+and re-appends any carried lock AFTER the burst on purpose (a lock placed before it re-prices every burst event at
+in-play rates — D-GH34), so a second randomizeRoll() pass after a lock re-creates the whole character and prices it all
+as creation. Needed: a post-lock phase that appends purchases one at a time through the normal purchase path
+(emit/MUT, in-play pricing, gold + downtime stamps if the campaign economy is on) using the same legality and
+spend-shape machinery (tryAct, buckets). Decide first, with the owner: (1) a rolled campaign character ends LOCKED and
+cannot be re-rolled without the DM's "Reopen creation" — is that wanted, or should the roll keep re-rolls possible?
+(2) should the in-play phase stamp gold/downtime? (3) one undo step or two (the lock is an undo barrier)?
+```
+**Done when:** a roll on a limited, unlocked character produces a locked character whose creation-phase purchases sit before the lock at creation prices and whose remainder sits after it at in-play prices; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
+
 ## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
 Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.
 
