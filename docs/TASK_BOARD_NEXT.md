@@ -96,8 +96,6 @@ refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and l
 Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
 (engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
 
-Separate, unresolved — do NOT fold in without a decision: the engine credits the first Hit Die's 2 AP
-(Hit Dice -> 3 costs 5, not 7) while the Guide's worked examples charge the full 14 for 5 Hit Dice.
 ```
 **Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
 reduction giving no refund, (b) a below-10 dump still paying out, (c) a post-lock removal or reduction
