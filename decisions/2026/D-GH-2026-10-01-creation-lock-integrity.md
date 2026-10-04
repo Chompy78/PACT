@@ -90,3 +90,19 @@ parity 73/0). Interim end-of-log locks applied to the four unlocked Amble charac
   lowered. Found via Caspian's and Skylar's lock-check copies. The live `pact_enforce_locked_history()` already
   refuses lowering an ability score once a campaign character has an award — the engine rule is the missing half.
 
+## Addendum — 2026-10-04 (stale-copy cause fixed)
+
+- **Cause (found by reading the code; reproduced in `sync-concurrency-ci.mjs`, not yet seen in a real browser
+  against the cloud):** two local stores per tool — the tool's own autosave, and `js/sync.js`'s record carrying
+  `base_updated_at`. A reload restored the first while a background reconcile refreshed the second.
+- **Owner decisions L2 + L3:** fix it by provenance (the autosave records the cloud version it came from and
+  the sync layer pins it on restore), in both CharGen and the Live Sheet — not by a time limit alone.
+- **The owner's 8-hour timeout was NOT built as a clock.** A copy whose base is recorded is checked against the
+  cloud row directly, so age adds nothing (a current copy is not made stale by sitting still); a copy with no
+  recorded base cannot be proven, so it is refused immediately, which is stricter than 8 hours. An age-based
+  rule for unprovable copies was tried and dropped: `reconcile()` overwrites the record's edit time with the
+  newer row's, so it fails in exactly the case it is for.
+- **Cost, stated plainly:** every existing autosave is "legacy" (no `cloudBase`), so each returning player sees
+  one "this copy is out of date — reload" refusal per character if a cloud row exists, and one ☁ Cloud → Load
+  fixes it. Nothing is overwritten either way.
+

@@ -566,5 +566,34 @@ section('a finished character stays finished across CharGen reloads');
   await ctx.close();
 }
 
+// fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
+// (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
+// sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.
+section('local autosave records its cloud base (CharGen + Live Sheet)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  p.on('dialog', d=>d.accept());
+  const errs=[]; p.on('pageerror',e=>errs.push(String(e)));
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, {waitUntil:'load'});
+  await p.waitForTimeout(2500);
+  await p.evaluate(()=>{ _cgAutosave(); });
+  const cg = await p.evaluate(()=>JSON.parse(localStorage.getItem('pactCharGenAutosaveV2')||'null'));
+  check('CharGen autosave carries cloudBase (null = never synced)', !!cg && 'cloudBase' in cg && cg.cloudBase===null, JSON.stringify(cg&&cg.cloudBase));
+  await p.reload({waitUntil:'load'}); await p.waitForTimeout(2500);
+  const ok1 = await p.evaluate(()=>Array.isArray(LOG)&&LOG.length>0);
+  check('CharGen restores that autosave and keeps working', ok1);
+  await p.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, {waitUntil:'load'});
+  await p.waitForTimeout(2500);
+  await p.evaluate(()=>{ save(); });
+  const ls = await p.evaluate(()=>JSON.parse(localStorage.getItem('pactLiveSheet')||'null'));
+  check('Live Sheet local copy carries cloudBase (null = never synced)', !!ls && 'cloudBase' in ls && ls.cloudBase===null, JSON.stringify(ls&&ls.cloudBase));
+  await p.reload({waitUntil:'load'}); await p.waitForTimeout(2500);
+  check('Live Sheet restores that copy and keeps working', await p.evaluate(()=>Array.isArray(LOG)));
+  const fatal = errs.filter(e=>!/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length===0, fatal.slice(0,2).join(' | '));
+  await ctx.close();
+}
+
 await browser.close(); server.close();
 process.exit(fail?1:0);
