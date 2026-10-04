@@ -5,7 +5,7 @@ const live = JSON.parse(readFileSync(process.argv[2],'utf8'));
 const snaps = JSON.parse(readFileSync(process.argv[3],'utf8'));
 const OPTS = { drawbackCap: 12 };
 const PLAN = {
-  'Anders Pipeleaf':      { limit:72, mode:'live',  crossLabel:'Psionic Power / Psychic Blades · T3' },
+  'Anders Pipeleaf':      { limit:72, mode:'live',  crossLabel:'Forgery kit' },
   'Caspian':              { limit:74, mode:'none' },
   'Fenwick Copperkettle': { limit:74, mode:'snap',  at:'2026-09-10T12:58' },
   'Skylar':               { limit:76, mode:'snap',  at:'2026-09-03T10:42' },
