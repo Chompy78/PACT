@@ -1051,6 +1051,19 @@ function _openDrawbackEvent(v){
     if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
   return null;
 }
+// feat/dm-unlock-drawback: has a DM released this locked, imposed purchase? Returns the dmUnlockDrawback
+// event (so callers can show the DM's note), or null while it is still locked. Takes the activeEvents()
+// result so the ledger can ask about the same (possibly time-travelled) slice it is rendering; the engine
+// does the matching (by seq, never by name) — see activeEvents().unlocked. ADVISORY: the lock is honoured
+// by this app, not enforced by the server (feat/server-enforced-drawback-lock tracks real enforcement).
+function _unlockOf(ae,e){
+  const i=ae.evs.indexOf(e);
+  if(i<0||!ae.unlocked.has(i))return null;
+  const v=e.payload&&e.payload.v;
+  for(let j=i+1;j<ae.evs.length;j++){const u=ae.evs[j];
+    if(u.type==='dmUnlockDrawback'&&u.dmEdit&&u.targetSeq===e.seq&&u.refVal===v)return u;}
+  return {};   // released, but the unlock event could not be re-found for its note — still unlocked
+}
 function buyoffDrawback(v){
   const refund=DATA.drawbacks[v]||0;
   const src=_openDrawbackEvent(v);
@@ -1058,10 +1071,11 @@ function buyoffDrawback(v){
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
   let cost, rateNote;
   if(src&&src.dmEdit){
-    if(src.dmLocked){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
+    const _unl=src.dmLocked?_unlockOf(activeEvents(null),src):null;
+    if(src.dmLocked&&!_unl){flash('🔒 Your DM has locked this drawback — it can\'t be bought off.');return;}
     const rate=(src.dmRemovalCost==='expensive')?3:1;
     cost=refund*rate;
-    rateNote=(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)');
+    rateNote=(rate===3?' (3×, your DM set this rate)':' (flat, your DM set this rate)')+(_unl?' — unlocked by your DM':'');
   } else {
     cost=refund*3;
     rateNote=' (3×)';
@@ -1741,11 +1755,16 @@ function render(){
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback'){
-        if(e.dmEdit&&e.dmLocked){
+        // feat/dm-unlock-drawback: a locked imposed drawback the DM has since unlocked shows its buy-off
+        // button again, with the DM's recorded story beat as a tooltip. The note is player/DM-controlled
+        // free text rendered into an attribute in ANOTHER user's browser, so it goes through esc().
+        const _unl=(e.dmEdit&&e.dmLocked)?_unlockOf(_ae,e):null;
+        if(e.dmEdit&&e.dmLocked&&!_unl){
           act='<span class="dmlocked" title="Your DM has locked this drawback — it can\'t be bought off">🔒 locked</span>';
         } else {
           const rateLabel=(e.dmEdit&&e.dmRemovalCost==='flat')?'buy off (flat)':'buy off 3×';
-          act='<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
+          act=(_unl?'<span class="dmlocked" title="Unlocked by your DM'+(_unl.note?' — '+esc(_unl.note):'')+'">🔓</span> ':'')
+            +'<button class="x" data-v="'+esc(e.payload.v||'')+'" onclick="buyoffDrawback(this.dataset.v)">'+rateLabel+'</button>';
         }
       }
       // Same DATA.racial(...).pack flag the buy panel already reads (line ~1215) — not a new signal.

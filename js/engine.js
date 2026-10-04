@@ -24,9 +24,12 @@
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost}: live events + a bought-off-drawback map +
- *                          a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
- *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes.
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked}: live events + a bought-off-drawback
+ *                          map + a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
+ *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes +
+ *                          `unlocked`, a Set of indices of DM-imposed locked drawback purchases a later
+ *                          `dmUnlockDrawback` event released (feat/dm-unlock-drawback; additive — no build or
+ *                          AP effect, read only by the Live Sheet's buy-off gate).
  *   creationLockState(events) — {locked, armed, confirmed, threshold, spentTowardThreshold, …} for one
  *                          log. spentTowardThreshold is the LOCK's accounting, never economy().spent.
  *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
@@ -1023,11 +1026,32 @@ export function activeEvents(events) {
   // these fields) — needs an already-malformed LOG (hand-edited, or a future bug elsewhere) — but a
   // silent cross-match on `undefined` is exactly the "missing validation on event payloads" gap this
   // file's own review standard calls out. `v == null` (not `===`) catches both null and undefined.
+  // unlocked (feat/dm-unlock-drawback): the SET of indices of DM-imposed, LOCKED drawback purchases that a
+  // later `dmUnlockDrawback` event has released. Unlike the buyoff/removal matches above this one IS keyed by
+  // `seq` — deliberately and only here. It can't be keyed by name: a character may hold a player-taken and an
+  // imposed purchase of the same name, and an unlock must release exactly the imposed one. `seq` on a DM
+  // purchase is stamped server-side by dm_edit_character_log and was verified unique per log in live data
+  // (2026-09-30, 491 events, no duplicates); if a log ever carried two matches the unlock is ambiguous and
+  // releases NOTHING (fail-safe: the drawback stays locked). The FIFO buy-off resolution above is untouched.
+  // An unlock only counts when it follows its target and is itself DM-stamped (dmEdit), the same marker that
+  // makes the imposed purchase an undo barrier. It moves no AP and never alters the build — it is read by
+  // the Live Sheet to decide whether a locked drawback may be bought off. NOTE: advisory against a hostile
+  // owner, exactly like the lock itself (see D-GH-2026-10-04-dm-unlock-drawback).
+  const unlocked = new Set();
+  const _lockedBySeq = {};   // `${seq}|${drawback}` -> index of the imposed locked purchase, or -1 if ambiguous
   evs.forEach((e, i) => {
     if (e.type === 'buy' && e.cat === 'drawback') {
       const v = e.payload && e.payload.v;
       if (v == null) return;
       (_openDraws[v] = _openDraws[v] || []).push(i);
+      if (e.dmEdit && e.dmLocked && e.seq != null) {
+        const k = e.seq + '|' + v;
+        _lockedBySeq[k] = (k in _lockedBySeq) ? -1 : i;
+      }
+    } else if (e.type === 'dmUnlockDrawback') {
+      if (!e.dmEdit || e.refVal == null || e.targetSeq == null) return;
+      const j = _lockedBySeq[e.targetSeq + '|' + e.refVal];
+      if (j != null && j >= 0) unlocked.add(j);
     } else if (e.type === 'buyoff') {
       if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
@@ -1042,7 +1066,7 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost };
+  return { evs, boughtOff, boonRemoved, lost, unlocked };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names

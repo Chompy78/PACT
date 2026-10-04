@@ -20,6 +20,7 @@ on:
       - "testing/scripts/engine-parity-ci.mjs"
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
+      - "testing/scripts/dm-unlock-drawback-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -84,6 +85,24 @@ jobs:
 
       - name: Run the shared undo-barrier / sealed-floor gate
         run: node testing/scripts/undo-barrier-ci.mjs
+
+  dm-unlock-drawback:
+    # feat/dm-unlock-drawback. activeEvents().unlocked decides whether a DM-imposed locked drawback may be
+    # bought off, and it is keyed by `seq` rather than by name so a player-taken and an imposed purchase of
+    # the same name are told apart. A name-keyed or too-loose match fails silently (it releases the wrong
+    # purchase, or a lock the DM never lifted), so the rules are pinned here. Wired in the same change as
+    # the gate, because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the DM unlock-drawback gate
+        run: node testing/scripts/dm-unlock-drawback-ci.mjs
 
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
