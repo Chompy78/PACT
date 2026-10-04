@@ -1147,7 +1147,28 @@ const KEY='pactLiveSheet';
 // routes through emit(). Blocking here (not just in emit()) also stops a read-only tab open in a
 // second window/tab from clobbering the SAME shared localStorage[KEY] slot a DM's own in-progress
 // character might be using in another tab of the same browser.
-function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(buildCharacterEnvelope({name:_nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false})));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
+// fix/stale-autosave-guard (L3, mirrors CharGen's L2): the local copy records which cloud version it descends
+// from (cloudBase) so a reload can prove the restored copy is current — or
+// refuse to push it over a newer cloud save. See the _restored block in js/sync.js. null cloudBase = never synced.
+var _lsRestoredProv=null;   // {base} from the restored copy, until js/sync.js has adopted it
+function _lsAutosaveEnvelope(nm){
+  var e=buildCharacterEnvelope({name:nm,rules:RULES,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._lsCampaignId||null},{sign:false});
+  try{
+    // Until the bridge has adopted the restored copy, write back the provenance we RESTORED, not storage's
+    // base (which a background reconcile may already have moved forward).
+    if(_lsRestoredProv)e.cloudBase=_lsRestoredProv.base;
+    else if(window._syncBridge&&window._syncBridge.getPageBase)e.cloudBase=window._syncBridge.getPageBase(currentCharId());
+  }catch(x){}
+  return e;
+}
+function _lsAdoptRestoredProvenance(d){
+  var id=currentCharId();
+  _lsRestoredProv={base:d.cloudBase};
+  var go=function(){try{window._syncBridge.adoptRestoredCopy(id,{base:d.cloudBase});}catch(e){}_lsRestoredProv=null;};
+  if(window._syncBridge&&window._syncBridge.adoptRestoredCopy) go();
+  else document.addEventListener('sync-ready',go,{once:true});
+}
+function save(){ if(VIEW_ONLY)return; const _nm=foldBuild(null).name; try{localStorage.setItem(KEY,JSON.stringify(_lsAutosaveEnvelope(_nm)));}catch(e){ console.error('PACT Live Sheet: local save failed',e); if(typeof flash==='function')flash('⚠ Could not save locally — your browser blocked storage (private/incognito mode, storage full, or disabled). Export a backup now via ⬇ Save.'); }
   // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
   // on every edit, synchronously — noteEdit() is what lets the chip see "unsaved" immediately rather
   // than only after a cloud push is actually attempted.
@@ -1268,7 +1289,9 @@ async function _lsCloudPushOnce(){
     if(res&&res.id) __charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
     if(res&&res.conflict&&!_lsConflictWarned){
       _lsConflictWarned=true;
-      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
+      if(typeof flash==='function')flash(res.staleCopy
+        ?'⚠ This copy is out of date, so it was NOT saved to the cloud (nothing was overwritten). Please reload your character: ☁ Cloud → Load.'
+        :'⚠ Not saved to cloud — this character was changed on another device. Use ☁ Cloud → Load to get that version.');
     }
     // AUTOSAVE IS WHERE THE FIRST REFUSAL LANDS. A seal rejection is a RETURN VALUE, not a throw, so the
     // deliberately-silent catch below never sees it, and the one-shot notice used to be reachable only
@@ -1375,7 +1398,7 @@ async function _lsCheckFreshnessNow(){
 // async cloud round-trip in refreshCloudCampaignRules(). That is the owner's "refresh loses the
 // connection to campaign" report. This is the tab's OWN autosave, so adopting its binding is just
 // restoring what this tab already had; it grants no access the server's RLS doesn't already allow.
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;_lsAdoptRestoredProvenance(d);}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -2774,13 +2797,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
   // always-available self-unset control (decision A3).
   import { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
   window._authBridge = { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };

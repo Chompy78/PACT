@@ -649,12 +649,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -4571,7 +4571,9 @@ async function _cgCloudPushOnce(){
     // below is that this runs on every edit.
     if(res&&res.conflict&&!_cgConflictWarned){
       _cgConflictWarned=true;
-      if(typeof flash==='function')flash('⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
+      if(typeof flash==='function')flash(res.staleCopy
+        ?'⚠ This copy is out of date, so it was NOT saved to the cloud (nothing was overwritten). Please reload your character: ☁ Cloud → Load.'
+        :'⚠ Not saved to cloud — this character was changed on another device. Reload to get that version.');
     }
     // Mirrors the Live Sheet: autosave is where the first locked-history refusal lands, and it is a
     // return value rather than a throw, so the silent catch below cannot see it. Without this the one
@@ -4635,7 +4637,20 @@ window.addEventListener('pagehide',function(){
     _cgCloudPush();
   }catch(e){ /* best-effort only — see comment above */ }
 });
-function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgEnvelope(false)));}catch(e){}
+// fix/stale-autosave-guard (L2): the autosave records which cloud version this copy descends from (cloudBase)
+// so a later reload can prove the restored copy is current — or refuse to
+// push it over a newer cloud save. See the _restored block in js/sync.js. null cloudBase = never synced.
+var _cgRestoredProv=null;   // {base} from the restored autosave, until js/sync.js has adopted it (see _cgAdoptRestoredProvenance)
+function _cgAutosaveEnvelope(){var e=_cgEnvelope(false);
+  try{
+    // Until the sync bridge has adopted the restored copy's provenance, keep writing back the PROVENANCE WE
+    // RESTORED — asking the bridge now would read storage's base, which a background reconcile may already
+    // have moved forward (the very mismatch this guards against).
+    if(_cgRestoredProv)e.cloudBase=_cgRestoredProv.base;
+    else if(window._syncBridge&&window._syncBridge.getPageBase)e.cloudBase=window._syncBridge.getPageBase(currentCharId());
+  }catch(x){}
+  return e;}
+function _cgAutosave(){try{localStorage.setItem(CG_AUTOSAVE_KEY,JSON.stringify(_cgAutosaveEnvelope()));}catch(e){}
   // Closes the debounce blind window (docs/plans/2026-08-08-shared-sync-chip-part-b.md, B1): this runs
   // on every edit, synchronously, well before _cgCloudAutosave()'s 3s debounce fires — noteEdit() is
   // what lets the chip see "unsaved" immediately instead of only after a push is actually attempted.
@@ -4763,10 +4778,20 @@ function _cgConsumeHandoff(){
     return true;
   }catch(e){console.error('PACT CharGen: handoff consume failed',e);return false;}
 }
+// fix/stale-autosave-guard (L2): tell js/sync.js where the restored copy came from. The sync bridge is a
+// separate module that may not exist yet when boot runs, so wait for `sync-ready` rather than racing it —
+// no save can leave the page before the bridge exists (every push goes through it).
+function _cgAdoptRestoredProvenance(d){
+  var id=currentCharId();
+  _cgRestoredProv={base:d.cloudBase};
+  var go=function(){try{window._syncBridge.adoptRestoredCopy(id,{base:d.cloudBase});}catch(e){}_cgRestoredProv=null;};
+  if(window._syncBridge&&window._syncBridge.adoptRestoredCopy) go();
+  else document.addEventListener('sync-ready',go,{once:true});
+}
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);

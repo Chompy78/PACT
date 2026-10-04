@@ -18,6 +18,18 @@
   (`feat/server-enforced-drawback-lock`). Tests: 77-assertion Postgres 16 harness incl. RPC behaviour,
   `dm-unlock-drawback-ci.mjs` 30/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 25/0, `dm-console-unlock-e2e` 19/0, all
   wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
+- **2026-10-04 · fix(sync): a restored local copy can no longer overwrite a newer cloud save (CharGen + Live
+  Sheet)** — the second cause of the lost Amble locks (Skylar 2 Oct, Archer 3 Oct, after #553). Each tool keeps
+  its own local copy apart from `js/sync.js`'s record; on reload the tool restored its copy while a background
+  `syncAll()` had already adopted the newer cloud row and moved the record's base forward, so the first save
+  presented stale content with a fresh base and passed the stale-save guard. Now the autosave records
+  `cloudBase` (`getPageBase()`), the tool hands it back on restore (`adoptRestoredCopy()`), and the existing
+  guard refuses the save as a conflict if the cloud moved on ("this copy is out of date … reload"; nothing is
+  overwritten). An autosave with no recorded base (written before this) cannot be proven current, so it is
+  refused whenever a cloud row exists until the player reloads from the cloud once. New cases in
+  `sync-concurrency-ci.mjs` (differential: the old behaviour clobbers, the fix refuses; no false refusal for a
+  current copy) and a wiring check in `chargen-flows-e2e.mjs`. No `DATA.version` bump. See
+  `D-GH-2026-10-01-creation-lock-integrity`.
 - **2026-10-04 · feat(sql): server guard for creation locks — live** — a player save can no longer remove or
   change a creation-lock entry (`creationLocked` / `creationUnlocked` / `creationLockConfig`) on a campaign
   character; only the campaign DM can append `creationUnlocked` or a limit (D1). A campaign move no longer

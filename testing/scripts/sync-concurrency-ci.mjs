@@ -323,6 +323,68 @@ ok('  and the character stays deleted on the server', afterMid.resurrected === f
 // against a real Postgres, and the client half by tool-pricing-ci.mjs in a real browser; this stub server
 // has no error-injection seam, so wiring one would be a larger change than the coverage justifies today.
 
+// ---------------------------------------------------------------------------------------------------
+// fix/stale-autosave-guard (owner decisions L2 + L3, 2026-10-04). CharGen and the Live Sheet keep their OWN
+// local copy of the character, apart from this module's record. On a reload the tool restores that copy
+// while a background syncAll() may already have adopted a NEWER cloud row into the shared record and moved
+// its base forward — so the first save presented stale content with a fresh base and passed the guard.
+// This is how Skylar (2 Oct) and Archer (3 Oct) lost their creation locks. The tools now record the page's
+// base in their autosave (getPageBase) and hand it back on restore (adoptRestoredCopy).
+console.log('\n  restored local copy (the stale-autosave bug)');
+async function openPageOn(file, ls) { globalThis.__LS_FOR__ = () => ls; return import(pathToFileURL(join(dir, file)).href); }
+let _rn = 0;
+async function staleRestoreScenario({ adopt, adoptBeforeSync = false, recordBase = true }) {
+  world.server.rows.clear(); world.server.clock = 0;
+  const ID = 'sr' + (++_rn) + '-aaaa-bbbb-cccc';
+  world.seed(ID, { spent: 43 });
+  const lsA = world.makeLS();
+  const A1 = await openPageOn(makePage(liveSrc, `sr${_rn}-a1.js`), lsA);
+  await A1.loadCharacter(ID);
+  const autosaveBase = recordBase ? A1.getPageBase(ID) : undefined;       // what the tool writes into its autosave
+  const B = await openPageOn(makePage(liveSrc, `sr${_rn}-b.js`), world.makeLS());
+  await B.loadCharacter(ID);
+  await B.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 47 } });   // newer cloud save
+  const A2 = await openPageOn(makePage(liveSrc, `sr${_rn}-a2.js`), lsA);                // the reload, same browser
+  if (adopt && adoptBeforeSync) A2.adoptRestoredCopy(ID, { base: autosaveBase });
+  await A2.syncAll();                                                      // initSync(): adopts B's row into the record
+  if (adopt && !adoptBeforeSync) A2.adoptRestoredCopy(ID, { base: autosaveBase });
+  const r = await A2.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 43 } });  // stale autosave content
+  return { r, finalSpent: world.serverSpent(ID), A2, ID };
+}
+{ const x = await staleRestoreScenario({ adopt: false });
+  ok('differential: without the hook (old tool behaviour) the stale autosave overwrites the newer save', x.finalSpent === 43 && x.r.synced === true); }
+{ const x = await staleRestoreScenario({ adopt: true });
+  ok('restored copy with a recorded base is refused when the cloud moved on', x.r.conflict === true && x.r.staleCopy === true && x.r.synced === false);
+  ok('  and the newer cloud save survives (spent stays 47)', x.finalSpent === 47); }
+{ const x = await staleRestoreScenario({ adopt: true, adoptBeforeSync: true });
+  ok('same when the hook runs BEFORE the background sync', x.r.conflict === true && x.finalSpent === 47); }
+{ const x = await staleRestoreScenario({ adopt: true, recordBase: false });
+  ok('a legacy autosave (no recorded base) is refused rather than trusted', x.r.conflict === true && x.r.staleCopy === true && x.finalSpent === 47);
+  ok('  getPageBase reports unknown (undefined) for it, so the tool never launders a base onto it', x.A2.getPageBase(x.ID) === undefined);
+  await x.A2.loadCharacter(x.ID);
+  const again = await x.A2.saveCharacter({ id: x.ID, name: 'X', kind: 'chargen', stats: { spent: 48 } });
+  ok('  after an explicit reload from the cloud it saves normally again', again.synced === true && world.serverSpent(x.ID) === 48); }
+{ // a restored copy that IS current must not be refused
+  world.server.rows.clear(); world.server.clock = 0; const ID = 'sr-ok-aaaa-bbbb-cccc'; world.seed(ID, { spent: 10 });
+  const lsA = world.makeLS();
+  const A1 = await openPageOn(makePage(liveSrc, 'sr-ok-a1.js'), lsA); await A1.loadCharacter(ID);
+  await A1.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 11 } });
+  const base = A1.getPageBase(ID);
+  const A2 = await openPageOn(makePage(liveSrc, 'sr-ok-a2.js'), lsA); await A2.syncAll();
+  A2.adoptRestoredCopy(ID, { base });
+  const r = await A2.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 12 } });
+  ok('a restored copy whose base still matches the cloud saves normally (no false refusal)', r.synced === true && world.serverSpent(ID) === 12); }
+{ world.server.rows.clear(); world.server.clock = 0; const ID = 'sr-never-aaaa-bbbb-cccc';
+  const A = await openPageOn(makePage(liveSrc, 'sr-never-a.js'), world.makeLS());
+  A.adoptRestoredCopy(ID, { base: null });                                  // copy that never synced, and no row yet
+  const r = await A.saveCharacter({ id: ID, name: 'New', kind: 'chargen', stats: { spent: 1 } });
+  ok('a never-synced restored copy with no cloud row inserts normally', r.synced === true && !r.conflict); }
+{ world.server.rows.clear(); world.server.clock = 0; const ID = 'sr-never2-aaaa-bbbb-cccc'; world.seed(ID, { spent: 5 });
+  const A = await openPageOn(makePage(liveSrc, 'sr-never2-a.js'), world.makeLS());
+  A.adoptRestoredCopy(ID, { base: null });                                  // "never synced" yet a row exists (made elsewhere)
+  const r = await A.saveCharacter({ id: ID, name: 'X', kind: 'chargen', stats: { spent: 1 } });
+  ok('a never-synced restored copy is refused when a cloud row already exists', r.conflict === true && world.serverSpent(ID) === 5); }
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\n✓ ${pass} passed / ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
