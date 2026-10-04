@@ -43,8 +43,13 @@ the rest still apply, and the imposed drawback is still a normal member of `b.dr
 
 - **One definition of "imposed", used for both exemptions.** The stat-cap exemption and this one read the same marker, so
   they can never disagree about whether a drawback was imposed.
-- **`compute()` and the ledger now agree** for every imposed build (asserted: `remaining` equals `economy().available`, 79 and
-  86 in the cases tested), which is the property the frozen-ledger design is meant to guarantee.
+- **`compute()` and the ledger now agree** for an imposed drawback recorded at cost 0 — which is every one the DM Console
+  emits (asserted: `remaining` equals `economy().available`, 79 for four imposed, 86 for a two-and-two mix), the property the
+  frozen-ledger design is meant to guarantee. **Honest limit:** `dm_edit_character_log` does not validate a drawback's cost, so
+  a hand-crafted `dmEdit` drawback at a POSITIVE cost is still "imposed" to `compute()` (grant 0) while `economy()` books
+  `drawbackEarned -= cost`; the two would differ by that amount. That is a DM-trusted path (a DM can already award or remove AP
+  directly), no tool emits it, and it is not covered. Tightening the RPC to refuse a non-zero drawback cost would close it;
+  that is a new migration on a trust boundary and was not done here.
 - **The creation-ceiling and DM Console fixes are free.** Both consume `compute().drawbackAp`; correcting the source corrects
   them, with no change in either tool. The Live Sheet's own gain figure sums the itemised rows, which are 0 for imposed ones.
 - **`DATA.version` bumped once** because `compute()`'s output changes for any build holding an imposed drawback
@@ -55,10 +60,11 @@ the rest still apply, and the imposed drawback is still a normal member of `b.dr
 
 ## Verification
 
-- **Differential, against the pre-fix engine:** the new gate fails 13 of 22 assertions on `origin/preview`'s `engine.js` (the
-  9 that pass are the player-taken controls and the unrelated rule) and passes 22/22 on the fixed one. EV-025 (four imposed)
+- **Differential, against the pre-fix engine:** the new gate fails 17 of its 28 assertions on `origin/preview`'s `engine.js` (the
+  11 that pass are the player-taken controls, the unrelated rule, and two cases the old engine happens to get right) and
+  passes 28/28 on the fixed one. EV-025 (four imposed)
   and EV-026 (the same four player-taken) were indistinguishable on the old engine — both read 93 with both warnings.
-- `imposed-drawback-grants-ci.mjs` 22/22: imposed `remaining` = ledger = 79 and `drawbackAp` 0; no cap or "chosen" warning;
+- `imposed-drawback-grants-ci.mjs` 28/28: imposed `remaining` = ledger = 79 and `drawbackAp` 0; no cap or "chosen" warning;
   rows listed at 0; control player-taken = 93, `drawbackAp` 14, both warnings; **mixed** 2 chosen + 2 imposed → grant 7,
   remaining 86; a fifth, imposed drawback does not push "4 chosen" to 5; a 12-AP campaign cap is neither tripped nor consumed
   by imposed drawbacks and still clips the player-taken control to 12; creation-ceiling bonus 0 vs 14.
@@ -67,6 +73,32 @@ the rest still apply, and the imposed drawback is still a normal member of `b.dr
   `dm-console-ui-e2e` 109/109, log fuzzer 500/500, `audit.py` 0 failed. `tool-pricing-ci.mjs` passed 189/189 on two of three
   runs; the third stopped at 69/1 — consistent with the already-filed tab-readiness flake (`fix/tool-pricing-tab-flake`),
   which aborts the run partway, but I did not capture that run's message, so it is *consistent with*, not proven to be, that.
+
+## Code review (`/code-review high`)
+
+Seven findings, each checked against the code before acting. **Fixed:**
+- The `compute()` API header described an imposed drawback only as exempt from the stat cap; it now states the zero grant,
+  the `(DM imposed)` row, the two warning exclusions, and what a hand-built build without the marker gets.
+- A code comment quoted 95 / "16 AP" (copied from the old task entry's wound values) while the fixtures say 93 / 14.
+- **Test gap:** the marker is positional, and nothing covered the list shifting underneath it. Added: an earlier
+  player-taken drawback bought off, the imposed one bought off, both orders, and a legacy `patch` replacing the whole list.
+  Shown non-vacuous — with the `patch` reset removed from a scratch copy of the engine, exactly that assertion fails.
+- The overstated "always agree" wording above (and the same words in the gate's header).
+
+**Rejected, with evidence:**
+- *"CharGen builds from the form, so it never has the marker."* It does not: `readBuild()` is `foldBuild(LOG)`, and every
+  `compute()` call in CharGen (the budget pill, `_cgCeilOpts`) takes its build from `readBuild()`. `_domReadBuild()` is a
+  separate reader used only when CharGen re-synthesises a log, never for display. A character opened in any tool carries the
+  marker.
+- *"The `(DM imposed)` suffix puts display text in a data row."* Checked every consumer of the `Drawbacks (refund)` rows
+  before changing it: the Live Sheet sums the row VALUES, the tests assert the shape, and nothing matches a row to a purchase
+  by name. A third element would force every renderer to change; the suffix needs none. Revisit if a consumer ever needs to
+  link a row back to its purchase.
+
+**Accepted, tracked:** the Players Guide is untouched — it has no text on DM-imposed drawbacks, so nothing in it contradicts
+the engine, and the wording (no AP, not counted toward the 2–3 guideline or a campaign cap, listed at 0) lands with
+`feat/permanent-wounds`, which documents imposed drawbacks for the first time. This is the same deferral already made for
+the stat-cap exemption and the unlock.
 
 ## Deliberately not changed
 

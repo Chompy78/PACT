@@ -19,8 +19,13 @@
  *                       boons (feat/ledger-show-lost-purchases); absent on a hand-built b, same as
  *                       b._raceTraitLocked/b._vigorRankTier. NEVER store its output — derive at runtime.
  *                       Also reads b._imposedDrawbackIdx (stamped by _replay: positions in b.drawbacks of
- *                       DM-imposed, 0-AP drawbacks). Those slots are exempt from drawbackMaxStats. A
- *                       hand-built b without it gets no exemption — the cap applies as it always did.
+ *                       DM-imposed drawbacks — dmEdit AND cost >= 0, i.e. the player was paid nothing). Those
+ *                       slots (1) are exempt from drawbackMaxStats, and (2) GRANT NO AP: they add 0 to
+ *                       drawbackAp / spendable, are itemised at 0 as "<name> (DM imposed)", and count toward
+ *                       neither the "Drawbacks grant N AP" nor the "N drawbacks chosen" warning. Their penalty
+ *                       is unchanged. A hand-built b without the marker gets neither: every drawback in it is
+ *                       treated as player-chosen and paid, as it always was. (Every tool's compute() input comes
+ *                       from foldBuild(LOG), so a character opened in any tool carries the marker.)
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
@@ -762,8 +767,9 @@ export function compute(b, opts){
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;
     // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
     // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
-    // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed wounds
-    // compute().remaining read 95 against a true 79 and warned "Drawbacks grant 16 AP". The marker is the one
+    // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed drawbacks
+    // (Peg Leg 4, Lame 3, Old Wound 3, One-Eyed 4 — fixture EV-025) compute().remaining read 93 against a true
+    // 79 and warned "Drawbacks grant 14 AP". The marker is the one
     // _replay() stamps (b._imposedDrawbackIdx, same dmEdit && cost>=0 rule the stat-cap exemption uses). The row
     // is still listed — at 0 and labelled — so a DM can see which penalties they have imposed.
     const _imp=_impIdx.has(_dIdx);drawGain+=_imp?0:v;_DI.push([_imp?lab+' (DM imposed)':lab,_imp?0:-v]);

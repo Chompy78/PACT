@@ -10,7 +10,7 @@
   the guide caps them at 12" and "4 drawbacks chosen" at the player, and raised the creation ceiling (Live Sheet feeds it
   `compute().drawbackAp`). An imposed slot (`b._imposedDrawbackIdx`) now contributes 0, is still listed — at 0, labelled
   "(DM imposed)" — and counts toward neither warning; its penalty is unchanged and Frail + Glass Frame still warns. The
-  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (22/0; 13 of its 22 fail on
+  DM Console row and the ceiling are fixed at the source. New `imposed-drawback-grants-ci.mjs` (28/0; 17 of 28 fail on
   the old engine) and fixtures EV-025/EV-026 (the same four imposed vs player-taken); parity 79/0. Live data 2026-10-04:
   0 DM-imposed drawbacks, so no existing character changes. See `D-GH-2026-10-04-imposed-drawbacks-grant-no-ap`.
 - **2026-10-04 · feat(dm-console): "⚠ no limit" flag on campaign characters that are still building with no

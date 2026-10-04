@@ -12,7 +12,9 @@
  *
  * WHAT THIS PINS. The parity fixtures EV-025/EV-026 pin the warning lists; parity records only total/warnings, so
  * `remaining`, the ledger rows and the ceiling are asserted here, against the frozen ledger (economy()) — the
- * number the Live Sheet already shows — so compute() and the ledger can never disagree about an imposed drawback.
+ * number the Live Sheet already shows — so compute() and the ledger agree about an imposed drawback recorded at cost 0
+ * (every one DM Console emits). The server does not validate a drawback's cost, so a hand-crafted dmEdit drawback at a
+ * POSITIVE cost would still disagree by that amount; that is a DM-trusted path and is not covered here.
  * Every imposed case has a PLAYER-TAKEN control built from the same drawbacks: without it an empty warning list
  * could mean "the warnings are broken for everyone" rather than "imposed drawbacks are exempt".
  *
@@ -103,6 +105,36 @@ console.log('creation ceiling — an imposed drawback must not raise it (Live Sh
   const ct = creationCeiling(tak, { drawbackAp: compute(foldBuild(tak)).drawbackAp });
   t('imposed: drawbackBonus is 0, so the ceiling equals its base', [ci.drawbackBonus, ci.ceiling === ci.base], [0, true]);
   t('control: player-taken: drawbackBonus is 14, so the ceiling is raised by it', [ct.drawbackBonus, ct.ceiling === ct.base + 14], [14, true]);
+}
+
+console.log('the marker is POSITIONAL — it must stay right when the drawback list shifts underneath it');
+{
+  const buyoff = (v, cost) => ({ type: 'buyoff', refVal: v, cost, seq: 98, label: `Bought off — ${v}` });
+  const patch = (list) => ({ type: 'buy', cat: 'patch', payload: { patch: { drawbacks: list } }, cost: 0, seq: 97, label: 'legacy patch' });
+  const grant = (evs) => compute(foldBuild(evs)).drawbackAp;
+  const rows = (evs) => ((compute(foldBuild(evs)).itemize || {})['Drawbacks (refund)'] || []).map(x => x.join('|'));
+
+  // An EARLIER player-taken drawback is bought off, so the imposed one that follows slides to index 0.
+  const a = [award, oclass, taken(3, 'Peg Leg', 4), imposed(4, 'Lame'), buyoff('Peg Leg', 12)];
+  t('buying off an EARLIER player-taken drawback does not strip or misplace the imposed one that follows',
+    [grant(a), rows(a)], [0, ['Lame (DM imposed)|0']]);
+
+  // The IMPOSED one is bought off (the oldest Lame), leaving only the player-taken Peg Leg — which must still pay.
+  const b = [award, oclass, imposed(3, 'Lame'), taken(4, 'Peg Leg', 4), buyoff('Lame', 3)];
+  t('buying off the IMPOSED drawback leaves the remaining player-taken one paying its 4 AP',
+    [grant(b), rows(b)], [4, ['Peg Leg|-4']]);
+
+  // Order must not matter: the marker follows the purchase, not the name or the slot.
+  t('imposed before player-taken: only the player-taken one pays',
+    grant([award, oclass, imposed(3, 'Lame'), taken(4, 'Peg Leg', 4)]), 4);
+  t('player-taken before imposed: only the player-taken one pays',
+    grant([award, oclass, taken(3, 'Peg Leg', 4), imposed(4, 'Lame')]), 4);
+
+  // A legacy `patch` that replaces the whole drawbacks list invalidates every stored position, so the marker resets.
+  t('control: an imposed Lame on its own grants 0',
+    grant([award, oclass, imposed(3, 'Lame')]), 0);
+  t('after a legacy patch replaces the whole list, the new Peg Leg is NOT treated as imposed (it pays 4)',
+    grant([award, oclass, imposed(3, 'Lame'), patch(['Peg Leg'])]), 4);
 }
 
 console.log('unrelated rules are untouched by imposition');
