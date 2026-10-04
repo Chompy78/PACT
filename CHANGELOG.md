@@ -73,6 +73,11 @@
   round-trip audit (`docs/plans/2026-10-04-server-freeze-d2-e1.md`): CharGen's "don't rewrite protected history" guard followed seals and awards but not the lock, so opening a **locked campaign character** that began in the Live Sheet moved its
   "Imported budget" award from the top of the log to the end and added a `name` event — which the planned server freeze would refuse. The guard now honours the lock too, and stays silent during a load-time reconcile. 18 new browser checks
   (164 pass, 0 fail). No `DATA.version` change.
+- **2026-10-05 · feat(sql): server freeze stage 1 (D2 + E1) written, rehearsed and audited — NOT applied to the live database** (`feat/server-freeze-stage1`; decision `D-GH-2026-10-05-server-freeze-stage1`, plan
+  `docs/plans/2026-10-04-server-freeze-d2-e1.md`, cold-reviewed by Gemini + Groq + a no-context judge) — `sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` (+ rollback): priced `patch` events join the protected history
+  (fail-closed on field names, with a permanent no-AP exempt list and a temporary one), and a campaign character's lock becomes a freeze boundary like a seal (lifted by a DM reopen). Functions only, no data change. Docker rehearsal
+  (`run-freeze.sh`, CI job `freeze-rehearsal`): 36 attacks work today → 61/61 pass after → rollback byte-identical; `backup-replay-audit.mjs` replays 457 real saves (all 24 new refusals are history rewrites after a lock);
+  `roundtrip-audit.mjs` loads every frozen live character in the real tools (0 differences, after the CharGen load fix in #579). Applying it is the owner's decision; baseline-file folding is documented in the harness README.
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.577` (PR #577)** — ships #573 (CharGen: nothing bought can be unticked after the lock, new drawbacks refused,
   flat purchases priced and charged in play), #575 (the Live Sheet's purchase-legality rules moved into the engine as `purchaseLegality`; CharGen uses them), #576 (CharGen
   phase 2a: languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency and free subclass as in-play purchases), plus the already-merged DM-imposed wounds
