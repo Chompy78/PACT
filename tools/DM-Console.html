@@ -2453,7 +2453,14 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var h = '<h4>'+esc(n)+'</h4><div>';
     if(W){ h += '<span class="dp-badge">Wound — '+esc(W.tier)+'</span>'; if(W.slot) h += '<span class="dp-badge">Place: '+esc(W.slot)+'</span>'; if(W.dmOnly) h += '<span class="dp-badge">Only a DM can impose this</span>'; }
     else h += '<span class="dp-badge">Ordinary drawback</span>';
-    h += '</div><div class="dp-row"><b>What it does.</b> '+(fx?esc(fx):'<span class="dp-empty">No description recorded.</span>')+'</div>';
+    h += '</div>';
+    // An alias repeats another wound's effect under a different name (DATA.wounds[n].sameAs, display-only): say which, and whether
+    // players can take the original, so the DM can see at a glance that the two differ only in the story they tell.
+    if(W && W.sameAs){
+      var _so = W.sameAs, _soOk = (DATA.drawbackList||[]).indexOf(_so) >= 0;
+      h += '<div class="dp-row"><b>Same effect as '+esc(_so)+'</b> — '+(_soOk ? 'which players can also take' : 'also DM-only')+'. Only the name and the story differ.</div>';
+    }
+    h += '<div class="dp-row"><b>What it does.</b> '+(fx?esc(fx):'<span class="dp-empty">No description recorded.</span>')+'</div>';
     h += '<div class="dp-row"><b>Cost.</b> Table value '+ap+' AP. Imposed on this character it pays <b>0 AP</b> and is listed "(DM imposed)". '
        + 'Buying it off costs <b>'+ap+' AP</b> (flat) or <b>'+(ap*3)+' AP</b> (expensive, 3&times;), plus gold and downtime.</div>';
     var caps = (DATA.drawbackMaxStats||{})[n];

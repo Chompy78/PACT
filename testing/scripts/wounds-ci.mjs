@@ -88,17 +88,19 @@ for (const [alias, { of, effect }] of Object.entries(ALIASES)) {
     [DATA.drawbackFx[alias].includes(effect), DATA.drawbackFx[of].includes(effect)], [true, true]);
   t(`${alias}: it is NOT a copy of the original's text (it has its own flavour)`, DATA.drawbackFx[alias] === DATA.drawbackFx[of], false);
 }
+t('DATA.wounds[..].sameAs records exactly the alias -> original pairs this gate pins (display-only; the picker shows it)',
+  Object.fromEntries(names.filter(n => W[n].sameAs).map(n => [n, W[n].sameAs])),
+  Object.fromEntries(Object.entries(ALIASES).map(([a, v]) => [a, v.of])));
+t('every sameAs points at a real wound, and nothing else carries one', [names.filter(n => W[n].sameAs && !W[W[n].sameAs]), names.filter(n => W[n].sameAs && !ALIASES[n])], [[], []]);
 t('every new name is unique (no alias reuses an existing drawback name)', [names.length, new Set(names).size], [names.length, names.length]);
 
 console.log('skill coverage — every skill is named by at least two drawbacks (owner goal)');
 {
   const dn = Object.keys(DATA.drawbacks);
-  const count = (s) => dn.filter(n => DATA.drawbackFx[n] && new RegExp(s, 'i').test(DATA.drawbackFx[n])).length;
+  const count = (s) => dn.filter(n => DATA.drawbackFx[n] && new RegExp('\\b' + s + '\\b', 'i').test(DATA.drawbackFx[n])).length;
   t('skills named by fewer than two drawbacks', DATA.skillList.map(([s]) => [s, count(s)]).filter(([, c]) => c < 2), []);
   // control: the check can fail — a skill that no drawback names has a count of zero
   t('CONTROL: a made-up skill is named by none (the counter really counts)', count('Basket Weaving'), 0);
-  t('...and the seven new mechanics are what lifted the thin skills (Arcana, Survival, Medicine each now >= 2)',
-    ['Arcana', 'Survival', 'Medicine'].map(count).every(c => c >= 2), true);
 }
 
 console.log('body locations (slot) — only the arm and the leg can double up');

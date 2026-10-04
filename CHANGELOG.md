@@ -38,7 +38,8 @@
   attacks, climbing), Wrenched Back (carrying limits). Every skill is now named by at least two drawbacks, and `wounds-ci.mjs` pins
   that. The impose picker lists them with no code change. Guide: the Wounds table and its "which drawbacks are wounds" paragraph
   rewritten in both the served copy and the `pact-guide` master (`verify-guide` "drawback text" 15 missing → passes). New `head` and
-  `throat` places. Nothing existing changes (the 15 names are new). See `D-GH-2026-10-04-wound-aliases`.
+  `throat` places. Each alias records the wound it repeats in `DATA.wounds[..].sameAs` (display-only), shown in the impose picker. Nothing
+  existing changes (the 15 names are new). See `D-GH-2026-10-04-wound-aliases`.
 - **2026-10-04 · feat(dm-console): "Impose a drawback" is now a pop-up that shows each drawback's impact** — the dropdown gave a name and a
   price and nothing else. The card now has a "Choose a drawback…" button that opens a window: a searchable list (wounds first, then the
   rest) beside a detail pane showing the effect text, wound tier and body place, the buy-off cost flat and tripled, that a DM-imposed

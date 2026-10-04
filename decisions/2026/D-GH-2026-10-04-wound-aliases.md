@@ -44,6 +44,21 @@ not two copies of one. Aliases share the original's `slot`, so the same-place wa
 4. **Speed −5 ft in cold weather** (Frostbitten Limbs) and **carrying capacity halved** (Wrenched Back) lean on table adjudication;
    the engine does not compute them.
 
+## Found in code review and settled
+
+- **An alias is not always a copy of an *ordinary* drawback.** Four copy wound-only entries (Shattered Hand and Lost Fingers → Maimed Hand,
+  Cracked Ribs → Brittle Bones, Mangled Arm → Withered Arm). The guide now says "repeat the effect of another wound", and
+  `DATA.wounds[alias].sameAs` records the original (display only, `compute()` never reads it) so the impose picker can say "Same effect as
+  Maimed Hand — also DM-only" instead of leaving the link in prose and a test's hand-typed map.
+- **Aliases share the original's place on purpose** (so a duplicate stacks and warns), which means Cracked Ribs is `bones`, not `torso`
+  where ribs are, and will not warn against Wrenched Back. Accepted: the same-place warning is soft and advisory.
+- **Frostbitten Limbs and Shell-Shocked have no place**, so a speed penalty from Frostbitten Limbs can stack with Lame or Crushed Leg
+  without a warning. Accepted: the DM decides, as with every soft warning; revisit if it bites.
+- **Aliases of Lame and Asthmatic drop the original's stat-cap sentence.** A DM-only entry is always imposed and an imposed drawback is
+  exempt from stat caps, so the behaviour is identical; the picker shows the cap note only on the originals.
+- The skill-coverage gate matches the skill name as a whole word, so an unrelated word containing it (for example "signature" for
+  "Nature") cannot hide a gap.
+
 ## Evidence and blast radius
 
 The 15 names did not exist before, so no stored character can hold one: nothing existing changes. Gates: `wounds-ci.mjs` (82),

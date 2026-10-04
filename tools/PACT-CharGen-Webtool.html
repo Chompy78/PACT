@@ -2202,7 +2202,7 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
   const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
-    // Wound-only drawbacks (Maimed Hand, Bad Knee, Brittle Bones, Withered Arm — DATA.wounds[k].dmOnly) are imposed
+    // Wound-only drawbacks (DATA.wounds[k].dmOnly — 19 entries, see DATA.wounds) are imposed
     // by a DM and never picked by a player, so they are not offered here. One the character ALREADY holds (a DM
     // imposed it) stays listed and checked, like every other held drawback. (feat/permanent-wounds)
     if(!chk.includes(k)&&DATA.wounds&&DATA.wounds[k]&&DATA.wounds[k].dmOnly)return;
