@@ -14,6 +14,16 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-04 · data(repair): the six Amble histories are repaired, locked and sealed** — live data, no code or `DATA.version`
+  change. Each character's creation lock now sits where the owner's rule puts it (everything up to and including the lock is creation;
+  the lock goes **before** the first purchase past limit + drawback AP), each has its limit restored (= the AP earned through chapter 4:
+  Skylar 80, Fenwick 78, Archer 68, Moss 79, Caspian 78, Anders 76), prices re-stamped by current rules (Q1), gold and downtime charged
+  retroactively in play (Skylar 750 gp / 90 d, Moss 425 / 63, Anders 275 / 63, Fenwick 150 / 35, Archer 75 / 21, Caspian none), Archer's
+  lost name restored, and a `sessionSeal` appended to each. Awards and the `ap` column are untouched. One guarded UPDATE per character
+  (id + `updated_at` + event count + SEQ + md5); the history-lock and AP-budget triggers were off for one transaction each for
+  Moss (rewrite), Caspian and Anders only, and verified re-enabled. Tooling: `testing/scripts/creation-lock-forensics/` (`repair.mjs`,
+  `rehearse.mjs`, `verify-live.mjs`). Party downtime window changed 60 → 365 days. See `docs/plans/2026-10-04-amble-lock-repair.md` §8–9
+  and `D-GH-2026-10-01-creation-lock-integrity`. The server freeze (D2/E1) is unblocked.
 - **2026-10-04 · fix(content): `Missing Arm` (5 AP) now states its penalty** — its description said only "Lost an arm;
   defined mechanical penalty" and nothing was defined, so a player took 5 AP for a restriction that did not exist. It now
   reads: one hand free (no two-handed weapons, no weapon and shield together, somatic components need that hand free), plus

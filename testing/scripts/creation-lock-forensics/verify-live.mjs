@@ -3,7 +3,10 @@
 // Checks the live row against (a) the candidate that was written, (b) the engine (ledger = total, lock, limit), (c) the pre-write
 // copy (what the character owns, the awards, `ap`).
 import { readFileSync } from 'node:fs';
-import { compute, foldBuild, economy, creationCeiling } from '../../../js/engine.js';
+import { compute, foldBuild as _foldBuild, economy, creationCeiling } from '../../../js/engine.js';
+// foldBuild() ALIASES the event payloads it folds (MUT.patch assigns the payload's objects into the build, and later indexed steps then mutate them
+// IN PLACE), so folding a log that holds a spellcasting patch AND later cantrip/slot steps silently rewrites the patch event. Always fold a COPY.
+const foldBuild = l => _foldBuild(JSON.parse(JSON.stringify(l)));
 const [afterP, preP, candP, name] = process.argv.slice(2);
 const after = JSON.parse(readFileSync(afterP, 'utf8')).find(c => c.name === name || c.id === (JSON.parse(readFileSync(preP, 'utf8'))).id);
 const pre = JSON.parse(readFileSync(preP, 'utf8'));

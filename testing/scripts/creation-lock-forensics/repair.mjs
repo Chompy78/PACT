@@ -11,7 +11,10 @@
 // the DM limit; every purchase's `cost` is re-stamped to its current-rules delta (Q1); gold/downtime are stamped on purchases
 // AFTER the lock and removed from those before it (O1); `seq` is renumbered in array order. Nothing else.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { compute, foldBuild, economy, creationCeiling, purchaseCost, DATA } from '../../../js/engine.js';
+import { compute, foldBuild as _foldBuild, economy, creationCeiling, purchaseCost, MUT, DATA } from '../../../js/engine.js';
+// foldBuild() ALIASES the event payloads it folds (MUT.patch assigns the payload's objects into the build, and later indexed steps then mutate them
+// IN PLACE), so folding a log that holds a spellcasting patch AND later cantrip/slot steps silently rewrites the patch event. Always fold a COPY.
+const foldBuild = l => _foldBuild(JSON.parse(JSON.stringify(l)));
 const argv = process.argv.slice(2); const ci = argv.indexOf('--current'); const currentP = ci >= 0 ? argv[ci + 1] : null; if (ci >= 0) argv.splice(ci, 2);
 const [liveP, snapsP, outP, only] = argv;
 const current = currentP ? JSON.parse(readFileSync(currentP, 'utf8')) : null;   // fresh export: used ONLY to carry over a sessionSeal gained since
@@ -64,6 +67,63 @@ function reconstruct(c, p) {
   return L.filter(e => !isLockEv(e));              // live order, lock-family events removed
 }
 
+// IN-PLAY PRICING IS PER STEP (owner, 2026-10-04). A CharGen slot record can bundle several purchases — Hit Dice 3 -> 5 is two level-ups;
+// Archer's "Spellcasting (25 AP)" is eight (foundation, rank, 2 cantrips, 2 known spells, 2 slots). Gold and downtime are charged per
+// purchase, so a lump lands in a far higher band (25 AP -> 1,500 gp / 180 d; its pieces total 75 gp / 21 d). Such a record is split into
+// the same steps the Live Sheet would have recorded (cat hd / found / rank / cantrip / known / slot), the lock is placed against the STEPS
+// (the ceiling can fall inside a bundle), and any bundle that ends up wholly BEFORE the lock is put back exactly as it was.
+function explodeBundles(events) {
+  const out = []; let bundleId = 0;
+  for (const e of events) {
+    const patch = e.type === 'buy' && e.cat === 'patch' && e.payload && e.payload.patch;
+    const prev = patch ? foldBuild(out) : null;
+    let steps = null;
+    if (patch && Object.keys(patch).length === 1 && patch.hd != null && patch.hd - (prev.hd || 1) > 1) {
+      steps = []; for (let h = (prev.hd || 1) + 1; h <= patch.hd; h++) steps.push({ cat: 'hd', payload: { to: h }, label: 'Level up \u2192 Hit Die ' + h });
+    } else if (patch && patch.traditions && Object.keys(patch).every(k => k === 'traditions' || (k === 'dabblerCantrips' && !patch[k])) && !(prev.traditions || []).length
+               && patch.traditions.length === 1 && patch.traditions[0].disciplines.length === 1) {
+      const t = patch.traditions[0], d = t.disciplines[0];
+      if (!d.bound && !(d.pactSlots) && !(d.arcanum || []).some(Boolean)) {
+        steps = [{ cat: 'found', payload: { ti: 0, trad: t.name, disc: d.name }, label: `Foundation \u2014 ${t.name} / ${d.name}` }];
+        for (let r = 1; r <= t.rank; r++) steps.push({ cat: 'rank', payload: { ti: 0, to: r }, label: `Tradition rank ${r}` });
+        for (let c = 1; c <= (d.cantrips || 0); c++) steps.push({ cat: 'cantrip', payload: { ti: 0, di: 0, to: c }, label: `Cantrip ${c}` });
+        (d.known || []).forEach((n, i) => { for (let k = 1; k <= n; k++) steps.push({ cat: 'known', payload: { ti: 0, di: 0, L: i + 1, to: k }, label: `Known level-${i + 1} spell ${k}` }); });
+        (d.slots || []).forEach((n, i) => { for (let k = 1; k <= n; k++) steps.push({ cat: 'slot', payload: { ti: 0, di: 0, L: i + 1, to: k }, label: `Level-${i + 1} slot ${k}` }); });
+      }
+    }
+    if (!steps) { out.push(e); continue; }
+    const id = ++bundleId;
+    steps.forEach((st, k) => out.push({ type: 'buy', cat: st.cat, payload: st.payload, label: st.label, cost: 0, level: e.level, rules: e.rules,
+      ts: (e.ts || 0) + k, _bundle: id, _orig: e }));
+  }
+  return out;
+}
+// Put every bundle that has NO step after the lock back as the original record; merge the before-lock steps of a straddling bundle into one
+// patch record (the value they fold to); leave after-lock steps as the per-step events.
+function settleBundles(list, lockIdx) {
+  const out = []; const ids = [...new Set(list.filter(e => e._bundle).map(e => e._bundle))];
+  const info = {}; for (const id of ids) { const idxs = list.map((e, i) => e._bundle === id ? i : -1).filter(i => i >= 0); info[id] = { idxs, after: idxs.filter(i => i >= lockIdx) }; }
+  let lockAt = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (i === lockIdx) lockAt = out.length;
+    const e = list[i]; const b = e._bundle ? info[e._bundle] : null;
+    if (!b) { out.push(e); continue; }
+    const first = b.idxs[0];
+    if (!b.after.length) { if (i === first) out.push(clone(e._orig)); continue; }                       // wholly before the lock: original record
+    const nBefore = b.idxs.length - b.after.length;
+    if (nBefore > 0 && i === first) {                                                                    // straddles the lock: merged pre-lock part
+      const base = foldBuild(out); const pre = list.slice(first, first + nBefore); const t = clone(base);
+      pre.forEach(st => (MUT[st.cat] || (() => {}))(t, st.payload));
+      const op = (e._orig.payload && e._orig.payload.patch) || {};
+      const patch = pre[0].cat === 'hd' ? { hd: t.hd } : { traditions: t.traditions, ...(op.dabblerCantrips !== undefined ? { dabblerCantrips: op.dabblerCantrips } : {}) };
+      out.push({ ...clone(e._orig), cost: 0, payload: { patch } });
+    }
+    if (i >= lockIdx) { const { _bundle, _orig, ...rest } = e; out.push(rest); }
+  }
+  if (lockIdx >= list.length) lockAt = out.length;
+  return { events: out.map(({ _bundle, _orig, ...rest }) => rest), lockAt };
+}
+
 // The owner's rule. Running total (engine, current rules) after every event; the lock goes right BEFORE the LAST purchase that took
 // spend from <= ceiling to > ceiling — provided the character ENDS over the ceiling. Otherwise it goes at the end.
 function findLock(events, limit) {
@@ -85,7 +145,9 @@ function dropRepeats(log) {
     changed = false; const base = sig(log);
     for (let i = 0; i < log.length; i++) {
       const e = log[i];
-      if (e.type !== 'buy' || e.cat === 'drawback' || e.cat === 'create' || (e.cost || 0) !== 0) continue;
+      // ONLY zero-cost slot ('patch') records can be repeats. A per-step purchase (hd / rank / cantrip / known / slot …) is a real, separately
+      // priced purchase even when a later step makes it look redundant, so it must never be merged away.
+      if (e.type !== 'buy' || e.cat !== 'patch' || (e.cost || 0) !== 0) continue;
       const t = log.filter((_, j) => j !== i);
       if (sig(t) === base) { dropped.push((e.label || e.cat || '').slice(0, 40)); log = t; changed = true; break; }
     }
@@ -94,15 +156,16 @@ function dropRepeats(log) {
 }
 
 function build(c, p) {
-  const events = reconstruct(c, p);
-  const lk = findLock(events, p.limit);
+  const exploded = explodeBundles(reconstruct(c, p));
+  const lk = findLock(exploded, p.limit);
+  const { events, lockAt } = settleBundles(exploded, lk.idx);
   p.why = lk.label ? `before ${lk.label} (the first purchase past the ceiling of ${lk.ceil} AP: ${lk.at} \u2192 ${lk.to})` : `at the end (spend never went past the ceiling of ${lk.ceil} AP)`;
-  const lockTs = (events[lk.idx - 1]?.ts || events[0]?.ts || Date.now()) + 1;
+  const lockTs = (events[lockAt - 1]?.ts || events[0]?.ts || Date.now()) + 1;
   const cfg = { type: 'creationLockConfig', payload: { threshold: p.limit }, dmEdit: true, ts: events[0]?.ts || Date.now(),
     label: `Creation limit set by DM \u2014 ${p.limit} AP (+ drawbacks) \u2014 the AP earned through chapter 4, set by the DM's history repair (${LABEL_DATE})`, rules: DATA.version };
   const lock = { type: 'creationLocked', systemEdit: true, ts: lockTs, rules: DATA.version,
     label: `Creation locked \u2014 placed ${p.why} by the DM's history repair (${LABEL_DATE})` };
-  let log = [cfg, ...events.slice(0, lk.idx), lock, ...events.slice(lk.idx)];
+  let log = [cfg, ...events.slice(0, lockAt), lock, ...events.slice(lockAt)];
   const rep = dropRepeats(log); log = rep.log;
   // A drawback keeps the grant the LIVE row stamped on it (a backup used to rebuild the order can carry a stale 0): carry it over.
   const liveDraw = {}; for (const e of c.stats.LOG) if (e && isPurchase(e) && e.cat === 'drawback') (liveDraw[e.label] ||= []).push(e.cost);
