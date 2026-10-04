@@ -1,6 +1,6 @@
 # Plan — repair the six live Amble histories (G2 / Part 3)
 
-> **Status: PLAN FOR OWNER REVIEW — nothing has been written to any live character.** Written 2026-10-04. Owner decisions
+> **Status (updated 2026-10-04, end of session): AWAITING THE OWNER'S GO-AHEAD for the six writes. Only Moss has been written (under the superseded G2 rule; see §8).** Written 2026-10-04. Owner decisions
 > already made: **G2** (lock at the crossing purchase), **Q1** (price by current rules), **N1** (plan first, then guarded
 > writes), **O1** (charge gold and downtime retroactively). Context: `docs/sessions/2026-10-04-creation-lock-restart.md`,
 > `decisions/2026/D-GH-2026-10-01-creation-lock-integrity.md`, `docs/plans/2026-10-01-amble-creation-lock-review.md`.
@@ -108,3 +108,36 @@ harness first: awards identical, `ap` untouched, total spent as in §2, lock at 
 The server freeze at the lock (D2) and the priced-patch freeze (E1) **must come after this repair**: they would freeze the
 wrong histories as they stand (Caspian's refund, Skylar's post-lock "Ability scores −4" and "Proficiency +3"). The repair
 runs under the current rules; D2/E1 are switched on afterwards, staged with B2.
+
+## 8. Decisions made after this plan was drafted (2026-10-04, later) — these SUPERSEDE §1/§2/§6
+
+- **Lock rule (owner, "S1"):** *everything up to and including the lock is creation; everything after it is in play.* The lock goes right
+  **BEFORE** the purchase that takes spend past the ceiling (limit + drawbacks), whatever that purchase costs (1 AP or 18). This replaces G2's
+  "the crossing purchase counts as creation, lock after it". A crossing that dips back under never stuck; a character that ends at or under its
+  ceiling is locked at the end. The script now **computes** the lock point (`findLock()` in `repair.mjs`); nothing is hand-picked.
+- **Limits (owner, "U2"):** every limit = the AP the character **earned through chapter 4** (end of session 4, 2026-08-23, when the lock was meant
+  to fire — the creation lock was missed then, which is the root of this mess), summed from `ap_awards`: Moss 79, Archer 68 (unchanged), Skylar 80,
+  Anders 76, Fenwick 78, Caspian 78 (the four had been stamped 4 lower; Caspian's later 73 is superseded). The log entry says where the figure came from.
+- **Names (owner):** the character is **Archer** (player **Kendall**, male); **Skylar** is female (player **Sam**, female). Archer's name event is restored to "Archer".
+- **O1 / G1 / H1 / I:** gold and downtime are charged retroactively in full (G1); Anders' 1 AP over is moot after the session 9 awards (103 + 12 > 111);
+  the history lock may be switched off for ONE transaction each for Anders, Archer and Caspian — **Moss also needs it now** (he was sealed after his first write).
+- **Downtime window:** the one party declaration was changed from 60 to **365 days**, keeping its 2026-08-23 start (a *new* declaration would have restarted the window).
+- **M1:** zero-AP records that provably change nothing are dropped (Anders 6, Moss 3, Skylar 1, Caspian 1, Fenwick 1, Archer 0). **N3:** bare free-subclass picks are left
+  alone (a rules change is logged as `feat/free-subclass-bare-pick`).
+- **Final candidates (limits per U2, verified by `repair.mjs` and rehearsed in Docker against the real triggers):**
+
+| Character | Ceiling | Lock before | AP at lock | In play | Charge | Needs the history lock off |
+|---|---|---|---|---|---|---|
+| Skylar | 84 | Proficiency +3 (80 → 98) | 80 | 2 records, 18 AP | 750 gp / 90 d | no |
+| Fenwick | 82 | Action Surge (82 → 86) | 82 | 3, 15 AP | 150 gp / 35 d | no |
+| Archer | 68 | Spellcasting (54 → 79) | 54 | 2, 25 AP | **1,500 gp / 180 d** | no |
+| Moss (rewrite) | 83 | Wild Shape (75 → 88) | 75 | 5, 26 AP | 475 gp / 70 d | **yes** (sealed) |
+| Caspian | 87 | never ends over (81) | end | 0 | none | yes |
+| Anders | 88 | Psychic Blades T3 (85 → 92) | 85 | 6, 26 AP | 275 gp / 63 d | yes |
+
+- **Moss as currently written** (lock after Wild Shape at 88, sealed) is the G2 version and is WRONG under the rule above.
+- **Tooling:** `testing/scripts/creation-lock-forensics/repair.mjs` (transform + checks, read-only), `rehearse.mjs` (Docker rehearsal with the real triggers),
+  `verify-live.mjs` (read-back verification of a live row). Each live write is one `UPDATE … WHERE id AND updated_at AND event-count AND md5(candidate)`; the
+  pre-write JSON is kept for rollback; `character_backups` snapshots every update.
+- **Not yet done:** the six writes; "Lock history" on the other five after repair; the CharGen/engine/DM-Console follow-ups logged on the board.
+
