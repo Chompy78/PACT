@@ -4,6 +4,16 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-04 · refactor(engine): the in-play purchase pricer moves from the Live Sheet into `js/engine.js`
+  (`priceOf(cur, cat, payload)`)** — it was rules logic with exactly one copy, inside the Live Sheet tool file
+  (`priceOf` + `_CTX_PRICERS`: ability raises, level-ups with the HD-gate "what this level-up legalises" correction,
+  class unlocks, the two bonds, drawbacks). CharGen has to record a purchase made after the lock at the same price
+  (`fix/chargen-post-lock-purchases`), and a second hand-written copy is the drift this project keeps paying for. Moved
+  verbatim; the Live Sheet keeps its `priceOf(cat, payload, cur?)` signature as a one-line delegate. New gate
+  `testing/scripts/engine-priceof-ci.mjs` (wired into `engine-parity.yml`) keeps the original code as a frozen reference
+  and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
+  identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
+  change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
 - **2026-10-04 · fix(chargen): CharGen now refuses an edit past the DM's creation limit, prompts at the limit, and
   caps the random roll** — `docs/plans/2026-08-30-creation-ceiling.md` "Done when" #2 ("refused in both CharGen and
   Live Sheet") only ever shipped in Live Sheet; CharGen imported `wouldExceedCeiling` and never called it, which is how

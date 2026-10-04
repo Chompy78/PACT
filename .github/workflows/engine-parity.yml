@@ -104,6 +104,9 @@ jobs:
       - name: Run the DM unlock-drawback gate
         run: node testing/scripts/dm-unlock-drawback-ci.mjs
 
+      - name: Run the engine priceOf extraction gate
+        run: node testing/scripts/engine-priceof-ci.mjs
+
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
     # read DATA.version live at engine-ready, so the live labels are right — but the hardcoded FALLBACK
