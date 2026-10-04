@@ -3,7 +3,7 @@
  * ONE INVARIANT: a character's PROTECTED EVENTS must survive a CharGen load unchanged.
  *
  * Protected events are the ones pact_ap_ledger_protected() projects and trg_pact_locked_history
- * refuses to let shrink — 'buyoff', 'names', 'award', 'sessionSeal', 'dmRemoveBoon', and every
+ * refuses to let shrink — 'buyoff', 'names', 'award', 'sessionSeal', 'dmRemoveBoon', 'dmUnlockDrawback', and every
  * non-patch 'buy'. If a tool drops one, the next cloud save is rejected with
  * "PACT: locked character history cannot shrink", which reaches the player as a raw Postgres error.
  *
@@ -74,7 +74,10 @@ const SEED = await page.evaluate(()=>{
     ev({type:'buy', cat:'abil', cost:4, payload:{ab:'STR', to:14}},3),
     ev({type:'award', cost:0, amount:10, label:'DM award'},4),
     ev({type:'dmRemoveBoon', cost:0, payload:{v:'Toughness'}, label:'DM removed a boon'},5),
-    ev({type:'sessionSeal', idem:'seal-abc-123', label:'seal'},6),
+    // feat/dm-unlock-drawback: a DM release of a locked drawback is now a protected event too (it joined
+    // pact_ap_ledger_protected's IN list), so a CharGen load must not drop it either.
+    ev({type:'dmUnlockDrawback', dmEdit:true, refVal:'Peg Leg', targetSeq:2, note:'story beat', label:'DM unlocked a drawback'},6),
+    ev({type:'sessionSeal', idem:'seal-abc-123', label:'seal'},7),
   ];
   return {schema:'pact-character/1', rules:V, name:'Seal Probe', LOG, SEQ:LOG.length+1,
           id:'11111111-2222-3333-4444-555555555555'};
@@ -85,7 +88,7 @@ const SEED = await page.evaluate(()=>{
 await page.evaluate(`window.__proj = function(log){
   return (log||[]).filter(function(e){
     const t=e&&e.type;
-    return ['buyoff','names','award','sessionSeal','dmRemoveBoon'].indexOf(t)>-1
+    return ['buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback'].indexOf(t)>-1
         || (t==='buy' && (e.cat||'')!=='patch');
   }).map(function(e){ const o=Object.assign({},e); delete o.seq; delete o.ts; delete o.rules; delete o.label; return o; });
 };`);
@@ -100,11 +103,13 @@ const afterLoad = await page.evaluate(()=>({
   types:(LOG||[]).map(e=>e.type).join(','),
   seal:(LOG||[]).filter(e=>e.type==='sessionSeal').length,
   boon:(LOG||[]).filter(e=>e.type==='dmRemoveBoon').length,
+  unlock:(LOG||[]).filter(e=>e.type==='dmUnlockDrawback').length,
   projLen:window.__proj(LOG).length,
   floor:(typeof _cgSealedFloor==='function')?_cgSealedFloor():-1,
 }));
 check('sessionSeal survives a load', afterLoad.seal===1, `found ${afterLoad.seal}`);
 check('dmRemoveBoon survives a load', afterLoad.boon===1, `found ${afterLoad.boon}`);
+check('dmUnlockDrawback survives a load', afterLoad.unlock===1, `found ${afterLoad.unlock}`);
 check('the protected projection does not shrink across a load',
       afterLoad.projLen>=before, `${before} -> ${afterLoad.projLen} (the trigger refuses any shrink)`);
 check('the loaded character reads as sealed', afterLoad.floor>0, `_cgSealedFloor()=${afterLoad.floor}`);
@@ -115,13 +120,14 @@ const afterRebuild = await page.evaluate(()=>{
   replaceWholeLogFromBuild(_domReadBuild());
   const out = { seal:(LOG||[]).filter(e=>e.type==='sessionSeal').length,
                 boon:(LOG||[]).filter(e=>e.type==='dmRemoveBoon').length,
+                unlock:(LOG||[]).filter(e=>e.type==='dmUnlockDrawback').length,
                 projLen:window.__proj(LOG).length };
   LOG.length=0; snap.forEach(function(e){LOG.push(e);});   // restore for the guard check below
   return out;
 });
 check('replaceWholeLogFromBuild still drops protected events — if this FAILS, the rebuild was made '
       + 'safe by construction: delete this assertion and say so in the commit',
-      afterRebuild.seal===0 && afterRebuild.boon===0,
+      afterRebuild.seal===0 && afterRebuild.boon===0 && afterRebuild.unlock===0,
       `projection ${before} -> ${afterRebuild.projLen}`);
 
 console.log(`\n[protected-roundtrip] the guard on the destructive paths still fires`);

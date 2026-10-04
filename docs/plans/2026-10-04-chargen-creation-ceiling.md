@@ -140,3 +140,10 @@ and spends the rest in play.
 
 **Players Guide.** `docs/PACT-Players-Guide.html` has no text about the creation limit or "Finish creating" at all (checked
 2026-10-04), so there is nothing to reconcile on either side.
+
+**Owner decisions on the follow-up (2026-10-04, later).** A rolled character can be re-rolled, so the roll does NOT lock.
+Instead a persistent **"Accept rolled character"** button follows a roll; pressing it locks the character and then spends
+the remainder in play. **Decided:** the in-play purchases made on Accept cost gold and downtime like any in-play purchase;
+undo after Accept steps back one purchase at a time and stops at the lock (the owner said "maybe" — confirm when building,
+and weigh the interplay with `fix/no-purchase-refunds`). **Still open:** whether the button and cloud autosave behave
+across a reload while a roll awaits acceptance (recommended: yes to both). Task: `feat/roll-lock-then-spend`.

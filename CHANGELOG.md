@@ -17,6 +17,20 @@
   purchases — the roller applies its result as a creation-priced burst and re-appends any lock after it, so that needs
   its own change (see the plan, §8). 11 new checks in `chargen-flows-e2e.mjs`; parity 76/0, roller quality gate 74/0,
   economy-ui 155/0. No `DATA.version` bump; the Players Guide says nothing about the creation limit.
+- **2026-10-04 · feat: a DM can unlock a drawback they imposed locked** — new `dmUnlockDrawback` event (required story-beat
+  note, ≤200 chars) keyed to the imposed purchase's `seq` + name, appended through `dm_edit_character_log`, which validates
+  it against the stored log (imposed + locked + not already unlocked) and rebuilds it from a whitelist so it cannot move
+  AP; it joins `pact_ap_ledger_protected`'s types. `activeEvents().unlocked` (additive) feeds the Live Sheet — locked rows
+  show 🔒, unlocked ones 🔓 with the DM's escaped note and the buy-off at the DM's chosen rate — and a DM Console Unlock
+  control behind the archived-campaign peek guard. A buy-off removes the OLDEST open purchase of a name, so the Live Sheet
+  now shows its button only on that purchase and says "waits for the older one" on newer same-named rows (UI only; the
+  engine's by-name FIFO is unchanged). **Migration `2026-10-04-dm-unlock-drawback.sql` (+ rollback) was APPLIED to
+  production on 2026-10-04 (08:39 UTC) after re-verifying the live function hashes; post-apply guards, grants and hashes
+  were checked (live == the migration file, hashed independently), and the advisors show nothing attributable to it. The
+  client has not shipped to `main` yet — the safe order.** The lock/unlock are advisory against a hostile owner
+  (`feat/server-enforced-drawback-lock`). Tests: 77-assertion Postgres 16 harness incl. RPC behaviour,
+  `dm-unlock-drawback-ci.mjs` 30/0, parity 77/0 (EV-024), `live-sheet-unlock-e2e` 25/0, `dm-console-unlock-e2e` 19/0, all
+  wired into CI. No `DATA.version` bump. See `D-GH-2026-10-04-dm-unlock-drawback`.
 - **2026-10-04 · feat(dm-console): a locked/unlocked icon after each character's tier** — 🔒 for a finished
   (locked) character, 🔓 for one still in creation (including one the DM reopened), in the full card, the table's
   Lvl column, the detail card and the compact card. The state is `creationLockState()`'s own answer (computed once

@@ -27,6 +27,30 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
+## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
+Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
+
+```text
+Owner decision B (2026-10-04): a roll on a character with a DM creation limit should be capped at that limit, THEN the
+character is locked, THEN the rest of the spendable AP is rolled automatically as in-play purchases. #561 built only the
+cap. WHY THE REST IS NOT TRIVIAL: randomizeRoll() applies its result as one burst through replaceWholeLogFromBuild()
+and re-appends any carried lock AFTER the burst on purpose (a lock placed before it re-prices every burst event at
+in-play rates — D-GH34), so a second randomizeRoll() pass after a lock re-creates the whole character and prices it all
+as creation. Needed: a post-lock phase that appends purchases one at a time through the normal purchase path
+(emit/MUT, in-play pricing, gold + downtime stamps if the campaign economy is on) using the same legality and
+spend-shape machinery (tryAct, buckets). OWNER DECISION 2026-10-04 on (1): a rolled character CAN be re-rolled. The roll therefore stays unlocked and ends at the
+limit (as #561 does); a persistent "Accept rolled character" button, visible after a roll and until it is pressed (or
+the character is locked), does the finish: it locks the character and then spends the rest in play. That also settles
+the undo question: the roll stays ONE undoable step, and Accept is the barrier. DECIDED later the
+same day: (2) the in-play purchases made on Accept DO cost gold and downtime, like any in-play purchase (stamped per the
+campaign economy); (3) undo after Accept steps back ONE PURCHASE AT A TIME (each in-play purchase is its own undo step) and
+stops at the lock, which stays the wall — the owner said "maybe", so confirm when building, and note the interplay with
+fix/no-purchase-refunds (undoing a post-lock purchase that has already been saved to the cloud). STILL OPEN: does the
+button survive a reload (a flag kept with the autosave) and does cloud autosave keep running while a roll awaits
+acceptance? (Recommended: yes to both.)
+```
+**Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
+
 ## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
 Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.
 
@@ -1084,6 +1108,11 @@ writing it from the outside would be reconstruction, which is what this rule exi
 agent wonder why this was done this way?"
 
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
+**STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
+`D-GH-2026-10-04-dm-unlock-drawback`):** `sql/migrations/2026-10-04-dm-unlock-drawback.sql` was applied to production
+08:39 UTC and verified (guards, grants, hashes, advisors, logs). PR #557 is MERGED into `preview` (9d92088). **What remains:**
+ship the client in the next `preview` → `main` promotion (a release decision), then graduate this entry. Safe order held: the server accepts the event before any client
+can send it.
 Branch feat/dm-unlock-drawback. Second of the permanent-wounds tasks. Wounds are imposed locked and
 bought off only after a story beat (owner decision H1), but today there is no unlock path: `dmLocked` is
 stamped on the immutable drawback event, and `dm_edit_character_log` only accepts buy(boon|drawback),
@@ -1215,3 +1244,33 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
+
+## fix/imposed-drawbacks-grant-no-ap — compute() credits a DM-imposed drawback's table value as income — TODO
+Branch fix/imposed-drawbacks-grant-no-ap. A DM-imposed drawback is recorded at `cost:0` and pays the player nothing
+(`economy().drawbackEarned` = 0), but `compute()` derives its grant from the drawback NAMES in `b.drawbacks`, so it credits
+the table value anyway. Found 2026-10-04 while building feat/dm-unlock-drawback. Matters as soon as wounds are imposed
+(feat/permanent-wounds): measured on the current engine — one imposed Peg Leg: `compute().remaining` 83 against 79 earned;
+four imposed wounds (4+4+5+3): 95, plus the warnings "Drawbacks grant 16 AP — the guide caps them at 12 AP" and "4 drawbacks
+chosen — most DMs cap this at 2–3". The frozen ledger (`economy()`) is right, so the Live Sheet's AP-left is right, but the
+DM Console's "Granted by drawbacks" row reads `compute().drawbackAp`, and `creationCeiling` takes its `drawbackBonus` from
+`compute()`'s grant too (engine.js, near `opts.drawbackAp`) — verify whether imposed values inflate a still-building
+character's ceiling.
+**Effort:** medium · **Risk:** medium — ambiguity low (the marker exists); damage scale high (edits `compute()`, the engine's
+source of truth, and changes its output); likelihood low (parity catches drift; live data 2026-09-30 had 0 DM-imposed
+drawbacks, so no live character changes — re-measure).
+
+```text
+1. In compute()'s drawback loop, an IMPOSED slot (b._imposedDrawbackIdx, the marker from
+   D-GH-2026-09-30-imposed-drawback-cap-bypass, same cost >= 0 rule) contributes 0 to drawGain, is listed at 0 in the
+   itemised "Drawbacks" rows (so the DM still sees it), and is excluded from BOTH cap warnings ("grant N AP", "N drawbacks
+   chosen"). Decide in the plan whether "Frail and Glass Frame can't be taken together" still applies to an imposed pair.
+2. Check creationCeiling()/DM Console summary consume the corrected figure (drawbackAp), not a re-derived one.
+3. Fixtures: a new event fixture with four imposed wounds — remaining 79, no cap warnings; assert it against a player-taken
+   control of the same four, which still grants 16 and still warns. Update any expected file the change moves.
+4. compute() output changes, so bump DATA.version ONCE and say so in the CHANGELOG. Coordinate the guide wording with
+   feat/permanent-wounds (imposed drawbacks are undocumented there today).
+5. CHANGELOG; DECISIONS record D-GH-<date>-imposed-drawbacks-grant-no-ap.
+```
+**Done when:** with four DM-imposed wounds `compute().remaining` equals `economy().available` (79 on the 79-AP fixture), no
+"Drawbacks grant…" or "N drawbacks chosen" warning appears for them, the same four player-taken still grant 16 and warn, and
+`testing/tests/engine-parity.html` reports 0 failed.
