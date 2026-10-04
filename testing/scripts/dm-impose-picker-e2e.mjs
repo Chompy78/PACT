@@ -106,12 +106,14 @@ const list = await page.evaluate(() => {
 check('it is a real dialog (role=dialog, aria-modal) and focus lands in the search box', list.dialog && list.focusSearch);
 check('three groups, wounds first', JSON.stringify(list.groups.map(g => g.label)) === JSON.stringify(['Wounds — minor', 'Wounds — moderate', 'Other drawbacks']), JSON.stringify(list.groups.map(g => g.label)));
 check('every drawback is listed exactly once', list.all.length === list.total && new Set(list.all).size === list.total, `${list.all.length} items / ${list.total} drawbacks`);
-check('the four wound-only entries are present, in the wound groups', ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'].every(n => list.groups[0].names.concat(list.groups[1].names).includes(n)));
+const dmOnly = await page.evaluate(() => Object.keys(window.DATA.wounds).filter(n => window.DATA.wounds[n].dmOnly));
+check('CONTROL: the wound-only list has the 19 entries (so the two checks around it are not vacuous)', dmOnly.length === 19, `${dmOnly.length}`);
+check('all 19 wound-only entries are present, in the wound groups', dmOnly.every(n => list.groups[0].names.concat(list.groups[1].names).includes(n)));
 check('Impose is disabled until something is chosen', list.impose === true);
 // (moved here from wounds-ui-e2e when the dropdown became this picker)
 check('the Grievous drawbacks stay in "Other drawbacks" (Missing Arm, Glass Frame, Slow to Mend, Mute)', ['Missing Arm', 'Glass Frame', 'Slow to Mend', 'Mute'].every(n => list.groups[2].names.includes(n)));
 check('Withered Arm and Peg Leg are under moderate wounds, Bad Knee under minor', list.groups[1].names.includes('Withered Arm') && list.groups[1].names.includes('Peg Leg') && list.groups[0].names.includes('Bad Knee'));
-check('the four wound-only entries are NOT in "Other drawbacks"', ['Maimed Hand', 'Bad Knee', 'Brittle Bones', 'Withered Arm'].every(n => !list.groups[2].names.includes(n)));
+check('none of the wound-only entries is in "Other drawbacks"', dmOnly.every(n => !list.groups[2].names.includes(n)));
 check('the page behind the window is inert while it is open (a screen reader / Tab cannot reach it)', await page.evaluate(() => !!document.getElementById('campSection').closest('[inert]')));
 await page.fill('#dpSearch', 'peg');
 const s1 = await page.evaluate(() => ({ shown: [...document.querySelectorAll('#dmDrawPick .dp-item')].filter(i => !i.hidden).map(i => i.getAttribute('data-name')),
@@ -141,6 +143,14 @@ check('choosing a wound defaults Locked + flat', wa.locked === true && wa.rate =
 check('the button names what it will impose and is enabled', wa.label === 'Impose Withered Arm' && wa.off === false, wa.label);
 check('CONTROL: no clash warning for an arm wound on a character with only a leg wound', !/same place|already has/.test(wa.text));
 
+await pickItem('Crushed Leg');
+const cl = await detail();
+check('an alias says which wound it repeats, and that players can take the original (Crushed Leg = Lame)', /Same effect as Lame/.test(cl) && /players can also take/.test(cl), cl.slice(0, 220));
+await pickItem('Shattered Hand');
+const sh = await detail();
+check('...and when the original is DM-only too it says so (Shattered Hand = Maimed Hand)', /Same effect as Maimed Hand/.test(sh) && /also DM-only/.test(sh), sh.slice(0, 220));
+await pickItem('Addled Memory');
+check('CONTROL: a wound with its own mechanics has no "same effect" line', !/Same effect as/.test(await detail()));
 await pickItem('Peg Leg');
 const pl = await detail();
 check('Peg Leg: warns the character already has Lame in the same place (leg)', /Already has\s*Lame\s*in the same place \(leg\)/.test(pl), pl.slice(-200));
