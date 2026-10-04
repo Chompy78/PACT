@@ -350,6 +350,24 @@
   .ov-x:hover{filter:brightness(0.95);}
   .ov-h{margin:2px 36px 2px 0;font-size:18px;color:var(--heading);}
   .ov-sub{font-size:12px;color:var(--muted);margin:4px 0 14px;}
+  /* feat/dm-impose-picker: the "impose a drawback" pop-up (list + detail pane). Reuses .ov / .ov-card. */
+  .dp-card{max-width:860px;}
+  .dp-grid{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;}
+  .dp-list{flex:1 1 240px;min-width:0;max-width:100%;}
+  .dp-items{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:6px;}
+  .dp-grp{position:sticky;top:0;background:var(--light);color:var(--navy);font-size:11px;font-weight:800;text-transform:uppercase;padding:4px 8px;}
+  .dp-item{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 8px;font:inherit;font-size:12.5px;cursor:pointer;}
+  .dp-item:hover{filter:brightness(.97);}
+  .dp-item[aria-selected="true"]{background:var(--light);font-weight:700;box-shadow:inset 3px 0 0 var(--navy);}
+  .dp-item[hidden],.dp-group[hidden]{display:none;}
+  .dp-ap{color:var(--muted);white-space:nowrap;}
+  .dp-detail{flex:2 1 280px;min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:13px;line-height:1.45;}
+  .dp-detail h4{margin:0 0 6px;font-size:15px;color:var(--heading);}
+  .dp-badge{display:inline-block;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px;background:var(--light);color:var(--navy);margin:0 4px 4px 0;}
+  .dp-row{margin:6px 0;}
+  .dp-warn{margin:8px 0;padding:6px 8px;border-radius:7px;background:rgba(200,120,0,.14);font-size:12px;}
+  .dp-empty{color:var(--muted);}
+  .dp-actions{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px;}
   .sktab{width:100%;border-collapse:collapse;font-size:13.5px;}
   .sktab th,.sktab td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;}
   .sktab th.num,.sktab td.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;}
@@ -1635,7 +1653,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
   // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
   // no-build-data-yet placeholder card, where there is nothing to remove.
-  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp, lockedDraws){
+  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp, lockedDraws, heldDraws){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk">DM-granted AP <button type="button" class="infobtn" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">&#9432;</button></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     // ---- Basic mode (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode) -----------------
@@ -1663,7 +1681,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
          '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
-    h += dmEditBody(id, curBoons, lockedDraws);
+    h += dmEditBody(id, curBoons, lockedDraws, heldDraws);
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -1821,7 +1839,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // Every write goes through dm_edit_character_log (SECURITY DEFINER) — this UI never touches
   // characters.stats directly. Scope: boons and drawbacks only (owner, 2026-08-05 — "not a general
   // editor"); the server enforces the same allowlist independently.
-  function dmEditBody(id, curBoons, lockedDraws){
+  function dmEditBody(id, curBoons, lockedDraws, heldDraws){
     var boonOpts = DATA.boonList.map(function(n){
       return '<option value="'+esc(n)+'">'+esc(n)+' ('+((DATA.boons[n]&&DATA.boons[n].ap)||0)+' AP)</option>';
     }).join('');
@@ -1857,11 +1875,17 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="remove-boon" style="font-size:11px;color:var(--muted)"></span></div>';
     }
     h += '<div class="ruleblock"><div class="lbl">DM edit — impose a drawback <button type="button" class="infobtn" title="Adds the drawback with NO AP grant (an ordinary drawback pays the player; this one doesn\'t) — net 0 change to their spendable AP, but their power level still drops. Any stat cap the drawback normally carries (e.g. Peg Leg: DEX 12) is NOT applied to an imposed one. You choose whether/how they can buy it off. WOUNDS (the first two groups) are lasting injuries only you can impose: choosing one defaults to Locked at the flat price, shown as what it costs to buy off — unlock it below once the story beat has happened.">&#9432;</button></div>' +
-      '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
-      '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'" style="flex:1 1 220px"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
-      '<label style="display:flex;align-items:center;gap:5px;font-size:11px;white-space:nowrap"><input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'"> Locked</label>' +
-      '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px">Removal cost<select class="field dm-impose-draw-rate" data-cid="'+esc(id)+'"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select></label>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<button type="button" class="btn sm dm-impose-draw-open" data-cid="'+esc(id)+'" data-held="'+esc(JSON.stringify(heldDraws||[]))+'">Choose a drawback&hellip;</button>' +
+      '<span style="font-size:11px;color:var(--muted)">Opens a window showing what each one does before you impose it.</span>' +
+      // The pop-up writes its choice into these controls and clicks Impose, so there is ONE send path (the
+      // handler below) and the event is unchanged. They stay in the DOM, hidden.
+      '<div class="dm-impose-draw-hidden" style="display:none">' +
+      '<select class="field dm-impose-draw-sel" data-cid="'+esc(id)+'"><option value="">— choose a drawback —</option>'+drawOpts+'</select>' +
+      '<input type="checkbox" class="dm-impose-draw-locked" data-cid="'+esc(id)+'">' +
+      '<select class="field dm-impose-draw-rate" data-cid="'+esc(id)+'"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select>' +
       '<button type="button" class="btn sm dm-impose-draw-btn" data-cid="'+esc(id)+'">Impose</button>' +
+      '</div>' +
       '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="impose-draw" style="font-size:11px;color:var(--muted)"></span></div>';
     // feat/dm-unlock-drawback: release a drawback imposed LOCKED once the story beat has happened. Only
     // purchases the engine reports as imposed + locked + still open are offered (s.lockedDraws), identified
@@ -1898,7 +1922,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks));
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2408,6 +2432,138 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     document.body.appendChild(d); }
   function openOv(html){ ensureOv(); $('ovBody').innerHTML=html; $('ov').classList.add('on'); }
   function closeOv(){ var ov=$('ov'); if(ov) ov.classList.remove('on'); }
+
+  // ---- feat/dm-impose-picker: "Impose a drawback" pop-up -------------------------------------------------
+  // A searchable, grouped list on the left, and on the right everything the DM needs to judge the choice before
+  // committing: the effect text, wound tier/place, what it costs to buy off, which normal limits do NOT apply
+  // when imposed, and a warning if it clashes with what this character already has. All of it is READ from the
+  // engine's DATA (drawbackFx / drawbacks / wounds / drawbackMaxStats / drawbackReq) — nothing here is a second
+  // copy of a rule. The send path is unchanged: Impose fills the card's hidden controls and clicks the existing
+  // Impose button, so the event the server sees is byte-for-byte what the old dropdown sent.
+  var _dp = null;   // { cid, held, sel, wasWound, opener }
+  function _dpByCid(cls, cid){
+    var all = document.querySelectorAll('#campRoster '+cls);
+    for(var i=0;i<all.length;i++) if(all[i].getAttribute('data-cid')===cid) return all[i];
+    return null;
+  }
+  function _dpGroups(){
+    var W = DATA.wounds || {}, out = [];
+    [['minor','Wounds — minor'],['moderate','Wounds — moderate']].forEach(function(g){
+      var names = Object.keys(W).filter(function(n){ return W[n].tier===g[0] && DATA.drawbacks[n]!==undefined; })
+        .sort(function(a,b){ return (DATA.drawbacks[a]-DATA.drawbacks[b]) || a.localeCompare(b); });
+      if(names.length) out.push({label:g[1], names:names});
+    });
+    var others = Object.keys(DATA.drawbacks).filter(function(n){ return !W[n]; }).sort(function(a,b){ return a.localeCompare(b); });
+    out.push({label:'Other drawbacks', names:others});
+    return out;
+  }
+  function _dpDetailHTML(n, held){
+    var W = (DATA.wounds||{})[n], ap = DATA.drawbacks[n]||0, fx = (DATA.drawbackFx||{})[n];
+    var h = '<h4>'+esc(n)+'</h4><div>';
+    if(W){ h += '<span class="dp-badge">Wound — '+esc(W.tier)+'</span>'; if(W.slot) h += '<span class="dp-badge">Place: '+esc(W.slot)+'</span>'; if(W.dmOnly) h += '<span class="dp-badge">Only a DM can impose this</span>'; }
+    else h += '<span class="dp-badge">Ordinary drawback</span>';
+    h += '</div><div class="dp-row"><b>What it does.</b> '+(fx?esc(fx):'<span class="dp-empty">No description recorded.</span>')+'</div>';
+    h += '<div class="dp-row"><b>Cost.</b> Table value '+ap+' AP. Imposed on this character it pays <b>0 AP</b> and is listed "(DM imposed)". '
+       + 'Buying it off costs <b>'+ap+' AP</b> (flat) or <b>'+(ap*3)+' AP</b> (expensive, 3&times;), plus gold and downtime.</div>';
+    var caps = (DATA.drawbackMaxStats||{})[n];
+    if(caps && Object.keys(caps).length) h += '<div class="dp-row"><b>Normal limit.</b> '+Object.keys(caps).map(function(k){ return esc(k)+' &le; '+esc(caps[k]); }).join(', ')+' — <b>not applied</b> when a DM imposes it.</div>';
+    var rq = (DATA.drawbackReq||{})[n];
+    if(rq && rq.caster) h += '<div class="dp-warn">Needs a spellcasting discipline. The sheet shows a &#9940; warning if this character has none.</div>';
+    held = held || [];
+    if(held.indexOf(n) >= 0) h += '<div class="dp-warn">This character <b>already has '+esc(n)+'</b> — imposing it adds a second copy.</div>';
+    if(W && W.slot){
+      var same = held.filter(function(x){ return x!==n && DATA.wounds && DATA.wounds[x] && DATA.wounds[x].slot===W.slot; });
+      if(same.length) h += '<div class="dp-warn">Already has <b>'+same.map(esc).join(', ')+'</b> in the same place ('+esc(W.slot)+'). The sheet will show a soft warning and you decide.</div>';
+    }
+    return h;
+  }
+  function _dpSelect(n){
+    if(!_dp) return;
+    _dp.sel = n;
+    var items = document.querySelectorAll('#dmDrawPick .dp-item');
+    for(var i=0;i<items.length;i++) items[i].setAttribute('aria-selected', items[i].getAttribute('data-name')===n ? 'true' : 'false');
+    $('dpDetail').innerHTML = n ? _dpDetailHTML(n, _dp.held) : '<span class="dp-empty">Choose a drawback on the left to see what it does.</span>';
+    // Same rule the card used to apply: moving FROM a non-wound TO a wound defaults Locked + flat; moving
+    // between two wounds (or onto an ordinary drawback) leaves what the DM set alone.
+    var isW = !!(n && DATA.wounds && DATA.wounds[n]);
+    if(isW && !_dp.wasWound){ $('dpLocked').checked = true; $('dpRate').value = 'flat'; }
+    _dp.wasWound = isW;
+    $('dpImpose').disabled = !n;
+    $('dpImposeLbl').textContent = n ? 'Impose '+n : 'Impose';
+  }
+  function _dpFilter(){
+    var q = ($('dpSearch').value||'').trim().toLowerCase();
+    var groups = document.querySelectorAll('#dmDrawPick .dp-group');
+    for(var g=0; g<groups.length; g++){
+      var shown = 0, its = groups[g].querySelectorAll('.dp-item');
+      for(var i=0;i<its.length;i++){ var ok = !q || its[i].getAttribute('data-name').toLowerCase().indexOf(q)>=0; its[i].hidden = !ok; if(ok) shown++; }
+      groups[g].hidden = !shown;
+    }
+  }
+  function closeDrawPick(){
+    var ov = $('dmDrawPick'); if(ov) ov.classList.remove('on');
+    var op = _dp && _dp.opener; _dp = null;
+    if(op && document.body.contains(op)) try{ op.focus(); }catch(e){}
+  }
+  function openDrawPicker(opener){
+    var cid = opener.getAttribute('data-cid'), held = [];
+    try{ held = JSON.parse(opener.getAttribute('data-held')||'[]'); }catch(e){}
+    var lockedEl = _dpByCid('.dm-impose-draw-locked', cid), rateEl = _dpByCid('.dm-impose-draw-rate', cid);
+    var ov = $('dmDrawPick');
+    if(!ov){ ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'dmDrawPick'; document.body.appendChild(ov); }
+    var list = _dpGroups().map(function(g){
+      return '<div class="dp-group"><div class="dp-grp">'+esc(g.label)+'</div>'+g.names.map(function(n){
+        return '<button type="button" class="dp-item" role="option" aria-selected="false" data-name="'+esc(n)+'"><span>'+esc(n)+'</span><span class="dp-ap">'+(DATA.drawbacks[n]||0)+' AP</span></button>';
+      }).join('')+'</div>';
+    }).join('');
+    ov.innerHTML = '<div class="ov-card dp-card" role="dialog" aria-modal="true" aria-labelledby="dpTitle">' +
+      '<button type="button" class="ov-x" id="dpX" title="Close" aria-label="Close">&#10005;</button>' +
+      '<h3 class="ov-h" id="dpTitle">Impose a drawback</h3>' +
+      '<div class="ov-sub">Pick one to see what it does. An imposed drawback pays the player no AP and ignores its normal stat cap.</div>' +
+      '<div class="dp-grid"><div class="dp-list"><input type="search" id="dpSearch" class="field" placeholder="Search drawbacks&hellip;" aria-label="Search drawbacks" autocomplete="off">' +
+      '<div class="dp-items" id="dpItems" role="listbox" aria-label="Drawbacks">'+list+'</div></div>' +
+      '<div class="dp-detail" id="dpDetail" aria-live="polite"></div></div>' +
+      // feat/dm-impose-picker: reserved spot for an optional free-text "how it happened" name (pending owner decision K).
+      '<div class="dp-actions">' +
+      '<label style="display:flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" id="dpLocked"> Locked (needs your unlock before it can be bought off)</label>' +
+      '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px">Removal cost<select class="field" id="dpRate"><option value="flat">Flat</option><option value="expensive">Expensive (3&times;)</option></select></label>' +
+      '<button type="button" class="btn sm" id="dpImpose" disabled><span id="dpImposeLbl">Impose</span></button>' +
+      '<button type="button" class="btn sm ghost" id="dpCancel">Cancel</button></div></div>';
+    _dp = { cid: cid, held: held, sel: '', wasWound: false, opener: opener };
+    $('dpLocked').checked = !!(lockedEl && lockedEl.checked);
+    $('dpRate').value = (rateEl && rateEl.value) || 'flat';
+    ov.classList.add('on');
+    _dpSelect('');
+    $('dpSearch').focus();
+  }
+  document.addEventListener('click', function(e){
+    if(!_dp || !e.target.closest) return;
+    var item = e.target.closest('#dmDrawPick .dp-item');
+    if(item){ _dpSelect(item.getAttribute('data-name')); return; }
+    if(e.target.id==='dpX' || e.target.id==='dpCancel' || e.target.id==='dmDrawPick'){ closeDrawPick(); return; }
+    if(e.target.closest('#dpImpose')){
+      var n = _dp.sel; if(!n) return;
+      var sel = _dpByCid('.dm-impose-draw-sel', _dp.cid), lk = _dpByCid('.dm-impose-draw-locked', _dp.cid),
+          rt = _dpByCid('.dm-impose-draw-rate', _dp.cid), btn = _dpByCid('.dm-impose-draw-btn', _dp.cid);
+      if(!sel || !btn){ closeDrawPick(); return; }
+      sel.value = n; if(lk) lk.checked = $('dpLocked').checked; if(rt) rt.value = $('dpRate').value;
+      closeDrawPick();
+      btn.click();   // the existing handler sends the event, shows its status, and reloads the roster
+    }
+  });
+  document.addEventListener('input', function(e){ if(_dp && e.target && e.target.id==='dpSearch') _dpFilter(); });
+  document.addEventListener('keydown', function(e){
+    if(!_dp) return;
+    if(e.key==='Escape'){ e.preventDefault(); closeDrawPick(); return; }
+    if(e.key==='Tab'){   // keep focus inside the dialog
+      var f = Array.prototype.filter.call(document.querySelectorAll('#dmDrawPick button, #dmDrawPick input, #dmDrawPick select'),
+        function(x){ return !x.disabled && !x.hidden && x.offsetParent !== null; });
+      if(!f.length) return;
+      var first = f[0], last = f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+    }
+  });
   // feat/infobtn-click (2026-09-08): the click/tap path for every ⓘ button in this file (22 of them,
   // none of which had one before — see the .infobtn CSS comment above). One shared popover element,
   // reused for whichever button was clicked last; toggles closed on a second click of the SAME
@@ -2709,7 +2865,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-unlock-draw-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.dm-basicmode-btn') ||
           t.closest('.cf-val-save'))){
@@ -2864,6 +3020,9 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         });
         return;
       }
+
+      var openPick = t.closest ? t.closest('.dm-impose-draw-open') : null;
+      if(openPick){ openDrawPicker(openPick); return; }
 
       var imposeDrawBtn = t.closest ? t.closest('.dm-impose-draw-btn') : null;
       if(imposeDrawBtn && card){

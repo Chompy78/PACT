@@ -46,6 +46,14 @@
   of them grouped as Wounds, defaults to Locked + flat on choosing a wound, and sends exactly that. Parity fixtures
   EV-027/028/029 pin the warning lists. Run in CI as the `wounds` job of `.github/workflows/engine-parity.yml` and a step of
   `.github/workflows/dm-console-ui.yml`.
+- **`scripts/dm-impose-picker-e2e.mjs`** (`feat/dm-impose-picker`) — the DM Console's "Impose a drawback" pop-up (browser, no
+  Supabase; bridge stubbed). Proves the card has an opener button with the old controls kept hidden as the single send path; the window
+  lists every drawback once, wounds first, and search narrows it; the detail pane is read from `DATA` (effect text, tier, place, flat and
+  tripled buy-off, "cap not applied", caster warning) and warns about a same-place wound or a second copy the character already has;
+  choosing a wound defaults Locked + flat while moving between wounds leaves the DM's changes alone; Escape/Cancel close it, send
+  nothing and return focus; Impose sends one cost-0 purchase carrying the window's own Locked / removal-cost choices (checked with values
+  that differ from the card's defaults, after a mutation showed the first version could not tell). Run as a step of
+  `.github/workflows/dm-console-ui.yml`.
 - **`scripts/live-sheet-unlock-e2e.mjs`** and **`scripts/dm-console-unlock-e2e.mjs`**
   (`feat/dm-unlock-drawback`) — the two tools' halves of the DM unlock, driven in a real browser with no
   Supabase and no sign-in (a seeded `localStorage` character; stubbed + recorded bridge calls). The Live

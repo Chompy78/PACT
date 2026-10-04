@@ -28,6 +28,14 @@
   and compares it with the engine over all 52 build fixtures plus a +4-HD variant of each, a sweep of 5,720 purchases:
   identical, and verified to go red under two deliberate mutations (an off-by-one in `abil`, in `hd`). No behaviour
   change, no `DATA.version` bump; parity 77/0, tool-pricing 189/0, cost-customization 98/0, economy-ui 155/0.
+- **2026-10-04 · feat(dm-console): "Impose a drawback" is now a pop-up that shows each drawback's impact** — the dropdown gave a name and a
+  price and nothing else. The card now has a "Choose a drawback…" button that opens a window: a searchable list (wounds first, then the
+  rest) beside a detail pane showing the effect text, wound tier and body place, the buy-off cost flat and tripled, that a DM-imposed
+  drawback pays 0 AP and skips its normal stat cap, the caster-discipline warning, and a warning when it would stack on a wound in the
+  same place or add a second copy of one the character already has. Locked and removal cost are in the window; moving between wounds
+  leaves the DM's changes alone. The old controls stay in the DOM, hidden, as the single send path, so the event the server sees is
+  unchanged (no SQL, no engine, no `DATA.version` change). New gate `dm-impose-picker-e2e.mjs` (38 checks; two mutations caught),
+  wired into `dm-console-ui.yml`.
 - **2026-10-04 · chore(release): build `v1.554` → `v1.568`** — the `preview` → `main` promotion (PR #568) carries rules `v0.367` (DM-imposed drawbacks, DM unlock, Wounds). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched.
 - **2026-10-04 · feat(rules): DM-imposed Wounds — four wound-only drawbacks, a wound tier/place map; rules `v0.366` → `v0.367`** —
   a wound is a lasting injury a DM imposes in play (0 AP, locked until a story beat, bought off at 2 minor / 3–4 moderate AP;
