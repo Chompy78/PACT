@@ -540,6 +540,14 @@ export function compute(b, opts){
   // (every `feature` event before any `subabil` event): the live view and the saved-then-reloaded log must agree about which copy
   // counts, or Save + Load would silently swap it (pinned by subclass-double-purchase-ci.mjs).
   const _dupFeat=new Set(), _dupSub=new Set(), _dupSubKey={}, _dupSubSeen=new Set();
+  // Why the SUBCLASS door will not count this ability right now ([] = it will): Hit Dice first, then prerequisites — the same two gates,
+  // in the same order and wording, that the feature loop applies, so a purchase failing both says so (feat/subability-prereq). A
+  // prerequisite is a feature label, so it is read from _ownedFeatSet/_blockedFeat exactly as the feature loop reads it.
+  const _subWhy=a=>{const why=[];const _n=requiredHD(a);
+    if(hd<_n)why.push("needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[a.tier]||1)?"(level gate)":"(T"+a.tier+")"));
+    const miss=(a.prereq||[]).filter(function(r){return !_ownedFeatSet.has(r)||_blockedFeat.has(r);});
+    if(miss.length)why.push("requires "+(miss[0].split(": ")[1]||miss[0])+" first");
+    return why;};
   {const _byId={};for(const _k of (b.subAbilities||[])){const _a=DATA.subAbilMap[_k];if(_a&&!_byId[_subIdent(_a)])_byId[_subIdent(_a)]=_k;}
    for(const _id in _byId){if(!_ownedFeatSet.has(_id))continue;
      _dupSubKey[_id]=_byId[_id];
@@ -559,7 +567,7 @@ export function compute(b, opts){
       // its own line already stands for this ability, so the duplicate is not listed a second time (or its price counted twice).
       const _ka=DATA.subAbilMap[_dupSubKey[lab]];
       W.push("⛔ "+(lab.split(": ")[1]||lab)+" — duplicate: already owned as a "+_ka.sub+" subclass ability, bought first (this copy is not counted)");
-      if(!(hd<requiredHD(_ka))){blockedAP+=c;_BLI.push([lab,c]);}
+      if(!_subWhy(_ka).length){blockedAP+=c;_BLI.push([lab,c]);}
       continue;
     }
     if(_blockedFeat.has(lab)){
@@ -642,12 +650,12 @@ export function compute(b, opts){
       if(!_blockedFeat.has(_subIdent(a))){const _dc=_subPriceOf(a);blockedAP+=_dc;_BLI.push([_sLab,_dc]);}
       continue;
     }
-    // Same Hit-Dice gate as the feature loop, via the same requiredHD(). Blocked means NOT OWNED, so the
+    // Same two gates as the feature loop — Hit Dice (requiredHD) and prerequisites — via _subWhy(). Blocked means NOT OWNED, so the
     // subUsed[] marking below is skipped too — a blocked ability must not drag its subclass into the
     // paid-unlock accounting for a purchase that did not happen.
-    if(hd < requiredHD(a)){
-      {const _n=requiredHD(a);
-       W.push("⛔ "+a.name+" — blocked: needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[a.tier]||1)?"(level gate)":"(T"+a.tier+")")+" (not counted, not owned)");}
+    const _why=_subWhy(a);
+    if(_why.length){
+      W.push("⛔ "+a.name+" — blocked: "+_why.join(" & ")+" (not counted, not owned)");
       const _bc=_subPriceOf(a);
       blockedAP+=_bc;_BLI.push([_sLab,_bc]);continue;
     }
