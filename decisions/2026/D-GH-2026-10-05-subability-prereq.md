@@ -1,6 +1,6 @@
 # D-GH-2026-10-05-subability-prereq — Circle Forms requires base Wild Shape (subclass abilities can carry a prerequisite)
 
-**Status:** code DONE on branch `feat/subability-prereq` (stacked on `feat/subclass-double-purchase-guard`); `DATA.version` bumped **v0.369 → v0.370**. **The Players Guide is NOT yet updated** — see *Guide*. Do not call this closed until it is.
+**Status:** DONE — code merged (PR #588, `DATA.version` v0.370) and the Players Guide row landed 2026-10-06 (master + served copy; see *Guide*).
 
 ## Context
 
@@ -37,15 +37,11 @@ Add `"prereq":["Druid: Wild Shape"]` to Circle Forms in all three data copies, a
 - The three data copies must stay in step; the node gate fails if they drift, and it also fails if a prerequisite names something that is not a feature.
 - **Latent, still pinned by test from the previous change:** `compute()`'s prerequisite gate reads `b.features` only, so a prerequisite must be an ordinary feature (Wild Shape is). A subclass ability as a prerequisite of another would need `ownsAbility()`; the test fails the day one is added.
 
-## Guide (the half not done here)
+## Guide
 
-A mechanics change is not finished until the engine and the Players Guide both land it, and the guide master lives in `pact-guide`, a separate project this session did not edit. The served copy's Druid / Circle of the Moon table row currently reads, in raw HTML:
+A mechanics change is not finished until the engine and the Players Guide both land it. Landed 2026-10-06: the Druid / Circle of the Moon row's last cell changed from `Buy` to `Buy (needs Wild Shape)` in **both** the `pact-guide` master (through the home-server connector, which backs the old file up first) and this repo's served copy, as the same one-cell edit in each rather than a file copy (a plain copy would destroy the served copy's presentation-only additions). The Wild Shape row needed no change.
 
-```
-<tr><td style="background:#FBF5E9"><strong>Circle Forms</strong></td><td style="background:#FBF5E9">T3 Passive</td><td style="background:#FBF5E9">11 (9)</td><td style="background:#FBF5E9">Buy</td></tr>
-```
-
-Suggested patch (apply to the `pact-guide` master, then transfer per `docs/VERSION-SYNC.md` and run `node testing/scripts/verify-guide.mjs` before and after; do not edit the served copy alone — the next transfer would wipe it): change the last cell's text from `Buy` to `Buy (needs Wild Shape)`. The Wild Shape row itself ("Wild Shape T2 Premium 14 (13) Buy") needs no change.
+`node testing/scripts/verify-guide.mjs` before and after: **identical** — 1 of 11 checks fail (`feature prices`: ambiguous=6, unparsed-price=11, price-mismatch=1, stepped-feature=3), the other 10 pass. That check was already red at `5104a7c`, before any of the 2026-10-05 changes, and after each of them, so it is a pre-existing guide-vs-engine drift, not something this edit caused or fixed. The `documents-rules:` marker was deliberately not refreshed (it asserts a whole-guide reconciliation and is stamped by `pact-guide`'s own tool).
 
 ## Review
 
@@ -54,7 +50,7 @@ Reviewed before merge by three free-tier API reviewers (Groq returned 503, so tw
 | # | Finding | Verdict | Action |
 |---|---|---|---|
 | 1 | Blast radius not measured | Measured 2026-10-05: one live character owns Circle Forms and has base Wild Shape | Recorded in *Context*; **re-measure before merging** (`select … where stats::text like '%Circle of the Moon|Circle Forms%'`), because the figure is a dated snapshot |
-| 2 | No guide / changelog / decision / board | Timing artefact (review ran before they were written), except the guide | Guide patch ready; the guide itself is the open half (see *Guide*) |
+| 2 | No guide / changelog / decision / board | Timing artefact (review ran before they were written), except the guide | Guide row landed 2026-10-06 (see *Guide*) |
 | 3 | A per-door gate beside the feature loop's own logic | Defer | Deep fix is `refactor/subclass-purchase-unify` (already on the board); `_subWhy` copies the feature loop's wording and the node gate asserts both doors give identical text |
 | 4 | Prerequisite reads `b.features` only | Latent | Pinned: a test fails if any feature names a mirrored subclass ability as a prerequisite |
 | 5, 9 | The tile stays clickable with an amber note; CharGen's pickers do not pre-block it | Defer (UX) | Same behaviour as every other prerequisite-blocked feature today (only invocations flash in CharGen); post-lock the purchase is refused by `purchaseLegality`. Follow-up task: pre-grey prerequisite-blocked tiles in both tools |
