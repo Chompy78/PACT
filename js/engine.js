@@ -76,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.577";
+export const BUILD = "v1.583";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -1842,6 +1842,53 @@ export function tradeCoinTime(cost, mode) {
     days: Math.floor((Number(cost.days) || 0) * r.timeMult),
     mode,
   };
+}
+
+/**
+ * walletState(events, o) and walletCheck(events, o) — the gold-and-downtime WALLET and the check of one purchase against it, as pure data.
+ *
+ * MOVED from the Live Sheet (refactor/engine-wallet-check, 2026-10-05), where it lived as _lsWallet(), _lsOfferTrade() and _lsWalletShort(), so CharGen's
+ * after-lock purchases can show the same warning and trade offer from ONE implementation (plan docs/plans/2026-10-04-chargen-wallet-warning-q2.md; the same
+ * move was made for priceOf and purchaseLegality, because a copy in each tool drifted both times). The tools keep only their own prompts (confirm boxes) around
+ * the data. testing/scripts/engine-wallet-ci.mjs compares this with a frozen copy of the original over many wallets and quotes.
+ *
+ * o = { rules, campaignActive, campaignWindow, dmGold, quote }
+ *   rules           the economy setting: a band token or campaign rules (what resolveEconomyRules() returns), as wealthLedger() reads it
+ *   campaignActive  true only when the campaign's rules are CONFIRMED — the server-held inputs below are composed in ONLY then, because an unconfirmed
+ *                   campaign must not have its gold silently counted as zero
+ *   campaignWindow  {days, startTs} — the party-wide downtime window the server holds, or null
+ *   dmGold          gold the DM holds for the character (characters.gold)
+ *   quote           purchaseCost()'s answer {gp, days, time} for the purchase being checked (walletCheck only)
+ *
+ * walletState → {led, gpGranted, gpSpent, gpLeft, windowDays, daysSpentInWindow, daysLeft, daysSpent, on, band}.
+ * walletCheck → {wallet, shortGold, shortTime, shortGp, shortDays, trade}:
+ *   shortGold / shortTime  the quote exceeds what is left of that currency (a SOFT warning — a DM can waive or defer any cost, §17; never a block)
+ *   shortGp / shortDays    by how much (0 when covered)
+ *   trade                  the §16 coin-for-time offer, or null. Offered ONLY when it would help: short of exactly one currency AND the traded price would close
+ *                          (the other currency can pay for it). {mode, gp, days, time}: the figures to freeze onto the purchase if the player accepts.
+ * Prompt wording is deliberately not here: the data differs by nothing between tools, the words are each tool's own.
+ */
+export function walletState(events, o) {
+  const _o = o || {};
+  const led = wealthLedger(events, { band: _o.rules });
+  const active = !!_o.campaignActive;
+  const win = resolveDowntimeWindow({ events, campaignActive: active, campaignWindow: _o.campaignWindow || null });
+  return Object.assign({ led }, wealthWithDm(led, { dmGold: active ? (_o.dmGold || 0) : 0, window: win }), { on: led.on, band: led.band });
+}
+export function walletCheck(events, o) {
+  const _o = o || {};
+  const wallet = walletState(events, _o);
+  const q = _o.quote || null;
+  if (!q) return { wallet, shortGold: false, shortTime: false, shortGp: 0, shortDays: 0, trade: null };
+  const shortGold = q.gp > wallet.gpLeft, shortTime = q.days > wallet.daysLeft;
+  let trade = null;
+  if ((q.gp || q.days) && shortGold !== shortTime) {            // both fine, or both short — nothing to trade
+    const mode = shortGold ? 'timeForGold' : 'goldForTime';
+    const t = tradeCoinTime(q, mode);
+    // the trade has to actually close, or it is worse than useless: offering "spend 3x the gold" to a player who still cannot afford it just adds a click
+    if (t && !(t.gp > wallet.gpLeft || t.days > wallet.daysLeft)) trade = { mode, gp: t.gp, days: t.days, time: q.time };
+  }
+  return { wallet, shortGold, shortTime, shortGp: shortGold ? q.gp - wallet.gpLeft : 0, shortDays: shortTime ? q.days - wallet.daysLeft : 0, trade };
 }
 
 /**

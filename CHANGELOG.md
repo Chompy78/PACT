@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix(chargen): after the lock, ticking Improvised weapons right after buying All martial is no longer refused as "giving up" Simple (found by the post-lock parity fuzz)** —
+  the Simple box can stay unticked after an All-martial purchase; the diff now treats All martial as including Simple, as the Live Sheet's tile does.
+
+- **2026-10-05 · fix(chargen): after the lock, a subclass ability or spell list of a class the character has no access to is refused (Live Sheet parity; found by the post-lock parity fuzz)** —
+  the Live Sheet offers them only for the origin class and unlocked classes; CharGen's picker listed every class. Report: `docs/sessions/2026-10-05-post-lock-parity-fuzz.md`.
+
+- **2026-10-05 · fix(chargen): loading a character while a locked one is open no longer overflows the stack (found by the post-lock parity fuzz)** —
+  `_cgPostLockAppend` and `retractFlatEvent` now do nothing while a load/restore is rebuilding the form (`_histSuspended`); before, the
+  rebuild re-synced the form against the still-locked old log, which looped until the browser threw "Maximum call stack size exceeded"
+  (present on live since #573). Regression section added to `chargen-flows-e2e.mjs`; the fuzz harness is `testing/scripts/post-lock-parity-fuzz.mjs`.
+
 - **2026-10-04 · fix(chargen): after "Finish creating", raising Hit Dice, proficiency or an ability score APPENDS the same in-play
   purchase the Live Sheet records, and lowering them is refused (phase 1 of `fix/chargen-post-lock-purchases`)** — CharGen used to
   rewrite the slot's creation-era event in place after the lock (Hit Dice 3 → 4 turned that event from 5 to 8 AP, still before
@@ -65,6 +76,44 @@
   and the `pact-guide` master (edited in place). Fixtures EV-025/026 swapped `Lame` for `Frightening Visage`; new EV-027/028/029;
   new gates `wounds-ci.mjs` (37) and `wounds-ui-e2e.mjs` (24), both wired into CI. 0 of 50 live characters affected.
   See `D-GH-2026-10-04-permanent-wounds`.
+- **2026-10-05 · chore(release): promote `preview` → `main` as `v1.583` (PR #583)** — ships #579 (CharGen refuses post-lock edits to spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields; opening a locked campaign character
+  no longer rewrites its history), #581 and #582 (the Live Sheet's wallet / shortfall / trade-offer decision moved into the engine as `walletCheck`, and CharGen showing the same warning and §16 trade offer after the lock), and #580 (the server-freeze stage 1
+  migration, rollback, rehearsal and audits — **files only; not applied to the live database**), plus plans, board tasks and session logs. `BUILD` synced `v1.577` → `v1.583` across `js/engine.js` and the three tools; `DATA.version` untouched by the bump. No tag.
+- **2026-10-05 · feat(chargen): after "Finish creating", CharGen records spellcasting INCREASES — rank, cantrips, slots, known spells, a new discipline, a new tradition — as in-play purchases; only decreases are refused**
+  (`feat/chargen-2b2-traditions-diff`; phase 2b-2; owner: "just don't allow a decrease — adding disciplines etc. too"; plan `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md`) — replaces #579's blanket refusal of
+  spellcasting. The form's nested spell list is diffed against the folded build into the Live Sheet's own `found` / `rank` / `cantrip` / `slot` / `known` purchases (existing traditions and disciplines must remain, same order and names;
+  everything may go UP, one purchase per +1; found → rank → cantrips/slots/known so each gate is met), each priced by `priceOf`, checked by `purchaseLegality`, charged and wallet-checked like every other in-play purchase, all-or-nothing.
+  The Live Sheet's UI-only rules are restated: a level-L slot or known spell needs tradition rank L and the Hit Dice gate for L, no cantrips for Paladin/Ranger, no known spells for prepared casters, a second discipline or tradition only where
+  the campaign allows multi-discipline casting. Still refused: any decrease or removal/rename, "Magically Bound" (it grants AP), Warlock pact slots and arcanum (no purchase exists in either tool). Found by the new **post-lock parity fuzz**
+  (`testing/scripts/post-lock-parity-fuzz.mjs`: thousands of seeded random post-lock purchases through the real UI of both tools, compared): weapon proficiency "All martial" must be ONE purchase that includes Simple (CharGen split it in two,
+  which changes the gold/downtime band), and a free subclass is only for a class the character has (CharGen accepted any class). 80 new browser checks (198 pass, 0 fail) including a head-to-head against the Live Sheet's `buy()`,
+  13 refusal cases and a 300-case randomised property test. No engine change, no `DATA.version` change.
+- **2026-10-05 · feat(chargen): after "Finish creating", with the campaign economy on, CharGen shows the Live Sheet's wallet-shortfall warning and the §16 coin-for-time trade offer**
+  (`feat/chargen-wallet-warning`; Q2 step 2, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq) — built on the engine's shared `walletCheck()` (#581), so the decision is the Live Sheet's own: the wallet is the
+  character's log plus the **DM-held gold** (`characters.gold`, read through a new `refreshServerGold()`/`cachedServerGold()` in `js/sync.js`) plus the **party downtime window** (`get_downtime_window`, via `js/dm.js`), fetched when the campaign
+  is resolved and composed only when the campaign is confirmed active. A trade is offered per step against a running wallet, only when short of exactly one currency and the traded price would close; Cancel abandons the purchase, as in the Live
+  Sheet; the soft shortfall warning is ONE confirm for the whole edit (all-or-nothing); the figures frozen on the purchase are whatever the player accepted. If the DM gold or window cannot be confirmed (offline, error) it is never silently zero:
+  the cached/last figures are used and the prompt says they could not be confirmed. 20 new browser checks (181 pass, 0 fail), including four head-to-head scenarios against the Live Sheet's `buy()`. No engine change, no `DATA.version` change.
+- **2026-10-05 · refactor(engine): the Live Sheet's gold-and-downtime wallet, soft shortfall warning and §16 trade-offer decision move into the engine as `walletState()` / `walletCheck()`**
+  (`refactor/engine-wallet-check`; Q2 step 1, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq: "move it into the engine now, do not copy first") — `_lsWallet`, the decision half of
+  `_lsOfferTrade` and `_lsWalletShort` become pure data in `js/engine.js` (what is left of each currency from the character's own log plus the DM-held gold and the party downtime window, composed only when the campaign is confirmed
+  active; whether a coin-for-time trade is worth offering — short of exactly one currency and the traded price would close; and by how much the purchase is short). The Live Sheet delegates and keeps only its own prompt wording; behaviour is
+  unchanged (its 155-check economy browser gate and the 189-check tool-pricing gate pass). New gate `testing/scripts/engine-wallet-ci.mjs` + frozen reference `lib/ls-wallet-reference.js`: 66,589 comparisons over 24,000 seeded scenarios
+  (349 trade offers, 14,002 shortfalls, 4,580 covered), red under mutation (a trade that cannot close: 4,685 mismatches); wired as the `engine-wallet` CI job. Next (Q2 step 2): CharGen loads the DM gold and party window and shows the same
+  warning and trade offer after the lock. No `DATA.version` change.
+- **2026-10-05 · fix(chargen): after "Finish creating", spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields are refused instead of rewritten in place; opening a locked campaign character no longer rewrites its history**
+  (`fix/chargen-post-lock-2b1-refusals`; phase 2b-1, plan `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md`, cold-reviewed by Gemini + Groq) — the last four patch slots (`traditions`, `innate`, `misc`, `identity`) used to rewrite
+  their creation-era event in place after the lock (a refund route; no Live Sheet purchase exists for innate spells or dabbler cantrips, martial binding GRANTS AP, origin fields are creation-only). A write that changes nothing is a no-op; anything
+  else is refused with a plain message (spellcasting points at the Live Sheet, which records each rank, cantrip, slot and known spell as an in-play purchase) and the control goes back. A real defect found on the way, by the browser
+  test: a refused edit repaints the form, the repaint rebuilds the spell rows, and those re-sync the slot — it recursed until the stack overflowed; slot syncs are now skipped while a repaint is in progress. And one found by the server-freeze
+  round-trip audit (`docs/plans/2026-10-04-server-freeze-d2-e1.md`): CharGen's "don't rewrite protected history" guard followed seals and awards but not the lock, so opening a **locked campaign character** that began in the Live Sheet moved its
+  "Imported budget" award from the top of the log to the end and added a `name` event — which the planned server freeze would refuse. The guard now honours the lock too, and stays silent during a load-time reconcile. 18 new browser checks
+  (164 pass, 0 fail). No `DATA.version` change.
+- **2026-10-05 · feat(sql): server freeze stage 1 (D2 + E1) written, rehearsed and audited — NOT applied to the live database** (`feat/server-freeze-stage1`; decision `D-GH-2026-10-05-server-freeze-stage1`, plan
+  `docs/plans/2026-10-04-server-freeze-d2-e1.md`, cold-reviewed by Gemini + Groq + a no-context judge) — `sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` (+ rollback): priced `patch` events join the protected history
+  (fail-closed on field names, with a permanent no-AP exempt list and a temporary one), and a campaign character's lock becomes a freeze boundary like a seal (lifted by a DM reopen). Functions only, no data change. Docker rehearsal
+  (`run-freeze.sh`, CI job `freeze-rehearsal`): 36 attacks work today → 61/61 pass after → rollback byte-identical; `backup-replay-audit.mjs` replays 457 real saves (all 24 new refusals are history rewrites after a lock);
+  `roundtrip-audit.mjs` loads every frozen live character in the real tools (0 differences, after the CharGen load fix in #579). Applying it is the owner's decision; baseline-file folding is documented in the harness README.
 - **2026-10-04 · chore(release): promote `preview` → `main` as `v1.577` (PR #577)** — ships #573 (CharGen: nothing bought can be unticked after the lock, new drawbacks refused,
   flat purchases priced and charged in play), #575 (the Live Sheet's purchase-legality rules moved into the engine as `purchaseLegality`; CharGen uses them), #576 (CharGen
   phase 2a: languages, vigor/grit, ki, sorcery, attunement, armour, weapon proficiency and free subclass as in-play purchases), plus the already-merged DM-imposed wounds

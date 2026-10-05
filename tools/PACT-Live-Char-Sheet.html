@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.577.html**-->
+<!--**PACT-Live-Char-Sheet v1.583.html**-->
 
 <!doctype html>
 <!--
@@ -666,16 +666,11 @@ function _lsWalletLine(uptoIdx){
 //
 // Returns: null (no trade — proceed at list price), a {gp,days} to use instead, or false (cancel).
 function _lsOfferTrade(q){
-  var E=window._engineEcon; if(!E||!q||(!q.gp&&!q.days)) return null;
-  var w=_lsWallet(null); if(!w) return null;
-  var shortGold=q.gp>w.gpLeft, shortTime=q.days>w.daysLeft;
-  if(shortGold===shortTime) return null;          // both fine, or both short — nothing to trade
-  var mode=shortGold?'timeForGold':'goldForTime';
-  var t=E.tradeCoinTime(q,mode);
-  if(!t) return null;
-  // The trade has to actually close, or it is worse than useless: offering "spend 3× the gold" to a
-  // player who then still cannot afford it just adds a click before the same shortfall warning.
-  if(t.gp>w.gpLeft || t.days>w.daysLeft) return null;
+  var E=window._engineEcon; if(!E||!E.walletCheck||!q||(!q.gp&&!q.days)) return null;
+  // Whether a trade is offered at all (short of exactly one currency, and the traded price would close) is decided by the engine's walletCheck(), shared with CharGen;
+  // only the wording is this tool's.
+  var wc=E.walletCheck(eventsUpTo(null), _lsWalletOpts(null,q)); if(!wc.trade) return null;
+  var shortGold=wc.shortGold, t=wc.trade;
   var msg=shortGold
     ? ('You are short of gold for this purchase ('+q.gp.toLocaleString()+' gp), but you have downtime to spare.\n\n'
        +'§16 lets you train through a long season instead of paying a master\'s fee: accept TRIPLE the\n'
@@ -695,10 +690,11 @@ function _lsOfferTrade(q){
   return { gp:t.gp, days:t.days, time:q.time };
 }
 function _lsWalletShort(q){
-  var w=_lsWallet(null); if(!w||!q) return '';
+  var E=window._engineEcon; if(!E||!E.walletCheck||!q) return '';
+  var wc=E.walletCheck(eventsUpTo(null), _lsWalletOpts(null,q));
   var bits=[];
-  if(q.gp   > w.gpLeft)   bits.push('short '+(q.gp-w.gpLeft).toLocaleString()+' gp');
-  if(q.days > w.daysLeft) bits.push('short '+window._engineEcon.formatDowntime(q.days-w.daysLeft));
+  if(wc.shortGold) bits.push('short '+wc.shortGp.toLocaleString()+' gp');
+  if(wc.shortTime) bits.push('short '+E.formatDowntime(wc.shortDays));
   return bits.join(' · ');
 }
 // The coin-and-calendar half of a quote for a purchase costing `cost` AP — '' when the economy is off
@@ -711,15 +707,19 @@ function _lsQuote(cost){
 // The composed wallet: what this character's own LOG grants and spends, plus the DM-held pool.
 // The DM pool rides the SAME 'active' gate as DM AP — a campaign whose rules are unconfirmed must not
 // have its server-side gold silently counted as zero, so it simply isn't composed in until resolved.
+// The inputs the engine's wallet functions read, from this tool's own state: the economy rules, whether the campaign is CONFIRMED active (the server-held inputs are
+// composed in only then), the party downtime window and the DM-held gold. The wallet itself — what is left of each currency — is the engine's walletState().
+function _lsWalletOpts(uptoIdx, quote){
+  return { rules:_lsEconRules(uptoIdx), campaignActive:window._rulesStatus==='active', campaignWindow:window._dmWindow||null, dmGold:window._dmGold||0, quote:quote||null };
+}
+// The composed wallet: what this character's own LOG grants and spends, plus the DM-held pool.
+// The DM pool rides the SAME 'active' gate as DM AP — a campaign whose rules are unconfirmed must not
+// have its server-side gold silently counted as zero, so it simply isn't composed in until resolved.
+// Gold is a flat additive top-up (dmGold); downtime is the resolved WINDOW — a solo player's own self-declared window from their LOG, or the campaign's party-wide one.
+// The composition lives in js/engine.js (walletState) since refactor/engine-wallet-check, shared with CharGen.
 function _lsWallet(uptoIdx){
-  var E=window._engineEcon; if(!E) return null;
-  var led=E.wealthLedger(eventsUpTo(uptoIdx),{band:_lsEconRules(uptoIdx)});
-  var a=window._rulesStatus==='active';
-  // Gold and downtime compose differently now (see js/engine.js's wealthWithDm header): gold is
-  // still a flat additive top-up (dmGold), but downtime is the resolved WINDOW — a solo player's
-  // own self-declared window from their LOG, or the campaign's party-wide one — never a flat number.
-  var win=_lsDowntimeWindow(uptoIdx);
-  return Object.assign({led:led}, E.wealthWithDm(led,{dmGold:a?(window._dmGold||0):0, window:win}), {on:led.on,band:led.band});
+  var E=window._engineEcon; if(!E||!E.walletState) return null;
+  return E.walletState(eventsUpTo(uptoIdx), _lsWalletOpts(uptoIdx));
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on
 // (default true when absent/unset — opposite default from ignore_player_ap), who has actually spent
@@ -2684,7 +2684,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -2695,7 +2695,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
-  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
+  window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.

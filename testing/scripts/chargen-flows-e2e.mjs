@@ -960,6 +960,305 @@ section('CharGen records post-lock raises of the flat slots as in-play purchases
   await ctx.close();
 }
 
+// fix/chargen-post-lock-2b1-refusals (phase 2b-1; plan docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md, cold-reviewed 2026-10-04): after the lock
+// the spellcasting, innate, misc (martial binding / out-of-tradition cantrips) and identity (species, origin class, size, lineage) slots no longer rewrite
+// their creation-era patch event in place. A write that changes nothing is a no-op; anything else is refused with a plain message and the control goes back.
+section('CharGen refuses post-lock edits to spellcasting, innate, misc and identity (B2, phase 2b-1)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent, b: (() => { const b = foldBuild(LOG); return { trad: b.traditions, innate: b.innate, mb: b.martiallyBound, dab: b.dabblerCantrips, species: b.species, size: b.size, lineage: b.lineage }; })() }));
+  const TRAD = [{ name: 'Primal', rank: 1, disciplines: [{ name: 'Druid', bound: false, known: [0,0,0,0,0,0,0,0,0], slots: [1,0,0,0,0,0,0,0,0], arcanum: [0,0,0,0], cantrips: 1, pactSlots: 0 }] }];
+  const TRAD2 = JSON.parse(JSON.stringify(TRAD)); TRAD2[0].disciplines[0].cantrips = 2; TRAD2[0].rank = 2;
+
+  // ---- before the lock: unchanged — the spellcasting slot is still one patch event rewritten in place ----
+  await fresh();
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD);
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  const pre = await snap();
+  check('before the lock: spellcasting edits still rewrite the one traditions slot event in place',
+    pre.log.filter(e => e.cat === 'patch' && e._slot === 'traditions').length === 1 && JSON.stringify(pre.b.trad) === JSON.stringify(TRAD2), JSON.stringify(pre.b.trad).slice(0, 120));
+
+  // ---- after the lock ----
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300);
+  const a0 = await snap(); dialogs = [];
+  const refused = async (what, act, re) => { dialogs = []; const before = await snap(); await act(); const after = await snap();
+    check(`after the lock: ${what} is refused — nothing written and spent unchanged`, after.log.length === before.log.length && JSON.stringify(after.b) === JSON.stringify(before.b) && after.spent === before.spent, JSON.stringify({ n0: before.log.length, n1: after.log.length }));
+    check('...the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60)))); };
+  await refused('lowering spellcasting (rank 2 -> 1, cantrips 2 -> 1)', () => p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD), /can only go up once creation is finished/);
+  await refused('changing innate spells', () => p.evaluate(() => replacePatchSlot(PATCH_SLOTS.INNATE, { innate: [1, 0, 0, 0, 0, 0, 0, 0, 0] })), /Innate spells are chosen during creation/);
+  await refused('taking martial binding (it grants AP)', () => setSel('martiallyBound', 'Fighter'), /binding give you AP/);
+  await refused('adding out-of-tradition cantrips', () => setSel('dabblerCantrips', 2), /Out-of-Tradition cantrips are chosen during creation/);
+  const otherSpecies = await p.evaluate(() => { const cur = document.getElementById('spec').value; return [...document.getElementById('spec').options].map(o => o.value).find(v => v && v !== cur); });
+  await refused('changing species', () => setSel('spec', otherSpecies), /origin .*is chosen during creation/);
+  check('...and each control goes back to what the character is', (await p.evaluate(() => [document.getElementById('martiallyBound').value, document.getElementById('dabblerCantrips').value, document.getElementById('spec').value])).join('|') !== '', '');
+
+  // a write that changes nothing is a no-op: no dialog, nothing appended
+  dialogs = []; const nB = (await snap()).log.length;
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  check('after the lock: writing the spellcasting the character already has is a silent no-op', dialogs.length === 0 && (await snap()).log.length === nB, JSON.stringify(dialogs));
+
+  // a reload of a locked character that has spells raises no refusal (the form re-sync must not look like an edit)
+  await p.evaluate(() => _cgAutosave()); dialogs = [];
+  await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(3000);
+  const rl = await snap();
+  check('reloading a locked spellcaster raises no refusal and keeps the spell slot as it was', dialogs.length === 0 && JSON.stringify(rl.b.trad) === JSON.stringify(TRAD2), JSON.stringify({ d: dialogs.map(d => d.msg.slice(0, 60)) }));
+
+  // A CAMPAIGN character that is locked is frozen by the server up to the lock (D2), so opening it must not rewrite the history before the lock — the
+  // Live Sheet's "Imported budget" award at index 0 used to be re-emitted at the END as "Budget" on every load (round-trip audit, 2026-10-04).
+  await fresh();
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD2);
+  await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(() => { window._cgCampaignId = '00000000-0000-0000-0000-00000000c001'; });
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const protectedSig = log => JSON.stringify(log.filter(e => e.type === 'award' || (e.type === 'buy' && e.cat !== 'patch')).map(e => { const x = { ...e }; delete x.seq; delete x.ts; delete x.rules; return x; }));
+  const c0 = await snap(); dialogs = [];
+  await p.evaluate(e => { _cgApplyEnvelope(JSON.parse(e), {}); }, env); await p.waitForTimeout(600);
+  const c1 = await snap();
+  check('opening a locked CAMPAIGN character leaves its award and purchases exactly where they were (no rewrite, no warning)',
+    protectedSig(c0.log) === protectedSig(c1.log) && c1.log.findIndex(e => e.type === 'award') === c0.log.findIndex(e => e.type === 'award') && dialogs.length === 0,
+    JSON.stringify({ awardAt0: c0.log.findIndex(e => e.type === 'award'), awardAt1: c1.log.findIndex(e => e.type === 'award'), d: dialogs.map(d => d.msg.slice(0, 50)) }));
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
+// feat/chargen-wallet-warning (Q2; plan docs/plans/2026-10-04-chargen-wallet-warning-q2.md, cold-reviewed 2026-10-04): after the lock, with the campaign economy on, CharGen shows the Live Sheet's
+// soft wallet-shortfall warning and the §16 coin-for-time trade offer. WHETHER to offer a trade and how short a purchase is come from the engine's walletCheck() (shared with the Live Sheet);
+// a multi-step edit gets its trade offers step by step against a running wallet and ONE aggregated shortfall confirm, all-or-nothing.
+section('CharGen shows the wallet shortfall warning and the §16 trade offer after the lock (Q2)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [], answers = [];   // answers: what to do with each confirm, in order (default: accept)
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); const a = d.type() === 'confirm' && answers.length ? answers.shift() : true; await (a ? d.accept() : d.dismiss()); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; answers = []; };
+  const tick = async (cls, val, on) => { await p.evaluate(([cls, val, on]) => { const el = [...document.querySelectorAll('.' + cls)].find(e => e.value === val); el.checked = on; el.dispatchEvent(new Event('change', { bubbles: true })); }, [cls, val, on]); await p.waitForTimeout(300); };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+  const after = (s) => s.log.slice(lockIdx(s.log) + 1).filter(e => e.type === 'buy').map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, gp: e.gp, days: e.days }));
+  const econOn = () => p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar \u2014 Standard' }); render(); });
+  // a campaign-bound character whose campaign is CONFIRMED, with the server-held gold and the party window the tool would have fetched
+  const campaign = (o) => p.evaluate(o => { window._cgCampaignId = '00000000-0000-0000-0000-00000000c001'; window._cgCampaignBound = true; window._cloudCampaign = { name: 't', rules: { economy: { band: 'standard' } } };
+    window._dmApStatus = o.status || 'active'; window._cgDmGold = o.gold; window._cgDmWindow = o.window; window._cgWalletConfirmed = o.confirmed !== false; }, o);
+  const [B] = await (async () => { await fresh(); return p.evaluate(() => [...document.querySelectorAll('.boonck')].map(e => e.value).filter(v => v === 'Crippling Strike')); })();   // a 4 AP boon: 25 gp / 7 days in play
+  const lock = async () => { await econOn(); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); };
+
+  // 1. a locked campaign character with NO gold and a big window: short of gold only, the trade would not close -> shortfall confirm, no trade offer
+  await fresh(); await lock(); await campaign({ gold: 0, window: { days: 60, startTs: 0 } });
+  answers = [false]; await tick('boonck', B, true);
+  let s1 = await snap();
+  check('short of gold with downtime to spare, and no trade could close: ONE shortfall confirm and no trade offer', dialogs.filter(d => d.type === 'confirm').length === 1 && /short 25 gp/.test(dialogs[0].msg) && !/Take the trade/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 90))));
+  check('...declining it abandons the purchase: nothing appended and the tick is cleared', after(s1).length === 0 && !(await p.evaluate(v => [...document.querySelectorAll('.boonck')].find(e => e.value === v).checked, B)));
+  dialogs = []; answers = [true]; await tick('boonck', B, true); s1 = await snap();
+  check('...accepting it records the purchase at the list price (25 gp, 7 days) — a DM can waive or defer', JSON.stringify(after(s1)) === JSON.stringify([{ cat: 'boon', payload: { v: B }, cost: 4, gp: 25, days: 7 }]), JSON.stringify(after(s1)));
+
+  // 2. DM-held gold but only 3 days of window: short of downtime only, rich in gold -> the §16 trade offer; accepting freezes the TRADED price
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 3, startTs: 0 } });
+  answers = [true]; await tick('boonck', B, true);
+  const s2 = await snap();
+  check('short of downtime but rich in DM-held gold: the §16 trade offer is shown (and no shortfall confirm follows it once the trade covers it)',
+    dialogs.filter(d => d.type === 'confirm').length === 1 && /short of downtime/.test(dialogs[0].msg) && /Traded:/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 80))));
+  check('...accepting freezes the TRADED price on the purchase (75 gp, 3 days)', JSON.stringify(after(s2)) === JSON.stringify([{ cat: 'boon', payload: { v: B }, cost: 4, gp: 75, days: 3 }]), JSON.stringify(after(s2)));
+  const envTrade = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));   // for the head-to-head below (state AFTER; rebuilt below instead)
+
+  // 2b. cancelling the trade offer abandons the purchase (the Live Sheet's rule: "Cancel = leave the purchase alone")
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 3, startTs: 0 } });
+  answers = [false]; await tick('boonck', B, true); const s2b = await snap();
+  check('cancelling the trade offer abandons the purchase: nothing appended, the tick is cleared, and no second prompt follows', after(s2b).length === 0 && dialogs.filter(d => d.type === 'confirm').length === 1 && !(await p.evaluate(v => [...document.querySelectorAll('.boonck')].find(e => e.value === v).checked, B)), JSON.stringify({ n: after(s2b).length, d: dialogs.length }));
+
+  // 3. the DM-held gold and window cover it: silence (the false-shortfall case)
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 60, startTs: 0 } });
+  await tick('boonck', B, true); const s3 = await snap();
+  check('DM-held gold and a big window cover the price: no prompt at all, charged at list price', dialogs.length === 0 && after(s3)[0] && after(s3)[0].gp === 25 && after(s3)[0].days === 7, JSON.stringify(dialogs.map(d => d.msg.slice(0, 60))));
+
+  // 4. an UNCONFIRMED campaign (status 'unavailable'): the server inputs are NOT composed — no phantom gold — and the prompt says the figures are unconfirmed
+  await fresh(); await lock(); await campaign({ gold: 5000, window: { days: 60, startTs: 0 }, status: 'unavailable', confirmed: false });
+  answers = [false]; await tick('boonck', B, true);
+  check('an unconfirmed campaign does not count the DM-held gold (shortfall shown from the own log) and the prompt says it could not be confirmed',
+    dialogs.filter(d => d.type === 'confirm').length === 1 && /short 25 gp/.test(dialogs[0].msg) && /could not be confirmed/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 120))));
+
+  // 5. a two-step edit (Hit Dice 3 -> 5, 25 gp + 7 days each) against a wallet that covers ONE step: a single aggregated confirm, all-or-nothing
+  await fresh(); await setSel('hd', 3); await lock(); await campaign({ gold: 25, window: { days: 60, startTs: 0 } });
+  answers = [false]; await setSel('hd', 5);
+  const s5a = await snap();
+  check('a two-step edit short of gold gets ONE shortfall confirm for the whole edit (not one per step)', dialogs.filter(d => d.type === 'confirm').length === 1 && /This edit costs 50 gp/.test(dialogs[0].msg) && /short 25 gp/.test(dialogs[0].msg), JSON.stringify(dialogs.map(d => d.msg.slice(0, 100))));
+  check('...cancelling appends nothing and Hit Dice go back', after(s5a).length === 0 && (await p.evaluate(() => document.getElementById('hd').value)) === '3', JSON.stringify(after(s5a)));
+  dialogs = []; answers = [true]; await setSel('hd', 5); const s5b = await snap();
+  check('...accepting appends both steps, each stamped with its own charge (25 gp / 7 days)', after(s5b).length === 2 && after(s5b).every(e => e.cat === 'hd' && e.gp === 25 && e.days === 7), JSON.stringify(after(s5b)));
+
+  // 6. economy off: silent, no charge stamped
+  await fresh(); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); await tick('boonck', B, true); const s6 = await snap();
+  check('economy off: no prompts and no gold/downtime stamped', dialogs.length === 0 && after(s6)[0] && after(s6)[0].gp === undefined, JSON.stringify(dialogs.length));
+
+  // 7. head to head with the Live Sheet: the same wallet, the same answer, the same frozen charge (list price after declining the trade; traded price after accepting it)
+  const headToHead = async (label, gold, window_, answersCg, answersLs) => {
+    await fresh(); await lock(); await campaign({ gold, window: window_ });
+    const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+    answers = answersCg.slice(); await tick('boonck', B, true); const cg = after(await snap());
+    const lp = await ctx.newPage(); const lpd = []; let la = answersLs.slice();
+    lp.on('dialog', async d => { lpd.push(d.message()); const a = d.type() === 'confirm' && la.length ? la.shift() : true; await (a ? d.accept() : d.dismiss()); });
+    await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+    await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+    await lp.evaluate(o => { window._rulesStatus = 'active'; window._dmGold = o.gold; window._dmWindow = o.window; window._cloudCampaignRules = { economy: { band: 'standard' } }; }, { gold, window: window_ });
+    await lp.evaluate(v => { buy('boon', { v }, 'Boon \u2014 ' + v); }, B);
+    const lsLog = await lp.evaluate(() => JSON.parse(JSON.stringify(LOG)));
+    const ls = lsLog.slice(lockIdx(lsLog) + 1).filter(e => e.type === 'buy').map(e => ({ cat: e.cat, payload: e.payload, cost: e.cost, gp: e.gp, days: e.days }));
+    check(`head to head (${label}): CharGen and the Live Sheet freeze the same charge`, JSON.stringify(cg) === JSON.stringify(ls), JSON.stringify({ cg, ls }));
+    await lp.close();
+  };
+  await headToHead('trade accepted', 5000, { days: 3, startTs: 0 }, [true], [true]);
+  await headToHead('trade cancelled (abandons the purchase in both)', 5000, { days: 3, startTs: 0 }, [false], [false]);
+  await headToHead('shortfall declined (abandons the purchase in both)', 0, { days: 60, startTs: 0 }, [false], [false]);
+  await headToHead('short of gold, accepted', 0, { days: 60, startTs: 0 }, [true], [true]);
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
+// feat/chargen-2b2-traditions-diff (owner, 2026-10-05: "just don't allow a decrease — adding disciplines etc. too"). After the lock CharGen turns the spell form's nested list into the Live
+// Sheet's own found / rank / cantrip / slot / known purchases: everything may go UP (including a new discipline or tradition), nothing may go DOWN or change identity.
+section('CharGen records post-lock spellcasting increases as in-play purchases; only decreases are refused (phase 2b-2)');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e)));
+  let dialogs = [];
+  p.on('dialog', async d => { dialogs.push({ type: d.type(), msg: d.message() }); await d.accept(); });
+  const fresh = async () => { await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+    await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} }); await p.reload({ waitUntil: 'load' }); await p.waitForTimeout(2500); dialogs = []; };
+  const setSel = async (id, v) => { await p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = String(v); el.dispatchEvent(new Event('change', { bubbles: true })); }, [id, v]); await p.waitForTimeout(300); };
+  const snap = () => p.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), spent: economy(LOG).spent, total: compute(foldBuild(LOG), _cgDmOpts()).total, trad: foldBuild(LOG).traditions }));
+  const lockIdx = l => l.findIndex(e => e.type === 'creationLocked');
+  const pick = e => ({ cat: e.cat, payload: e.payload, cost: e.cost, label: e.label, level: e.level, gp: e.gp, days: e.days });
+  const post = s => s.log.slice(lockIdx(s.log) + 1).filter(e => e.type === 'buy').map(pick);
+  const econOn = () => p.evaluate(() => { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: Date.now(), label: 'Coin & calendar — Standard' }); render(); });
+  const edit = (fn, ...args) => p.evaluate(([src, a]) => { const f = eval('(' + src + ')'); const cur = JSON.parse(JSON.stringify(foldBuild(LOG).traditions || [])); const next = f(cur, ...a); replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: next }); }, [fn.toString(), args]);
+  const D = await (async () => { await fresh(); return p.evaluate(() => ({ arcane: DATA.disc.Arcane.filter(x => (DATA.prepared || []).indexOf(x) < 0)[0], arcane2: DATA.disc.Arcane.filter(x => (DATA.prepared || []).indexOf(x) < 0)[1], primalPrep: DATA.disc.Primal.filter(x => (DATA.prepared || []).indexOf(x) >= 0)[0], divine: DATA.disc.Divine[0], hdGate: DATA.hdGate })); })();
+  const mk = (trad, rank, discs) => ({ name: trad, rank, disciplines: discs.map(d => ({ name: d[0], bound: false, cantrips: d[1] || 0, slots: d[2] || [0,0,0,0,0,0,0,0,0], known: d[3] || [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] })) });
+  const START = [mk('Arcane', 2, [[D.arcane, 1, [1,0,0,0,0,0,0,0,0], [1,0,0,0,0,0,0,0,0]]])];
+
+  // ---- the head-to-head: raise things, add a discipline, add a tradition — CharGen vs the Live Sheet's own buy() ----
+  await fresh(); await setSel('hd', 5); await setSel('st_INT', 18); await setSel('budget', 400);   // slots are capped at the casting modifier, cantrips at proficiency + modifier; the budget pays for 12 purchases
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), START);
+  await econOn(); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300);
+  const env = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const NEXT = JSON.parse(JSON.stringify(START));
+  NEXT[0].rank = 4; NEXT[0].disciplines[0].cantrips = 2; NEXT[0].disciplines[0].slots[0] = 3; NEXT[0].disciplines[0].slots[1] = 1; NEXT[0].disciplines[0].known[0] = 2;   // rank +2, a cantrip (capped at proficiency + INT mod = 2), L1 slots +2, an L2 slot, an L1 known spell
+  NEXT[0].disciplines.push(mk('x', 0, [[D.arcane2, 1]]).disciplines[0]);                                                                              // a second discipline in the same tradition
+  NEXT.push(mk('Divine', 1, [[D.divine, 1]]));                                                                                                          // a whole new tradition
+  await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), NEXT);
+  const cg = await snap();
+  const cgEvs = post(cg);
+  check('after the lock: raising rank, cantrips, slots and known spells, adding a discipline and a tradition is accepted as in-play purchases (no refusal)', cgEvs.length >= 10 && dialogs.filter(d => /🔒/.test(d.msg)).length === 0, JSON.stringify({ n: cgEvs.length, d: dialogs.map(d => d.msg.slice(0, 80)) }));
+  check('...found first, then ranks, then the powers (so each step\'s gate is met)', cgEvs.map(e => e.cat).join(',').replace(/(rank,)+/, 'rank,').replace(/(cantrip,)+/g, 'cantrip,').startsWith('found,found,rank'), cgEvs.map(e => e.cat).join(','));
+  const lp = await ctx.newPage(); lp.on('dialog', d => d.accept());
+  await lp.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, env);
+  await lp.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp.waitForTimeout(2500);
+  await lp.evaluate(D => {   // the SAME purchases, written by hand as the Live Sheet's buy tiles make them (payloads and labels from its Spellcasting panel)
+    buy('found', { ti: 0, trad: 'Arcane', disc: D.arcane2 }, 'Add discipline: ' + D.arcane2);
+    buy('found', { ti: 1, trad: 'Divine', disc: D.divine }, 'Open Divine / ' + D.divine);
+    buy('rank', { ti: 0, to: 3 }, 'Arcane Rank 3'); buy('rank', { ti: 0, to: 4 }, 'Arcane Rank 4'); buy('rank', { ti: 1, to: 1 }, 'Divine Rank 1');
+    buy('cantrip', { ti: 0, di: 0, to: 2 }, 'Cantrip (2)');
+    buy('slot', { ti: 0, di: 0, L: 1, to: 2 }, 'L1 slot (2)'); buy('slot', { ti: 0, di: 0, L: 1, to: 3 }, 'L1 slot (3)'); buy('slot', { ti: 0, di: 0, L: 2, to: 1 }, 'L2 slot (1)');
+    buy('known', { ti: 0, di: 0, L: 1, to: 2 }, 'L1 known (2)');
+    buy('cantrip', { ti: 0, di: 1, to: 1 }, 'Cantrip (1)'); buy('cantrip', { ti: 1, di: 0, to: 1 }, 'Cantrip (1)');
+  }, D);
+  const ls = await lp.evaluate(() => ({ log: JSON.parse(JSON.stringify(LOG)), total: compute(foldBuild(null), _dmOpts()).total, spent: economy(null).spent }));
+  const lsEvs = post(ls);
+  const norm = a => a.map(e => JSON.stringify([e.cat, e.payload, e.cost, e.gp, e.days])).sort();
+  check('head to head: CharGen records the same purchases as the Live Sheet (category, payload, price, gold, downtime — order aside), the same total and the same spent',
+    JSON.stringify(norm(cgEvs)) === JSON.stringify(norm(lsEvs)) && cg.total === ls.total && cg.spent === ls.spent, JSON.stringify({ cgN: cgEvs.length, lsN: lsEvs.length, totals: [cg.total, ls.total], spent: [cg.spent, ls.spent] }));
+  check('...every purchase carries a frozen gold and downtime charge when the economy is on', cgEvs.every(e => typeof e.gp === 'number' && typeof e.days === 'number'), JSON.stringify(cgEvs.slice(0, 3)));
+  await lp.close();
+
+  // ---- decreases and everything else the Live Sheet cannot do are refused: nothing appended, nothing changed, the player told why ----
+  const base0 = async () => { await fresh(); await setSel('hd', 5); await setSel('st_INT', 18); await setSel('budget', 400);
+    await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), START); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); dialogs = []; };
+  const refuseCase = async (what, fn, re, setup) => { await base0(); if (setup) await setup(); dialogs = []; const before = await snap(); await edit(fn, D); const after = await snap();
+    check(`after the lock: ${what} is refused — nothing written`, after.log.length === before.log.length && after.spent === before.spent && JSON.stringify(after.trad) === JSON.stringify(before.trad), JSON.stringify({ n0: before.log.length, n1: after.log.length }));
+    check('...and the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 70)))); };
+  await refuseCase('lowering rank', c => { c[0].rank = 1; return c; }, /rank can only go up/);
+  await refuseCase('lowering cantrips', c => { c[0].disciplines[0].cantrips = 0; return c; }, /Cantrips can only go up/);
+  await refuseCase('lowering a slot', c => { c[0].disciplines[0].slots[0] = 0; return c; }, /Level 1 slots can only go up/);
+  await refuseCase('lowering a known spell', c => { c[0].disciplines[0].known[0] = 0; return c; }, /known spells can only go up/);
+  await refuseCase('removing a tradition', c => [], /can.t be removed or changed/);
+  await refuseCase('renaming a tradition', c => { c[0].name = 'Divine'; return c; }, /can.t be removed or changed/);
+  await refuseCase('removing a discipline', c => { c[0].disciplines = []; return c; }, /can.t be removed or changed/);
+  await refuseCase('a level-3 slot without rank 3', c => { c[0].disciplines[0].slots[2] = 1; return c; }, /Level 3 spells need Arcane rank 3/);
+  await refuseCase('a level-4 slot before the Hit Dice for it (rank 4 needs 7 Hit Dice; this character has 5)', c => { c[0].rank = 4; c[0].disciplines[0].slots[3] = 1; return c; }, /Level 4 spells need Arcane rank 4 and 7 Hit Dice/);
+  await refuseCase('a known spell for a prepared caster', (c, D) => { c.push({ name: 'Primal', rank: 1, disciplines: [{ name: D.primalPrep, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }] }); return c; }, /prepares its spells/);
+  await refuseCase('Magically Bound (it grants AP)', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/);
+  await refuseCase('Warlock pact slots (no purchase exists)', c => { c[0].disciplines[0].pactSlots = 1; return c; }, /pact slots and arcanum can.t be raised/);
+  await refuseCase('a second discipline when the campaign allows only one', (c, D) => { c[0].disciplines.push({ name: D.arcane2, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }); return c; },
+    /only allows a single discipline/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: { multiDisciplineAllowed: false } }; }));
+
+  // a no-op is silent, and a reload of a locked spellcaster raises nothing
+  await base0(); const n0 = (await snap()).log.length; await edit(c => c); check('writing the spellcasting the character already has is a silent no-op', dialogs.length === 0 && (await snap()).log.length === n0);
+
+  // ---- property test: 300 random increase-only edits — the steps, applied to the current list, must reproduce the target exactly ----
+  const prop = await p.evaluate(() => {
+    let seed = 20261005; const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; const ri = n => Math.floor(rnd() * (n + 1));
+    const arcane = DATA.disc.Arcane, divine = DATA.disc.Divine, prepared = DATA.prepared || [], noC = DATA.noCantrip || [];
+    const mkD = (name, rank) => ({ name, bound: false, cantrips: noC.indexOf(name) >= 0 ? 0 : ri(3), slots: Array.from({ length: 9 }, (_, i) => i + 1 <= rank ? ri(2) : 0), known: Array.from({ length: 9 }, (_, i) => (i + 1 <= rank && prepared.indexOf(name) < 0) ? ri(2) : 0), pactSlots: 0, arcanum: [0,0,0,0] });
+    const mkT = (name, pool) => { const rank = ri(5); const n = 1 + ri(1); const names = pool.slice().sort(() => rnd() - 0.5).slice(0, n); return { name, rank, disciplines: names.map(d => mkD(d, rank)) }; };
+    const grow = (t) => { const x = JSON.parse(JSON.stringify(t)); x.forEach(tr => { tr.rank = Math.min(9, tr.rank + ri(3)); tr.disciplines.forEach(d => { if (noC.indexOf(d.name) < 0) d.cantrips += ri(2); for (let L = 1; L <= 9; L++) { if (L <= tr.rank) { d.slots[L - 1] += ri(2); if (prepared.indexOf(d.name) < 0) d.known[L - 1] += ri(2); } } }); });
+      if (rnd() < 0.4) { const pool = divine.filter(n => !x.some(tr => tr.disciplines.some(d => d.name === n))); if (pool.length && !x.some(tr => tr.name === 'Divine')) x.push({ name: 'Divine', rank: ri(3), disciplines: [mkD(pool[0], 3)] }); }
+      if (rnd() < 0.4 && x[0]) { const have = x[0].disciplines.map(d => d.name); const more = (DATA.disc[x[0].name] || []).filter(n => have.indexOf(n) < 0); if (more.length) x[0].disciplines.push(mkD(more[0], x[0].rank)); }
+      x.forEach(tr => tr.disciplines.forEach(d => { for (let L = 1; L <= 9; L++) { if (L > tr.rank) { d.slots[L - 1] = Math.min(d.slots[L - 1], 0); d.known[L - 1] = Math.min(d.known[L - 1], 0); } } })); return x; };
+    let accepted = 0, refused = 0, bad = [];
+    for (let n = 0; n < 300; n++) {
+      const cur = [mkT('Arcane', arcane)]; if (rnd() < 0.3) cur.push(mkT('Divine', divine));
+      const nxt = grow(cur);
+      const r = _cgTraditionSteps(cur, nxt, 20, true);
+      if (r.refuse) { refused++; if (!/need|only go up|doesn.t|already open|prepares/.test(r.refuse)) bad.push('unexpected refusal: ' + r.refuse); continue; }
+      accepted++;
+      const b = baseBuild(); b.traditions = JSON.parse(JSON.stringify(cur));
+      r.steps.forEach(st => MUT[st.cat](b, st.payload));
+      const norm = L => JSON.stringify(L.map(t => [t.name, t.rank, t.disciplines.map(d => [d.name, d.cantrips || 0, (d.slots || []).slice(0, 9), (d.known || []).slice(0, 9)])]));
+      if (norm(b.traditions) !== norm(nxt)) bad.push('mismatch at ' + n + ': ' + norm(b.traditions).slice(0, 120) + ' vs ' + norm(nxt).slice(0, 120));
+    }
+    return { accepted, refused, bad: bad.slice(0, 3) };
+  });
+  check('property test: 300 random increase-only edits — every accepted edit\'s steps reproduce the target spell list exactly, and every refusal is a rule refusal', prop.bad.length === 0 && prop.accepted > 100, JSON.stringify(prop));
+
+  const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
+// fix/chargen-load-over-locked (found by the post-lock parity fuzz, 2026-10-05): loading a character into a tab that still holds a LOCKED one rebuilt the form's feature rows, each row tried to
+// "buy" itself into the locked log, a refusal repainted the form, and the repaint rebuilt the rows again — a stack overflow (a regression from #573, live in v1.577). Painting a form must never
+// buy or refuse anything.
+section('CharGen: loading a character over a locked one neither overflows nor pops up a refusal');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
+  const dialogs = []; p.on('dialog', async d => { dialogs.push(d.message().slice(0, 100)); await d.accept(); });
+  const fxDir = path.join(REPO, 'testing/fixtures/builds');
+  const rd = f => { const raw = JSON.parse(fs.readFileSync(path.join(fxDir, f), 'utf8')); const b = raw.build || raw; b.budget = (b.budget || 79) + 60; return b; };
+  const A = rd('CG-015-renamed-feature-aliases.json'), B = rd('CG-031-warlock-invocation-transitive-block.json');
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+  await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
+  const r = await p.evaluate(async ([a, b]) => { applyBuild(a); cgFinishCreating(true); try { applyBuild(b); return { ok: true, locked: _cgIsLocked(), feat: (foldBuild(LOG).features || []).slice(0, 6) }; } catch (e) { return { ok: false, err: String(e.message).slice(0, 80) }; } }, [A, B]);
+  check('loading CG-031 over a locked CG-015 completes (it used to overflow the stack)', r.ok === true, JSON.stringify(r));
+  check('...with no refusal popup and no page error', dialogs.length === 0 && errs.length === 0, JSON.stringify({ d: dialogs, e: errs }));
+  check('...and the loaded character is the new one (a fresh, unlocked draft), not the old locked one', r.ok && r.locked === false, JSON.stringify(r));
+  await ctx.close();
+}
+
 // fix/stale-autosave-guard (L2/L3): both tools' local autosave must record the cloud version it descends from
 // (cloudBase; null = never synced), so a reload can prove a restored copy is current. Logic is covered in
 // sync-concurrency-ci.mjs; this checks the tools actually write and survive restoring it.

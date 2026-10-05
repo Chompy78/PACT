@@ -631,6 +631,24 @@ export async function refreshServerAp(id) {
   return data.ap;
 }
 
+/** The DM-held gold pool for one character (the `gold` column, written only by the server function award_gold()), read the same way refreshServerAp() reads `ap`
+ *  and cached on the local record so an offline session still has the last figure it saw. Returns the number, or null when it could not be read (offline, signed out,
+ *  RLS, error) — the caller must treat null as UNCONFIRMED, never as zero. */
+export async function refreshServerGold(id) {
+  if (!id || !navigator.onLine || !(await currentUser())) return null;
+  const { data, error } = await supabase
+    .from('characters').select('gold').eq('id', id).maybeSingle();
+  if (error || !data || typeof data.gold !== 'number') return null;
+  const rec = lsGet(id);
+  if (rec) { rec.gold = data.gold; lsSet(rec); }
+  return data.gold;
+}
+/** The last DM-held gold figure this device saw for a character (from the local record), or null if none. */
+export function cachedServerGold(id) {
+  const rec = id ? lsGet(id) : null;
+  return rec && typeof rec.gold === 'number' ? rec.gold : null;
+}
+
 /** Reconcile a single id between local and server (last-write-wins; ap = server). */
 /** @returns {Promise<{behind?:boolean}>} `behind:true` means the local copy is dirty AND the server has
  *  moved on since, so the push was refused. Previously this was swallowed by `catch { }` and the caller

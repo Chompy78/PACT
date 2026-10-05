@@ -166,6 +166,24 @@ jobs:
       - name: Run the purchase-legality extraction gate
         run: node testing/scripts/engine-legality-ci.mjs
 
+  engine-wallet:
+    # refactor/engine-wallet-check. The Live Sheet's gold-and-downtime wallet, soft shortfall warning and the §16 coin-for-time trade offer (_lsWallet, _lsOfferTrade,
+    # _lsWalletShort) moved into js/engine.js as walletState()/walletCheck() so CharGen's after-lock purchases can show the same warning from ONE implementation (the same
+    # move was made for priceOf and purchaseLegality after copies drifted). This compares the engine with a frozen copy of the original over a large seeded sweep of
+    # logs, wallets, windows and quotes. engine-parity cannot see it: it asserts compute()'s output, and this lives in compute()'s caller. Wired in the same change as the
+    # gate, because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the wallet extraction gate
+        run: node testing/scripts/engine-wallet-ci.mjs
+
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
     # read DATA.version live at engine-ready, so the live labels are right — but the hardcoded FALLBACK
