@@ -1317,3 +1317,52 @@ not by hand-editing the log.
 ```
 **Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
 task's likelihood note is updated by the board's owner to point at this case.
+
+## Martially Bound discount: should it also discount subclass abilities? (rules decision) — TODO
+**Effort:** low (the decision) / medium (if "yes": engine, fixtures, guide, version bump) · **Risk:** medium — ambiguity is the driver: a pricing rule only the owner can settle; damage scale is low until it is decided.
+
+```text
+FOUND 2026-10-05, while repairing a double purchase. The Martially Bound discount (-1 AP, floor 1, on features of the bound class) is applied by
+the FEATURE loop in js/engine.js (`if(mbClass && f.cls===mbClass) c=Math.max(1,c-1)`) and NOT by the SUBCLASS loop. So the same ability costs 8 AP
+bought through the subclass picker and 7 AP bought through the mirrored class-feature picker for a Martially Bound character — which is how a
+double purchase showed up as 8 + 7. Since feat/subclass-double-purchase-guard there is one price helper for the subclass door (`_subPriceOf`), so
+applying the discount, if wanted, is a one-line change in one place.
+DO:
+  1. Owner decides: does Martially Bound discount subclass abilities of the bound class (the guide's Martially Bound text is the rule's source).
+  2. If NO: say so in the guide and in DECISIONS.md, so the 7-vs-8 gap is never again read as a bug; make the feature door match (a mirrored subclass
+     ability bought as a feature should not get a discount the subclass door denies) or document why not.
+  3. If YES: apply `mbClass` in `_subPriceOf`; fixtures for a bound character through both doors; bump DATA.version once; update the Players Guide
+     (master in pact-guide) in the same change.
+  4. MEASURE FIRST: query live characters with `martiallyBound` set AND subclass abilities of that class — their DISPLAYED totals fall by 1 AP per
+     ability (frozen ledgers via economy() do not move). List them for the owner.
+```
+**Done when:** the decision is recorded in `DECISIONS.md`; both doors price a Martially Bound character's subclass ability the same way (or the difference is documented as deliberate); if "yes", engine-parity 0 failed with the new fixtures and the guide matches.
+
+## Players Guide: the Circle Forms row must say it needs Wild Shape — TODO
+**Effort:** low · **Risk:** low — a single table cell, but the guide master lives in a different project (`pact-guide`), so the transfer is the careful part.
+
+```text
+feat/subability-prereq made Circle Forms (Circle of the Moon) require base Wild Shape in the engine (DATA.version v0.370). A mechanics change is not
+finished until the engine AND the guide land it (AGENTS.md). The guide still shows the row as plain "Buy".
+PATCH (apply to the pact-guide master, then transfer per docs/VERSION-SYNC.md): in the Druid > Circle of the Moon table, the Circle Forms row's LAST
+cell changes from `Buy` to `Buy (needs Wild Shape)`. The served copy's raw row is:
+  <tr><td style="background:#FBF5E9"><strong>Circle Forms</strong></td><td style="background:#FBF5E9">T3 Passive</td><td style="background:#FBF5E9">11 (9)</td><td style="background:#FBF5E9">Buy</td></tr>
+Do NOT edit the served copy alone — the next transfer from pact-guide would wipe it. Run `node testing/scripts/verify-guide.mjs` before AND after the
+transfer, and refresh the `documents-rules:` pointer.
+```
+**Done when:** the pact-guide master and the served `docs/PACT-Players-Guide.html` both carry the cell text, `verify-guide.mjs` passes before and after, and the `documents-rules:` pointer names v0.370 or later.
+
+## A subclass key repeated inside `b.subAbilities` alone is charged twice — TODO
+Branch `fix/subclass-same-door-repeat`. **Effort:** low · **Risk:** medium — `compute()` output changes for any saved log holding the same subclass key twice, so measure first; damage scale is medium (a mis-priced total, not data loss), likelihood low.
+
+```text
+FOUND 2026-10-05 by /code-review during feat/subclass-double-purchase-guard. The FEATURE loop in js/engine.js guards its own repeats (`fcount` -> "already
+bought — can only be taken once"); the SUBCLASS loop never did. A build whose `b.subAbilities` holds the same key twice (e.g. a duplicated buy event) is
+charged twice with no warning. The cross-door duplicate guard does not cover this: it only fires when the same ability is ALSO in b.features.
+DO:
+  1. Reproduce: a build with subAbilities [S, S] and no feature copy prices 2x with warnings [].
+  2. Add the same "already bought" guard to the subclass loop (count per key, skip and warn on the second) — reusing the wording the feature loop uses.
+  3. MEASURE FIRST: query live characters for a repeated `subabil` key in their LOG. Any hit changes that character's recomputed total; frozen ledgers do not move.
+  4. Fixture(s) for the repeat; bump DATA.version once; CHANGELOG; decision record.
+```
+**Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.

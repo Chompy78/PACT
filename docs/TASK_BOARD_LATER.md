@@ -448,6 +448,21 @@ no, this task is closed as declined rather than left open; if yes, all three too
 amended rather than contradicted.
 
 
+## Pre-grey prerequisite-blocked tiles, and pre-block them in CharGen's pickers — TODO
+**Effort:** medium · **Risk:** low — UI only, no pricing change.
+
+```text
+FOUND 2026-10-05 (/code-review of feat/subability-prereq). A feature or subclass ability whose prerequisite is missing (Circle Forms without Wild Shape, any
+Wild Shape step out of order) is refused correctly by the engine in both tools, but:
+  - the Live Sheet tile stays clickable and shows an amber note ("blocked: requires … first (not counted, not owned)") — wording written for the ledger,
+    odd for something not yet bought; the Hit-Dice gate, by contrast, greys the tile with a plain "needs N HD" reason;
+  - CharGen's pickers do not pre-block it at all (only Eldritch Invocations flash a prerequisite); the warning appears after the row is added.
+DO: pass a prerequisite reason into the Live Sheet's tile `why` (as the Hit-Dice reason is) in the three feature lists and the subclass list, with
+pre-purchase wording; give CharGen's feature and subclass pickers the same pre-check via the engine's own gate, not a local copy.
+```
+**Done when:** a Druid without Wild Shape sees Circle Forms greyed with "needs Wild Shape first" in both tools; the browser gates cover it; engine-parity 0 failed.
+
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
