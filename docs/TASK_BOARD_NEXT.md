@@ -1338,20 +1338,6 @@ DO:
 ```
 **Done when:** the decision is recorded in `DECISIONS.md`; both doors price a Martially Bound character's subclass ability the same way (or the difference is documented as deliberate); if "yes", engine-parity 0 failed with the new fixtures and the guide matches.
 
-## Players Guide: the Circle Forms row must say it needs Wild Shape — TODO
-**Effort:** low · **Risk:** low — a single table cell, but the guide master lives in a different project (`pact-guide`), so the transfer is the careful part.
-
-```text
-feat/subability-prereq made Circle Forms (Circle of the Moon) require base Wild Shape in the engine (DATA.version v0.370). A mechanics change is not
-finished until the engine AND the guide land it (AGENTS.md). The guide still shows the row as plain "Buy".
-PATCH (apply to the pact-guide master, then transfer per docs/VERSION-SYNC.md): in the Druid > Circle of the Moon table, the Circle Forms row's LAST
-cell changes from `Buy` to `Buy (needs Wild Shape)`. The served copy's raw row is:
-  <tr><td style="background:#FBF5E9"><strong>Circle Forms</strong></td><td style="background:#FBF5E9">T3 Passive</td><td style="background:#FBF5E9">11 (9)</td><td style="background:#FBF5E9">Buy</td></tr>
-Do NOT edit the served copy alone — the next transfer from pact-guide would wipe it. Run `node testing/scripts/verify-guide.mjs` before AND after the
-transfer, and refresh the `documents-rules:` pointer.
-```
-**Done when:** the pact-guide master and the served `docs/PACT-Players-Guide.html` both carry the cell text, `verify-guide.mjs` passes before and after, and the `documents-rules:` pointer names v0.370 or later.
-
 ## A subclass key repeated inside `b.subAbilities` alone is charged twice — TODO
 Branch `fix/subclass-same-door-repeat`. **Effort:** low · **Risk:** medium — `compute()` output changes for any saved log holding the same subclass key twice, so measure first; damage scale is medium (a mis-priced total, not data loss), likelihood low.
 
