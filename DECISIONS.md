@@ -21,6 +21,11 @@
   through both was charged twice with no warning (Anders Pipeleaf, 8 + 7 AP). Owner decision P3: charge the copy bought first; the later copy costs nothing, warns, lists once under
   Blocked purchases, and `purchaseLegality()` refuses it in both tools. Shallow fix now; `refactor/subclass-purchase-unify` is the deep one. `DATA.version` v0.369. Status: done 2026-10-05.
   Full record: `decisions/2026/D-GH-2026-10-05-subclass-double-purchase-guard.md`.
+## D-GH-2026-10-05-anders-double-purchase-repair — delete the duplicate subclass purchase from Anders Pipeleaf's sealed history
+- One ability was bought through both doors (subclass picker 8 AP, then the advancement picker 7 AP + 100 gp + 21 days) and charged twice with no warning.
+  Only Anders (of 53 characters) is affected. Seq 40 deleted; the lock moved to before Hit Die 4; spend 111 → 104. One guarded transaction with the
+  history-lock and budget triggers disabled for its length, rehearsed in Docker first; backup kept. Status: done 2026-10-05.
+  Full record: `decisions/2026/D-GH-2026-10-05-anders-double-purchase-repair.md`.
 
 ## D-GH-2026-10-04-wound-aliases — 15 more DM-only wounds: 8 same-effect aliases and 7 new mechanics
 - A count of skill names in the drawback texts showed 10 of 18 skills named by only one drawback (an Affliction). Added 15
