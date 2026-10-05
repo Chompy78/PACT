@@ -3205,6 +3205,7 @@ function retractFlatEvent(cat,predicate){
   // and spent fell by 6). It covers purchases made after the lock too — those are in-play purchases, not drafts; Undo (walled at the lock)
   // is how the latest one is taken back. Callers already treat `false` as "put the tick back".
   if(_cgIsLocked()){
+    if(_histSuspended) return false;   // the form is being (re)painted from a build: tidy-up, not an edit — refuse silently, keep the purchase, no toast
     if(!_cgSealRefusedPass){
       _cgSealRefusedPass=true;
       flash('\uD83D\uDD12 Once creation is finished, nothing you bought can be removed. Undo takes back your latest purchase.');
@@ -3366,6 +3367,68 @@ function _cgPostLockQuote(cost){   // mirrors the Live Sheet's _lsQuote(): null 
   var E=window._engineEcon; if(!E||!E.chargesGoldAndTime||!E.chargesGoldAndTime(LOG)) return null;
   return E.purchaseCost(cost,_cgEconRules());
 }
+// Spellcasting after the lock (phase 2b-2; plan docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md, owner: "just don't allow a decrease — adding disciplines etc. too").
+// Turns the form's nested traditions list into the Live Sheet's own indexed purchases — found / rank / cantrip / slot / known — or refuses. Pure: reads the folded `cur` list
+// and the form's `next` list, returns {steps, refuse}. Rules, all the Live Sheet's own (its buy tiles gate by rank and Hit Dice in the UI, not in the engine, so they are restated
+// here): existing traditions and disciplines must still be there, in the same order and with the same names (nothing removed, renamed or reordered); rank, cantrips, slots and
+// known spells may only go UP, one purchase per +1; a slot or known spell of level L needs tradition rank L and the Hit Dice gate for L; no cantrips for a discipline in
+// DATA.noCantrip; no known spells for a prepared caster (DATA.prepared); a second discipline or tradition needs a campaign that allows multi-discipline casting. "Magically Bound"
+// GRANTS AP and Warlock pact slots / arcanum have no purchase in either tool, so those are refused. Order: found, then rank, then cantrips/slots/known, so each step's gate is met.
+function _cgTraditionSteps(curList,nextList,hd,multiOK){
+  var steps=[], refuse=null;
+  var clean=function(list){ return (list||[]).filter(function(t){ return t&&t.name&&t.name!=='(none)'; }).map(function(t){
+    return {name:t.name,rank:+t.rank||0,disciplines:(t.disciplines||[]).filter(function(d){ return d&&d.name&&d.name!=='(none)'; }).map(function(d){
+      var pad=function(a,n){ a=(a||[]).map(function(x){return +x||0;}); while(a.length<n) a.push(0); return a; };
+      return {name:d.name,bound:!!d.bound,cantrips:+d.cantrips||0,slots:pad(d.slots,9),known:pad(d.known,9),pactSlots:+d.pactSlots||0,arcanum:pad(d.arcanum,4)};
+    })}; }); };
+  var cur=clean(curList), next=clean(nextList);
+  var no=function(why){ if(!refuse) refuse=why; };
+  var prepared=DATA.prepared||[], noCantrip=DATA.noCantrip||[], gate=DATA.hdGate||[];
+  // 1. nothing existing may be removed, renamed or reordered
+  for(var i=0;i<cur.length&&!refuse;i++){
+    if(!next[i]||next[i].name!==cur[i].name){ no('A tradition you already have ('+cur[i].name+') can\'t be removed or changed once creation is finished.'); break; }
+    for(var j=0;j<cur[i].disciplines.length;j++){
+      if(!next[i].disciplines[j]||next[i].disciplines[j].name!==cur[i].disciplines[j].name){ no('A discipline you already have ('+cur[i].disciplines[j].name+') can\'t be removed or changed once creation is finished.'); break; }
+    }
+  }
+  if(refuse) return {steps:steps,refuse:refuse};
+  var hasAny=cur.some(function(t){ return t.disciplines.length; });
+  // 2. new traditions / disciplines (found), 3. rank, 4. cantrips / slots / known — collected per discipline, emitted in that order
+  var found=[], ranks=[], powers=[];
+  next.forEach(function(nt,ti){
+    var ct=cur[ti], isNewTrad=!ct;
+    var startRank=isNewTrad?0:ct.rank;
+    if(nt.rank<startRank) no(nt.name+' rank can only go up once creation is finished (it is '+startRank+').');
+    nt.disciplines.forEach(function(nd,di){
+      var cd=ct&&ct.disciplines[di], isNewDisc=!cd;
+      if(isNewDisc){
+        if(hasAny&&!multiOK) no('This campaign only allows a single discipline — you can\'t open another.');
+        if(nt.disciplines.some(function(o,k){ return k<di&&o.name===nd.name; })) no(nd.name+' is already open in '+nt.name+'.');
+        found.push({cat:'found',payload:{ti:ti,trad:nt.name,disc:nd.name},label:(isNewTrad&&di===0)||!hasAny?('Open '+nt.name+' / '+nd.name):(isNewTrad?('Open '+nt.name+' / '+nd.name):('Add discipline: '+nd.name))});
+        hasAny=true;
+      }
+      var base=cd||{bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};
+      if(nd.bound!==base.bound) no(nd.bound?'Magically Bound gives you AP, and after creation only your DM awards AP.':'Magically Bound can\'t be given up once creation is finished.');
+      if(nd.pactSlots<base.pactSlots||nd.arcanum.some(function(v,k){ return v<base.arcanum[k]; })) no('Warlock pact slots and arcanum can only go up once creation is finished.');
+      else if(nd.pactSlots>base.pactSlots||nd.arcanum.some(function(v,k){ return v>base.arcanum[k]; })) no('Warlock pact slots and arcanum can\'t be raised after creation yet — there is no purchase for them.');
+      if(nd.cantrips<base.cantrips) no('Cantrips can only go up once creation is finished ('+nd.name+' has '+base.cantrips+').');
+      if(nd.cantrips>base.cantrips&&noCantrip.indexOf(nd.name)>=0) no(nd.name+' doesn\'t get cantrips.');
+      for(var c=base.cantrips+1;c<=nd.cantrips;c++) powers.push({cat:'cantrip',payload:{ti:ti,di:di,to:c},label:'Cantrip ('+c+')'});
+      for(var L=1;L<=9;L++){
+        if(nd.slots[L-1]<base.slots[L-1]) no('Level '+L+' slots can only go up once creation is finished ('+nd.name+' has '+base.slots[L-1]+').');
+        if(nd.known[L-1]<base.known[L-1]) no('Level '+L+' known spells can only go up once creation is finished ('+nd.name+' has '+base.known[L-1]+').');
+        var needs=(nd.slots[L-1]>base.slots[L-1]||nd.known[L-1]>base.known[L-1]);
+        if(needs&&(nt.rank<L||(hd||1)<(gate[L-1]||0))) no('Level '+L+' spells need '+nt.name+' rank '+L+' and '+(gate[L-1]||0)+' Hit Dice.');
+        if(nd.known[L-1]>base.known[L-1]&&prepared.indexOf(nd.name)>=0) no(nd.name+' prepares its spells — it doesn\'t buy known spells.');
+        for(var v=base.slots[L-1]+1;v<=nd.slots[L-1];v++) powers.push({cat:'slot',payload:{ti:ti,di:di,L:L,to:v},label:'L'+L+' slot ('+v+')'});
+        if(prepared.indexOf(nd.name)<0) for(var w=base.known[L-1]+1;w<=nd.known[L-1];w++) powers.push({cat:'known',payload:{ti:ti,di:di,L:L,to:w},label:'L'+L+' known ('+w+')'});
+      }
+    });
+    for(var r=startRank+1;r<=nt.rank;r++) ranks.push({cat:'rank',payload:{ti:ti,to:r},label:nt.name+' Rank '+r});
+  });
+  if(refuse) return {steps:[],refuse:refuse};
+  return {steps:found.concat(ranks,powers),refuse:null};
+}
 // What an edit to `slot` would ADD, and whether it tries to take something away. Pure: reads `cur`, returns steps.
 function _cgPostLockSteps(slot,patch,cur){
   var steps=[],refuse=null,tail='Nothing you have bought can be removed or lowered once creation is finished. You can still RAISE it by spending AP.';
@@ -3414,18 +3477,23 @@ function _cgPostLockSteps(slot,patch,cur){
     if(!refuse&&patch.wornArmour!=null&&(patch.wornArmour||'')!==(cur.wornArmour||''))   // what you are wearing is a choice, not a purchase: free, both ways
       steps.push({cat:'wornArmour',payload:{v:patch.wornArmour||''},label:patch.wornArmour?('Worn armour \u2014 '+patch.wornArmour):'Worn armour \u2014 none (unarmoured)'});
   }else if(slot==='weaponProf'){
-    var cw=Object.assign({},cur.weaponProf||{}), nw=(patch.weaponProf)||{};
+    var cw=Object.assign({},cur.weaponProf||{}), nw=Object.assign({},(patch.weaponProf)||{});
+    if(nw.allMartial) nw.simple=true;   // All martial includes Simple (the Live Sheet's tile sets both); the form's Simple box can still be unticked after an All-martial purchase
     if((cw.simple&&!nw.simple)||(cw.allMartial&&!nw.allMartial)||(cw.improvised&&!nw.improvised)||((+cw.martial||0)>(+nw.martial||0)&&!nw.allMartial))
       refuse='Weapon proficiencies can\'t be given up once creation is finished.';
     else{
       var w=Object.assign({},cw);
-      if(nw.simple&&!w.simple){ w.simple=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Simple weapons'}); }
+      // The Live Sheet's "All martial" tile is ONE purchase that includes Simple when Simple isn't owned yet ({...wp, simple:true, allMartial:true}); buying Simple first and
+      // All martial second would split it into two purchases, and gold/downtime are charged per purchase by AP band — found by the post-lock parity fuzz.
+      if(nw.simple&&!w.simple&&!(nw.allMartial&&!w.allMartial)){ w.simple=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Simple weapons'}); }
       if(nw.allMartial&&!w.allMartial){ w.simple=true; w.allMartial=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'All martial'}); }
       else if(!w.allMartial&&(+nw.martial||0)>(+w.martial||0)){ w.martial=+nw.martial; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Martial weapons ('+w.martial+')'}); }
       if(nw.improvised&&!w.improvised){ w.improvised=true; steps.push({cat:'wprof',payload:{wp:Object.assign({},w)},label:'Improvised weapons'}); }
     }
   }else if(slot==='freeSub'){
     var cf=cur.freeSub||{}, nf=(patch.freeSub)||{};
+    var access=[cur.originClass].concat(cur.unlockedClasses||[]).filter(function(c){ return c&&DATA.subList&&DATA.subList[c]; });   // the Live Sheet's own rule for who gets a free subclass
+    Object.keys(nf).forEach(function(cl){ if(!refuse&&nf[cl]&&!cf[cl]&&access.indexOf(cl)<0) refuse='You can only pick a free subclass for a class you have ('+(access.join(', ')||'none')+').'; });
     Object.keys(cf).forEach(function(cl){ if(!refuse&&cf[cl]&&nf[cl]!==cf[cl]) refuse=(nf[cl]?'A free subclass, once chosen, can\'t be swapped':'A free subclass can\'t be given up')+' after creation (you chose '+cf[cl]+' for '+cl+').'; });
     if(!refuse) Object.keys(nf).forEach(function(cl){ if(nf[cl]&&!cf[cl]) steps.push({cat:'freesub',payload:{cls:cl,sub:nf[cl]},label:'Free subclass \u2192 '+nf[cl]}); });
   }else if(slot==='customProfs'){
@@ -3442,7 +3510,12 @@ function _cgPostLockSteps(slot,patch,cur){
     var N=function(v){ return (v==null||v===''||v==='(none)')?'':v; };
     var changed=function(key){ return !_cgDeepEq(N(cur[key]),N(patch[key])); };
     if(slot==='traditions'){
-      if(patch.traditions!==undefined&&!_cgDeepEq(cur.traditions||[],patch.traditions||[])){ refuse='Spellcasting can\'t be changed here once creation is finished.'; tail='Buy ranks, cantrips, spell slots and known spells in the Live Sheet \u2014 it records each one as an in-play purchase.'; }
+      if(patch.traditions!==undefined){
+        var rules=(window._cloudCampaign&&window._cloudCampaign.rules)||null;
+        var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false));
+        steps=tr.steps; refuse=tr.refuse;
+        if(refuse) tail='Nothing you have bought can be removed or lowered once creation is finished. You can still add and raise things by spending AP.';
+      }
     }else if(slot==='innate'){
       if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='misc'){
@@ -3461,6 +3534,10 @@ function _cgPostLockSteps(slot,patch,cur){
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
 // path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
 function _cgPostLockAppend(steps){
+  // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
+  // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
+  // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
+  if(_histSuspended) return true;
   var b=foldBuild(LOG), evs=[], total=0;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
@@ -3473,6 +3550,9 @@ function _cgPostLockAppend(steps){
       // The Live Sheet's own "may this be bought" rule (js/engine.js purchaseLegality, moved there from the Live Sheet): an already-owned
       // single-instance proficiency, any hard rules violation, and a soft warning the player must confirm. This used to block only warnings
       // starting with the stop-sign marker, which let through purchases the Live Sheet refuses (Vigor past CON mod, "boon requires CON 12+").
+      // Subclass abilities are offered only for the classes the character has access to (origin class + unlocked classes) — the Live Sheet's "Subclasses & abilities" panel.
+      // CharGen's picker lists every class, so the same rule is enforced here (found by the post-lock parity fuzz: a Cleric bought a Fighter subclass ability).
+      if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
       var lg=purchaseLegality(b,st.cat,st.payload);
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }

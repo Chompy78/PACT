@@ -4,6 +4,17 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix(chargen): after the lock, ticking Improvised weapons right after buying All martial is no longer refused as "giving up" Simple (found by the post-lock parity fuzz)** —
+  the Simple box can stay unticked after an All-martial purchase; the diff now treats All martial as including Simple, as the Live Sheet's tile does.
+
+- **2026-10-05 · fix(chargen): after the lock, a subclass ability or spell list of a class the character has no access to is refused (Live Sheet parity; found by the post-lock parity fuzz)** —
+  the Live Sheet offers them only for the origin class and unlocked classes; CharGen's picker listed every class. Report: `docs/sessions/2026-10-05-post-lock-parity-fuzz.md`.
+
+- **2026-10-05 · fix(chargen): loading a character while a locked one is open no longer overflows the stack (found by the post-lock parity fuzz)** —
+  `_cgPostLockAppend` and `retractFlatEvent` now do nothing while a load/restore is rebuilding the form (`_histSuspended`); before, the
+  rebuild re-synced the form against the still-locked old log, which looped until the browser threw "Maximum call stack size exceeded"
+  (present on live since #573). Regression section added to `chargen-flows-e2e.mjs`; the fuzz harness is `testing/scripts/post-lock-parity-fuzz.mjs`.
+
 - **2026-10-04 · fix(chargen): after "Finish creating", raising Hit Dice, proficiency or an ability score APPENDS the same in-play
   purchase the Live Sheet records, and lowering them is refused (phase 1 of `fix/chargen-post-lock-purchases`)** — CharGen used to
   rewrite the slot's creation-era event in place after the lock (Hit Dice 3 → 4 turned that event from 5 to 8 AP, still before
@@ -68,6 +79,15 @@
 - **2026-10-05 · chore(release): promote `preview` → `main` as `v1.583` (PR #583)** — ships #579 (CharGen refuses post-lock edits to spellcasting, innate spells, martial binding, out-of-tradition cantrips and origin fields; opening a locked campaign character
   no longer rewrites its history), #581 and #582 (the Live Sheet's wallet / shortfall / trade-offer decision moved into the engine as `walletCheck`, and CharGen showing the same warning and §16 trade offer after the lock), and #580 (the server-freeze stage 1
   migration, rollback, rehearsal and audits — **files only; not applied to the live database**), plus plans, board tasks and session logs. `BUILD` synced `v1.577` → `v1.583` across `js/engine.js` and the three tools; `DATA.version` untouched by the bump. No tag.
+- **2026-10-05 · feat(chargen): after "Finish creating", CharGen records spellcasting INCREASES — rank, cantrips, slots, known spells, a new discipline, a new tradition — as in-play purchases; only decreases are refused**
+  (`feat/chargen-2b2-traditions-diff`; phase 2b-2; owner: "just don't allow a decrease — adding disciplines etc. too"; plan `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md`) — replaces #579's blanket refusal of
+  spellcasting. The form's nested spell list is diffed against the folded build into the Live Sheet's own `found` / `rank` / `cantrip` / `slot` / `known` purchases (existing traditions and disciplines must remain, same order and names;
+  everything may go UP, one purchase per +1; found → rank → cantrips/slots/known so each gate is met), each priced by `priceOf`, checked by `purchaseLegality`, charged and wallet-checked like every other in-play purchase, all-or-nothing.
+  The Live Sheet's UI-only rules are restated: a level-L slot or known spell needs tradition rank L and the Hit Dice gate for L, no cantrips for Paladin/Ranger, no known spells for prepared casters, a second discipline or tradition only where
+  the campaign allows multi-discipline casting. Still refused: any decrease or removal/rename, "Magically Bound" (it grants AP), Warlock pact slots and arcanum (no purchase exists in either tool). Found by the new **post-lock parity fuzz**
+  (`testing/scripts/post-lock-parity-fuzz.mjs`: thousands of seeded random post-lock purchases through the real UI of both tools, compared): weapon proficiency "All martial" must be ONE purchase that includes Simple (CharGen split it in two,
+  which changes the gold/downtime band), and a free subclass is only for a class the character has (CharGen accepted any class). 80 new browser checks (198 pass, 0 fail) including a head-to-head against the Live Sheet's `buy()`,
+  13 refusal cases and a 300-case randomised property test. No engine change, no `DATA.version` change.
 - **2026-10-05 · feat(chargen): after "Finish creating", with the campaign economy on, CharGen shows the Live Sheet's wallet-shortfall warning and the §16 coin-for-time trade offer**
   (`feat/chargen-wallet-warning`; Q2 step 2, plan `docs/plans/2026-10-04-chargen-wallet-warning-q2.md`, cold-reviewed by Gemini + Groq) — built on the engine's shared `walletCheck()` (#581), so the decision is the Live Sheet's own: the wallet is the
   character's log plus the **DM-held gold** (`characters.gold`, read through a new `refreshServerGold()`/`cachedServerGold()` in `js/sync.js`) plus the **party downtime window** (`get_downtime_window`, via `js/dm.js`), fetched when the campaign
