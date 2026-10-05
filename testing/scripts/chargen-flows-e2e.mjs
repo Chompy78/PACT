@@ -1186,7 +1186,7 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   // ---- decreases and everything else the Live Sheet cannot do are refused: nothing appended, nothing changed, the player told why ----
   const base0 = async () => { await fresh(); await setSel('hd', 5); await setSel('st_INT', 18); await setSel('budget', 400);
     await p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), START); await p.evaluate(() => cgFinishCreating(true)); await p.waitForTimeout(300); dialogs = []; };
-  const refuseCase = async (what, fn, re, setup) => { await base0(); if (setup) await setup(); dialogs = []; const before = await snap(); await edit(fn); const after = await snap();
+  const refuseCase = async (what, fn, re, setup) => { await base0(); if (setup) await setup(); dialogs = []; const before = await snap(); await edit(fn, D); const after = await snap();
     check(`after the lock: ${what} is refused — nothing written`, after.log.length === before.log.length && after.spent === before.spent && JSON.stringify(after.trad) === JSON.stringify(before.trad), JSON.stringify({ n0: before.log.length, n1: after.log.length }));
     check('...and the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 70)))); };
   await refuseCase('lowering rank', c => { c[0].rank = 1; return c; }, /rank can only go up/);
@@ -1198,10 +1198,10 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   await refuseCase('removing a discipline', c => { c[0].disciplines = []; return c; }, /can.t be removed or changed/);
   await refuseCase('a level-3 slot without rank 3', c => { c[0].disciplines[0].slots[2] = 1; return c; }, /Level 3 spells need Arcane rank 3/);
   await refuseCase('a level-4 slot before the Hit Dice for it (rank 4 needs 7 Hit Dice; this character has 5)', c => { c[0].rank = 4; c[0].disciplines[0].slots[3] = 1; return c; }, /Level 4 spells need Arcane rank 4 and 7 Hit Dice/);
-  await refuseCase('a known spell for a prepared caster', c => { c.push({ name: 'Primal', rank: 1, disciplines: [{ name: D.primalPrep, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }] }); return c; }, /prepares its spells/);
+  await refuseCase('a known spell for a prepared caster', (c, D) => { c.push({ name: 'Primal', rank: 1, disciplines: [{ name: D.primalPrep, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }] }); return c; }, /prepares its spells/);
   await refuseCase('Magically Bound (it grants AP)', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/);
   await refuseCase('Warlock pact slots (no purchase exists)', c => { c[0].disciplines[0].pactSlots = 1; return c; }, /pact slots and arcanum can.t be raised/);
-  await refuseCase('a second discipline when the campaign allows only one', c => { c[0].disciplines.push({ name: D.arcane2, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }); return c; },
+  await refuseCase('a second discipline when the campaign allows only one', (c, D) => { c[0].disciplines.push({ name: D.arcane2, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }); return c; },
     /only allows a single discipline/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: { multiDisciplineAllowed: false } }; }));
 
   // a no-op is silent, and a reload of a locked spellcaster raises nothing
@@ -1235,6 +1235,27 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
 
   const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
   check('no fatal page errors', fatal.length === 0, fatal.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
+// fix/chargen-load-over-locked (found by the post-lock parity fuzz, 2026-10-05): loading a character into a tab that still holds a LOCKED one rebuilt the form's feature rows, each row tried to
+// "buy" itself into the locked log, a refusal repainted the form, and the repaint rebuilt the rows again — a stack overflow (a regression from #573, live in v1.577). Painting a form must never
+// buy or refuse anything.
+section('CharGen: loading a character over a locked one neither overflows nor pops up a refusal');
+{
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(String(e).slice(0, 120)));
+  const dialogs = []; p.on('dialog', async d => { dialogs.push(d.message().slice(0, 100)); await d.accept(); });
+  const fxDir = path.join(REPO, 'testing/fixtures/builds');
+  const rd = f => { const raw = JSON.parse(fs.readFileSync(path.join(fxDir, f), 'utf8')); const b = raw.build || raw; b.budget = (b.budget || 79) + 60; return b; };
+  const A = rd('CG-015-renamed-feature-aliases.json'), B = rd('CG-031-warlock-invocation-transitive-block.json');
+  await p.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await p.waitForTimeout(2500);
+  await p.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
+  const r = await p.evaluate(async ([a, b]) => { applyBuild(a); cgFinishCreating(true); try { applyBuild(b); return { ok: true, locked: _cgIsLocked(), feat: (foldBuild(LOG).features || []).slice(0, 6) }; } catch (e) { return { ok: false, err: String(e.message).slice(0, 80) }; } }, [A, B]);
+  check('loading CG-031 over a locked CG-015 completes (it used to overflow the stack)', r.ok === true, JSON.stringify(r));
+  check('...with no refusal popup and no page error', dialogs.length === 0 && errs.length === 0, JSON.stringify({ d: dialogs, e: errs }));
+  check('...and the loaded character is the new one (a fresh, unlocked draft), not the old locked one', r.ok && r.locked === false, JSON.stringify(r));
   await ctx.close();
 }
 

@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix(chargen): loading a character while a locked one is open no longer overflows the stack (found by the post-lock parity fuzz)** —
+  `_cgPostLockAppend` and `retractFlatEvent` now do nothing while a load/restore is rebuilding the form (`_histSuspended`); before, the
+  rebuild re-synced the form against the still-locked old log, which looped until the browser threw "Maximum call stack size exceeded"
+  (present on live since #573). Regression section added to `chargen-flows-e2e.mjs`; the fuzz harness is `testing/scripts/post-lock-parity-fuzz.mjs`.
+
 - **2026-10-04 · fix(chargen): after "Finish creating", raising Hit Dice, proficiency or an ability score APPENDS the same in-play
   purchase the Live Sheet records, and lowering them is refused (phase 1 of `fix/chargen-post-lock-purchases`)** — CharGen used to
   rewrite the slot's creation-era event in place after the lock (Hit Dice 3 → 4 turned that event from 5 to 8 AP, still before

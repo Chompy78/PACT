@@ -94,6 +94,10 @@ async function intentsFor(seedNum) {   // candidate single-step purchases, from 
     take('feature', Object.keys(DATA.features || {}).filter(x => !(b.features || []).includes(x)), 2);
     take('expertise', (b.skills || []).filter(x => !(b.expertise || []).includes(x)), 1);
     take('drawback', (DATA.drawbackList || []).filter(x => !(b.drawbacks || []).includes(x)), 1);
+    take('racial', (DATA.racialList || []).filter(x => DATA.racial[x] && !DATA.racial[x].pack && [b.species, b.species2].includes(DATA.racial[x].race) && !(b.racialTraits || []).includes(x)), 1);
+    take('toolexpertise', [].concat(b.tools || [], b.instruments || []).filter(x => !(b.toolExpertise || []).includes(x)), 1);
+    take('subabil', Object.keys(DATA.subAbilMap || {}).filter(k => !(b.subAbilities || []).includes(k)), 2);
+    take('wornArmour', Object.keys(DATA.armours || {}).filter(x => x !== b.wornArmour), 1);
     take('unlockclass', (DATA.classes || []).filter(x => x !== b.originClass && !(b.unlockedClasses || []).includes(x)), 1);
     (Object.keys(DATA.subList || {})).filter(c => !(b.freeSub || {})[c]).slice(0, 12).forEach(c => { const sub = (DATA.subList[c] || [])[0]; if (sub) add('freesub', { cls: c, sub }); });
     const T = b.traditions || [];
@@ -110,6 +114,11 @@ async function intentsFor(seedNum) {   // candidate single-step purchases, from 
 
 async function lsDo(intent) {   // click the matching enabled tile in the real buy panel
   const before = await ls.evaluate(LS_SNAP); lsDialogs = [];
+  if (intent.cat === 'wornArmour') {   // the Live Sheet picks what you wear from a <select>, which calls setWornArmour()
+    const ok = await ls.evaluate(v => { const sel = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === v)); if (!sel) return 'absent'; const o = [...sel.options].find(o => o.value === v); if (o.disabled) return 'blocked'; setWornArmour(v); return 'clicked'; }, intent.payload.v);
+    await ls.waitForTimeout(100); const after = await ls.evaluate(LS_SNAP);
+    return { found: { state: ok }, before, after, accepted: after.post.length > before.post.length, dialogs: lsDialogs.slice() };
+  }
   // cross-class features are only listed once their class is picked in the "Cross-class features" selector (buyCls)
   if (intent.cat === 'feature') await ls.evaluate(v => { try { const c = DATA.features[v] && DATA.features[v].cls; if (c && typeof buyCls !== 'undefined') { buyCls = c; refreshBuy(); } } catch (e) {} }, intent.payload.v);
   const found = await ls.evaluate(({ cat, payload }) => {
@@ -158,6 +167,10 @@ async function cgDo(intent) {   // the equivalent through CharGen's real control
       case 'art': return box('artck', payload.v, true) ? 'ok' : 'no control';
       case 'expertise': return box('expck', payload.v, true) ? 'ok' : 'no control';
       case 'drawback': return box('drawck', payload.v, true) ? 'ok' : 'no control';
+      case 'racial': return box('racck', payload.v, true) ? 'ok' : 'no control';
+      case 'toolexpertise': return box('toolexpck', payload.v, true) ? 'ok' : 'no control';
+      case 'wornArmour': return sel('wornArmour', payload.v) ? 'ok' : 'no control';
+      case 'subabil': { try { addRow('subabil', payload.v); const rows = [...document.querySelectorAll('.subabilrow')]; const row = rows[rows.length - 1]; if (row) fire(row); return 'ok'; } catch (e) { return 'no control: ' + String(e.message).slice(0, 60); } }
       case 'unlockclass': { const el = [...document.querySelectorAll('.classunlock')].find(e => e.dataset.cls === payload.v); if (!el) return 'no control'; el.checked = true; fire(el); return 'ok'; }
       case 'feature': { try { addRow('feat2', payload.v); const rows = [...document.querySelectorAll('.feat2row')]; const row = rows[rows.length - 1]; if (!row) return 'ok-gone'; fire(row); return 'ok'; } catch (e) { return 'no control: ' + String(e.message).slice(0, 60); } }
       case 'found': case 'rank': case 'cantrip': case 'slot': case 'known': { const b = foldBuild(LOG); const c = JSON.parse(JSON.stringify(b)); MUT[cat](c, payload); replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: c.traditions }); return 'ok'; }
@@ -221,7 +234,7 @@ async function runOp(it, k, ctxInfo, history) {
 
 if (REPLAY) {
   const rec = JSON.parse(fs.readFileSync(REPLAY, 'utf8')).report.mismatches[RINDEX];
-  const fx = FIX.find(x => x.f === rec.fixture); const b = JSON.parse(JSON.stringify(fx.b)); b.budget = rec.budget;
+  const fx = FIX.find(x => x.f === rec.fixture); const b = JSON.parse(JSON.stringify(rec.build || fx.b)); b.budget = rec.budget;
   const { s0, diffKeys } = await setup(fx, b, rec.econ, rec.wallet || { gp: 0, days: 0 });
   console.log(`replay ${rec.cls}  fixture ${rec.fixture}  budget ${rec.budget}  econ ${rec.econ}  start totals cg ${s0[0].total}/${s0[0].spent} ls ${s0[1].total}/${s0[1].spent}  folded-build differences: ${JSON.stringify(diffKeys)}`);
   for (const h of rec.history) {
@@ -234,8 +247,9 @@ if (REPLAY) {
 
 for (let trial = 0; trial < TRIALS; trial++) {
   const fx = pick(FIX); const b = JSON.parse(JSON.stringify(fx.b)); b.budget = (b.budget || 79) + 30 + ri(90);
+  if (rnd() < 0.5) { b.hd = 1 + ri(14); b.profBonus = Math.max(b.profBonus || 2, 2 + Math.floor((b.hd - 1) / 4)); for (const a of ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']) if (b.stats) b.stats[a] = 8 + ri(9); }   // vary level and ability scores so the HD gates and ability caps bite
   const econ = rnd() < 0.6, wallet = { gp: pick([0, 25, 100, 500, 3000]), days: pick([0, 14, 60, 365]) };
-  const info = { trial, fixture: fx.f, budget: b.budget, econ, wallet: econ ? wallet : null };
+  const info = { trial, fixture: fx.f, budget: b.budget, econ, wallet: econ ? wallet : null, build: JSON.parse(JSON.stringify(b)) };   // the exact starting build, so a replay reproduces the randomised level and scores
   const history = [];
   try {
     const { s0, diffKeys } = await setup(fx, b, econ, wallet);
@@ -245,7 +259,7 @@ for (let trial = 0; trial < TRIALS; trial++) {
     for (let k = 0; k < OPS; k++) {
       let intents = await intentsFor(Math.floor(rnd() * 4294967296)); if (ONLY) intents = intents.filter(i => ONLY.includes(i.cat));
       if (!intents.length) break;
-      const r = await runOp(pick(intents), k, info, history);
+      const cats = [...new Set(intents.map(i => i.cat))]; const cat = pick(cats); const r = await runOp(pick(intents.filter(i => i.cat === cat)), k, info, history);
       if (r.stop) break;
     }
   } catch (e) { report.errors.push({ trial, fixture: fx.f, err: String(e.message).slice(0, 200), history }); }

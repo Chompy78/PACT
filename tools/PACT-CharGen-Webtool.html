@@ -3205,6 +3205,7 @@ function retractFlatEvent(cat,predicate){
   // and spent fell by 6). It covers purchases made after the lock too — those are in-play purchases, not drafts; Undo (walled at the lock)
   // is how the latest one is taken back. Callers already treat `false` as "put the tick back".
   if(_cgIsLocked()){
+    if(_histSuspended) return false;   // the form is being (re)painted from a build: tidy-up, not an edit — refuse silently, keep the purchase, no toast
     if(!_cgSealRefusedPass){
       _cgSealRefusedPass=true;
       flash('\uD83D\uDD12 Once creation is finished, nothing you bought can be removed. Undo takes back your latest purchase.');
@@ -3532,6 +3533,10 @@ function _cgPostLockSteps(slot,patch,cur){
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
 // path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
 function _cgPostLockAppend(steps){
+  // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
+  // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
+  // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
+  if(_histSuspended) return true;
   var b=foldBuild(LOG), evs=[], total=0;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
