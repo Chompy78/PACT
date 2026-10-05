@@ -1332,3 +1332,48 @@ only, no stored data), likelihood of harm low. Not blocking: the run passed on r
 ```
 **Done when:** the Fighter-priming check passes on 200 consecutive seeded rolls, a failing seed (if one is found)
 is recorded as a fixture, and `testing/scripts/random-quality-ci.mjs` reports 0 failed on CI across 3 runs.
+
+## feat/subability-prereq — Circle Forms must require base Wild Shape; the subclass-ability loop ignores `prereq` — TODO
+Branch `feat/subability-prereq`. **Effort:** medium · **Risk:** medium — damage scale drives it (a rules change in
+`js/engine.js`'s pricing path); ambiguity and likelihood are low (one live character owns it, and already has the prerequisite).
+
+```text
+compute() enforces `prereq` only for b.features via DATA.features (js/engine.js ~304-309, ~484-510). The b.subAbilities loop
+(~564-577) applies only the Hit-Dice gate, and no subclass ability carries a `prereq` today.
+DO:
+  1. Add prereq support to the b.subAbilities loop, reusing the feature loop's blocking behaviour (missing prerequisite = costs
+     nothing, grants nothing, listed under "Blocked purchases").
+  2. Give `Druid|Circle of the Moon|Circle Forms` prereq ["Druid: Wild Shape"] in ALL THREE data copies (DATA.features,
+     DATA.subAbilMap, DATA.subclasses.Druid["Circle of the Moon"].abilities). Both purchase doors must enforce it identically.
+  3. Base Wild Shape ONLY. Do NOT require the 6 forms step: it would block Moss Stormspud (Amble), who owns Circle Forms and base
+     Wild Shape but not that step.
+  4. Bump DATA.version once; fixtures (blocked without Wild Shape, allowed with it, via both doors); update testing/expected/;
+     Guide row note (master + served copy, verify-guide.mjs before and after); CHANGELOG; decision record.
+  5. Re-measure live characters before the PR. Match the key `Druid|Circle of the Moon|Circle Forms` (not `Druid: Circle Forms`).
+     On 2026-10-05 only Moss Stormspud and her DM copy own it.
+OUT OF SCOPE: Circle Forms' CR override (max CR = level/3), accepted as-is by the owner on 2026-10-05.
+Related: `refactor/subclass-purchase-unify` is the deep fix (one purchase door). It is high effort/risk and unscheduled: about
+56 references in CharGen, 18 in Live Sheet, 30 in the engine; only 3 of 52 build fixtures buy a subclass ability.
+```
+**Done when:** Circle Forms without Wild Shape prices at 0 and shows under "Blocked purchases" through BOTH doors; with base Wild
+Shape it prices normally; engine-parity 0 failed with the new fixtures; live re-check shows no character newly blocked; Guide updated.
+
+## Anders Pipeleaf holds one ability through both purchase doors — decide how a sealed double charge is handled — TODO
+**Effort:** low · **Risk:** medium — ambiguity drives it (the DM and player must choose what, if anything, is refunded).
+
+```text
+FOUND 2026-10-05. Anders Pipeleaf (Amble, campaign-bound; also a DM copy and a lock-check copy) bought
+`Rogue|Soulknife|Psionic Power / Psychic Blades` via the subclass picker (8 AP, seq 30, 2026-08-31) and again via the in-play
+advancement picker as `Rogue: Psionic Power / Psychic Blades` (7 AP + 100 gp + 21 days, seq 40, 2026-09-17, warns []).
+compute() charges both with no duplicate warning; replay gives 111 AP vs 104 without seq 40 (absolute totals unreliable: DM AP
+pool and campaign rules omitted; the delta is valid). The 7-vs-8 gap is the Martially Bound discount, applied only in the features
+loop. No other Amble or live character has this (checked 2026-10-05, matching by class + ability name).
+This is a live case for the existing task "Mirrored subclass abilities double-charge when bought through both paths", whose
+likelihood rating ("low") no longer holds. The history is sealed (seq 47); the DM's repair placed the creation lock before seq 40,
+and `fix/ledger-reconciliation-pass` already notes his ledger is frozen against a contaminated basis.
+DO: (1) get a DM decision on the 7 AP + 100 gp + 21 days (refund, or leave); (2) record it in DECISIONS.md; (3) confirm that
+whichever fix lands for the double-charge task does not silently change his sealed ledger; (4) apply the decision as a DM edit,
+not by hand-editing the log.
+```
+**Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
+task's likelihood note is updated by the board's owner to point at this case.
