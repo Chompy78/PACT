@@ -36,6 +36,13 @@
   player-taken control that must still pay and still warn. Pure Node. Runs in CI as the `imposed-drawback-grants` job of
   `.github/workflows/engine-parity.yml`: `node testing/scripts/imposed-drawback-grants-ci.mjs`. Parity fixtures
   EV-025/EV-026 pin the warning lists.
+- **`scripts/subclass-double-purchase-ci.mjs`** and **`scripts/live-sheet-subclass-owned-e2e.mjs`** (`feat/subclass-double-purchase-guard`) — gates for
+  "one subclass ability is one purchase". Every subclass ability is sold through two doors (`b.subAbilities` and a mirrored `b.features` entry); the
+  pure-Node gate pins that `purchaseLegality()` refuses the second purchase in BOTH orders for all 192 abilities, that `abilityIdent()`/`ownsAbility()` agree
+  for both key shapes, that the price is counted once, and that the guard does not over-fire (a different ability, a first purchase). The browser gate pins that
+  the Live Sheet shows an ability owned through either door as owned in both pickers. Fixtures CG-053..056 / EV-030..031 pin `compute()`. Runs in CI as the
+  `subclass-double-purchase` job of `engine-parity.yml` and a step of `dm-console-ui.yml`:
+  `node testing/scripts/subclass-double-purchase-ci.mjs`, `node testing/scripts/live-sheet-subclass-owned-e2e.mjs`.
 - **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`, extended by `feat/wound-aliases`) — gates for the
   DM-only Wounds section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier;
   the four Grievous drawbacks are not wounds); the **wound-only split** — the 19 wound-only entries (the original four, 8 aliases and 7
