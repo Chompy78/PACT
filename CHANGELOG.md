@@ -4,6 +4,9 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-06 · docs(guide): the Circle Forms row of the Players Guide now reads "Buy (needs Wild Shape)" — master (`pact-guide`) and served copy** —
+  lands the guide half of `D-GH-2026-10-05-subability-prereq` (engine v0.370). One table cell, edited identically in both files (the master through the home-server connector, which backs the old file up first), not by copying one file over the other, so the served copy's three presentation-only additions are untouched. `verify-guide.mjs` before and after: **identical** — it already reports 1 of 11 checks failing (`feature prices`: ambiguous=6, unparsed-price=11, price-mismatch=1, stepped-feature=3) at `5104a7c`, before any of the 2026-10-05 changes, and after each of them; the other 10 pass. The `documents-rules:` marker was deliberately NOT refreshed: it claims the whole prose was reconciled against an engine version and is stamped by `pact-guide`'s own tool, which this one-cell edit is not.
+
 - **2026-10-05 · fix(chargen): a post-lock drawback no longer carries a gold/downtime stamp (the Live Sheet never stamps one); fuzz harness retries a dead browser tab once and drives the Live Sheet's drawback buttons** — found by a drawback-only parity run.
 
 - **2026-10-05 · fix: a SOLO character (no campaign) may take drawbacks, Martially Bound and Magically Bound after the lock; only campaign characters are bound by the two tickboxes (owner AA2)** — `postLockAllowance(null)` allows all three; e2e covers solo and campaign in both tools.
