@@ -1352,3 +1352,24 @@ DO:
   4. Fixture(s) for the repeat; bump DATA.version once; CHANGELOG; decision record.
 ```
 **Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
+
+## `verify-guide.mjs` is red at baseline ("feature prices"), so every "verify-guide passes before and after" gate is unsatisfiable — TODO
+**Effort:** medium · **Risk:** low — guide text and a checker; no pricing change unless the one real mismatch turns out to be an engine error.
+
+```text
+FOUND 2026-10-06 while landing the Circle Forms guide row. `node testing/scripts/verify-guide.mjs` fails 1 of 11 checks — `feature prices`: ambiguous=6,
+unparsed-price=11, price-mismatch=1, stepped-feature=3 — and did so at 5104a7c, BEFORE any of the 2026-10-05 changes, and after each of them (same numbers
+every time). docs/VERSION-SYNC.md and several tasks on this board say a guide change is done only when verify-guide "passes before and after"; with a red
+baseline that cannot be met, so people can only compare before to after. (`node testing/scripts/guide-price-check.mjs docs/PACT-Players-Guide.html` lists the rows.)
+Of the 21 findings, 20 are checker limitations and ONE is a genuine guide-vs-engine price difference:
+  - REAL: line ~805 "Empowered Strikes / Self-Restoration" — guide T5 Passive 17 (13); engine T4 Passive 14 (11). Decide which is right (the engine wins per
+    AGENTS.md unless the owner says otherwise), then fix the guide row in the pact-guide master AND the served copy (same edit in both, never a file copy).
+  - AMBIGUOUS (6): the same name exists in two classes/subclasses (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells) so the checker
+    cannot pick a row — teach it to key on the table's class heading, or list them in an allow-list with a reason.
+  - UNPARSED PRICE (11): rows that legitimately carry no single price (Divine/Primal Order skill ladders, Weapon Mastery, "Included in Premium", "Barred -> A&T",
+    ranges like "3-10") — allow-list them with the reason, so a NEW unparsed row still fails.
+  - STEPPED (3): Metamagic rows — the checker says "verify the whole row set"; give it a ladder check, or allow-list.
+DO: fix the one real row; make the other 20 either parsed correctly or explicitly allow-listed (each with a reason) so the check goes green and a new genuine drift
+fails it. Re-run the verifier on the served copy; transfer the guide edit to the master per docs/VERSION-SYNC.md.
+```
+**Done when:** `node testing/scripts/verify-guide.mjs` reports 11 of 11 PASS on the served copy; the Empowered Strikes row agrees with the engine in both guide files; the allow-list entries each carry a reason; the verifier still FAILS if a priced row is deliberately changed (mutation check).
