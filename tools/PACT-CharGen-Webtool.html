@@ -3563,7 +3563,7 @@ function _cgPostLockAppend(steps){
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
       if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }
-      var q=_cgPostLockQuote(cost);
+      var q=(st.cat==='drawback')?null:_cgPostLockQuote(cost);   // a drawback grants AP: the Live Sheet never quotes or stamps gold/downtime on it (found by the parity fuzz, drawback-only run)
       // Wallet (Q2): the §16 trade offer is decided PER STEP against the wallet as the earlier steps of this edit left it (accepting a trade on one step changes the next); the shortfall
       // warning is ONE confirm for the whole edit, below. A drawback is never charged, and a free purchase has nothing to trade.
       if(q&&(q.gp||q.days)&&st.cat!=='drawback'){

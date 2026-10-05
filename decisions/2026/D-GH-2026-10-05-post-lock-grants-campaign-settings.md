@@ -16,7 +16,7 @@ Three purchases GRANT AP instead of costing it: a drawback, Martially Bound and 
 - Two separate campaign rules, edited in the DM Console's Campaign Rules panel: `postLockDrawbacks` (new drawbacks) and `postLockBindings` (Martially Bound and Magically Bound). Each is allowed only by an explicit `true`; a missing key (every existing campaign) means refused. `js/engine.js` `postLockAllowance(rules)` is the one definition both tools read.
 - The Live Sheet refuses in `buy()` (so nothing can reach the log) and greys the tiles with the reason; CharGen refuses in its post-lock diff and, where allowed, records the same `drawback` / `mbound` / `dbound` purchase the Live Sheet does (Magically Bound is bought before the powers of that edit, so its spell discount applies as when bought first).
 - Before the lock nothing changes: they are part of building the character. A drawback the DM imposes is a different path and is never barred.
-- No campaign (solo) = refused, since there is no DM to waive it. **Open question for the owner:** solo players are now barred from both after the lock; say if solo should be allowed.
+- **Solo (no campaign): allowed** (owner AA2, same day) — there is no DM to award AP or to tick a box, so `postLockAllowance(null)` allows all three. Only a campaign character is bound by the two tickboxes. Edge: a campaign character whose rules have not loaded yet is treated by what the tool knows (its stored rules snapshot); if none, it reads as solo.
 - No server change: the rules column is free-form JSON, and appended `buy` events were already allowed by the freeze migration.
 
 ## Why
