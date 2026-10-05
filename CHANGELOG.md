@@ -4,6 +4,9 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix(chargen): after the lock, ticking Improvised weapons right after buying All martial is no longer refused as "giving up" Simple (found by the post-lock parity fuzz)** —
+  the Simple box can stay unticked after an All-martial purchase; the diff now treats All martial as including Simple, as the Live Sheet's tile does.
+
 - **2026-10-05 · fix(chargen): after the lock, a subclass ability or spell list of a class the character has no access to is refused (Live Sheet parity; found by the post-lock parity fuzz)** —
   the Live Sheet offers them only for the origin class and unlocked classes; CharGen's picker listed every class. Report: `docs/sessions/2026-10-05-post-lock-parity-fuzz.md`.
 

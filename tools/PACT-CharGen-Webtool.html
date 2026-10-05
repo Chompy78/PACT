@@ -3477,7 +3477,8 @@ function _cgPostLockSteps(slot,patch,cur){
     if(!refuse&&patch.wornArmour!=null&&(patch.wornArmour||'')!==(cur.wornArmour||''))   // what you are wearing is a choice, not a purchase: free, both ways
       steps.push({cat:'wornArmour',payload:{v:patch.wornArmour||''},label:patch.wornArmour?('Worn armour \u2014 '+patch.wornArmour):'Worn armour \u2014 none (unarmoured)'});
   }else if(slot==='weaponProf'){
-    var cw=Object.assign({},cur.weaponProf||{}), nw=(patch.weaponProf)||{};
+    var cw=Object.assign({},cur.weaponProf||{}), nw=Object.assign({},(patch.weaponProf)||{});
+    if(nw.allMartial) nw.simple=true;   // All martial includes Simple (the Live Sheet's tile sets both); the form's Simple box can still be unticked after an All-martial purchase
     if((cw.simple&&!nw.simple)||(cw.allMartial&&!nw.allMartial)||(cw.improvised&&!nw.improvised)||((+cw.martial||0)>(+nw.martial||0)&&!nw.allMartial))
       refuse='Weapon proficiencies can\'t be given up once creation is finished.';
     else{

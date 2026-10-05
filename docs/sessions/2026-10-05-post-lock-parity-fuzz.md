@@ -21,12 +21,13 @@ No AI sub-agents were used: the space is large but the check is mechanical, so a
 | 1–2 | `feat/chargen-2b2-traditions-diff` | 0 differences (fresh page per trial) |
 | 3 (page reuse, 600 characters) | same | 0 mismatches, but exposed a stack overflow (below) |
 | 4 (widened: racial, tool expertise, subclass abilities, worn armour; random HD/stats) | same | 10 / 243, 8 / 139, … mismatches — two causes, both fixed (below) |
-| 5 (fresh seeds after the fixes) | final | see the PR #584 description |
+| 5 (seeds 501–503) | after fixes 1–3 | 1 mismatch in 239 purchases: finding 4 below (fixed); the other workers 0 |
 
 ## Findings
 
 1. **Stack overflow when loading a character while a locked one is open** (pre-existing on live since #573). The form rebuild called the flat-category sync, which tried to "buy" rows into the still-locked old log; the refusal repainted, the repaint rebuilt the rows, and so on until "Maximum call stack size exceeded". **Fixed:** `_cgPostLockAppend` and `retractFlatEvent` do nothing while a load is rebuilding the form (`_histSuspended`). Regression test in `chargen-flows-e2e.mjs`.
 2. **CharGen allowed subclass abilities / spell lists of a class the character has no access to** after the lock. The Live Sheet only offers them for the origin class and unlocked classes; CharGen's picker lists every class (a Cleric bought a Fighter ability for 17 AP). **Fixed:** the same access rule in `_cgPostLockAppend`.
+4. **Buying All martial, then ticking Improvised, was refused as "giving up" Simple** (round 5). After an All-martial purchase the form's Simple box can stay unticked while the log has Simple; the next edit read that as a removal. **Fixed:** All martial counts as including Simple in the diff.
 3. **Harness artefact, not a defect:** worn armour. CharGen disables ineligible armour options exactly as the Live Sheet does; the harness set the select's value directly, which a real user cannot do. The harness now treats a disabled option as "no control".
 
 ## Explained differences (not counted as defects)
