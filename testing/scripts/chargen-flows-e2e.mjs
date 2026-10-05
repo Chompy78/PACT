@@ -825,6 +825,7 @@ section('CharGen: flat purchases after the lock — no refunds, no new drawbacks
   check('after the lock: a purchase made AFTER the lock cannot be unticked either', boonEv(l3.log, B2).length === 1 && l3.spent === l2.spent && await isTicked('boonck', B2));
 
   dialogs = [];
+  await p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; });   // in a CAMPAIGN a new drawback after the lock is refused unless the campaign allows it (a solo character may: owner AA2)
   const nBeforeDraw = (await snap()).log.length;
   await tick('drawck', D1, true);
   const l4 = await snap();
@@ -993,7 +994,8 @@ section('CharGen refuses post-lock edits to spellcasting, innate, misc and ident
     check('...the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60)))); };
   await refused('lowering spellcasting (rank 2 -> 1, cantrips 2 -> 1)', () => p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD), /can only go up once creation is finished/);
   await refused('changing innate spells', () => p.evaluate(() => replacePatchSlot(PATCH_SLOTS.INNATE, { innate: [1, 0, 0, 0, 0, 0, 0, 0, 0] })), /Innate spells are chosen during creation/);
-  await refused('taking martial binding (it grants AP)', () => setSel('martiallyBound', 'Fighter'), /binding give you AP/);
+  await refused('taking martial binding in a campaign that has not allowed it (it grants AP)', async () => { await p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; }); await setSel('martiallyBound', 'Fighter'); }, /binding give you AP/);
+  await p.evaluate(() => { window._cloudCampaign = null; });   // back to a solo character for the cases below
   await refused('adding out-of-tradition cantrips', () => setSel('dabblerCantrips', 2), /Out-of-Tradition cantrips are chosen during creation/);
   const otherSpecies = await p.evaluate(() => { const cur = document.getElementById('spec').value; return [...document.getElementById('spec').options].map(o => o.value).find(v => v && v !== cur); });
   await refused('changing species', () => setSel('spec', otherSpecies), /origin .*is chosen during creation/);
@@ -1199,7 +1201,7 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   await refuseCase('a level-3 slot without rank 3', c => { c[0].disciplines[0].slots[2] = 1; return c; }, /Level 3 spells need Arcane rank 3/);
   await refuseCase('a level-4 slot before the Hit Dice for it (rank 4 needs 7 Hit Dice; this character has 5)', c => { c[0].rank = 4; c[0].disciplines[0].slots[3] = 1; return c; }, /Level 4 spells need Arcane rank 4 and 7 Hit Dice/);
   await refuseCase('a known spell for a prepared caster', (c, D) => { c.push({ name: 'Primal', rank: 1, disciplines: [{ name: D.primalPrep, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }] }); return c; }, /prepares its spells/);
-  await refuseCase('Magically Bound (it grants AP)', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/);
+  await refuseCase('Magically Bound (it grants AP) in a campaign that has not allowed it', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; }));
   await refuseCase('Warlock pact slots (no purchase exists)', c => { c[0].disciplines[0].pactSlots = 1; return c; }, /pact slots and arcanum can.t be raised/);
   await refuseCase('a second discipline when the campaign allows only one', (c, D) => { c[0].disciplines.push({ name: D.arcane2, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }); return c; },
     /only allows a single discipline/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: { multiDisciplineAllowed: false } }; }));
@@ -1228,6 +1230,9 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   check('default (only bindings on): a new drawback after the lock is refused', drawEv(gd0).length === 0 && dialogs.some(d => /Drawbacks can.t be taken/.test(d.msg)), JSON.stringify({ ev: drawEv(gd0), dialogs }));
   await base0(); await withRules({ postLockDrawbacks: true }); dialogs = []; await drawTick(); const gd1 = await snap();
   check('postLockDrawbacks on: a new drawback is accepted and grants its AP', drawEv(gd1).length === 1 && drawEv(gd1)[0].cost < 0 && dialogs.length === 0, JSON.stringify({ ev: drawEv(gd1), dialogs }));
+  // a SOLO character (no campaign at all) may take all three (owner AA2)
+  await base0(); await p.evaluate(() => { window._cloudCampaign = null; }); dialogs = []; await edit(boundEdit, D); await martial(); await drawTick(); const gs = await snap();
+  check('solo (no campaign): Magically Bound, Martially Bound and a drawback are all accepted after the lock', bindEv(gs).map(e => e.cat).sort().join() === 'dbound,mbound' && drawEv(gs).length === 1 && dialogs.length === 0, JSON.stringify({ b: bindEv(gs).map(e => e.cat), d: drawEv(gs).length, dialogs }));
   // the Live Sheet, same locked character: refused by default, allowed by the same two settings
   await base0(); const lenv = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
   const lp2 = await ctx.newPage(); const lsd = []; lp2.on('dialog', d => { lsd.push(d.message().slice(0, 90)); d.accept(); });
@@ -1236,7 +1241,9 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   const lsPost = () => lp2.evaluate(() => JSON.parse(JSON.stringify(LOG)).filter(e => e.type === 'buy' && ['dbound', 'mbound', 'drawback'].indexOf(e.cat) >= 0).map(e => e.cat));
   const lsBuy = () => lp2.evaluate(D => { buy('dbound', { ti: 0, di: 0, v: true }, 'Magically Bound'); buy('mbound', { v: foldBuild(null).originClass }, 'Martially Bound'); buy('drawback', { v: Object.keys(DATA.drawbacks)[0] }, 'Drawback'); }, D);
   await lsBuy();
-  check('Live Sheet, default: Magically Bound, Martially Bound and a drawback are all refused after the lock', (await lsPost()).length === 0 && lsd.length === 3, JSON.stringify({ ev: await lsPost(), lsd }));
+  check('Live Sheet, solo (no campaign): all three are accepted after the lock', (await lsPost()).length === 3 && lsd.length === 0, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { LOG = LOG.filter(e => !(e.type === 'buy' && ['dbound', 'mbound', 'drawback'].indexOf(e.cat) >= 0)); window._rulesStatus = 'active'; window._cloudCampaignRules = {}; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, in a campaign with neither box ticked: Magically Bound, Martially Bound and a drawback are all refused after the lock', (await lsPost()).length === 0 && lsd.length === 3, JSON.stringify({ ev: await lsPost(), lsd }));
   await lp2.evaluate(() => { window._rulesStatus = 'active'; window._cloudCampaignRules = { postLockBindings: true }; }); lsd.length = 0; await lsBuy();
   check('Live Sheet, postLockBindings only: both bindings go through, the drawback is still refused', JSON.stringify(await lsPost()) === JSON.stringify(['dbound', 'mbound']) && lsd.length === 1, JSON.stringify({ ev: await lsPost(), lsd }));
   await lp2.evaluate(() => { window._cloudCampaignRules = { postLockDrawbacks: true }; }); lsd.length = 0; await lsBuy();

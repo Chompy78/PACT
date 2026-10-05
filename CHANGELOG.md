@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix: a SOLO character (no campaign) may take drawbacks, Martially Bound and Magically Bound after the lock; only campaign characters are bound by the two tickboxes (owner AA2)** — `postLockAllowance(null)` allows all three; e2e covers solo and campaign in both tools.
+
 - **2026-10-05 · ci: a short post-lock parity fuzz (20 seeded characters, ~2 min) runs on every PR touching the tools or engine (owner Y1)** — `.github/workflows/post-lock-parity.yml`; the harness now times out a stuck purchase after 60 s, opens a fresh browser context per trial and can replay a harness error (`--errors`).
 
 - **2026-10-05 · feat: new drawbacks, Martially Bound and Magically Bound after the creation lock are refused in BOTH tools by default; a campaign can allow each with its own tickbox (owner X1)** —
