@@ -4,6 +4,12 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · ci: a short post-lock parity fuzz (20 seeded characters, ~2 min) runs on every PR touching the tools or engine (owner Y1)** — `.github/workflows/post-lock-parity.yml`; the harness now times out a stuck purchase after 60 s, opens a fresh browser context per trial and can replay a harness error (`--errors`).
+
+- **2026-10-05 · feat: new drawbacks, Martially Bound and Magically Bound after the creation lock are refused in BOTH tools by default; a campaign can allow each with its own tickbox (owner X1)** —
+  DM Console → Campaign Rules: "Players may take new drawbacks after creation is finished" (`rules.postLockDrawbacks`) and "…Martially Bound / Magically Bound…" (`rules.postLockBindings`), off unless ticked.
+  The Live Sheet used to offer all three after the lock while CharGen refused them. `postLockAllowance()` in `js/engine.js`; e2e covers both tools. Record: `decisions/2026/D-GH-2026-10-05-post-lock-grants-campaign-settings.md`.
+
 - **2026-10-05 · fix(chargen): after the lock, ticking Improvised weapons right after buying All martial is no longer refused as "giving up" Simple (found by the post-lock parity fuzz)** —
   the Simple box can stay unticked after an All-martial purchase; the diff now treats All martial as including Simple, as the Live Sheet's tile does.
 

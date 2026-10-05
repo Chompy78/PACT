@@ -893,7 +893,17 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
 // DUP_FIELD now lives in js/engine.js (purchaseLegality) — moved verbatim, refactor/engine-purchase-legality.
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}
+// After the creation lock a drawback, Martially Bound and Magically Bound — each grants AP — are refused unless the campaign allows them (rules.postLockDrawbacks / rules.postLockBindings;
+// js/engine.js postLockAllowance). '' = allowed. Before the lock they are part of building the character and are never barred here.
+function _lsBarGrant(cat){
+  if(cat!=='drawback'&&cat!=='mbound'&&cat!=='dbound') return '';
+  if(!window._engineCreationLockState||!window._engineCreationLockState(LOG).locked) return '';
+  var a=window.postLockAllowance(resolveRules());
+  if(cat==='drawback') return a.drawbacks?'':'Drawbacks can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to impose one, or to allow them in the campaign settings.';
+  return a.bindings?'':'Martial and magical binding can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to allow them in the campaign settings.';
+}
 function buy(cat,payload,label){
+  var _bar=_lsBarGrant(cat); if(_bar){ alert('\u26D4 '+_bar); return; }
   // Fold the LOG once and reuse it for every read below (dup guard, pricing, availability, hd, legal check).
   // Nothing here mutates the LOG before emit(), so this single fold is valid throughout — it removes the
   // redundant foldBuild+compute that apAvailable(null) used to run on top of priceOf()/legalCheck() (perf/
@@ -1784,7 +1794,7 @@ function buildBuyPanel(b,r,eco,head){
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
-    const hardReason = reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
+    const hardReason = _lsBarGrant(cat) || reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
     // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
     // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
     // boons would otherwise be the only permanently-warned tiles in the panel.
@@ -1811,6 +1821,8 @@ function buildBuyPanel(b,r,eco,head){
     return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
+    var _bar=_lsBarGrant('drawback'); if(_bar&&hideUnavail) return '';
+    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" onclick="flash(&quot;'+esc(_bar)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
     return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
   // A HELD purchase that the engine reports as blocked must not read as an ordinary holding: compute()
@@ -2684,7 +2696,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -2695,6 +2707,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
+  window.postLockAllowance = postLockAllowance; window._engineCreationLockState = _engineCreationLockState;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of

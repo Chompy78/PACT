@@ -2195,6 +2195,17 @@ export function creationLockState(events) {
   };
 }
 
+// postLockAllowance(rules) — what a campaign lets a character BUY after creation that GRANTS AP.
+//
+// A drawback, Martial binding and Magical binding each hand the player AP, and after the creation lock only the DM is meant to award AP. So by default all three are refused
+// once a character is locked (owner decision 2026-10-05, option X1). A campaign can opt in, separately: `rules.postLockDrawbacks` for drawbacks, `rules.postLockBindings`
+// for Martially / Magically Bound. Only an explicit `true` allows it — a missing key (every campaign created before this existed) means refused. With no campaign
+// (`rules` null) it is refused too: there is no DM to waive the limit.
+export function postLockAllowance(rules) {
+  const r = rules && typeof rules === 'object' ? rules : {};
+  return { drawbacks: r.postLockDrawbacks === true, bindings: r.postLockBindings === true };
+}
+
 // creationCeiling(events, opts) — the AP ceiling a character may not spend past while still being
 // built, and where they currently stand against it.
 //
