@@ -28,6 +28,6 @@ been smaller but would have left the duplicate in a sealed log, and risked doubl
 - The history-lock trigger refuses this edit by design; it was disabled for one transaction. That is a privileged step and was
   taken with explicit owner approval — it is not a routine tool.
 - Rollback: restore from the `character_backups` row captured at 12:53:13 UTC (fingerprint `93d2a60c…`).
-- The cause is untouched until `feat/subclass-double-purchase-guard` lands.
+- The cause is fixed by PR #587 (`D-GH-2026-10-05-subclass-double-purchase-guard`): the second purchase is now refused in both tools and a duplicate in an existing log is charged once. Anders's two review copies still carry the duplicate; they are not repaired.
 
 Session note: `docs/sessions/2026-10-05-anders-double-purchase-repair.md`.

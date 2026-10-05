@@ -48,7 +48,7 @@ transaction). Nothing was deleted from the backups.
 
 ## Not done / follow-ups
 - Anders's two review copies ("Anders Pipeleaf (DM copy)", "… lock check (DM copy)") still carry the duplicate. Left alone.
-- The fix that stops it recurring: board task `feat/subclass-double-purchase-guard` (decision P3: charge the copy bought first).
+- The fix that stops it recurring has since merged: PR #587 (`D-GH-2026-10-05-subclass-double-purchase-guard`, decision P3: charge the copy bought first; `DATA.version` v0.369).
 - Whether Martially Bound should discount subclass abilities is an open rules question (out of scope of that task).
-- `feat/subability-prereq` (Circle Forms must require base Wild Shape) was split off the same investigation.
+- Circle Forms must require base Wild Shape was split off the same investigation and has merged too: PR #588 (`D-GH-2026-10-05-subability-prereq`, `DATA.version` v0.370). Its Players Guide row is still to do (board task).
 - The "server freeze, stage 1" migration (2026-10-05) was not live at the time; once applied, a repair like this gets harder.
