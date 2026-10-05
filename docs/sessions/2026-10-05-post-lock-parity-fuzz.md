@@ -42,6 +42,10 @@ No AI sub-agents were used: the space is large but the check is mechanical, so a
 - Several Live Sheet eligibility gates live in its tile code, not in the engine (rank / Hit Dice for slots and known spells, art HD and minimum stats, feature prerequisites, cross-class selector). CharGen reproduces them through its own form. A single engine `purchaseAvailability()` would remove the duplication — a larger change, not done here.
 - In one replay the Live Sheet showed a wallet shortfall confirm that CharGen did not (the harness's CharGen wallet may differ from the Live Sheet's); dialogs are not part of the comparison. Worth a look if wallet parity matters.
 
+## Drawbacks (added after owner decision AA2: solo characters may take them)
+
+A drawback-only run (seed 811) found two things. **Fixed:** with the economy on, CharGen stamped `gp: 0, days: 0` on a post-lock drawback; the Live Sheet never quotes a drawback, so it stamps nothing (`_cgPostLockAppend` now matches). **Known difference, not fixed:** CharGen's form unchecks a drawback silently when an ability score is over that drawback's stat cap (`drawbackMaxStats`, an older pre-lock rule); the Live Sheet lets the purchase through. The fuzz hits it because it randomises scores (1 of 34 drawback purchases). Worth a separate task if the stat caps should also bind in the Live Sheet.
+
 ## Unexplained: one stall
 
 With seed 7001 the ninth character (fixture CG-030, a Warlock) makes the Live Sheet page close/stop answering on its first purchase, every time, inside the fuzz run; the identical starting build and purchase replay fine on their own (`--replay <report> --errors --index 0`). The harness now gives every purchase 60 s and reports the intent instead of hanging the run (and opens a fresh browser context per trial with `--fresh-page`). It looks like a browser/harness effect, not a rules difference, but it is not proven. The CI job uses seed 7002 (20 characters, ~2 minutes, clean).
