@@ -596,7 +596,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
@@ -609,7 +609,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
-  window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck;
+  window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck; window.postLockAllowance = postLockAllowance;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
@@ -3374,7 +3374,7 @@ function _cgPostLockQuote(cost){   // mirrors the Live Sheet's _lsQuote(): null 
 // known spells may only go UP, one purchase per +1; a slot or known spell of level L needs tradition rank L and the Hit Dice gate for L; no cantrips for a discipline in
 // DATA.noCantrip; no known spells for a prepared caster (DATA.prepared); a second discipline or tradition needs a campaign that allows multi-discipline casting. "Magically Bound"
 // GRANTS AP and Warlock pact slots / arcanum have no purchase in either tool, so those are refused. Order: found, then rank, then cantrips/slots/known, so each step's gate is met.
-function _cgTraditionSteps(curList,nextList,hd,multiOK){
+function _cgTraditionSteps(curList,nextList,hd,multiOK,bindOK){
   var steps=[], refuse=null;
   var clean=function(list){ return (list||[]).filter(function(t){ return t&&t.name&&t.name!=='(none)'; }).map(function(t){
     return {name:t.name,rank:+t.rank||0,disciplines:(t.disciplines||[]).filter(function(d){ return d&&d.name&&d.name!=='(none)'; }).map(function(d){
@@ -3394,7 +3394,7 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
   if(refuse) return {steps:steps,refuse:refuse};
   var hasAny=cur.some(function(t){ return t.disciplines.length; });
   // 2. new traditions / disciplines (found), 3. rank, 4. cantrips / slots / known — collected per discipline, emitted in that order
-  var found=[], ranks=[], powers=[];
+  var found=[], binds=[], ranks=[], powers=[];
   next.forEach(function(nt,ti){
     var ct=cur[ti], isNewTrad=!ct;
     var startRank=isNewTrad?0:ct.rank;
@@ -3408,7 +3408,8 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
         hasAny=true;
       }
       var base=cd||{bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};
-      if(nd.bound!==base.bound) no(nd.bound?'Magically Bound gives you AP, and after creation only your DM awards AP.':'Magically Bound can\'t be given up once creation is finished.');
+      if(nd.bound&&!base.bound&&bindOK) binds.push({cat:'dbound',payload:{ti:ti,di:di,v:true},label:'Magically Bound'});   // the campaign allows it (rules.postLockBindings): the Live Sheet's own purchase, +2 AP; bought before the powers so its spell discount applies to them, as when the Live Sheet buys it first
+      else if(nd.bound!==base.bound) no(nd.bound?'Magically Bound gives you AP, and after creation only your DM awards AP. Your DM can allow it in the campaign settings.':'Magically Bound can\'t be given up once creation is finished.');
       if(nd.pactSlots<base.pactSlots||nd.arcanum.some(function(v,k){ return v<base.arcanum[k]; })) no('Warlock pact slots and arcanum can only go up once creation is finished.');
       else if(nd.pactSlots>base.pactSlots||nd.arcanum.some(function(v,k){ return v>base.arcanum[k]; })) no('Warlock pact slots and arcanum can\'t be raised after creation yet — there is no purchase for them.');
       if(nd.cantrips<base.cantrips) no('Cantrips can only go up once creation is finished ('+nd.name+' has '+base.cantrips+').');
@@ -3427,7 +3428,7 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
     for(var r=startRank+1;r<=nt.rank;r++) ranks.push({cat:'rank',payload:{ti:ti,to:r},label:nt.name+' Rank '+r});
   });
   if(refuse) return {steps:[],refuse:refuse};
-  return {steps:found.concat(ranks,powers),refuse:null};
+  return {steps:found.concat(binds,ranks,powers),refuse:null};
 }
 // What an edit to `slot` would ADD, and whether it tries to take something away. Pure: reads `cur`, returns steps.
 function _cgPostLockSteps(slot,patch,cur){
@@ -3512,14 +3513,19 @@ function _cgPostLockSteps(slot,patch,cur){
     if(slot==='traditions'){
       if(patch.traditions!==undefined){
         var rules=(window._cloudCampaign&&window._cloudCampaign.rules)||null;
-        var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false));
+        var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false),window.postLockAllowance(rules).bindings);
         steps=tr.steps; refuse=tr.refuse;
         if(refuse) tail='Nothing you have bought can be removed or lowered once creation is finished. You can still add and raise things by spending AP.';
       }
     }else if(slot==='innate'){
       if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='misc'){
-      if(patch.martiallyBound!==undefined&&changed('martiallyBound')){ refuse='Martial and magical binding give you AP, and after creation only your DM awards AP.'; tail='If it fits the story, ask your DM to impose it.'; }
+      var _al=window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null);
+      if(patch.martiallyBound!==undefined&&changed('martiallyBound')){
+        // Martially Bound is a one-way +2 AP purchase for the origin class (the Live Sheet's tile); it is offered only when not yet taken, and only where the campaign allows it.
+        if(_al.bindings&&N(cur.martiallyBound)===''&&patch.martiallyBound===cur.originClass) steps.push({cat:'mbound',payload:{v:cur.originClass},label:'Martially Bound: '+cur.originClass});
+        else{ refuse='Martial and magical binding give you AP, and after creation only your DM awards AP.'+(_al.bindings?' Martial binding can only be taken once, for your origin class.':' Your DM can allow them in the campaign settings.'); tail='If it fits the story, ask your DM to impose it.'; }
+      }
       else if(patch.dabblerCantrips!==undefined&&(+cur.dabblerCantrips||0)!==(+patch.dabblerCantrips||0)){ refuse='Out-of-Tradition cantrips are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='identity'){
       var idk=['originClass','originClass2','species','species2','size','lineage'].filter(function(k){ return patch[k]!==undefined&&changed(k); });
@@ -3596,7 +3602,7 @@ function _cgPostLockSlotEdit(slot,patch){
 // character is locked (the DM can still impose one; an existing one can still be bought off in the Live Sheet).
 function _cgRefuseNewDrawback(){
   alert('\uD83D\uDD12 Drawbacks can\'t be taken once creation is finished \u2014 they give you AP, and after creation only your DM awards AP.\n\n'
-    +'If a drawback fits the story, ask your DM to impose it.');
+    +'If a drawback fits the story, ask your DM to impose it, or to allow new drawbacks in the campaign settings.');
   _cgRepaint();
 }
 function replacePatchSlot(slot,patch,label){
@@ -3842,7 +3848,7 @@ function onChecklistToggle(el){
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
-      if(cat==='drawback'){ el.checked=false; _cgRefuseNewDrawback(); return; }
+      if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
     }else{
     const before=compute(dom).total;
@@ -3973,7 +3979,7 @@ function _cgSyncFlatCategory(cat){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
       if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle; stop at the first refusal (it repaints every control)
-        if(cat==='drawback'){ _cgRefuseNewDrawback(); break; }
+        if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ _cgRefuseNewDrawback(); break; }
         if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v}])) break;
         continue;
       }

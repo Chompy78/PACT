@@ -1207,6 +1207,42 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   // a no-op is silent, and a reload of a locked spellcaster raises nothing
   await base0(); const n0 = (await snap()).log.length; await edit(c => c); check('writing the spellcasting the character already has is a silent no-op', dialogs.length === 0 && (await snap()).log.length === n0);
 
+  // ---- campaign settings: drawbacks and the two bindings after the lock (owner decision X1, 2026-10-05) — refused by default, allowed per campaign, each by its own tickbox ----
+  const withRules = r => p.evaluate(r => { window._cloudCampaign = { name: 't', rules: r }; }, r);
+  const boundEdit = c => { c[0].disciplines[0].bound = true; return c; };
+  const bindEv = s => post(s).filter(e => e.cat === 'dbound' || e.cat === 'mbound');
+  await base0(); await withRules({ postLockBindings: true }); dialogs = [];
+  await edit(boundEdit, D); const gb = await snap();
+  check('postLockBindings on: Magically Bound is accepted as one +2 AP purchase, no refusal', bindEv(gb).length === 1 && bindEv(gb)[0].cat === 'dbound' && bindEv(gb)[0].cost === -2 && dialogs.length === 0, JSON.stringify({ ev: bindEv(gb), dialogs }));
+  await base0(); await withRules({ postLockDrawbacks: true }); dialogs = [];
+  await edit(boundEdit, D); const gb2 = await snap();
+  check('only postLockDrawbacks on: Magically Bound is still refused (the tickboxes are separate)', bindEv(gb2).length === 0 && dialogs.some(d => /Magically Bound gives you AP/.test(d.msg)), JSON.stringify({ ev: bindEv(gb2), dialogs }));
+  const martial = () => p.evaluate(() => { const el = document.getElementById('martiallyBound'); const oc = foldBuild(LOG).originClass; el.value = oc; el.dispatchEvent(new Event('change', { bubbles: true })); });
+  await base0(); await withRules({}); dialogs = []; await martial(); const gm0 = await snap();
+  check('default: Martially Bound after the lock is refused', bindEv(gm0).length === 0 && dialogs.some(d => /give you AP/.test(d.msg)), JSON.stringify({ ev: bindEv(gm0), dialogs }));
+  await base0(); await withRules({ postLockBindings: true }); dialogs = []; await martial(); const gm1 = await snap();
+  check('postLockBindings on: Martially Bound is accepted as one +2 AP purchase', bindEv(gm1).length === 1 && bindEv(gm1)[0].cat === 'mbound' && bindEv(gm1)[0].cost === -2, JSON.stringify({ ev: bindEv(gm1), dialogs }));
+  const drawTick = () => p.evaluate(() => { const v = Object.keys(DATA.drawbacks)[0]; const el = [...document.querySelectorAll('.drawck')].find(e => e.value === v); el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); return v; });
+  const drawEv = s => post(s).filter(e => e.cat === 'drawback');
+  await base0(); await withRules({ postLockBindings: true }); dialogs = []; await drawTick(); const gd0 = await snap();
+  check('default (only bindings on): a new drawback after the lock is refused', drawEv(gd0).length === 0 && dialogs.some(d => /Drawbacks can.t be taken/.test(d.msg)), JSON.stringify({ ev: drawEv(gd0), dialogs }));
+  await base0(); await withRules({ postLockDrawbacks: true }); dialogs = []; await drawTick(); const gd1 = await snap();
+  check('postLockDrawbacks on: a new drawback is accepted and grants its AP', drawEv(gd1).length === 1 && drawEv(gd1)[0].cost < 0 && dialogs.length === 0, JSON.stringify({ ev: drawEv(gd1), dialogs }));
+  // the Live Sheet, same locked character: refused by default, allowed by the same two settings
+  await base0(); const lenv = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const lp2 = await ctx.newPage(); const lsd = []; lp2.on('dialog', d => { lsd.push(d.message().slice(0, 90)); d.accept(); });
+  await lp2.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, lenv);
+  await lp2.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp2.waitForTimeout(2500);
+  const lsPost = () => lp2.evaluate(() => JSON.parse(JSON.stringify(LOG)).filter(e => e.type === 'buy' && ['dbound', 'mbound', 'drawback'].indexOf(e.cat) >= 0).map(e => e.cat));
+  const lsBuy = () => lp2.evaluate(D => { buy('dbound', { ti: 0, di: 0, v: true }, 'Magically Bound'); buy('mbound', { v: foldBuild(null).originClass }, 'Martially Bound'); buy('drawback', { v: Object.keys(DATA.drawbacks)[0] }, 'Drawback'); }, D);
+  await lsBuy();
+  check('Live Sheet, default: Magically Bound, Martially Bound and a drawback are all refused after the lock', (await lsPost()).length === 0 && lsd.length === 3, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { window._rulesStatus = 'active'; window._cloudCampaignRules = { postLockBindings: true }; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, postLockBindings only: both bindings go through, the drawback is still refused', JSON.stringify(await lsPost()) === JSON.stringify(['dbound', 'mbound']) && lsd.length === 1, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { window._cloudCampaignRules = { postLockDrawbacks: true }; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, postLockDrawbacks on: the drawback goes through', (await lsPost()).indexOf('drawback') >= 0, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.close();
+
   // ---- property test: 300 random increase-only edits — the steps, applied to the current list, must reproduce the target exactly ----
   const prop = await p.evaluate(() => {
     let seed = 20261005; const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }; const ri = n => Math.floor(rnd() * (n + 1));

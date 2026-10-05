@@ -14,7 +14,7 @@
  *   - compare: accepted or refused by each, the events each appended (category, payload, price, frozen gold and downtime), and the total and spent afterwards.
  * A trial stops comparing after its first mismatch (later steps would only repeat it). Every mismatch is logged with the seed so it replays.
  *
- * KNOWN, DELIBERATE DIFFERENCES (classified, not counted as defects): CharGen refuses new drawbacks and "Magically Bound" after the lock (owner P1); CharGen has no control for a few
+ * KNOWN, DELIBERATE DIFFERENCES (classified, not counted as defects): new drawbacks and the two bindings are refused by BOTH tools after the lock unless the campaign allows them (rules.postLockDrawbacks / postLockBindings, owner X1 2026-10-05; this fuzz runs with no campaign, so refused); CharGen has no control for a few
  * Live-Sheet-only purchases (reported as "no CharGen control", to be understood, not assumed).
  *
  * Usage: node testing/scripts/post-lock-parity-fuzz.mjs [--trials N] [--ops K] [--seed S] [--port P] [--out report.json] [--only cat1,cat2]
@@ -52,16 +52,24 @@ const fdir = path.join(REPO, 'testing/fixtures/builds');
 const FIX = fs.readdirSync(fdir).filter(f => f.endsWith('.json')).map(f => { const raw = JSON.parse(fs.readFileSync(path.join(fdir, f), 'utf8')); return { f, b: raw.build || raw }; });
 
 const browser = await launchChromium();
-const ctx = await browser.newContext();
-const cg = await ctx.newPage(), ls = await ctx.newPage();
+let ctx, cg, ls;
 let cgDialogs = [], lsDialogs = [];
-cg.on('dialog', d => { cgDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
-ls.on('dialog', d => { lsDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
-const errs = []; cg.on('pageerror', e => errs.push('cg: ' + String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | '))); ls.on('pageerror', e => errs.push('ls: ' + String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | ')));
-await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(2500);
-await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(2500);
-// the Live Sheet renders only a few tile groups until others are opened: make every group count as open
-await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
+const errs = [];
+const trunc = e => String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | ');
+// (Re)open both tools in a brand-new browser context. --fresh-page does this for EVERY trial: reusing the same two pages made the tools stop answering after ~8 trials (a harness
+// effect — the same purchase replays fine on its own), which a CI gate cannot tolerate.
+async function openTools() {
+  if (ctx) { try { await ctx.close(); } catch (e) {} }
+  ctx = await browser.newContext(); cg = await ctx.newPage(); ls = await ctx.newPage();
+  cg.on('dialog', d => { cgDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
+  ls.on('dialog', d => { lsDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
+  cg.on('pageerror', e => errs.push('cg: ' + trunc(e))); ls.on('pageerror', e => errs.push('ls: ' + trunc(e)));
+  await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(FRESH ? 1500 : 2500);
+  await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(FRESH ? 1500 : 2500);
+  // the Live Sheet renders only a few tile groups until others are opened: make every group count as open
+  await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
+}
+await openTools();
 
 // ---- helpers that run INSIDE the pages ----
 const CG_SNAP = () => { const L = LOG; const li = L.findIndex(e => e.type === 'creationLocked'); const b = foldBuild(LOG);
@@ -185,15 +193,11 @@ async function cgDo(intent) {   // the equivalent through CharGen's real control
 
 const cgOKpre = C => C.after.post.length > C.before.post.length, lsOKpre = L => L.after.post.length > L.before.post.length;
 const sig = evs => JSON.stringify(evs.map(e => [e.cat, e.payload, e.cost, e.gp ?? null, e.days ?? null]).sort());
-const EXPECTED = new Set(['drawback']);   // CharGen refuses new drawbacks after the lock (owner P1); the Live Sheet offers them
+const EXPECTED = new Set(['drawback']);   // both tools refuse new drawbacks after the lock unless the campaign allows them (owner X1); the fuzz has no campaign
 
 const FOLD_KEYS = b => JSON.stringify(Object.fromEntries(Object.keys(b).sort().map(k => [k, b[k]])));
 async function setup(fx, b, econ, wallet) {
-  if (FRESH) {
-    await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(1500);
-    await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(1500);
-    await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
-  }
+  if (FRESH) await openTools();
   await cg.evaluate(async ({ b, econ, wallet }) => {
     try { localStorage.clear(); } catch (e) {}
     applyBuild(b);
@@ -213,7 +217,7 @@ async function setup(fx, b, econ, wallet) {
   return { s0, diffKeys };
 }
 async function runOp(it, k, ctxInfo, history) {
-  const L = await lsDo(it), C = await cgDo(it);
+  globalThis.__phase = 'Live Sheet'; const L = await lsDo(it); globalThis.__phase = 'CharGen'; const C = await cgDo(it); globalThis.__phase = '';
   report.ops++; bump(report.byCat, it.cat);
   const lsOK = L.accepted, cgOK = C.accepted;
   history.push({ cat: it.cat, payload: it.payload, ls: lsOK, cg: cgOK });
@@ -234,7 +238,7 @@ async function runOp(it, k, ctxInfo, history) {
 }
 
 if (REPLAY) {
-  const rec = JSON.parse(fs.readFileSync(REPLAY, 'utf8')).report.mismatches[RINDEX];
+  const rec = JSON.parse(fs.readFileSync(REPLAY, 'utf8')).report[process.argv.includes('--errors') ? 'errors' : 'mismatches'][RINDEX];   // --errors replays a harness error / hang (its record carries the starting build too)
   const fx = FIX.find(x => x.f === rec.fixture); const b = JSON.parse(JSON.stringify(rec.build || fx.b)); b.budget = rec.budget;
   const { s0, diffKeys } = await setup(fx, b, rec.econ, rec.wallet || { gp: 0, days: 0 });
   console.log(`replay ${rec.cls}  fixture ${rec.fixture}  budget ${rec.budget}  econ ${rec.econ}  start totals cg ${s0[0].total}/${s0[0].spent} ls ${s0[1].total}/${s0[1].spent}  folded-build differences: ${JSON.stringify(diffKeys)}`);
@@ -260,10 +264,13 @@ for (let trial = 0; trial < TRIALS; trial++) {
     for (let k = 0; k < OPS; k++) {
       let intents = await intentsFor(Math.floor(rnd() * 4294967296)); if (ONLY) intents = intents.filter(i => ONLY.includes(i.cat));
       if (!intents.length) break;
-      const cats = [...new Set(intents.map(i => i.cat))]; const cat = pick(cats); const r = await runOp(pick(intents.filter(i => i.cat === cat)), k, info, history);
+      const cats = [...new Set(intents.map(i => i.cat))]; const cat = pick(cats); const intent = pick(intents.filter(i => i.cat === cat));
+      if (process.argv.includes('--verbose')) console.log(`  trial ${trial} ${fx.f} op ${k}: ${JSON.stringify(intent).slice(0, 160)}`);
+      // a tool that stops answering is a finding, not a reason to hang the whole run: give each purchase 60 s and report the intent that did it
+      let hangT; const r = await Promise.race([runOp(intent, k, info, history), new Promise((_, rej) => { hangT = setTimeout(() => { history.push({ cat: intent.cat, payload: intent.payload, ls: null, cg: null }); const pg = globalThis.__phase === 'CharGen' ? cg : ls; Promise.race([pg.evaluate('1').then(() => 'page still answers (the call is waiting on something else)', () => 'page closed'), new Promise(r => setTimeout(() => r('the page main thread is BLOCKED (an endless loop in the tool)'), 4000))]).then(w => console.log('  hang diagnosis: ' + w), () => {}); rej(new Error('HANG (60 s, ' + (globalThis.__phase || 'a tool') + ' stopped answering) on ' + JSON.stringify(intent).slice(0, 160))); }, 60000); })]); clearTimeout(hangT);
       if (r.stop) break;
     }
-  } catch (e) { report.errors.push({ trial, fixture: fx.f, err: String(e.message).slice(0, 200), history }); }
+  } catch (e) { report.errors.push({ ...info, err: String(e.message).slice(0, 200), history }); }
   if ((trial + 1) % 25 === 0) console.log(`  ... ${trial + 1}/${TRIALS} trials, ${report.ops} ops, ${report.mismatches.length} mismatches`);
 }
 await browser.close(); server.close();

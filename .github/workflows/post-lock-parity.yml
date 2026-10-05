@@ -1,0 +1,54 @@
+name: Post-lock parity
+
+# Do CharGen and the Live Sheet treat the same purchase, made AFTER the creation lock, the same way? A short seeded fuzz through the real UI of both tools
+# (testing/scripts/post-lock-parity-fuzz.mjs). Needs no Supabase stack. Added after the fuzz found four real CharGen gaps (docs/sessions/2026-10-05-post-lock-parity-fuzz.md).
+
+on:
+  pull_request:
+    paths:
+      - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
+      - "js/character-store.js"
+      - "js/sync.js"
+      - "js/campaign.js"
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "testing/scripts/post-lock-parity-fuzz.mjs"
+      - "testing/fixtures/builds/**"
+      - "testing/package.json"
+      - "testing/package-lock.json"
+      - ".github/workflows/post-lock-parity.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: post-lock-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  post-lock-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+      # A short seeded run (Y1, owner 2026-10-05): the same purchases, made after the creation lock, through the REAL UI of CharGen and the Live Sheet, must give the same result. Seed fixed so a
+      # red run replays locally: node testing/scripts/post-lock-parity-fuzz.mjs --trials 20 --ops 4 --seed 7002 --fresh-page. Wider runs are manual (docs/sessions/2026-10-05-post-lock-parity-fuzz.md).
+      - name: Post-lock parity fuzz
+        run: node testing/scripts/post-lock-parity-fuzz.mjs --trials 20 --ops 4 --seed 7002 --fresh-page
