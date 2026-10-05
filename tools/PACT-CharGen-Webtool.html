@@ -3549,6 +3549,9 @@ function _cgPostLockAppend(steps){
       // The Live Sheet's own "may this be bought" rule (js/engine.js purchaseLegality, moved there from the Live Sheet): an already-owned
       // single-instance proficiency, any hard rules violation, and a soft warning the player must confirm. This used to block only warnings
       // starting with the stop-sign marker, which let through purchases the Live Sheet refuses (Vigor past CON mod, "boon requires CON 12+").
+      // Subclass abilities are offered only for the classes the character has access to (origin class + unlocked classes) — the Live Sheet's "Subclasses & abilities" panel.
+      // CharGen's picker lists every class, so the same rule is enforced here (found by the post-lock parity fuzz: a Cleric bought a Fighter subclass ability).
+      if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
       var lg=purchaseLegality(b,st.cat,st.payload);
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }

@@ -169,7 +169,8 @@ async function cgDo(intent) {   // the equivalent through CharGen's real control
       case 'drawback': return box('drawck', payload.v, true) ? 'ok' : 'no control';
       case 'racial': return box('racck', payload.v, true) ? 'ok' : 'no control';
       case 'toolexpertise': return box('toolexpck', payload.v, true) ? 'ok' : 'no control';
-      case 'wornArmour': return sel('wornArmour', payload.v) ? 'ok' : 'no control';
+      case 'wornArmour': { const o = [...(document.getElementById('wornArmour')?.options || [])].find(x => x.value === payload.v); if (!o || o.disabled) return 'no control';   // a disabled option cannot be picked in the real UI (armour eligibility / campaign ban), exactly as the Live Sheet's blocked tile
+        return sel('wornArmour', payload.v) ? 'ok' : 'no control'; }
       case 'subabil': { try { addRow('subabil', payload.v); const rows = [...document.querySelectorAll('.subabilrow')]; const row = rows[rows.length - 1]; if (row) fire(row); return 'ok'; } catch (e) { return 'no control: ' + String(e.message).slice(0, 60); } }
       case 'unlockclass': { const el = [...document.querySelectorAll('.classunlock')].find(e => e.dataset.cls === payload.v); if (!el) return 'no control'; el.checked = true; fire(el); return 'ok'; }
       case 'feature': { try { addRow('feat2', payload.v); const rows = [...document.querySelectorAll('.feat2row')]; const row = rows[rows.length - 1]; if (!row) return 'ok-gone'; fire(row); return 'ok'; } catch (e) { return 'no control: ' + String(e.message).slice(0, 60); } }
