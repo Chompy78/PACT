@@ -4,6 +4,9 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-05 · fix(chargen): after the lock, a subclass ability or spell list of a class the character has no access to is refused (Live Sheet parity; found by the post-lock parity fuzz)** —
+  the Live Sheet offers them only for the origin class and unlocked classes; CharGen's picker listed every class. Report: `docs/sessions/2026-10-05-post-lock-parity-fuzz.md`.
+
 - **2026-10-05 · fix(chargen): loading a character while a locked one is open no longer overflows the stack (found by the post-lock parity fuzz)** —
   `_cgPostLockAppend` and `retractFlatEvent` now do nothing while a load/restore is rebuilding the form (`_histSuspended`); before, the
   rebuild re-synced the form against the still-locked old log, which looped until the browser threw "Maximum call stack size exceeded"
