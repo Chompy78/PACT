@@ -44,7 +44,7 @@ const LOGBASE = [
 const viaSub = [...LOGBASE, { type: 'buy', cat: 'subabil', payload: { v: S }, cost: 8, level: 6, seq: 5, label: 'Subclass ability — ' + S }];
 const viaFeat = [...LOGBASE, { type: 'buy', cat: 'feature', payload: { v: F }, cost: 8, level: 6, seq: 5, label: 'Class feature — ' + F }];
 
-async function open(browser, LOG) {
+async function open(browser, LOG, originGroup = 'Rogue features') {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   const errs = [];
@@ -58,7 +58,7 @@ async function open(browser, LOG) {
     && document.getElementById('buy') && document.getElementById('buy').innerHTML.length > 200, { timeout: 25000 });
   // The buy panel renders each section lazily: only a category/group that is OPEN has a body. Open the two that can sell the
   // ability — "Rogue features" (the mirrored class-feature list) and "Subclasses & abilities" — then re-render.
-  await page.evaluate(() => { catOpen['Class & subclass'] = 1; grpOpen['Rogue features'] = true; grpOpen['Subclasses & abilities'] = true; refreshBuy(); });
+  await page.evaluate((g) => { catOpen['Class & subclass'] = 1; grpOpen[g] = true; grpOpen['Subclasses & abilities'] = true; refreshBuy(); }, originGroup);
   await page.waitForFunction(() => [...document.querySelectorAll('#buy h4')].some(h => /Subclasses & abilities/.test(h.textContent))
     && document.querySelectorAll('#buy button.ib').length > 40, { timeout: 15000 });
   return { page, errs, close: () => ctx.close() };
@@ -110,6 +110,39 @@ console.log('Case 4 — a DIFFERENT Soulknife ability stays buyable');
     .filter(b => /Soul Blades/.test(b.textContent)).map(b => ({ text: b.textContent.trim().slice(0, 60), owned: /✓/.test(b.textContent) })));
   check('Soul Blades is offered', t.length >= 1, JSON.stringify(t));
   check('...and is NOT greyed as owned', t.length >= 1 && t.every(x => !x.owned), JSON.stringify(t));
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await close();
+}
+
+// feat/subability-prereq — Circle Forms (Moon) requires Wild Shape. The engine refuses it through both doors; this proves the PAGE tells the
+// player why on BOTH tiles (class-feature list and subclass list), and offers a normal buyable tile once Wild Shape is owned.
+const druidBase = [
+  { type: 'award', amount: 200, seq: 1, label: 'Award — budget (200 AP)' },
+  { type: 'buy', cat: 'oclass', payload: { v: 'Druid' }, cost: 0, level: 1, seq: 2, label: 'Origin class — Druid' },
+  { type: 'buy', cat: 'patch', payload: { patch: { hd: 8 } }, cost: 0, level: 8, seq: 3, label: 'Hit Dice → 8' },
+  { type: 'buy', cat: 'patch', payload: { patch: { freeSub: { Druid: 'Circle of the Moon' } } }, cost: 0, level: 8, seq: 4, label: 'Subclasses · 0 AP' },
+];
+const druidWS = [...druidBase, { type: 'buy', cat: 'feature', payload: { v: 'Druid: Wild Shape' }, cost: 13, level: 8, seq: 5, label: 'Class feature — Druid: Wild Shape' }];
+const cfTiles = (page) => page.evaluate(() => [...document.querySelectorAll('#buy button.ib')]
+  .filter(b => /Circle Forms/.test(b.textContent) && !/Improved/.test(b.textContent))
+  .map(b => ({ text: b.textContent.trim().slice(0, 400), warn: b.classList.contains('warn'), owned: /✓/.test(b.textContent) })));   // generous: the reason follows the label, price and gp/days quote
+
+console.log('Case 5 — Circle Forms without Wild Shape: both tiles say why');
+{
+  const { page, errs, close } = await open(browser, druidBase, 'Druid features');
+  const t = await cfTiles(page);
+  check('Circle Forms is offered in BOTH lists', t.length >= 2, JSON.stringify(t));
+  check('...and EVERY tile is flagged, naming the missing prerequisite', t.length >= 2 && t.every(x => x.warn && /requires Wild Shape first/.test(x.text)), JSON.stringify(t));
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await close();
+}
+
+console.log('Case 6 — Circle Forms with Wild Shape owned: a normal buyable tile');
+{
+  const { page, errs, close } = await open(browser, druidWS, 'Druid features');
+  const t = await cfTiles(page);
+  check('Circle Forms is offered in BOTH lists', t.length >= 2, JSON.stringify(t));
+  check('...and NO tile is flagged or greyed (the prerequisite is met)', t.length >= 2 && t.every(x => !x.warn && !x.owned), JSON.stringify(t));
   check('no page errors', errs.length === 0, errs.join(' | '));
   await close();
 }

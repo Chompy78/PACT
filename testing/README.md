@@ -43,6 +43,9 @@
   the Live Sheet shows an ability owned through either door as owned in both pickers. Fixtures CG-053..056 / EV-030..031 pin `compute()`. Runs in CI as the
   `subclass-double-purchase` job of `engine-parity.yml` and a step of `dm-console-ui.yml`:
   `node testing/scripts/subclass-double-purchase-ci.mjs`, `node testing/scripts/live-sheet-subclass-owned-e2e.mjs`.
+  Extended by `feat/subability-prereq`: the same two gates also pin that a subclass ability's `prereq` (Circle Forms needs Wild Shape) is enforced through
+  both doors with identical wording, that a met prerequisite changes no price, that the three data copies agree, and that the Live Sheet tile names the missing
+  prerequisite. Fixtures CG-057..061, EV-033.
 - **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`, extended by `feat/wound-aliases`) — gates for the
   DM-only Wounds section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier;
   the four Grievous drawbacks are not wounds); the **wound-only split** — the 19 wound-only entries (the original four, 8 aliases and 7

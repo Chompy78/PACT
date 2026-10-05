@@ -138,5 +138,81 @@ console.log('== the mirrored-identity cache follows DATA');
   finally { delete DATA.subAbilMap[SK]; delete DATA.features[FK]; }
   ok(stamp() === undefined, '...and dropped again when it is removed'); }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// feat/subability-prereq — a subclass ability can name a prerequisite feature (Circle Forms needs Wild Shape). The subclass loop used
+// to apply the Hit-Dice gate only; it now applies the same prerequisite gate the feature loop does, so BOTH doors enforce it.
+const CF_S = 'Druid|Circle of the Moon|Circle Forms', CF_F = 'Druid: Circle Forms', WS = 'Druid: Wild Shape';
+const druid = () => { const b = baseBuild(); b.originClass = 'Druid'; b.hd = 8; b.budget = 300; b.freeSub = { Druid: 'Circle of the Moon' }; return b; };
+
+console.log('== prerequisites on subclass abilities: the three data copies agree');
+{ const bad = [];
+  for (const [k, a] of Object.entries(DATA.subAbilMap)) {
+    const f = DATA.features[a.cls + ': ' + a.name];
+    const sc = ((DATA.subclasses[a.cls] || {})[a.sub] || {}).abilities || [];
+    const s = sc.find(x => x.name === a.name);
+    const want = JSON.stringify(a.prereq || []);
+    if (JSON.stringify((f && f.prereq) || []) !== want) bad.push(k + ' (features copy differs)');
+    if (!s || JSON.stringify(s.prereq || []) !== want) bad.push(k + ' (subclasses copy differs)');
+    for (const p of (a.prereq || [])) if (!DATA.features[p]) bad.push(k + ' (prerequisite ' + p + ' is not a feature)');
+  }
+  ok(bad.length === 0, 'subAbilMap, DATA.features and DATA.subclasses carry the same prereq for all ' + Object.keys(DATA.subAbilMap).length + ' abilities', bad.slice(0, 3).join(' | '));
+  ok(JSON.stringify(DATA.subAbilMap[CF_S].prereq) === JSON.stringify([WS]), 'Circle Forms requires exactly base Wild Shape (not the 6-forms step: that would block a live character who owns Circle Forms without it)', JSON.stringify(DATA.subAbilMap[CF_S].prereq)); }
+
+console.log('== prerequisites: both doors refuse it, and a met prerequisite changes nothing');
+{ const L1 = purchaseLegality(druid(), 'subabil', { v: CF_S });
+  ok(L1.hard.some(w => /requires Wild Shape first/.test(w)), 'subclass door without Wild Shape: REFUSED, naming the prerequisite', JSON.stringify(L1.hard));
+  const L2 = purchaseLegality(druid(), 'feature', { v: CF_F });
+  ok(L2.hard.some(w => /requires Wild Shape first/.test(w)), 'feature door without Wild Shape: REFUSED with the same reason', JSON.stringify(L2.hard));
+  ok(JSON.stringify(L1.hard) === JSON.stringify(L2.hard), 'both doors give the IDENTICAL refusal text', JSON.stringify([L1.hard, L2.hard]));
+  const withWS = buy(druid(), 'feature', WS);
+  ok(purchaseLegality(withWS, 'subabil', { v: CF_S }).hard.length === 0, 'subclass door WITH Wild Shape: allowed');
+  ok(purchaseLegality(withWS, 'feature', { v: CF_F }).hard.length === 0, 'feature door WITH Wild Shape: allowed');
+  ok(purchaseLegality(druid(), 'feature', { v: WS }).hard.length === 0, 'Wild Shape itself stays buyable first'); }
+{ // a met prerequisite must not change the price: compare against the same build with the prereq stripped from all three data copies
+  const mk = () => buy(buy(druid(), 'feature', WS), 'subabil', CF_S);
+  const withPrereq = compute(mk());
+  const saved = [DATA.subAbilMap[CF_S].prereq, DATA.features[CF_F].prereq, DATA.subclasses.Druid['Circle of the Moon'].abilities.find(x => x.name === 'Circle Forms').prereq];
+  delete DATA.subAbilMap[CF_S].prereq; delete DATA.features[CF_F].prereq; delete DATA.subclasses.Druid['Circle of the Moon'].abilities.find(x => x.name === 'Circle Forms').prereq;
+  let without;
+  try { without = compute(mk()); }
+  finally { DATA.subAbilMap[CF_S].prereq = saved[0]; DATA.features[CF_F].prereq = saved[1]; DATA.subclasses.Druid['Circle of the Moon'].abilities.find(x => x.name === 'Circle Forms').prereq = saved[2]; }
+  ok(withPrereq.total === without.total && JSON.stringify(withPrereq.warnings) === JSON.stringify(without.warnings),
+    'with Wild Shape owned, the prerequisite changes neither the price nor the warnings (a live owner is unaffected)', JSON.stringify([withPrereq.total, without.total, withPrereq.warnings])); }
+{ // order of purchase is irrelevant: the gate reads the final owned set
+  const lateWS = buy(buy(druid(), 'subabil', CF_S), 'feature', WS);
+  ok(compute(lateWS).warnings.length === 0, 'Circle Forms bought BEFORE Wild Shape is fine once Wild Shape is owned', JSON.stringify(compute(lateWS).warnings)); }
+
+console.log('== a prerequisite that is itself blocked, and a prerequisite list with several entries');
+{ // Wild Shape owned but Hit-Dice-gated (temporarily raised above this build's level): it is "blocked", so it must not satisfy Circle Forms
+  const savedLvl = DATA.features[WS].lvl;
+  DATA.features[WS].lvl = 15;
+  try {
+    const b = buy(buy(druid(), 'feature', WS), 'subabil', CF_S);        // hd 8: Wild Shape is blocked by its level gate
+    const r = compute(b);
+    ok(r.warnings.some(w => /Wild Shape — blocked: needs/.test(w)), 'precondition: Wild Shape is Hit-Dice-blocked at this level', JSON.stringify(r.warnings));
+    ok(r.warnings.some(w => /Circle Forms — blocked: requires Wild Shape first/.test(w)), 'a BLOCKED prerequisite does not satisfy Circle Forms (the engine resolves prerequisites through blocks)', JSON.stringify(r.warnings));
+  } finally { if (savedLvl === undefined) delete DATA.features[WS].lvl; else DATA.features[WS].lvl = savedLvl; } }
+{ // two prerequisites, only one owned: still blocked, naming the FIRST missing one (same wording rule as the feature loop)
+  const key = CF_S, a = DATA.subAbilMap[key], savedA = a.prereq, savedF = DATA.features[CF_F].prereq;
+  a.prereq = [WS, 'Druid: Primal Order']; DATA.features[CF_F].prereq = [WS, 'Druid: Primal Order'];
+  try {
+    const b = buy(buy(druid(), 'feature', WS), 'subabil', CF_S);
+    const w = compute(b).warnings.filter(x => /Circle Forms/.test(x));
+    ok(w.length === 1 && /requires Primal Order first/.test(w[0]), 'with Wild Shape owned but a second prerequisite missing, it is blocked and names the missing one', JSON.stringify(w));
+    const c = buy(b, 'feature', 'Druid: Primal Order');
+    ok(compute(c).warnings.filter(x => /Circle Forms/.test(x)).length === 0, '...and unblocked once both are owned', JSON.stringify(compute(c).warnings));
+  } finally { a.prereq = savedA; DATA.features[CF_F].prereq = savedF; } }
+
+console.log('== prerequisites + the duplicate guard together');
+{ const b = druid(); b.features = [CF_F]; b.subAbilities = [CF_S];       // both doors, no Wild Shape, unstamped -> feature copy counts
+  const r = compute(b);
+  const bl = (r.itemize && r.itemize['Blocked purchases']) || [];
+  ok(bl.length === 1, 'both doors, prerequisite missing: the ability appears ONCE under Blocked purchases (counted copy blocked; duplicate not listed again)', JSON.stringify(bl));
+  ok(r.warnings.filter(w => /requires Wild Shape first/.test(w)).length === 1 && r.warnings.filter(w => /duplicate/.test(w)).length === 1,
+    '...with one prerequisite warning and one duplicate warning', JSON.stringify(r.warnings));
+  const c = druid(); c.features = [CF_F]; c.subAbilities = [CF_S]; c._abilDoor = { [CF_F]: 's' };   // subclass copy counted, feature copy the duplicate
+  const r2 = compute(c); const bl2 = (r2.itemize && r2.itemize['Blocked purchases']) || [];
+  ok(bl2.length === 1, 'same with the subclass copy counted: still ONE Blocked-purchases line', JSON.stringify(bl2)); }
+
 console.log('\n' + (fail ? '✗ ' + fail + ' FAILED / ' + pass + ' passed' : '✓ ' + pass + ' passed / 0 failed'));
 process.exit(fail ? 1 : 0);

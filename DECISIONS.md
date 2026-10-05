@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-05-subability-prereq — Circle Forms requires base Wild Shape (subclass abilities can carry a prerequisite)
+- Circle Forms improves Wild Shape but could be bought without it; the subclass loop in `compute()` had a Hit-Dice gate and no prerequisite gate. Now Circle Forms carries `prereq: [Druid: Wild Shape]`
+  in all three data copies and the subclass loop applies the feature loop's prerequisite gate (Hit Dice first, one joined warning), so both purchase doors refuse it identically. Base Wild Shape only: the
+  one live owner has it but not the 6-forms step. `DATA.version` v0.370. **Guide row not yet updated** (master lives in `pact-guide`; patch in the record). Status: code done 2026-10-05.
+  Full record: `decisions/2026/D-GH-2026-10-05-subability-prereq.md`.
+
 ## D-GH-2026-10-05-subclass-double-purchase-guard — one subclass ability held through both purchase doors is one purchase
 - Every subclass ability is sold through two doors (`b.subAbilities` and a mirrored `b.features` entry); `compute()` and both pickers deduped within one door only, so one ability bought
   through both was charged twice with no warning (Anders Pipeleaf, 8 + 7 AP). Owner decision P3: charge the copy bought first; the later copy costs nothing, warns, lists once under
