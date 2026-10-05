@@ -928,41 +928,6 @@ check in `docs/VERSION-SYNC.md`.
 
 ---
 
-## Mirrored subclass abilities double-charge when bought through both paths — TODO
-Branch `fix/subclass-mirror-double-charge`. All 192 subclass abilities are mirrored into `DATA.features`,
-so one logical ability can sit in **both** `b.subAbilities` and `b.features` in a single build — and
-`compute()` prices it twice with no warning at all. Verified 2026-08-27 on `Barbarian › Path of the
-Berserker: Frenzy` at 20 HD: subclass path alone 134 AP, feature path alone 134 AP, **both together 140 AP**
-(one extra Frenzy charge), `warnings: []`. Pre-existing and independent of the HD gate, but
-`D-GH-2026-08-27-feature-hd-gate` made it visible by having to gate both doors identically. Two depths:
-**shallow** — dedupe by logical identity inside `compute()` (charge once, warn on the duplicate); **deep** —
-`refactor/subclass-purchase-unify`, collapsing the two purchase paths into one, which the v0.353 §11
-comment already names as the precondition for gating anything ("a rule that guards one of two doors teaches
-players the wrong thing about the door it does not guard"). Recommend the deep fix if it is being scheduled
-anyway, else the shallow one now — a silent double-charge on live characters is worse than a stale mirror.
-**Effort:** medium (shallow) / high (deep) · **Risk:** medium — ambiguity is the driver (which collection
-is canonical, and what a saved LOG holding both should migrate to); damage scale is medium (mis-pricing,
-not data loss) and likelihood low (needs both collections populated for one ability).
-
-```text
-1. Reproduce first: build one character holding the same subclass ability via b.subAbilities AND via its
-   mirrored "cls: name" key in b.features; confirm the AP delta equals one extra charge and no warning.
-2. Decide canonical identity (subAbilMap key vs mirrored feature label) and record it in DECISIONS.md —
-   this is the actual decision; the code is downstream of it.
-3. Shallow: in compute(), collapse duplicates by that identity before pricing — charge once, push a
-   warning naming the duplicate. Deep: unify the purchase paths so the second door stops existing, and
-   state what happens to already-saved LOGs carrying the other shape.
-4. Blocked purchases must dedupe the same way — a doubly-represented, HD-blocked ability must appear once
-   under "Blocked purchases", not twice.
-5. compute() output changes either way -> update testing/expected/ and bump DATA.version.
-```
-
-**Done when:** a build holding one ability through both collections prices it exactly once and says so;
-a fixture covers the doubled input for both the priced and the HD-blocked case; engine-parity 0 failed.
-
----
-
-
 ## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
 Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
 single definition of the Hit-Dice rule and its comment says "Do not re-inline it; import it" — but four
@@ -1377,34 +1342,3 @@ not by hand-editing the log.
 ```
 **Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
 task's likelihood note is updated by the board's owner to point at this case.
-
-## feat/subclass-double-purchase-guard — stop one subclass ability being bought through both purchase doors (engine and both pickers) — TODO
-Branch `feat/subclass-double-purchase-guard`. **Effort:** medium · **Risk:** medium — damage scale drives it (the pricing path in
-the high-risk `js/engine.js`); likelihood is low (one live character affected).
-
-```text
-OWNER DECISION P3 (2026-10-05): when compute() finds the same ability via b.subAbilities (`Class|Sub|Name`) and b.features
-(`Class: Name`), charge the copy bought FIRST (earliest log order). The later copy is a duplicate: costs nothing, grants nothing,
-one visible warning names it, listed once under "Blocked purchases".
-DO:
-  1. compute(): detect the same ability across the feature loop (js/engine.js ~486-500) and the subclass loop (~564-577) by class +
-     ability name; apply P3. The Hit-Dice-blocked case must also list once.
-  2. Live Sheet and CharGen pickers: a mirrored feature counts as owned if it is in EITHER collection, and shows as already owned
-     instead of buyable. Live Sheet's class-feature list (~1872/1955) builds from DATA.features and ignores b.subAbilities; the
-     subclass list (~1967) checks only b.subAbilities; CharGen has the same pattern. First confirm the exact filter behind the
-     in-play advancement list.
-  3. Fixtures: duplicate priced, duplicate + Hit-Dice-blocked, each door alone, both orders (P3 depends on order). Update
-     testing/expected/, bump DATA.version once, CHANGELOG, decision record D-GH-<date>-subclass-double-purchase-guard.
-  4. MEASURE FIRST. On 2026-10-05 only Anders Pipeleaf (Amble) and his two copies hold a duplicate (Rogue Soulknife: Psionic Power /
-     Psychic Blades, seq 30 via the subclass door 8 AP, seq 40 via the feature door 7 AP). His sealed ledger must not change silently:
-     check whether his displayed "AP left" uses the frozen ledger (economy) or compute(), and coordinate with the Anders task so
-     a refund or repair and this fix do not double count.
-OUT OF SCOPE: whether Martially Bound should discount subclass abilities (the feature loop applies it, the subclass loop does not,
-which is why the two copies priced 7 vs 8) — a separate rules question for the owner.
-This is the shallow fix; the deep fix is refactor/subclass-purchase-unify (one purchase door), high effort/risk and unscheduled.
-Related: "Mirrored subclass abilities double-charge when bought through both paths"; "Anders Pipeleaf holds one ability through
-both purchase doors — decide how a sealed double charge is handled".
-```
-**Done when:** a build holding one ability through both doors prices it once, warns once and lists the later copy once under
-"Blocked purchases" (both orders, plus the Hit-Dice-blocked case); both pickers show an owned mirrored ability as owned; engine-parity
-0 failed with the new fixtures; the live re-check shows only Anders's duplicate; his sealed ledger is checked before landing.

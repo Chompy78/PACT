@@ -162,5 +162,24 @@
  ],
  "CG-052": [
   "⛔ Boon of Combat Prowess — blocked: needs 19 Hit Dice (not counted, not owned)"
+ ],
+ "CG-053": [
+  "⛔ Psionic Power / Psychic Blades — duplicate: already owned as a Rogue class feature, bought first (this copy is not counted)"
+ ],
+ "CG-054": [
+  "⛔ Psionic Power / Psychic Blades — blocked: needs 3 Hit Dice (T3) (not counted, not owned)",
+  "⛔ Psionic Power / Psychic Blades — duplicate: already owned as a Rogue class feature, bought first (this copy is not counted)"
+ ],
+ "CG-055": [],
+ "CG-056": [],
+ "EV-030": [
+  "⛔ Psionic Power / Psychic Blades — duplicate: already owned as a Soulknife subclass ability, bought first (this copy is not counted)"
+ ],
+ "EV-031": [
+  "⛔ Psionic Power / Psychic Blades — duplicate: already owned as a Rogue class feature, bought first (this copy is not counted)"
+ ],
+ "EV-032": [
+  "⛔ Psionic Power / Psychic Blades — blocked: needs 3 Hit Dice (T3) (not counted, not owned)",
+  "⛔ Psionic Power / Psychic Blades — duplicate: already owned as a Rogue class feature, bought first (this copy is not counted)"
  ]
 }

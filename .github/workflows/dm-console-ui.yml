@@ -22,6 +22,7 @@ on:
       - "js/supabase-client.js"
       - "testing/scripts/dm-console-ui-e2e.mjs"
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
+      - "testing/scripts/live-sheet-subclass-owned-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
       - "testing/scripts/dm-impose-picker-e2e.mjs"
@@ -82,3 +83,9 @@ jobs:
       # feat/dm-impose-picker: the impose pop-up (list + detail pane) sends the same event as the old dropdown. Same cost profile.
       - name: DM impose picker — shows a drawback's impact before it is imposed
         run: node testing/scripts/dm-impose-picker-e2e.mjs
+
+      # feat/subclass-double-purchase-guard: the Live Sheet half. An ability held through ONE door must read as owned in BOTH of
+      # the lists that can sell it (class features and subclass abilities). Same cost profile as the steps above (seeded
+      # localStorage, no Supabase), so it shares this job's Chromium install.
+      - name: Live Sheet — a subclass ability held through one door is owned in both pickers
+        run: node testing/scripts/live-sheet-subclass-owned-e2e.mjs

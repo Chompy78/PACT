@@ -1,0 +1,74 @@
+{
+ "description": "feat/subclass-double-purchase-guard, found by cold review (Nemotron 3 Super claimed the subclass-loop duplicate branch forgets to check Hit-Dice blocking of the counted FEATURE copy): feature picker FIRST, subclass picker second, while the ability is Hit-Dice-blocked (hd 2, needs 3). The counted feature copy is blocked by HD, so its own Blocked-purchases line stands for the ability and the later SUBCLASS duplicate is not listed (or priced) a second time. Mirror of CG-054 for the other order.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 200,
+   "seq": 1,
+   "note": "Budget",
+   "label": "Award — budget (200 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Rogue"
+   },
+   "cost": 0,
+   "level": 1,
+   "seq": 2,
+   "label": "Origin class — Rogue"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "hd": 2
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "seq": 3,
+   "label": "Hit Dice → 2"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "freeSub": {
+      "Rogue": "Soulknife"
+     }
+    }
+   },
+   "cost": 0,
+   "level": 2,
+   "seq": 4,
+   "label": "Subclasses · 0 AP"
+  },
+  {
+   "type": "buy",
+   "cat": "feature",
+   "payload": {
+    "v": "Rogue: Psionic Power / Psychic Blades"
+   },
+   "cost": 8,
+   "level": 2,
+   "seq": 5,
+   "label": "Class feature — Rogue: Psionic Power / Psychic Blades"
+  },
+  {
+   "type": "buy",
+   "cat": "subabil",
+   "payload": {
+    "v": "Rogue|Soulknife|Psionic Power / Psychic Blades"
+   },
+   "cost": 8,
+   "level": 2,
+   "seq": 6,
+   "label": "Subclass ability — Rogue|Soulknife|Psionic Power / Psychic Blades"
+  }
+ ]
+}

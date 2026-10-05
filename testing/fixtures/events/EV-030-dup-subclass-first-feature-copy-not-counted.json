@@ -1,0 +1,74 @@
+{
+ "description": "feat/subclass-double-purchase-guard (owner decision P3): the SAME ability bought through the subclass picker FIRST and the feature picker second (the Anders Pipeleaf order). The first copy is counted; the later feature copy costs nothing, raises one '⛔ … duplicate' warning and is listed once under Blocked purchases.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 200,
+   "seq": 1,
+   "note": "Budget",
+   "label": "Award — budget (200 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Rogue"
+   },
+   "cost": 0,
+   "level": 1,
+   "seq": 2,
+   "label": "Origin class — Rogue"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "hd": 6
+    }
+   },
+   "cost": 0,
+   "level": 6,
+   "seq": 3,
+   "label": "Hit Dice → 6"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "freeSub": {
+      "Rogue": "Soulknife"
+     }
+    }
+   },
+   "cost": 0,
+   "level": 6,
+   "seq": 4,
+   "label": "Subclasses · 0 AP"
+  },
+  {
+   "type": "buy",
+   "cat": "subabil",
+   "payload": {
+    "v": "Rogue|Soulknife|Psionic Power / Psychic Blades"
+   },
+   "cost": 8,
+   "level": 6,
+   "seq": 5,
+   "label": "Subclass ability — Rogue|Soulknife|Psionic Power / Psychic Blades"
+  },
+  {
+   "type": "buy",
+   "cat": "feature",
+   "payload": {
+    "v": "Rogue: Psionic Power / Psychic Blades"
+   },
+   "cost": 8,
+   "level": 6,
+   "seq": 6,
+   "label": "Class feature — Rogue: Psionic Power / Psychic Blades"
+  }
+ ]
+}
