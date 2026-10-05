@@ -1377,3 +1377,34 @@ not by hand-editing the log.
 ```
 **Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
 task's likelihood note is updated by the board's owner to point at this case.
+
+## feat/subclass-double-purchase-guard — stop one subclass ability being bought through both purchase doors (engine and both pickers) — TODO
+Branch `feat/subclass-double-purchase-guard`. **Effort:** medium · **Risk:** medium — damage scale drives it (the pricing path in
+the high-risk `js/engine.js`); likelihood is low (one live character affected).
+
+```text
+OWNER DECISION P3 (2026-10-05): when compute() finds the same ability via b.subAbilities (`Class|Sub|Name`) and b.features
+(`Class: Name`), charge the copy bought FIRST (earliest log order). The later copy is a duplicate: costs nothing, grants nothing,
+one visible warning names it, listed once under "Blocked purchases".
+DO:
+  1. compute(): detect the same ability across the feature loop (js/engine.js ~486-500) and the subclass loop (~564-577) by class +
+     ability name; apply P3. The Hit-Dice-blocked case must also list once.
+  2. Live Sheet and CharGen pickers: a mirrored feature counts as owned if it is in EITHER collection, and shows as already owned
+     instead of buyable. Live Sheet's class-feature list (~1872/1955) builds from DATA.features and ignores b.subAbilities; the
+     subclass list (~1967) checks only b.subAbilities; CharGen has the same pattern. First confirm the exact filter behind the
+     in-play advancement list.
+  3. Fixtures: duplicate priced, duplicate + Hit-Dice-blocked, each door alone, both orders (P3 depends on order). Update
+     testing/expected/, bump DATA.version once, CHANGELOG, decision record D-GH-<date>-subclass-double-purchase-guard.
+  4. MEASURE FIRST. On 2026-10-05 only Anders Pipeleaf (Amble) and his two copies hold a duplicate (Rogue Soulknife: Psionic Power /
+     Psychic Blades, seq 30 via the subclass door 8 AP, seq 40 via the feature door 7 AP). His sealed ledger must not change silently:
+     check whether his displayed "AP left" uses the frozen ledger (economy) or compute(), and coordinate with the Anders task so
+     a refund or repair and this fix do not double count.
+OUT OF SCOPE: whether Martially Bound should discount subclass abilities (the feature loop applies it, the subclass loop does not,
+which is why the two copies priced 7 vs 8) — a separate rules question for the owner.
+This is the shallow fix; the deep fix is refactor/subclass-purchase-unify (one purchase door), high effort/risk and unscheduled.
+Related: "Mirrored subclass abilities double-charge when bought through both paths"; "Anders Pipeleaf holds one ability through
+both purchase doors — decide how a sealed double charge is handled".
+```
+**Done when:** a build holding one ability through both doors prices it once, warns once and lists the later copy once under
+"Blocked purchases" (both orders, plus the Hit-Dice-blocked case); both pickers show an owned mirrored ability as owned; engine-parity
+0 failed with the new fixtures; the live re-check shows only Anders's duplicate; his sealed ledger is checked before landing.
