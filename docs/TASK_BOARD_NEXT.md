@@ -1333,33 +1333,25 @@ DO:
 ```
 **Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
 
-## `verify-guide.mjs` is red at baseline ("feature prices"), so every "verify-guide passes before and after" gate is unsatisfiable — TODO
-**Effort:** medium · **Risk:** low — guide text and a checker; no pricing change unless one of the real mismatches turns out to be an engine error.
+## `verify-guide.mjs` cannot see a combined row's second name, and only warns on ambiguous/unparsed/stepped rows — TODO
+**Effort:** low–medium · **Risk:** low — a checker and an allow-list; no pricing or guide-text change unless it finds another stale row.
 
 ```text
-FOUND 2026-10-06 while landing the Circle Forms guide row. `node testing/scripts/verify-guide.mjs` fails 1 of 11 checks — `feature prices`: ambiguous=6,
-unparsed-price=11, price-mismatch=1, stepped-feature=3 — and did so at 5104a7c, BEFORE any of the 2026-10-05 changes, and after each of them (same numbers
-every time). docs/VERSION-SYNC.md and several tasks on this board say a guide change is done only when verify-guide "passes before and after"; with a red
-baseline that cannot be met, so people can only compare before to after. (`node testing/scripts/guide-price-check.mjs docs/PACT-Players-Guide.html` lists the rows.)
-CORRECTED 2026-10-07: this task first said only ONE row was really wrong. A manual comparison shows FOUR guide rows are stale, all from the 2026-08-27 split of
-bundled features into separately-leveled, separately-priced ones (D-GH-2026-08-27-feature-hd-gate); the checker flags one of them, hides two inside the "unparsed"
-bucket (ranges), and cannot see the fourth at all (it matches only the first name in a combined row). Of the 21 findings, 4 rows are real and 18 are checker limitations:
-  - REAL, flagged: line ~805 "Empowered Strikes / Self-Restoration" — guide T5 Passive 17 (13) is Self-Restoration's price only; the engine has two features:
-    Empowered Strikes T4 Passive 14 (11) L6 and Self-Restoration T5 Passive 17 (13) L10. The guide overstates Empowered Strikes by 3 (2 at origin).
-  - REAL, hidden in "unparsed": "Perfect Focus / Body & Mind" — guide T6–T7 Passive 24–28; engine Perfect Focus T6 Passive 21 (16) L15, Body and Mind T7 Passive 25 (19) L20.
-  - REAL, hidden in "unparsed": "Tactical Mind / Shift / Master" — guide T2–T5 Situational 3–10; engine Tactical Mind T2 4 (3), Tactical Shift T4 9 (6), Tactical Master T5 12 (8).
-  - REAL, not flagged at all: "Roving / Tireless" — guide T4 At-Will 13 (10) is Roving only; the engine also has Tireless T5 At-Will 16 (12) L10.
-  Fix each by splitting the combined guide row into one row per ability at the engine's tier and price (the engine wins per AGENTS.md unless the owner says otherwise),
-  in the pact-guide master AND the served copy (same edit in both, never a file copy). Then make the checker see combined rows (match every name, not the first).
-  - AMBIGUOUS (6): the same name exists in two classes/subclasses (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells) so the checker
-    cannot pick a row — teach it to key on the table's class heading, or list them in an allow-list with a reason.
-  - UNPARSED PRICE (11): rows that legitimately carry no single price (Divine/Primal Order skill ladders, Weapon Mastery, "Included in Premium", "Barred -> A&T",
-    ranges like "3-10") — allow-list them with the reason, so a NEW unparsed row still fails.
-  - STEPPED (3): Metamagic rows — the checker says "verify the whole row set"; give it a ladder check, or allow-list.
-DO: fix the four real rows; make the other 18 either parsed correctly or explicitly allow-listed (each with a reason) so the check goes green and a new genuine drift
-fails it. Re-run the verifier on the served copy; transfer the guide edit to the master per docs/VERSION-SYNC.md.
+HISTORY: FOUND 2026-10-06 as "verify-guide is red at baseline"; on 2026-10-08 the four stale rows behind that were fixed (split into one row per ability in the
+pact-guide master and the served copy; the verifier now passes 11 of 11). The `feature prices` check fails ONLY on a price mismatch; it merely lists the rest.
+What is left is the blind spots that let those four rows go stale unnoticed for six weeks:
+  1. A combined row "A / B" is matched on its FIRST name only. "Roving / Tireless" priced as Roving (correct for Roving) and the checker never looked at Tireless;
+     "Empowered Strikes / Self-Restoration" was matched to Empowered Strikes alone. DO: match every name in a combined row and check each against the engine.
+  2. A price RANGE is "unparsed", so a wrong range passes ("Perfect Focus / Body & Mind 24–28" was wrong for both members; "Tactical Mind / Shift / Master 3–10" matched
+     none). DO: parse "a–b" and check that every member's price lies in it (or that the endpoints equal the min and max).
+  3. Today the check still LISTS ambiguous=6 (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells: one name in two classes), unparsed=9 (skill-ladder
+     rows, "Included in Premium", "Barred -> A&T" ...) and stepped=3 (Metamagic) without ever failing on them. DO: key ambiguous rows on the table's class heading; allow-list
+     each remaining row WITH A REASON so a NEW unparsed or ambiguous row fails.
+  4. The pact-guide master and the served copy have drifted in CONTENT, not only in the three documented presentation additions: the served copy's Ranger table has a
+     "Subclass bonus spells" row the master lacks (found 2026-10-08). DO: find any other such row (diff the two files' tables), then decide which side is right and
+     make them agree — never by copying one file over the other (see docs/VERSION-SYNC.md).
 ```
-**Done when:** `node testing/scripts/verify-guide.mjs` reports 11 of 11 PASS on the served copy; the four rows (Empowered Strikes / Self-Restoration, Perfect Focus / Body and Mind, Tactical Mind / Shift / Master, Roving / Tireless) agree with the engine in both guide files, and the checker would catch a combined row that disagrees; the allow-list entries each carry a reason; the verifier still FAILS if a priced row is deliberately changed (mutation check).
+**Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
 
 ## Martially Bound discounts Fighting Styles in the engine; the guide says it does not — TODO
 **Effort:** low (decision) / low-medium (fix) · **Risk:** low — ambiguity is the only driver (owner decides which side is right); no live character is affected (measured 2026-10-07).
