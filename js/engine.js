@@ -517,8 +517,10 @@ export function compute(b, opts){
   // picker hint said "+14 AP" for six days after this rose 14 -> 18 (D-GH-2026-08-18-drawback-cap-
   // and-second-origin), quoting a player one price and charging another.
   if(has2nd) add("2nd origin class",DATA.secondOriginAP);
-  // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
+  // §14 Martially Bound: choose one class; −1 AP (floor 1) on every non-spell purchase that class trains you in — its class features (feature loop) AND its
+  // subclass abilities (subclass loop) — stacks with origin. +2 AP gain. ONE rule, _mbAdj() below, used by both loops so the two purchase doors cannot disagree.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
+  const _mbAdj=(cls,c)=>(mbClass&&cls===mbClass)?Math.max(1,c-1):c;   // the Martially Bound discount: 1 AP less, floor 1, only for the bound class
   // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
   // tradition / discipline loops below — each previously re-scanned the array with indexOf per iteration.
   // Used for lookups ONLY: b.unlockedClasses itself is untouched, so any order-dependent read is unaffected.
@@ -561,7 +563,7 @@ export function compute(b, opts){
     if(f.rep){const tier=Math.min(7,f.tier+n-1);stick=DATA.MASTER[tier][f.band];origin=Math.max(1,stick-(tier-1));cross=stick+tier;}
     else {origin=f.origin;cross=f.cross;stick=Math.max(1,f.cross-f.tier);}
     const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
-    if(mbClass && f.cls===mbClass) c=Math.max(1,c-1);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
+    c=_mbAdj(f.cls,c);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
     if(_dupFeat.has(lab)){
       // The later copy of an ability whose subclass copy was bought first. If the counted (subclass) copy is itself Hit-Dice-blocked
       // its own line already stands for this ability, so the duplicate is not listed a second time (or its price counted twice).
@@ -630,13 +632,18 @@ export function compute(b, opts){
   // v0.172: base pool (= Hit Dice) is FREE with the Sorcerer Discipline — b.sorcery = EXTRA points bought
   add("Sorcery points",(DATA.sorcCum&&DATA.sorcCum[Math.min(sorcery,DATA.sorcCum.length-1)])||0);
   if((b.sorcery||0)>0){var _hsd=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Sorcerer";});});if(!_hsd)W.push("⛔ Sorcery points require the Sorcerer discipline (open Arcane › Sorcerer)");else if(hd<2)W.push("⛔ Sorcery points require 2 Hit Dice (T2)");}
-  // §14 Martially Bound — taking it grants 2 AP up front (like a drawback), discount applied in the features loop above
+  // §14 Martially Bound — taking it grants 2 AP up front (like a drawback); the discount is applied by _mbAdj() in the feature loop and the subclass loop
   if(mbClass) add("Martially Bound (gain)",-2);
   // subclass abilities (à la carte) + unlocks: first subclass per class is free, others 15 AP
   const freeSub=b.freeSub||{}; const subUsed={}; let subAP=0;const _UI=[];
   // What this ability costs this build through the subclass door (origin / unlocked-class / cross-class). One expression, used by the
-  // counted, the Hit-Dice-blocked and the duplicate branches below.
-  const _subPriceOf=a=>(a.cls===b.originClass||a.cls===b.originClass2)?a.origin:(_unlkSet.has(a.cls)?Math.max(1,a.cross-a.tier):a.cross);
+  // counted, the Hit-Dice-blocked and the duplicate branches below. Martially Bound (owner decision 2026-10-07, feat/martially-bound-subclass-discount):
+  // the discount is "1 AP less (floor 1) on every non-spell purchase the bound class trains you in" (Players Guide §14), and a subclass ability is
+  // one — so it takes the same -1 the feature loop gives a feature of the bound class, which is also what makes the two purchase doors price one
+  // ability identically (before this, the feature door took the -1 and the subclass door did not: 7 AP vs 8 AP for the same ability). Subclass SPELL
+  // bundles (b.subSpellBundles) are spells and are priced elsewhere, deliberately outside this discount ("non-spell purchase"); so is the 15 AP
+  // "open another subclass" unlock, which the guide does not call a purchase the class trains you in.
+  const _subPriceOf=a=>_mbAdj(a.cls,(a.cls===b.originClass||a.cls===b.originClass2)?a.origin:(_unlkSet.has(a.cls)?Math.max(1,a.cross-a.tier):a.cross));
   for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a){W.push((String(key).split("|").pop()||key)+" is no longer in the rules data — no cost/effect applied");continue;}
     const _sLab=(a.cls+" › "+a.sub+": "+a.name);
     if(_dupSub.has(key)){
