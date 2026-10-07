@@ -214,5 +214,47 @@ console.log('== prerequisites + the duplicate guard together');
   const r2 = compute(c); const bl2 = (r2.itemize && r2.itemize['Blocked purchases']) || [];
   ok(bl2.length === 1, 'same with the subclass copy counted: still ONE Blocked-purchases line', JSON.stringify(bl2)); }
 
+// ---------------------------------------------------------------------------------------------------------------------------
+// feat/martially-bound-subclass-discount (owner decision 2026-10-07) — Martially Bound takes 1 AP off (floor 1) every non-spell purchase the bound
+// class trains you in (Players Guide §14). The feature loop always did that; the subclass loop did not, so one ability cost 7 AP through one door and
+// 8 AP through the other. A subclass ability is such a purchase, so the subclass door now takes the same -1.
+console.log('== Martially Bound: both purchase doors price one ability identically, and take exactly 1 AP off');
+{ const price = (cls, door, key, mb, prereq) => {    // the ability's own cost = total with it - total without it, same origin class, same level, its prerequisites already owned
+    const mk = () => { let b = baseBuild(); b.originClass = cls; b.hd = 20; b.budget = 9999; if (mb) b.martiallyBound = cls; for (const p of (prereq || [])) b = buy(b, 'feature', p); return b; };
+    const base = compute(mk()).total; const c = door === 's' ? buy(mk(), 'subabil', key) : buy(mk(), 'feature', key);
+    return compute(c).total - base; };
+  const bad = [];
+  for (const [k, a] of Object.entries(DATA.subAbilMap)) {
+    const F2 = a.cls + ': ' + a.name;
+    if (!DATA.features[F2]) { bad.push(k + ' (NO MIRRORED FEATURE ' + F2 + ')'); continue; }
+    const sPlain = price(a.cls, 's', k, false, a.prereq), fPlain = price(a.cls, 'f', F2, false, a.prereq);
+    const sBound = price(a.cls, 's', k, true, a.prereq), fBound = price(a.cls, 'f', F2, true, a.prereq);
+    if (!(sPlain >= 1 && fPlain >= 1 && sBound >= 1 && fBound >= 1)) { bad.push(k + ' (priced 0 on a door: blocked, so this probe would pass vacuously: ' + [sPlain, fPlain, sBound, fBound] + ')'); continue; }
+    if (sPlain !== fPlain) bad.push(k + ' (unbound doors differ ' + sPlain + '/' + fPlain + ')');
+    if (sBound !== fBound) bad.push(k + ' (bound doors differ ' + sBound + '/' + fBound + ')');
+    if (sBound !== Math.max(1, sPlain - 1)) bad.push(k + ' (bound ' + sBound + ' != max(1, ' + sPlain + ' - 1))');
+  }
+  ok(bad.length === 0, 'all ' + Object.keys(DATA.subAbilMap).length + ' abilities: bound price = max(1, unbound - 1), identical through both doors, unbound doors identical too', bad.slice(0, 4).join(' | ')); }
+{ // bound to a DIFFERENT class: no discount on this class's abilities (compare against the unbound total for the same build)
+  const mk = bound => { const b = baseBuild(); b.originClass = 'Rogue'; b.hd = 10; b.budget = 9999; b.unlockedClasses = ['Fighter']; b.freeSub = { Rogue: 'Soulknife' }; if (bound) b.martiallyBound = 'Fighter'; return b; };
+  const withAbil = bound => compute(buy(mk(bound), 'subabil', S)).total - compute(mk(bound)).total;
+  ok(withAbil(true) === withAbil(false), 'Martially Bound to Fighter does not discount a ROGUE subclass ability', withAbil(true) + ' vs ' + withAbil(false)); }
+{ // floor of 1: a 1 AP ability stays 1 AP bound
+  const SK = 'Rogue|Soulknife|ZZ Floor Probe', FK = 'Rogue: ZZ Floor Probe';
+  DATA.subAbilMap[SK] = { cls: 'Rogue', sub: 'Soulknife', name: 'ZZ Floor Probe', tb: 'T1 Passive', tier: 1, origin: 1, cross: 2 };
+  DATA.features[FK] = { cls: 'Rogue', tb: 'T1 Passive', origin: 1, cross: 2, tier: 1, band: 3, rep: false };
+  try {
+    const mk = bound => { const b = baseBuild(); b.originClass = 'Rogue'; b.hd = 10; b.budget = 9999; b.freeSub = { Rogue: 'Soulknife' }; if (bound) b.martiallyBound = 'Rogue'; return b; };
+    const cost = (bound, door) => compute(door === 's' ? buy(mk(bound), 'subabil', SK) : buy(mk(bound), 'feature', FK)).total - compute(mk(bound)).total;
+    ok(cost(true, 's') === 1 && cost(true, 'f') === 1 && cost(false, 's') === 1, 'a 1 AP ability stays 1 AP when bound (floor 1), through both doors', JSON.stringify([cost(true, 's'), cost(true, 'f'), cost(false, 's')]));
+  } finally { delete DATA.subAbilMap[SK]; delete DATA.features[FK]; } }
+{ // the duplicate guard prices the counted AND the listed copy at the same bound price
+  const mk = () => { const b = baseBuild(); b.originClass = 'Rogue'; b.hd = 10; b.budget = 9999; b.freeSub = { Rogue: 'Soulknife' }; b.martiallyBound = 'Rogue'; return b; };
+  const single = compute(buy(mk(), 'subabil', S)).total;
+  const both = compute(buy(buy(mk(), 'subabil', S), 'feature', F));
+  const bl = (both.itemize && both.itemize['Blocked purchases']) || [];
+  ok(both.total === single, 'bound, both doors held: still counted once (same total as one door)', both.total + ' vs ' + single);
+  ok(bl.length === 1 && bl[0][1] === (compute(buy(mk(), 'subabil', S)).itemize['Subclass abilities'][0][1]), '...and the listed duplicate shows the same bound price as the counted copy', JSON.stringify(bl)); }
+
 console.log('\n' + (fail ? '✗ ' + fail + ' FAILED / ' + pass + ' passed' : '✓ ' + pass + ' passed / 0 failed'));
 process.exit(fail ? 1 : 0);

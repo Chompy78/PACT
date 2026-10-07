@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-07-martially-bound-subclass-discount — Martially Bound discounts subclass abilities of the bound class
+- Owner decision 2026-10-07: the -1 AP (floor 1) Martially Bound gives a class feature of the bound class now also applies to a subclass ability of it — the guide always said "every non-spell
+  purchase that class trains you in"; the subclass loop in `compute()` had omitted it, so one ability cost 7 or 8 AP depending on which picker bought it. `_subPriceOf()` is the one place; both doors
+  now price any ability identically (gated for all 192). `DATA.version` v0.371; guide §14 clarified (master + served copy). One live character affected (frozen ledger unchanged). Status: done.
+  Full record: `decisions/2026/D-GH-2026-10-07-martially-bound-subclass-discount.md`.
+
 ## D-GH-2026-10-05-subability-prereq — Circle Forms requires base Wild Shape (subclass abilities can carry a prerequisite)
 - Circle Forms improves Wild Shape but could be bought without it; the subclass loop in `compute()` had a Hit-Dice gate and no prerequisite gate. Now Circle Forms carries `prereq: [Druid: Wild Shape]`
   in all three data copies and the subclass loop applies the feature loop's prerequisite gate (Hit Dice first, one joined warning), so both purchase doors refuse it identically. Base Wild Shape only: the

@@ -1318,26 +1318,6 @@ not by hand-editing the log.
 **Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
 task's likelihood note is updated by the board's owner to point at this case.
 
-## Martially Bound discount: should it also discount subclass abilities? (rules decision) — TODO
-**Effort:** low (the decision) / medium (if "yes": engine, fixtures, guide, version bump) · **Risk:** medium — ambiguity is the driver: a pricing rule only the owner can settle; damage scale is low until it is decided.
-
-```text
-FOUND 2026-10-05, while repairing a double purchase. The Martially Bound discount (-1 AP, floor 1, on features of the bound class) is applied by
-the FEATURE loop in js/engine.js (`if(mbClass && f.cls===mbClass) c=Math.max(1,c-1)`) and NOT by the SUBCLASS loop. So the same ability costs 8 AP
-bought through the subclass picker and 7 AP bought through the mirrored class-feature picker for a Martially Bound character — which is how a
-double purchase showed up as 8 + 7. Since feat/subclass-double-purchase-guard there is one price helper for the subclass door (`_subPriceOf`), so
-applying the discount, if wanted, is a one-line change in one place.
-DO:
-  1. Owner decides: does Martially Bound discount subclass abilities of the bound class (the guide's Martially Bound text is the rule's source).
-  2. If NO: say so in the guide and in DECISIONS.md, so the 7-vs-8 gap is never again read as a bug; make the feature door match (a mirrored subclass
-     ability bought as a feature should not get a discount the subclass door denies) or document why not.
-  3. If YES: apply `mbClass` in `_subPriceOf`; fixtures for a bound character through both doors; bump DATA.version once; update the Players Guide
-     (master in pact-guide) in the same change.
-  4. MEASURE FIRST: query live characters with `martiallyBound` set AND subclass abilities of that class — their DISPLAYED totals fall by 1 AP per
-     ability (frozen ledgers via economy() do not move). List them for the owner.
-```
-**Done when:** the decision is recorded in `DECISIONS.md`; both doors price a Martially Bound character's subclass ability the same way (or the difference is documented as deliberate); if "yes", engine-parity 0 failed with the new fixtures and the guide matches.
-
 ## A subclass key repeated inside `b.subAbilities` alone is charged twice — TODO
 Branch `fix/subclass-same-door-repeat`. **Effort:** low · **Risk:** medium — `compute()` output changes for any saved log holding the same subclass key twice, so measure first; damage scale is medium (a mis-priced total, not data loss), likelihood low.
 
@@ -1354,22 +1334,44 @@ DO:
 **Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
 
 ## `verify-guide.mjs` is red at baseline ("feature prices"), so every "verify-guide passes before and after" gate is unsatisfiable — TODO
-**Effort:** medium · **Risk:** low — guide text and a checker; no pricing change unless the one real mismatch turns out to be an engine error.
+**Effort:** medium · **Risk:** low — guide text and a checker; no pricing change unless one of the real mismatches turns out to be an engine error.
 
 ```text
 FOUND 2026-10-06 while landing the Circle Forms guide row. `node testing/scripts/verify-guide.mjs` fails 1 of 11 checks — `feature prices`: ambiguous=6,
 unparsed-price=11, price-mismatch=1, stepped-feature=3 — and did so at 5104a7c, BEFORE any of the 2026-10-05 changes, and after each of them (same numbers
 every time). docs/VERSION-SYNC.md and several tasks on this board say a guide change is done only when verify-guide "passes before and after"; with a red
 baseline that cannot be met, so people can only compare before to after. (`node testing/scripts/guide-price-check.mjs docs/PACT-Players-Guide.html` lists the rows.)
-Of the 21 findings, 20 are checker limitations and ONE is a genuine guide-vs-engine price difference:
-  - REAL: line ~805 "Empowered Strikes / Self-Restoration" — guide T5 Passive 17 (13); engine T4 Passive 14 (11). Decide which is right (the engine wins per
-    AGENTS.md unless the owner says otherwise), then fix the guide row in the pact-guide master AND the served copy (same edit in both, never a file copy).
+CORRECTED 2026-10-07: this task first said only ONE row was really wrong. A manual comparison shows FOUR guide rows are stale, all from the 2026-08-27 split of
+bundled features into separately-leveled, separately-priced ones (D-GH-2026-08-27-feature-hd-gate); the checker flags one of them, hides two inside the "unparsed"
+bucket (ranges), and cannot see the fourth at all (it matches only the first name in a combined row). Of the 21 findings, 4 rows are real and 18 are checker limitations:
+  - REAL, flagged: line ~805 "Empowered Strikes / Self-Restoration" — guide T5 Passive 17 (13) is Self-Restoration's price only; the engine has two features:
+    Empowered Strikes T4 Passive 14 (11) L6 and Self-Restoration T5 Passive 17 (13) L10. The guide overstates Empowered Strikes by 3 (2 at origin).
+  - REAL, hidden in "unparsed": "Perfect Focus / Body & Mind" — guide T6–T7 Passive 24–28; engine Perfect Focus T6 Passive 21 (16) L15, Body and Mind T7 Passive 25 (19) L20.
+  - REAL, hidden in "unparsed": "Tactical Mind / Shift / Master" — guide T2–T5 Situational 3–10; engine Tactical Mind T2 4 (3), Tactical Shift T4 9 (6), Tactical Master T5 12 (8).
+  - REAL, not flagged at all: "Roving / Tireless" — guide T4 At-Will 13 (10) is Roving only; the engine also has Tireless T5 At-Will 16 (12) L10.
+  Fix each by splitting the combined guide row into one row per ability at the engine's tier and price (the engine wins per AGENTS.md unless the owner says otherwise),
+  in the pact-guide master AND the served copy (same edit in both, never a file copy). Then make the checker see combined rows (match every name, not the first).
   - AMBIGUOUS (6): the same name exists in two classes/subclasses (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells) so the checker
     cannot pick a row — teach it to key on the table's class heading, or list them in an allow-list with a reason.
   - UNPARSED PRICE (11): rows that legitimately carry no single price (Divine/Primal Order skill ladders, Weapon Mastery, "Included in Premium", "Barred -> A&T",
     ranges like "3-10") — allow-list them with the reason, so a NEW unparsed row still fails.
   - STEPPED (3): Metamagic rows — the checker says "verify the whole row set"; give it a ladder check, or allow-list.
-DO: fix the one real row; make the other 20 either parsed correctly or explicitly allow-listed (each with a reason) so the check goes green and a new genuine drift
+DO: fix the four real rows; make the other 18 either parsed correctly or explicitly allow-listed (each with a reason) so the check goes green and a new genuine drift
 fails it. Re-run the verifier on the served copy; transfer the guide edit to the master per docs/VERSION-SYNC.md.
 ```
-**Done when:** `node testing/scripts/verify-guide.mjs` reports 11 of 11 PASS on the served copy; the Empowered Strikes row agrees with the engine in both guide files; the allow-list entries each carry a reason; the verifier still FAILS if a priced row is deliberately changed (mutation check).
+**Done when:** `node testing/scripts/verify-guide.mjs` reports 11 of 11 PASS on the served copy; the four rows (Empowered Strikes / Self-Restoration, Perfect Focus / Body and Mind, Tactical Mind / Shift / Master, Roving / Tireless) agree with the engine in both guide files, and the checker would catch a combined row that disagrees; the allow-list entries each carry a reason; the verifier still FAILS if a priced row is deliberately changed (mutation check).
+
+## Martially Bound discounts Fighting Styles in the engine; the guide says it does not — TODO
+**Effort:** low (decision) / low-medium (fix) · **Risk:** low — ambiguity is the only driver (owner decides which side is right); no live character is affected (measured 2026-10-07).
+
+```text
+FOUND 2026-10-07 while making Martially Bound discount subclass abilities. Players Guide §14: "Fighting Styles are not discounted by this — they are priced flat
+regardless of class." The engine's feature loop applies the Martially Bound -1 to EVERY feature of the bound class with no exception: a probe (Fighter, Martially
+Bound to Fighter, `Fighter: Fighting Style`) totals 47 against 50 unbound — the 2 AP gain plus a 1 AP discount that the guide says should not exist. Ranger's
+Fighting Style behaves the same; a subclass ability named Fighting Style (e.g. Champion's Additional Fighting Style, currently barred) would now too.
+DO: owner decides — (a) the guide is right: exclude Fighting Styles from the discount in BOTH loops (one predicate, used by the feature loop and `_subPriceOf`), add a
+fixture for a bound Fighter and Ranger, bump DATA.version; or (b) the engine is right: change the guide sentence in the master and the served copy.
+MEASURE FIRST: query live characters that are Martially Bound to Fighter or Ranger and hold a Fighting Style feature (2026-10-07: none — the only Martially Bound
+characters are Rogue).
+```
+**Done when:** the decision is recorded; the engine and the guide agree about Fighting Styles; if (a), engine-parity 0 failed with the new fixtures and the guide is unchanged.
