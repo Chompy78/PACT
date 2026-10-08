@@ -1353,21 +1353,6 @@ What is left is the blind spots that let those four rows go stale unnoticed for 
 ```
 **Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
 
-## Martially Bound discounts Fighting Styles in the engine; the guide says it does not — TODO
-**Effort:** low (decision) / low-medium (fix) · **Risk:** low — ambiguity is the only driver (owner decides which side is right); no live character is affected (measured 2026-10-07).
-
-```text
-FOUND 2026-10-07 while making Martially Bound discount subclass abilities. Players Guide §14: "Fighting Styles are not discounted by this — they are priced flat
-regardless of class." The engine's feature loop applies the Martially Bound -1 to EVERY feature of the bound class with no exception: a probe (Fighter, Martially
-Bound to Fighter, `Fighter: Fighting Style`) totals 47 against 50 unbound — the 2 AP gain plus a 1 AP discount that the guide says should not exist. Ranger's
-Fighting Style behaves the same; a subclass ability named Fighting Style (e.g. Champion's Additional Fighting Style, currently barred) would now too.
-DO: owner decides — (a) the guide is right: exclude Fighting Styles from the discount in BOTH loops (one predicate, used by the feature loop and `_subPriceOf`), add a
-fixture for a bound Fighter and Ranger, bump DATA.version; or (b) the engine is right: change the guide sentence in the master and the served copy.
-MEASURE FIRST: query live characters that are Martially Bound to Fighter or Ranger and hold a Fighting Style feature (2026-10-07: none — the only Martially Bound
-characters are Rogue).
-```
-**Done when:** the decision is recorded; the engine and the guide agree about Fighting Styles; if (a), engine-parity 0 failed with the new fixtures and the guide is unchanged.
-
 ## feat/unique-character-names — the database refuses two active characters with the same name for one player — TODO
 Branch `feat/unique-character-names`. **Effort:** medium · **Risk:** medium — driven by damage scale: a constraint on `characters` rejects real saves if a tool doesn't handle the new error, and existing duplicates must be cleared first or the migration fails.
 

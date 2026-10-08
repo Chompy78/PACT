@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-08-martially-bound-fighting-styles-flat — Martially Bound does not discount Fighting Styles
+- Owner decision 2026-10-08: the Players Guide always said Fighting Styles are "priced flat regardless of class"; the engine discounted them. A `noMB` data flag (four features plus the Additional Fighting Style subclass copies) now exempts them; `DATA.version` v0.371 → v0.372. No live character affected (measured). Full record: `decisions/2026/D-GH-2026-10-08-martially-bound-fighting-styles-flat.md`.
+
 ## D-GH-2026-10-07-martially-bound-subclass-discount — Martially Bound discounts subclass abilities of the bound class
 - Owner decision 2026-10-07: the -1 AP (floor 1) Martially Bound gives a class feature of the bound class now also applies to a subclass ability of it — the guide always said "every non-spell
   purchase that class trains you in"; the subclass loop in `compute()` had omitted it, so one ability cost 7 or 8 AP depending on which picker bought it. `_subPriceOf()` is the one place; both doors
