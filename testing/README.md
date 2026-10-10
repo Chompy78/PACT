@@ -48,6 +48,8 @@
   prerequisite. Fixtures CG-057..061, EV-033.
   Extended again by `fix/martially-bound-subclass-discount`: for all 192 abilities the Martially Bound price is `max(1, unbound - 1)` and identical through both
   doors (and the unbound doors agree too), a different bound class gives no discount, the floor of 1 holds, and a duplicate is listed at the same bound price. Fixtures CG-062..065.
+  Extended by `fix/martially-bound-fighting-styles-flat`: every Fighting Style carries the `noMB` flag in all three data copies and is priced flat when bound
+  (the all-192 check expects bound == unbound for a `noMB` ability), with an ordinary bound-class feature as the control. Fixtures CG-066..068.
 - **`scripts/wounds-ci.mjs`** and **`scripts/wounds-ui-e2e.mjs`** (`feat/permanent-wounds`, extended by `feat/wound-aliases`) — gates for the
   DM-only Wounds section. `wounds-ci.mjs` (pure Node) pins `DATA.wounds` (tier ↔ price: minor 2 AP, moderate 3–4; no Grievous tier;
   the four Grievous drawbacks are not wounds); the **wound-only split** — the 19 wound-only entries (the original four, 8 aliases and 7

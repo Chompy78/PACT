@@ -232,9 +232,10 @@ console.log('== Martially Bound: both purchase doors price one ability identical
     if (!(sPlain >= 1 && fPlain >= 1 && sBound >= 1 && fBound >= 1)) { bad.push(k + ' (priced 0 on a door: blocked, so this probe would pass vacuously: ' + [sPlain, fPlain, sBound, fBound] + ')'); continue; }
     if (sPlain !== fPlain) bad.push(k + ' (unbound doors differ ' + sPlain + '/' + fPlain + ')');
     if (sBound !== fBound) bad.push(k + ' (bound doors differ ' + sBound + '/' + fBound + ')');
-    if (sBound !== Math.max(1, sPlain - 1)) bad.push(k + ' (bound ' + sBound + ' != max(1, ' + sPlain + ' - 1))');
+    const want = a.noMB ? sPlain : Math.max(1, sPlain - 1);   // a noMB ability (Fighting Styles) is priced flat
+    if (sBound !== want) bad.push(k + ' (bound ' + sBound + ' != ' + want + (a.noMB ? ', flagged noMB' : ' = max(1, ' + sPlain + ' - 1)') + ')');
   }
-  ok(bad.length === 0, 'all ' + Object.keys(DATA.subAbilMap).length + ' abilities: bound price = max(1, unbound - 1), identical through both doors, unbound doors identical too', bad.slice(0, 4).join(' | ')); }
+  ok(bad.length === 0, 'all ' + Object.keys(DATA.subAbilMap).length + ' abilities: bound price = max(1, unbound - 1) (unbound, if flagged noMB), identical through both doors, unbound doors identical too', bad.slice(0, 4).join(' | ')); }
 { // bound to a DIFFERENT class: no discount on this class's abilities (compare against the unbound total for the same build)
   const mk = bound => { const b = baseBuild(); b.originClass = 'Rogue'; b.hd = 10; b.budget = 9999; b.unlockedClasses = ['Fighter']; b.freeSub = { Rogue: 'Soulknife' }; if (bound) b.martiallyBound = 'Fighter'; return b; };
   const withAbil = bound => compute(buy(mk(bound), 'subabil', S)).total - compute(mk(bound)).total;
@@ -255,6 +256,30 @@ console.log('== Martially Bound: both purchase doors price one ability identical
   const bl = (both.itemize && both.itemize['Blocked purchases']) || [];
   ok(both.total === single, 'bound, both doors held: still counted once (same total as one door)', both.total + ' vs ' + single);
   ok(bl.length === 1 && bl[0][1] === (compute(buy(mk(), 'subabil', S)).itemize['Subclass abilities'][0][1]), '...and the listed duplicate shows the same bound price as the counted copy', JSON.stringify(bl)); }
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// feat/martially-bound-fighting-styles-flat (owner decision 2026-10-08) — Players Guide §14: "Fighting Styles are not discounted by this — they are priced
+// flat regardless of class". The engine used to discount them; an explicit `noMB` flag on the data now exempts them.
+console.log('== Martially Bound: Fighting Styles are priced flat');
+{ const isFS = n => /fighting style/i.test(n);
+  const feats = Object.entries(DATA.features).filter(([k]) => isFS(k));
+  const subs = Object.entries(DATA.subAbilMap).filter(([k]) => isFS(k));
+  const inSubclasses = []; for (const c of Object.keys(DATA.subclasses)) for (const s of Object.keys(DATA.subclasses[c])) for (const a of (DATA.subclasses[c][s].abilities || [])) if (isFS(a.name)) inSubclasses.push(c + '/' + s + '/' + a.name + ':' + !!a.noMB);
+  ok(feats.length >= 4 && feats.every(([, f]) => f.noMB === true), 'every Fighting Style feature (' + feats.length + ') carries noMB', feats.filter(([, f]) => !f.noMB).map(([k]) => k).join(', '));
+  ok(subs.every(([, a]) => a.noMB === true) && inSubclasses.every(x => x.endsWith(':true')), 'the subclass-ability copies of a Fighting Style carry noMB in subAbilMap and subclasses too', JSON.stringify([subs.filter(([, a]) => !a.noMB).map(([k]) => k), inSubclasses.filter(x => !x.endsWith(':true'))]));
+  const cost = (cls, key, bound) => { const mk = () => { const b = baseBuild(); b.originClass = cls; b.hd = 20; b.budget = 9999; if (bound) b.martiallyBound = cls; return b; };
+    return compute(buy(mk(), 'feature', key)).total - compute(mk()).total; };
+  for (const cls of ['Fighter', 'Paladin', 'Ranger']) { const k = cls + ': Fighting Style';
+    const p = cost(cls, k, false), q = cost(cls, k, true);
+    ok(p >= 1 && p === q, cls + ' Fighting Style costs the same bound and unbound', p + ' vs ' + q); }
+  { const k = 'Fighter: Additional Fighting Style'; const mk = bound => { let b = baseBuild(); b.originClass = 'Fighter'; b.hd = 20; b.budget = 9999; if (bound) b.martiallyBound = 'Fighter'; return b; };
+    const c = bound => compute(buy(mk(bound), 'feature', k)).total - compute(mk(bound)).total;
+    ok(c(false) >= 1 && c(true) === c(false), 'Fighter Additional Fighting Style (a Champion ability) is flat bound and unbound', c(true) + ' vs ' + c(false)); }
+  { const k = 'Fighter: Action Surge'; const hasF = !!DATA.features[k] && !DATA.features[k].noMB;   // control: an ordinary Fighter feature still gets the -1
+    if (hasF) { const mk = bound => { const b = baseBuild(); b.originClass = 'Fighter'; b.hd = 20; b.budget = 9999; if (bound) b.martiallyBound = 'Fighter'; return b; };
+      const c = bound => compute(buy(mk(bound), 'feature', k)).total - compute(mk(bound)).total;
+      ok(c(false) > 1 && c(true) === c(false) - 1, 'control: an ordinary bound-class feature (' + k + ') still takes the 1 AP off', c(true) + ' vs ' + c(false)); }
+    else ok(false, 'control feature ' + k + ' missing or flagged'); } }
 
 console.log('\n' + (fail ? '✗ ' + fail + ' FAILED / ' + pass + ' passed' : '✓ ' + pass + ' passed / 0 failed'));
 process.exit(fail ? 1 : 0);
