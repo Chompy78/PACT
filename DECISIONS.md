@@ -12,6 +12,11 @@
 
 ## D-GH-2026-10-08-martially-bound-fighting-styles-flat — Martially Bound does not discount Fighting Styles
 - Owner decision 2026-10-08: the Players Guide always said Fighting Styles are "priced flat regardless of class"; the engine discounted them. A `noMB` data flag (four features plus the Additional Fighting Style subclass copies) now exempts them; `DATA.version` v0.371 → v0.372. No live character affected (measured). Full record: `decisions/2026/D-GH-2026-10-08-martially-bound-fighting-styles-flat.md`.
+## D-GH-2026-10-10-blank-row-guard — the server refuses blank solo character rows; a weekly job sweeps any that remain
+- 31 cloud rows across 5 owners were pure column defaults ("New Character", stats `{}`), burying one player's real character. Owner choice I3: a BEFORE INSERT trigger refuses a solo row
+  whose stats carry no `LOG`, and `pact_purge_blank_characters()` (weekly via pg_cron) deletes solo rows that are exactly `{}`, over a day old and unreferenced. Solo-only because
+  `join_campaign()`/`redeem_player_invite()` seed campaign rows with `{}` on purpose. Deletes stay recoverable via `character_backups`. Client root cause tracked as `fix/blank-character-rows`.
+  Status: tested, not yet applied to live. Full record: `decisions/2026/D-GH-2026-10-10-blank-row-guard.md`.
 
 ## D-GH-2026-10-07-martially-bound-subclass-discount — Martially Bound discounts subclass abilities of the bound class
 - Owner decision 2026-10-07: the -1 AP (floor 1) Martially Bound gives a class feature of the bound class now also applies to a subclass ability of it — the guide always said "every non-spell

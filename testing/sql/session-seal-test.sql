@@ -84,6 +84,7 @@ end; $$;
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
+\ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 
 drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history

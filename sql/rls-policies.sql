@@ -1679,3 +1679,57 @@ revoke all on public.character_backups from authenticated, anon;
 grant select, insert, update, delete on public.character_backups to service_role;
 
 revoke execute on function public.snapshot_character() from public, authenticated, anon;
+
+-- ---------------------------------------------------------------------------
+-- Blank-row guard (fix/blank-row-guard, 2026-10-10; D-GH-2026-10-10-blank-row-guard).
+-- Same definitions as sql/migrations/2026-10-10-blank-row-guard.sql — see that header for why the guard
+-- and the purge are SOLO-only (join_campaign/redeem_player_invite seed campaign rows with stats {}).
+-- The weekly pg_cron schedule is Supabase-only and lives in 2026-10-10-blank-row-purge-schedule.sql.
+-- ---------------------------------------------------------------------------
+create or replace function public.pact_refuse_blank_solo_character()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if NEW.campaign_id is null and not (coalesce(NEW.stats, '{}'::jsonb) ? 'LOG') then
+    raise exception 'PACT: refused a blank character — a solo character must be saved with its event log'
+      using errcode = 'check_violation';
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_refuse_blank_solo_character on public.characters;
+create trigger trg_pact_refuse_blank_solo_character
+  before insert on public.characters
+  for each row execute function public.pact_refuse_blank_solo_character();
+
+revoke all on function public.pact_refuse_blank_solo_character() from public, anon, authenticated;
+
+create or replace function public.pact_purge_blank_characters(p_min_age interval default interval '1 day')
+returns integer
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_n integer;
+begin
+  with gone as (
+    delete from public.characters c
+     where c.campaign_id is null
+       and c.stats = '{}'::jsonb
+       and c.created_at < now() - p_min_age
+       and c.updated_at < now() - p_min_age
+       and not exists (select 1 from public.ap_awards a                       where a.character_id = c.id)
+       and not exists (select 1 from public.gold_awards g                     where g.character_id = c.id)
+       and not exists (select 1 from public.character_dm_notes n              where n.character_id = c.id)
+       and not exists (select 1 from public.campaign_invites i                where i.source_character_id = c.id)
+       and not exists (select 1 from public.campaign_downtime_declarations d  where d.character_id = c.id)
+       and not exists (select 1 from public.ap_award_edits e                  where e.character_id = c.id)
+    returning 1
+  )
+  select count(*) into v_n from gone;
+  return v_n;
+end;
+$$;
+
+revoke all on function public.pact_purge_blank_characters(interval) from public, anon, authenticated;
