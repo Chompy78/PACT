@@ -713,6 +713,8 @@ end $$;
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql
 \ir ../../sql/migrations/2026-10-04-dm-unlock-drawback.sql
+-- Server freeze, stage 1 (D2 + E1), applied to production 2026-10-10 (decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md). It REPLACES pact_ap_ledger_protected and pact_enforce_locked_history, so it must run after every migration that touched them.
+\ir ../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 

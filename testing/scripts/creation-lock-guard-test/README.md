@@ -20,7 +20,7 @@ test it (the restart note's option T3).
 
 ## Server freeze, stage 1 (D2 + E1) — added 2026-10-05
 
-`sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` (+ `-rollback.sql`), plan `docs/plans/2026-10-04-server-freeze-d2-e1.md`. **Not applied to the live database by merging it.**
+`sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql` (+ `-rollback.sql`), plan `docs/plans/2026-10-04-server-freeze-d2-e1.md`. **Applied to the live database on 2026-10-10** (merging the file did not apply it; the apply was a separate owner-approved step).
 
 | File | What |
 |---|---|
