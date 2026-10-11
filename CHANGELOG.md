@@ -4,6 +4,9 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-10 · fix(sql): the server refuses blank solo character rows, and a weekly job sweeps any already there (applied to live 2026-10-11)** —
+  `sql/migrations/2026-10-10-blank-row-guard.sql` adds `trg_pact_refuse_blank_solo_character` (an INSERT of a solo row with no `LOG` is refused) and `pact_purge_blank_characters()`; `2026-10-10-blank-row-purge-schedule.sql` runs it Sundays 03:00 UTC via pg_cron (Supabase-only). Campaign seed rows from `join_campaign()`/`redeem_player_invite()` are untouched. Folded into `sql/rls-policies.sql`; 13 new assertions in `testing/sql/rls-baseline-test.sql` (drift guard now 11 functions), and the solo fixtures there now carry `{"LOG":[]}`. Live on 2026-10-10: 31 blank rows across 5 owners would be swept. See `D-GH-2026-10-10-blank-row-guard`.
+
 - **2026-10-08 · fix(engine): Martially Bound no longer discounts Fighting Styles — they are priced flat, as the Players Guide always said; `DATA.version` v0.371 → v0.372** —
   a bound Fighter paid 11 for `Fighter: Fighting Style` (12 flat), a bound Ranger/Paladin 12 (13 flat). A `noMB` flag in the data (four features, plus the `subAbilMap` and `subclasses` copies of Additional Fighting Style) is read by `_mbAdj`. CharGen/Live Sheet wording updated. Fixtures CG-066..068, 7 new node checks (mutation-checked). No live character affected (55 characters, 4 bound, all Rogue, 0 Fighting Styles). Guide unchanged. Record: `D-GH-2026-10-08-martially-bound-fighting-styles-flat`.
 
