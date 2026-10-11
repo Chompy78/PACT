@@ -3,6 +3,7 @@
  *   2. A tap-able ⓘ after each boon and drawback that shows its effect (drawbacks' hover text was always blank:
  *      it read .fx off DATA.drawbacks[x], which is a price).
  *   3. The "not named" notice lists WHICH spells and languages are blank.
+ *   6. The player's own sheet: coins, weapons (engine weaponAttack()) and note sections, saved with the character.
  *   5. On desktop the Buy and History panels fold to a strip (remembered per browser).
  *   4. A campaign DM can switch off the "N drawbacks chosen" advice (DM Console → rules.drawbackCountAdvice).
  *
@@ -93,6 +94,38 @@ await page.waitForFunction(() => document.querySelector('#sheet .shskills'), { t
 check('the fold is remembered after a reload', await page.evaluate(() => document.querySelector('.layout>.card:nth-child(1)').classList.contains('clp') && document.querySelector('.layout>.card:nth-child(3)').classList.contains('clp')));
 await page.click('.layout>.card:nth-child(1)>h3');
 check('clicking the strip opens it again', await page.evaluate(() => document.querySelector('.layout>.card:nth-child(1)').getBoundingClientRect().width > 250));
+
+// 6. The player's own sheet: coins, weapons (to-hit / damage worked out by the engine), note sections — saved in the LOG.
+const XSS = '"><img src=x onerror="window.__pwn=1">';
+await page.click('button:has-text("+ Add weapon")');
+await page.waitForSelector('.pswpn');
+const setPs = async (key, v) => page.evaluate(([key, v]) => { const el = document.querySelector('[data-ps="' + key + '"]');
+  if (el.type === 'checkbox') el.checked = v; else el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, [key, v]);
+await setPs('weapons.0.n', 'Rapier ' + XSS);
+await setPs('weapons.0.ab', 'FIN');
+await setPs('weapons.0.bonus', '1');
+await setPs('weapons.0.dice', '1d8');
+await setPs('weapons.0.type', 'Piercing');
+const wexp = await page.evaluate(() => { const b = foldBuild(null), r = compute(b); return { hit: Math.max(r.mods.STR, r.mods.DEX) + r.prof + 1, dmg: Math.max(r.mods.STR, r.mods.DEX) + 1 }; });
+const wrow = await page.evaluate(() => document.querySelector('.pswpn .pswtop').innerText.replace(/\s+/g, ' '));
+check('a finesse weapon\'s to-hit = best of STR/DEX + proficiency + magic', wrow.includes('To hit +' + wexp.hit), wrow);
+check('…and its damage shows dice + bonus + type', wrow.includes('1d8 + ' + wexp.dmg + ' piercing'), wrow);
+await page.click('button:has-text("+ Add section")');
+await setPs('notes.0.t', '🎒 Gear');
+await setPs('notes.0.x', 'Rope (50 ft)\nLantern');
+await setPs('coins.sp', '23');
+const saved = await page.evaluate(() => foldBuild(null).appearance.playerSheet);
+check('weapons, notes and coins are saved in the character', saved && saved.weapons[0].dice === '1d8' && saved.notes[0].x.includes('Lantern') && saved.coins.sp === 23, JSON.stringify(saved).slice(0, 200));
+check('editing the sheet adds only one history entry', await page.evaluate(() => LOG.filter(e => e.cat === 'patch' && e.payload && e.payload.patch && e.payload.patch.appearance).length === 1));
+check('player text is escaped (no injected element ran)', await page.evaluate(() => !window.__pwn && !document.querySelector('#sheet img[src="x"]')));
+// (A reload would re-seed this harness's character, so check the saved copy itself.)
+check('they are in the saved character (what a reload or cloud save reads)', await page.evaluate(() => {
+  const env = JSON.parse(localStorage.getItem('pactLiveSheet') || '{}');
+  return JSON.stringify(env.LOG || []).includes('Lantern') && JSON.stringify(env.LOG || []).includes('Rapier'); }));
+if (process.env.SHOT_DIR) await page.locator('#sheet .shmain').screenshot({ path: path.join(process.env.SHOT_DIR, 'livesheet-player-sheet.png') });
+await page.evaluate(() => { window.confirm = () => true; });
+await page.click('.pswpn .psdel');
+check('a weapon can be removed', await page.evaluate(() => foldBuild(null).appearance.playerSheet.weapons.length === 0));
 
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }

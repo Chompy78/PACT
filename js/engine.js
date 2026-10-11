@@ -322,6 +322,19 @@ export function skillMods(b, r) {
   });
 }
 
+// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon the PLAYER entered on their sheet (the rules data has no weapon
+// table; feat/livesheet-center-panel). w = { ab: 'STR'|'DEX'|'FIN'|'none', prof: bool, bonus: number (magic +N) }.
+// 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier + proficiency (if proficient) + bonus;
+// damage bonus = ability modifier + bonus. Pass compute(b)'s result as r to avoid a second compute.
+export function weaponAttack(b, r, w) {
+  r = r || compute(b); w = w || {};
+  const m = r.mods || {}, bonus = Math.trunc(Number(w.bonus)) || 0;
+  let ab = w.ab === 'DEX' || w.ab === 'FIN' || w.ab === 'none' ? w.ab : 'STR';
+  if (ab === 'FIN') ab = (m.DEX || 0) > (m.STR || 0) ? 'DEX' : 'STR';
+  const abMod = ab === 'none' ? 0 : (m[ab] || 0), prof = w.prof ? (r.prof || 0) : 0;
+  return { ab, abMod, prof, toHit: abMod + prof + bonus, dmgBonus: abMod + bonus };
+}
+
 export function sizeOf(b){
   const _races=[b&&b.species,b&&b.species2].filter(s=>s&&s!=='(none)');
   const _isSmall=r=>(r==='Halfling'||r==='Gnome');

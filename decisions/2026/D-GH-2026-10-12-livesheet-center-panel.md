@@ -26,6 +26,17 @@ languages in the "not filled in" notice; and a way to switch off "N drawbacks ch
    `drawbackCapFromRules()`, and all three tools pass it. `purchaseLegality()` gained an optional `opts` so the check run on a
    purchase sees the same campaign settings as the sheet.
 
+3. The Buy / progress and History & ledger panels fold to a strip on desktop (CSS `:has()` on the grid); the fold is a
+   per-browser convenience in localStorage, not character data.
+4. A player's own sheet (owner choices G1, H1, plus coins and weapons): `b.appearance.playerSheet =
+   {coins, weapons, notes}`. Options were G1 inside `appearance`, G2 its own field plus a live-database change adding it to
+   `pact_patch_exempt_keys()`, G3 device-local. G1 because `appearance` is already exempt from the locked-history freeze, so
+   it syncs, travels to CharGen and stays editable in play with no migration; nothing iterates `appearance` generically, so an
+   extra key is inert elsewhere. Edits replace the one appearance patch in place (the existing `_shCommitAppearanceField`
+   rule), so typing adds no history rows. The rules data has no weapon table, so the player enters each weapon and
+   `weaponAttack(b, r, w)` in the engine works out to-hit (ability + proficiency if ticked + magic) and damage bonus; finesse
+   uses the better of STR/DEX. GP shows the Coin & calendar purse when that economy is on, so there are never two gold totals.
+
 ## Found on the way
 
 - Drawbacks' hover text was always blank: the sheet read `.fx` off `DATA.drawbacks[x]`, which is a price. Effects live in
@@ -46,4 +57,4 @@ free-form JSON.
 
 `testing/scripts/livesheet-center-panel-e2e.mjs` (new, 23 checks, desktop and phone). engine-parity 104/0, engine-legality
 76974/0, engine-priceof 7701/0, tool-pricing 189/0, dm-console-ui 119, dm-console-unlock 19/0, economy-ui 155, Live Sheet e2e
-suites, post-lock fuzz 0 mismatches, static audit 0 failed. Not browser-tested: ticking the DM Console checkbox and saving.
+suites, post-lock fuzz 0 mismatches, static audit 0 failed. Not browser-tested: ticking the DM Console checkbox and saving. `livesheet-center-panel-e2e.mjs` is now 34 checks.
