@@ -4,7 +4,7 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
-- **2026-10-11 · rules: Quick Patch now works once per creature per Long Rest** (owner choice D2). It still gives 1 HP and stays at 3 AP, so nothing is repriced. Unlimited at-will revives were the problem; 6 of 35 live characters own it. Wording only (`fx` is not read by `compute()`), so no `DATA.version` bump. Served guide and `pact-guide` master changed together.
+- **2026-10-11 · rules: Quick Patch split in two. Quick Patch (1 HP revive, 3 AP) is now limited to Proficiency Bonus uses per Long Rest; new boon Staunch the Bleeding (2 AP) stabilises as a Bonus Action and the creature stays at 0 HP**. Owner choices D2, E1, G1. Unlimited at-will revives were the problem. Quick Patch keeps its name and price, so the 6 of 35 live characters that own it are not repriced. Rides `DATA.version` v0.373. Fixtures CG-069 (Staunch the Bleeding = 2) and CG-070 (Quick Patch control = 3). Served guide and `pact-guide` master changed together. Record: `D-GH-2026-10-11-quick-patch-split`.
 
 - **2026-10-11 · rules: Reckless reworked: a DC 12 Wisdom save to Dodge or Disengage (a failure doesn't spend the action) replaces the outright ban; +2 → +3 AP; `DATA.version` v0.372 → v0.373**. Engine data, served guide and `pact-guide` master changed together; rules-label literals in CharGen/Live Sheet mirrored. 0 of 32 live characters carry Reckless. Record: `D-GH-2026-10-11-reckless-rework`.
 

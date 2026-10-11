@@ -10,6 +10,11 @@
 
 ## Index
 
+## D-GH-2026-10-11-quick-patch-split — Quick Patch keeps the revive with limited uses; Staunch the Bleeding is the new cheap stabiliser
+- Owner choices D2/E1/G1: an unlimited at-will revive to 1 HP for 3 AP was overpowered. Quick Patch now has Proficiency Bonus uses per Long Rest and stays at 3 AP. A new 2 AP boon, Staunch the Bleeding, stabilises as a Bonus Action at 0 HP.
+  The name stays with the revive because live characters store boons by name (6 own it), so no data migration or repricing is needed.
+  Full record: `decisions/2026/D-GH-2026-10-11-quick-patch-split.md`.
+
 ## D-GH-2026-10-11-reckless-rework — Reckless becomes a Wisdom save to back off, worth 3 AP
 - Owner choices A1 + B1: the outright Dodge/Disengage ban was crippling or free depending on class. It is now a DC 12 Wis save, and a failure doesn't spend the action. The WIS cap is kept and the value goes from +2 to +3 AP;
   `DATA.version` v0.372 → v0.373. 0 live characters affected.
