@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-11-creation-lock-enforcement — the creation lock is visible, refuses other species' traits, and freezes creation Vigor
+- Owner choices A2/B1/C1/D1. `_replay()` stamps unstamped (CharGen-patch) Vigor ranks at the lock so later Hit Dice don't re-price them; `compute()` hard-warns
+  a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".
+  v0.375. Live: 2 of 37 characters change, both cheaper; none trip the new refusal.
+  Full record: `decisions/2026/D-GH-2026-10-11-creation-lock-enforcement.md`.
+
 ## D-GH-2026-10-11-stored-size — a character's stored size matches its real size
 - Owner choice I3. CharGen saved its hidden size dropdown's parked "Small"; 23 of 37 characters stored Small while being Medium (play unaffected — compute() ignores a
   non-choosable size — but raw readers were misled). `sizeOf()` in the engine; CharGen stores its answer; the 23 corrected by one appended 0-AP event each. The I3 "DM
