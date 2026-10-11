@@ -35,3 +35,9 @@ Both audits take an export of live rows (made with a read-only query) and **must
 **When the migration is applied to live:** (1) add it to the `\ir` lists in `testing/sql/session-seal-test.sql` and `testing/sql/rls-baseline-test.sql`; (2) fold the two changed functions and the three helpers into `sql/rls-policies.sql`, so a fresh install matches production and
 re-running the baseline file can never revert the freeze; (3) run the Supabase advisors. Until then the baseline correctly describes production.
 
+
+## Stage 2 — added 2026-10-11 (NOT applied to the live database)
+
+`sql/migrations/2026-10-11-server-freeze-stage2.sql` (+ `-rollback.sql`) empties the stage-1 TEMPORARY exempt list, so spellcasting, innate spells, martial binding, dabbler cantrips, origin classes, size and lineage become protected like every other priced patch field (only appearance, houseRules and gold stay editable). `run-freeze.sh` now rehearses it after stage 1: `freeze-cases.sql` takes `-v tmpexp=refused` (the default `allowed` is the stage-1 expectation), all 61 cases must pass at stage 2, and the stage-2 rollback must restore the stage-1 list exactly.
+
+Before applying to live, re-run both audits against a FRESH read-only export with the new flag: `backup-replay-audit.mjs <export.json> --stage2` lists every real saved pair that stage 2 would refuse but stage 1 (live today) allows — each must be a rewrite the current tools no longer make — and `roundtrip-audit.mjs <export.json> --stage2 --campaign-all` loads every live character in both tools and checks nothing in the stage-2-protected part of the history moves. Apply only after both come back clean.

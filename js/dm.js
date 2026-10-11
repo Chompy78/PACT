@@ -22,7 +22,7 @@ import { supabase } from './supabase-client.js';
  * shape a locally-imported character file has, so callers can run it through
  * the shared engine/dmAnalyze() exactly like an import). The DM can read this
  * via RLS; players cannot read others'.
- * @returns {Promise<Array<{id,name,kind,ap,stats,updated_at,owner_id,player,playerLabel,dmNotes}>>}
+ * @returns {Promise<Array<{id,name,kind,ap,stats,updated_at,owner_id,isNpc,player,playerLabel,dmNotes}>>}
  */
 export async function getRoster(campaignId) {
   const { data, error } = await supabase
@@ -30,7 +30,9 @@ export async function getRoster(campaignId) {
     // owner:basic_mode -- feat/player-basic-mode. Account-level, not per-character, so every row for
     // the same owner carries the same value; the console only needs it to show/toggle the flag
     // wherever a roster already surfaces that player, not to key anything by character.
-    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, owner:profiles(display_name, basic_mode), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
+    // is_npc -- feat/campaign-npcs: the DM's own NPC rows come back in the same roster; DM Console
+    // splits them off at load so party-wide actions never see them.
+    .select('id, name, kind, ap, gold, stats, updated_at, owner_id, is_npc, owner:profiles(display_name, basic_mode), dm_notes:character_dm_notes(player_label, notes, custom_fields)')
     .eq('campaign_id', campaignId)
     .order('name');
   if (error) throw error;
@@ -53,6 +55,7 @@ export async function getRoster(campaignId) {
       stats: c.stats,
       updated_at: c.updated_at,
       owner_id: c.owner_id,
+      isNpc: !!c.is_npc,
       player: c.owner?.display_name || '',
       basicMode: !!c.owner?.basic_mode,
       playerLabel: notesRow?.player_label || '',
@@ -73,6 +76,17 @@ export async function getRoster(campaignId) {
  */
 export async function unbindCharacter(characterId) {
   const { error } = await supabase.rpc('dm_unbind_character', { p_character: characterId });
+  if (error) throw error;
+}
+
+/**
+ * DM-only (feat/campaign-npcs): bind one of the caller's OWN unbound, active characters to a campaign
+ * they DM, as an NPC. NPCs are exempt from the one-character-per-campaign rule, get no starting AP
+ * (award it with awardAp), and are left out of the console's party-wide actions. Remove one with
+ * unbindCharacter() — the server clears the NPC flag on unbind. Throws (server-side checks) otherwise.
+ */
+export async function bindNpc(characterId, campaignId) {
+  const { error } = await supabase.rpc('dm_bind_npc', { p_character: characterId, p_campaign: campaignId });
   if (error) throw error;
 }
 

@@ -203,7 +203,12 @@ create table if not exists public.characters (
   -- REPLACES the last one rather than adding to it ("spend it now or wait till another
   -- opportunity" -- owner). A per-character accumulating column was the wrong shape for that
   -- and was dropped before any real campaign used it. See campaign_downtime_declarations below.
-  gold integer not null default 0
+  gold integer not null default 0,
+  -- feat/campaign-npcs (D-GH-2026-10-11-campaign-npcs). A DM's own character bound to their campaign as an NPC: exempt
+  -- from the one-per-campaign index, never a "member", left out of DM Console party-wide actions. Settable ONLY by
+  -- dm_bind_npc() (no client column grant); cleared automatically when campaign_id goes null.
+  is_npc boolean not null default false,
+  constraint characters_npc_needs_campaign check (not is_npc or campaign_id is not null)
 );
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);
@@ -436,6 +441,8 @@ begin
     raise exception 'The owner cannot be removed as DM';
   end if;
   delete from campaign_dms where campaign_id = p_campaign and dm_id = p_profile;
+  -- feat/campaign-npcs: an NPC always belongs to a current DM of its campaign.
+  update characters set campaign_id = null where campaign_id = p_campaign and owner_id = p_profile and is_npc;
 end;
 $$;
 
@@ -796,6 +803,7 @@ begin
       -- function's own documented invariant that a dm invite never produces a character (code-review,
       -- 2026-08-09).
       left join characters c on i.type = 'player' and c.owner_id = i.redeemed_by and c.campaign_id = i.campaign_id
+                            and not c.is_npc
      where i.campaign_id = p_campaign
      order by i.created_at desc;
 end;
@@ -867,7 +875,7 @@ begin
   end if;
 
   select id into v_char_id from characters
-    where owner_id = auth.uid() and campaign_id = v_invite.campaign_id
+    where owner_id = auth.uid() and campaign_id = v_invite.campaign_id and not is_npc
     limit 1;
   if v_char_id is null then
     raise exception 'Invite already redeemed but character not found';
@@ -913,8 +921,10 @@ $$;
 -- a TOCTOU race the EXISTS-then-write checks below can't close on their own —
 -- see the matching comment in sql/migrations/2026-07-13-campaign-bind-character.sql).
 -- ---------------------------------------------------------------------------
+-- feat/campaign-npcs (D-GH-2026-10-11-campaign-npcs): NPC rows (is_npc) are exempt — a DM may bind several of their own
+-- characters as NPCs. Players keep exactly the one-per-campaign rule and this race guard.
 create unique index if not exists idx_characters_owner_campaign_unique
-  on public.characters(owner_id, campaign_id) where campaign_id is not null;
+  on public.characters(owner_id, campaign_id) where campaign_id is not null and not is_npc;
 
 -- ---------------------------------------------------------------------------
 -- bind_character_to_campaign — Path B: bind an already-built character to a
@@ -1069,7 +1079,7 @@ begin
   -- redeem_player_invite() already uses for its own idempotent branch.
   if v_invite.redeemed_by = auth.uid() then
     select id into v_new_id from characters
-      where owner_id = auth.uid() and campaign_id = v_invite.campaign_id limit 1;
+      where owner_id = auth.uid() and campaign_id = v_invite.campaign_id and not is_npc limit 1;
     if v_new_id is null then
       raise exception 'Claim link already redeemed but the resulting character was not found';
     end if;

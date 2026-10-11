@@ -394,13 +394,14 @@ export async function listMyCampaigns({ includeArchived = false } = {}) {
   const [camps, dms, chars] = await Promise.all([
     supabase.from('campaigns').select(CAMPAIGN_COLS).order('name'),
     supabase.from('campaign_dms').select('campaign_id').eq('dm_id', user.id),
-    supabase.from('characters').select('campaign_id').eq('owner_id', user.id),
+    supabase.from('characters').select('campaign_id, is_npc').eq('owner_id', user.id),
   ]);
   if (camps.error) throw camps.error;
   if (dms.error) throw dms.error;
   if (chars.error) throw chars.error;
   const dmSet = new Set((dms.data || []).map(d => d.campaign_id));
-  const playerSet = new Set((chars.data || []).map(c => c.campaign_id).filter(Boolean));
+  // A DM's own NPC rows (feat/campaign-npcs) don't make them a player in that campaign.
+  const playerSet = new Set((chars.data || []).filter(c => !c.is_npc).map(c => c.campaign_id).filter(Boolean));
   const rows = includeArchived ? (camps.data || [])
                               : (camps.data || []).filter(c => !c.archived_at);
   return rows.map(c => ({

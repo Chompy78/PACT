@@ -44,7 +44,7 @@ No AI sub-agents were used: the space is large but the check is mechanical, so a
 
 ## Drawbacks (added after owner decision AA2: solo characters may take them)
 
-A drawback-only run (seed 811) found two things. **Fixed:** with the economy on, CharGen stamped `gp: 0, days: 0` on a post-lock drawback; the Live Sheet never quotes a drawback, so it stamps nothing (`_cgPostLockAppend` now matches). **Known difference, not fixed:** CharGen's form unchecks a drawback silently when an ability score is over that drawback's stat cap (`drawbackMaxStats`, an older pre-lock rule); the Live Sheet lets the purchase through. The fuzz hits it because it randomises scores (1 of 34 drawback purchases). Worth a separate task if the stat caps should also bind in the Live Sheet.
+A drawback-only run (seed 811) found two things. **Fixed:** with the economy on, CharGen stamped `gp: 0, days: 0` on a post-lock drawback; the Live Sheet never quotes a drawback, so it stamps nothing (`_cgPostLockAppend` now matches). **Corrected 2026-10-11:** the second difference was first put down to the drawback stat caps. It was not: the Live Sheet and CharGen both refuse a capped drawback (CharGen greys the box). The real cause was CharGen testing a drawback against the AP left, which the Live Sheet never does, so an over-budget character got "Not enough AP: needs -2, have -78" in CharGen only. **Fixed** in `_cgPostLockAppend` (seed 812, regression case in `chargen-flows-e2e.mjs`).
 
 ## Unexplained: one stall
 

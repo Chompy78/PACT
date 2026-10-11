@@ -1333,23 +1333,131 @@ DO:
 ```
 **Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
 
-## `verify-guide.mjs` cannot see a combined row's second name, and only warns on ambiguous/unparsed/stepped rows — TODO
-**Effort:** low–medium · **Risk:** low — a checker and an allow-list; no pricing or guide-text change unless it finds another stale row.
+## The pact-guide master has drifted far behind the served Players Guide, and two guide-vs-engine rows are an open question — TODO
+**Effort:** medium–high (master reconciliation) / low (the two questions) · **Risk:** medium — a transfer from the master today would silently regress prices the served copy already has right; the owner decides which side is canonical row by row.
 
 ```text
-HISTORY: FOUND 2026-10-06 as "verify-guide is red at baseline"; on 2026-10-08 the four stale rows behind that were fixed (split into one row per ability in the
-pact-guide master and the served copy; the verifier now passes 11 of 11). The `feature prices` check fails ONLY on a price mismatch; it merely lists the rest.
-What is left is the blind spots that let those four rows go stale unnoticed for six weeks:
-  1. A combined row "A / B" is matched on its FIRST name only. "Roving / Tireless" priced as Roving (correct for Roving) and the checker never looked at Tireless;
-     "Empowered Strikes / Self-Restoration" was matched to Empowered Strikes alone. DO: match every name in a combined row and check each against the engine.
-  2. A price RANGE is "unparsed", so a wrong range passes ("Perfect Focus / Body & Mind 24–28" was wrong for both members; "Tactical Mind / Shift / Master 3–10" matched
-     none). DO: parse "a–b" and check that every member's price lies in it (or that the endpoints equal the min and max).
-  3. Today the check still LISTS ambiguous=6 (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells: one name in two classes), unparsed=9 (skill-ladder
-     rows, "Included in Premium", "Barred -> A&T" ...) and stepped=3 (Metamagic) without ever failing on them. DO: key ambiguous rows on the table's class heading; allow-list
-     each remaining row WITH A REASON so a NEW unparsed or ambiguous row fails.
-  4. The pact-guide master and the served copy have drifted in CONTENT, not only in the three documented presentation additions: the served copy's Ranger table has a
-     "Subclass bonus spells" row the master lacks (found 2026-10-08). DO: find any other such row (diff the two files' tables), then decide which side is right and
-     make them agree — never by copying one file over the other (see docs/VERSION-SYNC.md).
-```
-**Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
+HISTORY: the verifier blind spots (combined rows, ranges, the unreviewed ambiguous/unparsed/stepped rows) were fixed 2026-10-11, see D-GH-2026-10-11-verify-guide-blind-spots.
+The one Ranger row was added to the master the same day. What that work FOUND:
 
+A. The master and the served copy differ in table CONTENT in 54 places, not one. Run, from a checkout with both files:
+     node testing/scripts/guide-table-diff.mjs <pact-guide>/PACT-Players-Guide.html
+   Price rows where the SERVED copy matches the engine and the master does not (sample): Monk Martial Arts die and Unarmored Movement (master prints the old stepped prices,
+   served prints 5 (5)/6 (6)/8 (9) and 3 (3)..6 (6)), Sorcerer Origin bonus spells and Warlock Patron bonus spells (master "8 (6)", served "varies 8-12" / "varies 8-16"),
+   Druid Circle of the Sea/Stars spells, Barbarian "Brutal Strike, improved (L13)" (only in served), plus rewritten Premium / Sneak Attack / Rage / class-unlock prose
+   ("7 x the classes you hold" in the master, "a flat 8 AP" in the served copy) and different Boon / Drawback tables. DO: for each difference decide which side the ENGINE
+   supports, then edit the wrong side (the master through the home-server connector, the served copy locally) — never by copying one file over the other (docs/VERSION-SYNC.md).
+   Re-run the diff until it is clean, then verify-guide.mjs.
+
+B. Two guide rows the price checker cannot compare look like real disagreements with the engine (they are in guide-price-check.mjs's ALLOW list as OPEN QUESTIONs):
+   - Battle Master > Improved Combat Superiority: the guide says "Included in Premium" and prints no price; the engine sells it separately at 14 (10) with no bar.
+   - Gloom Stalker > Iron Mind: the guide says "Barred (-> saves)" with no price but status "Buy"; the engine sells it at 14 (11) with no bar. (Both guide copies agree with each other.)
+   DO: owner decides for each whether the engine should bar/include it (data change, DATA.version bump, fixtures) or the guide should print the price. Then delete its ALLOW entry.
+```
+**Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
+
+
+## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
+
+```text
+The guide's Battle Master row says "Improved Combat Superiority — Included in Premium" with no price, and its Combat Superiority row is annotated "dice, scaling, 3 maneuvers".
+The engine sells it as its own purchase: `Fighter: Improved Combat Superiority` plus the `Fighter|Battle Master` copies in subAbilMap and subclasses, T5 Per-Rest 14 (10),
+lvl 10, no bar. A player following the guide would expect it free and the engine would charge them. OWNER DECIDES (put it as a lettered choice):
+  Y1  Make the engine match the guide: add bar:true to all three data copies (as `Fighter: Additional Fighting Style` already has), bump DATA.version once, add fixtures proving
+      it cannot be bought through either purchase door, mutation-check them. Guide unchanged. (Agent recommendation, moderate confidence: the guide's annotation reads as deliberate.)
+  Y2  Make the guide match the engine: print T5 Per-Rest 14 (10) and status Buy in BOTH guide copies (master through the home-server connector, served copy locally).
+      No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Fighter|Battle Master|Improved Combat Superiority`).
+If the Gloom Stalker Iron Mind task below also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
+```
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## fix/gloom-stalker-iron-mind-decision — the guide row for Iron Mind contradicts itself and the engine sells it for 14 (11) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 0 of 31 active characters own Iron Mind; positive control Sneak Attack = 3).
+
+```text
+The guide's Ranger > Gloom Stalker row for Iron Mind reads tier "Barred (→ saves)", price "none", status "Buy" (identical in both guide copies). The engine sells
+`Ranger|Gloom Stalker|Iron Mind` and `Ranger: Iron Mind` at T4 Passive 14 (11) with no bar. Wisdom save proficiency is what the saves ladder already sells. OWNER DECIDES (lettered):
+  Z1  Bar it in the engine: bar:true on the features entry, the subAbilMap copy and the subclasses copy, DATA.version bump, fixtures proving it cannot be bought through either
+      door; and fix the guide status cell to "Barred → saves" in BOTH guide copies. (Agent recommendation: two of the three cells already say barred, so "Buy" looks like the typo.)
+  Z2  Keep it purchasable: print 14 (11) and drop the Barred wording in BOTH guide copies. No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Ranger|Gloom Stalker|Iron Mind`).
+If the Improved Combat Superiority task above also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
+```
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## check/server-freeze-stage2-after-apply — look for refused saves and run the checks stage 2's apply skipped — TODO
+**Effort:** low · **Risk:** low — read-only checks; the only action they could lead to is the one-statement rollback.
+
+```text
+Server freeze stage 2 was applied to the live database on 2026-10-11 (migration `server_freeze_stage2`). Three checks did not happen then:
+(1) the Supabase SECURITY advisor was blocked by the permission classifier (the performance advisor ran, nothing related);
+(2) the Postgres log query returned a backend error, so refused saves since the apply were not looked for;
+(3) `roundtrip-audit.mjs --stage2 --campaign-all` needs a full export of the live characters, which cannot be saved from a Claude session.
+DO, once players have had a couple of play days on it: run the security advisor and confirm nothing new mentions the freeze functions;
+query the Postgres logs for "locked character history" since 2026-10-11 and, for each hit, find out whether it was an honest save
+(a stale copy of the tool) or a real problem; if a real player's save was wrongly refused, apply
+`sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql` and open a task for the cause. For (3), have the owner export the live
+characters to a local file outside the repo, run the audit on it, then delete the file.
+```
+**Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
+
+## chore/racialfx-single-source — the racial-trait descriptions live in three tool copies (one dead, one already drifted) — TODO
+**Effort:** low · **Risk:** low — display-only text never read by `compute()`; damage scale is a missing tooltip at worst.
+
+```text
+DATA.racialFx (the hover text on racial-trait checkboxes) is overwritten inside each tool's module bridge:
+CharGen (~line 604), Live Sheet (~2723) and DM Console (~3395). js/engine-data.js also carries a partial
+racialFx map (4 keys) that all three tools then replace. Measured on preview a064f68 (2026-10-11):
+  - CharGen and Live Sheet copies are identical (40 keys).
+  - DM Console's copy (38 keys) has drifted: it lacks "Dragonborn: Larger breath dice (L5)/(L11)/(L17)" (the
+    real DATA.racial keys) and carries a stale "Dragonborn: Larger Breath Dice" that matches no trait.
+  - Nothing in DM Console reads DATA.racialFx at all (only the definition and a comment) — its copy is dead.
+Deep fix (recommended): move the full map into js/engine-data.js once, merged with the 4 keys already there,
+and delete all three tool copies — the same shape as DATA.lineageFx (PR #603). Check CharGen and Live Sheet
+render the same tooltips/sheet text afterwards. Shallow alternative: delete DM Console's dead copy only and
+leave the CharGen/Live Sheet duplication. Display-only: no DATA.version bump; log in CHANGELOG.md.
+```
+**Done when:** `DATA.racialFx` is defined in exactly one place (or, if the shallow fix is chosen, DM Console's dead copy is gone and the choice is noted in the changelog line); CharGen's racial-trait checkbox tooltips show the same text as before for all 40 keys; `engine-parity` 0 failed.
+
+## fix/no-creation-limit-note — a campaign character with no creation limit hides "Finish creating" without saying why — TODO
+**Effort:** low · **Risk:** low — display-only UI in two tools, never read by `compute()`; worst case is a misplaced note.
+
+```text
+Found 2026-10-11: the player of "Wren Ch4 end" (and "Wren Ch8-12") could not find how to end creation. Cause: joining a
+campaign makes the server trigger pact_campaign_move_clears_creation (sql/rls-policies.sql ~line 1254) stamp
+creationLockConfig{threshold:null} ("Creation limit cleared - joined a campaign"). With no threshold, creationCeiling().enforced
+is false, and both player tools then simply hide the button:
+  - CharGen: _cgRenderAll(), tools/PACT-CharGen-Webtool.html ~line 6638 (cgFinishCreatingBtn)
+  - Live Sheet: render(), tools/PACT-Live-Char-Sheet.html ~line 1588 (finishCreatingBtn)
+Only the DM Console says anything ("No limit set"). The fix for a player is the DM entering a figure under Creation limit ->
+Set limit, but nothing tells the player that.
+
+DO: in both tools, when the character is in a campaign, is NOT locked (creationLockState().locked false) and has no limit
+(creationCeiling().enforced false), show a short note where the button would be, e.g. "Your DM hasn't set a creation limit
+yet — ask them to set one in the DM Console, then you can finish creating." Keep the wording the same in both tools.
+Solo/local characters (no campaign) keep today's behaviour: no button, no note. A character with a limit keeps the button.
+A locked character shows neither. Display-only: no DATA.version bump, no compute() change; log in CHANGELOG.md.
+```
+**Done when:** in both CharGen and Live Sheet, a campaign character with no limit shows the note, a campaign character with a limit shows the button and no note, a solo character and a locked character show neither; `engine-parity` 0 failed.
+
+## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
+**Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
+
+```text
+OWNER CHOICE F3 (2026-10-11): leave for now. Players Guide §10 says 1/long-rest lineage spells cost "1st 6, 2nd 9, 3rd 12", but
+the five 2nd-level lineage spells — Darkness (Drow and Infernal), Misty Step, Pass without Trace, Hold Person, Ray of Enfeeblement —
+cost 12 in DATA.lineageSpells (js/engine-data.js). The 12 is left over from the pre-v0.373 workaround that stored them as "level 3"
+to reach a 5 Hit Dice gate; #610 (D-GH-2026-10-11-lineage-spell-gates) fixed the level and gate and deliberately left prices alone.
+
+Owner decides one of:
+  A. Price them at 9, as the guide's rule says. Rules change: edit the five entries' AP, bump DATA.version once (+ the three
+     fallback literals per docs/VERSION-SYNC.md), update the guide rows in the served copy AND the pact-guide master (run
+     verify-guide.mjs before and after; guide-table-diff.mjs must not gain differences), update lineage-spell-gates-ci.mjs's
+     price assertion ('4,6,12' -> '4,6,9'). MEASURE FIRST: live characters owning any of the five (0 on 2026-10-11).
+  B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
+```
+**Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.

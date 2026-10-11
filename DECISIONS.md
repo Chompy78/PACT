@@ -10,6 +10,21 @@
 
 ## Index
 
+## D-GH-2026-10-11-lineage-spell-gates — lineage spells are gated by the PHB character level, stated per spell, and CharGen enforces it
+- Owner report: a Tiefling's Darkness showed "L3" and could be bought without 5 HD; Hellish Rebuke had no gate. The third element of each `DATA.lineageSpells` entry
+  was both a spell level and the Hit Dice gate (via `hdGate`), so 2nd-level spells were stored as "3rd" to reach 5 HD. Entries now state their own Hit Dice (PHB 2024:
+  cantrip 1, 1st-level spell 3, 2nd-level spell 5); `lineageSpellHD()`/`lineageSpellLabel()` in the engine are the only readers; CharGen greys below the gate. Prices
+  unchanged — the 2nd-level spells' 12 AP vs the guide's "2nd 9" is left as an open owner question. Rules v0.373.
+  Full record: `decisions/2026/D-GH-2026-10-11-lineage-spell-gates.md`.
+
+## D-GH-2026-10-11-verify-guide-blind-spots — the guide price checker fails on rows it cannot compare, unless a reason is written down
+- 2026-10-11: `guide-price-check.mjs` checks every member of a combined row, parses ranges, narrows by class before collapsing identical numbers, and fails on any ambiguous/unparsed/stepped row not in a reasoned `ALLOW` list (a stale entry fails too). Found 54 master-vs-served table differences. Full record: `decisions/2026/D-GH-2026-10-11-verify-guide-blind-spots.md`.
+## D-GH-2026-10-11-campaign-npcs — a DM can bind several of their own characters to their campaign as NPCs
+- Owner choices D2 (build a real NPC flag rather than bind NPCs as ordinary characters) and C1 (Bram at 82 DM AP total). `characters.is_npc`, settable only by the new
+  `dm_bind_npc()` RPC (no client column grant); the one-per-campaign index and `is_campaign_member()` exempt NPC rows, so players keep the rule and its race guard; no starting
+  AP on an NPC bind; DM Console splits NPCs off the party at load. The basic-mode count deliberately still includes NPCs (cold review: excluding them is a bypass). Applied live 2026-10-11.
+  Full record: `decisions/2026/D-GH-2026-10-11-campaign-npcs.md`.
+
 ## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
 - Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index
   `uq_characters_owner_active_name` on `(owner_id, lower(btrim(name)))` over active rows, exempting "New Character", "Character" and "… (DM copy)"; the invite/claim RPCs now tell a name
