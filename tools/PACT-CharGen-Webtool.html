@@ -598,7 +598,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
@@ -615,6 +615,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
+  window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -4577,7 +4578,12 @@ function liveBase(){
 
 /* ── Spell/Language name picker (ported from Live Sheet, v0.099) — CharGen-side; names carry across via the LOG (D-GH40) ── */
 var CG_NAMES=null;
-var LANGS_2024=["Common","Common Sign Language","Draconic","Dwarvish","Elvish","Giant","Gnomish","Goblin","Halfling","Orc","Abyssal","Celestial","Deep Speech","Druidic","Infernal","Primordial","Sylvan","Thieves' Cant","Undercommon"];
+// The language names this character's campaign offers (feat/campaign-language-list) — the DM's own list
+// when the campaign set one, else the engine's STANDARD_LANGUAGES. Same rules source as cloudRuleBarred,
+// plus the "Copy to CharGen" sandbox's carried rules.
+function _cgLangCfg(){return window.campaignLanguages(cloudRules()||window._cgCopySourceRules||null);}
+// The note under a language row whose name isn't on the campaign's list — display only; see saveNames.
+function _langOffNote(cfg,v){return (cfg.checked&&!cfg.isListed(v))?'<div style="margin:-2px 0 4px 124px;font-size:10.5px;color:var(--warn,#b45309)">\u26A0 Not on this campaign\u2019s language list</div>':'';}
 function _ownedGrants(b){var cg=(DATA.spellGrants&&DATA.spellGrants.choiceGrants)||{};var CLS=["Artificer","Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard"];var out=[];
   Object.keys(cg).forEach(function(key){if(key==="Wizard: Spellbook")return;var g=cg[key],owned=false,parts=key.split(": "),kcls=parts[0],ksub=parts[1];
     if((DATA.features||{})[key]){owned=(b.features||[]).indexOf(key)>=0;}
@@ -4615,7 +4621,7 @@ function _spellAC(inp){
 function openNames(){var b=readBuild();_applyCgNames(b);document.querySelectorAll('.spellac').forEach(function(m){m.remove();});var H='',DLS='';
   function _e(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
   function _dl(id,arr){DLS+='<datalist id="'+id+'">'+arr.map(function(n){return '<option value="'+_e(n)+'">';}).join('')+'</datalist>';}
-  var _nl=b.languages||1;if(_nl>0){_dl('dl_lang',LANGS_2024);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>';for(var i=0;i<_nl;i++)H+=_nmRow('lang::'+i,'Language '+(i+1),(b.languageNames||[])[i]||'','dl_lang');}
+  var _nl=b.languages||1;if(_nl>0){var _lc=_cgLangCfg();_dl('dl_lang',_lc.list);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>'+(_lc.custom?'<div style="font-size:10.5px;color:var(--grey);margin:0 0 3px">Your campaign\u2019s languages: '+_lc.list.map(function(n){return String(n).replace(/</g,'&lt;');}).join(', ')+(_lc.strict?' \u2014 only these are allowed.':'')+'</div>':'');for(var i=0;i<_nl;i++){var _lv=(b.languageNames||[])[i]||'';H+=_nmRow('lang::'+i,'Language '+(i+1),_lv,'dl_lang')+_langOffNote(_lc,_lv);}}
   var dc=b.dabblerCantrips||0;if(dc){_dl('dl_dab',(DATA.spells||[]).filter(function(s){return s.l===0&&s.c.indexOf('Wizard')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Out-of-Tradition cantrips</h3>';for(var i=0;i<dc;i++)H+=_nmRow('dab::'+i,'Cantrip '+(i+1),(b.dabblerCantripNames||[])[i]||'','dl_dab');}
   for(var L=1;L<=9;L++){var ic=(b.innate||[])[L-1]||0;if(ic){_dl('dl_inn_'+L,(DATA.spells||[]).filter(function(s){return s.l===L;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Innate L'+L+'</h3>';for(var i=0;i<ic;i++)H+=_nmRow('inn::'+L+'::'+i,'L'+L+' spell '+(i+1),(((b.innateNames||[])[L-1])||[])[i]||'','dl_inn_'+L);}}
   (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=9;Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';var cn=d.cantrips||0;for(var i=0;i<cn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::c::'+i,'Cantrip '+(i+1),(d.cantripNames||[])[i]||'','dl_'+ti+'_'+di+'_0');for(var L=1;L<=9;L++){var kn=(d.known||[])[L-1]||0;var hint=(L>elig.maxLv)?' ⚠R'+L:'';for(var i=0;i<kn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::k::'+L+'::'+i,'L'+L+' spell '+(i+1)+hint,(((d.knownNames||[])[L-1])||[])[i]||'','dl_'+ti+'_'+di+'_'+L);}});});
@@ -4629,6 +4635,10 @@ function closeNames(){var ov=document.getElementById('namesOv');if(ov)ov.style.d
  * twice within one tradition/discipline's cantrips + known + arcanum. */
 function _cgNameDupes(){var by={},out=[];[].slice.call(document.querySelectorAll('#namesBox .nmf')).forEach(function(e){var p=String(e.dataset.k||'').split('::');if(p[0]!=='tr'||['c','k','a'].indexOf(p[3])<0)return;var v=String(e.value||'').trim();if(!v)return;var disc=p[1]+'::'+p[2],key=v.toLowerCase();by[disc]=by[disc]||{};if(by[disc][key]){if(out.indexOf(v)<0)out.push(v);}else by[disc][key]=1;});return out;}
 function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_dup[0]+'” is already in that spell list — no duplicates within a discipline. Pick a different spell.');return;}
+  // Strict campaign language list (feat/campaign-language-list): refuse a NEWLY named off-list language.
+  // A name unchanged from the one already saved in that slot is let through — it may predate the list,
+  // and a language can't be unlearned, so refusing it would block every other name edit too.
+  var _lc=_cgLangCfg();if(_lc.strict){var _was=(CG_NAMES&&CG_NAMES.lang)||readBuild().languageNames||[];var _bad=[].slice.call(document.querySelectorAll('#namesBox .nmf[data-k^="lang::"]')).filter(function(e){var v=String(e.value||'').trim(),i=+e.dataset.k.split('::')[1];return !_lc.isListed(v)&&v!==String(_was[i]||'').trim();}).map(function(e){return String(e.value).trim();});if(_bad.length){flash('⛔ “'+_bad[0]+'” isn’t on your campaign’s language list. Pick one of: '+_lc.list.join(', ')+'.','error');return;}}
   var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={},lang=[],grants={},GR=_ownedGrants(readBuild());
   document.querySelectorAll('#namesBox .nmf').forEach(function(e){var p=e.dataset.k.split('::'),v=e.value;
     if(p[0]==='grant'){var _gk=GR[+p[1]]&&GR[+p[1]].key;if(_gk){(grants[_gk]=grants[_gk]||[])[+p[2]]=v;}}
