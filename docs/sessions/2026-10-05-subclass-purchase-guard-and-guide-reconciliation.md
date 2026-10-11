@@ -45,7 +45,7 @@ discount subclass abilities, and the guide was brought into line.
    and treats a price range as unparsed. After the fix the verifier is 11 of 11 — its price check fails only on a mismatch, so my claim that
    it "would stay red" was wrong too.
 7. **Martially Bound was short of the guide, not the other way round.** §14 already said "every non-spell purchase that class trains you in".
-   Found on the way and not changed: the engine (and CharGen's hint) discount Fighting Styles although the guide says they are priced flat.
+   Found on the way and not changed there: the engine (and CharGen's hint) discounted Fighting Styles although the guide says they are priced flat. Resolved 2026-10-08 in #594: the engine now prices them flat (`noMB` flag, v0.372), the guide was already right.
 
 ## Reviews
 Three free-tier API reviewers (Gemini, Groq, Nemotron) and `/code-review high`. The repo-access review found every real defect; the API reviewers
@@ -57,7 +57,7 @@ themselves. Raw files and triage tables are in `docs/plans/cold-reviews/` (dated
 - `guide-theme` on #592: the `Install Chromium` step timed out on GitHub's package mirrors; the test never ran; a re-run passed.
 
 ## Left open (all on the board or with the owner)
-- Fighting Style: engine and tools discount it, the guide says flat — owner's call.
+- Fighting Style: resolved — the owner chose the engine fix; merged as #594 (v0.372), record `D-GH-2026-10-08-martially-bound-fighting-styles-flat`.
 - Promote `preview` → `main`: owner's release call; re-measure live Circle Forms owners first (needs the database).
 - The verifier's blind spots, and the Ranger table row that exists only in the served copy.
 - Anders's two review copies still carry the duplicate.
