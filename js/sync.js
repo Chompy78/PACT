@@ -693,8 +693,23 @@ async function reconcile(id) {
   if (error) throw error;
 
   if (!server) {
-    // Server has no copy. Push if we have a local one to save.
-    if (local) { try { await pushCharacter(local, local.editSeq || 0); } catch { /* retry later */ } }
+    // Server has no copy. That means one of three things, and only the last is "upload it" (fix/sync-no-resurrect).
+    // Pushing every one of them re-inserted deleted characters (a deleted Bram Cotter copy came back but for a name
+    // clash) and re-sent records with nothing in them, which the blank-row guard refuses on every load, for ever.
+    if (!local) return {};
+    // 1. Nothing to save: noteEdit()'s bare {id, editSeq} placeholder, or a row adopted while it held no log. The
+    //    server refuses a solo row without a LOG, so pushing can never succeed. Drop the placeholder unless this page
+    //    is working on that id right now (its first save will write a real record).
+    if (!Array.isArray(local.stats?.LOG)) {
+      if (!_pageBase.has(id) && !_pushInFlight.has(id)) lsRemove(id);
+      return {};
+    }
+    // 2. In sync, nothing unsaved: the server confirmed this copy once, so the row was deleted elsewhere (another
+    //    device, the DM, the blank-row purge). Forget it here rather than bring it back.
+    const unsaved = local.dirty || (local.editSeq || 0) > (local.savedSeq || 0);
+    if (!unsaved) { lsRemove(id); return { deleted: true }; }
+    // 3. Real unsaved work that never reached the server (made offline, or the first save failed): upload it.
+    try { await pushCharacter(local, local.editSeq || 0); } catch { /* retry later */ }
     return {};
   }
   // base_updated_at must be stamped whenever we ADOPT a server row, not only after a successful push.

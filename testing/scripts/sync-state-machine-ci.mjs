@@ -329,6 +329,69 @@ console.log('\n  reconcile()\'s localNewer recovery push is tracked by _pushInFl
   ok('  and settles once that push confirms', after.state === 'idle');
 }
 
+// --- (g) a character the server no longer has is not brought back (fix/sync-no-resurrect) ------------
+// reconcile() used to push EVERY local record whose server row was missing. That re-inserted characters
+// deleted elsewhere (a deleted Bram Cotter copy, stopped only by a name clash) and re-sent noteEdit()
+// placeholders with no stats, which the blank-row guard refused on every page load (2026-10-11).
+console.log('\n  reconcile() does not resurrect a deleted character or push a record with nothing in it');
+const inserts = () => [...world.server.rows.keys()];
+{
+  // In sync once, then deleted on the server: forgotten locally, never re-inserted.
+  world.server.rows.clear(); world.server.clock = 0; _online = true; _authOK = true;
+  const ID = 'deleted-aaaa-bbbb'; world.seed(ID, { LOG: [{ type: 'buy', cat: 'create' }] });
+  const A = await openPage(fresh());
+  await A.loadCharacter(ID);
+  world.server.rows.delete(ID);
+  await A.syncAll();
+  ok('an in-sync character deleted on the server is not re-inserted', !world.server.rows.has(ID));
+  ok('  and its local copy is forgotten', (await A.peekCharacter(ID)) == null);
+}
+{
+  // noteEdit() placeholder ({id, editSeq}, no stats) for an id no page holds: not pushed, tidied away.
+  world.server.rows.clear(); world.server.clock = 0; _online = true; _authOK = true;
+  const ID = 'stub-aaaa-bbbb';
+  const A = await openPage(fresh());
+  A.noteEdit(ID);
+  await A.syncAll();
+  ok('a placeholder with no character data is never inserted', inserts().length === 0);
+  const ls = globalThis.__LS_FOR__();
+  ok('  and is removed from this device', ls.getItem('pact-char-' + ID) === null
+     && !JSON.parse(ls.getItem('pact-chars') || '[]').includes(ID));
+}
+{
+  // A copy adopted while the row held no log ({} stats), later purged by the server: not re-sent.
+  world.server.rows.clear(); world.server.clock = 0; _online = true; _authOK = true;
+  const ID = 'blank-aaaa-bbbb'; world.seed(ID, {});
+  const A = await openPage(fresh());
+  await A.loadCharacter(ID);
+  world.server.rows.delete(ID);
+  await A.syncAll();
+  ok('a purged blank row is not re-inserted', !world.server.rows.has(ID));
+}
+{
+  // Real unsaved work that never reached the server (saved while offline): still uploaded.
+  world.server.rows.clear(); world.server.clock = 0; _authOK = true; _online = false;
+  const ID = 'offline-aaaa-bbbb';
+  const A = await openPage(fresh());
+  await A.saveCharacter({ id: ID, name: 'Offline Hero', kind: 'livesheet', stats: { LOG: [{ type: 'buy', cat: 'create' }] } });
+  _online = true;
+  await A.syncAll();
+  ok('a character saved offline is uploaded once back online', world.server.rows.has(ID));
+}
+{
+  // Unsaved edits on a character deleted elsewhere: the work is kept, not silently dropped.
+  world.server.rows.clear(); world.server.clock = 0; _online = true; _authOK = true;
+  const ID = 'editdeleted-aaaa-bbbb'; world.seed(ID, { LOG: [{ type: 'buy', cat: 'create' }] });
+  const A = await openPage(fresh());
+  await A.loadCharacter(ID);
+  _online = false;
+  await A.saveCharacter({ id: ID, stats: { LOG: [{ type: 'buy', cat: 'create' }, { type: 'buy', cat: 'skill', payload: { v: 'Stealth' } }] } });
+  world.server.rows.delete(ID);
+  _online = true;
+  await A.syncAll();
+  ok('unsaved edits survive a deletion elsewhere (uploaded, not discarded)', world.server.rows.has(ID));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\n✓ ${pass} passed / ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
