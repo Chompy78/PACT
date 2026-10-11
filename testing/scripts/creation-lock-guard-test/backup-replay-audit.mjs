@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../../..');
-const [exportPath, reportPath] = process.argv.slice(2);
+const STAGE2 = process.argv.includes('--stage2');   // also replay every pair through the STAGE-2 rule and list the pairs ONLY stage 2 refuses (stage 1 is the live baseline)
+const [exportPath, reportPath] = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!exportPath) { console.error('usage: backup-replay-audit.mjs <export.json> [report.json]'); process.exit(2); }
 const exp = JSON.parse(readFileSync(exportPath, 'utf8'));
 
@@ -82,9 +83,10 @@ end $f$;\n`;
   psql("select set_config('request.jwt.claims', '', false); select run_audit('old');");
   psql(migrations('2026-10-05-server-freeze-d2-e1-stage1.sql'));
   psql("select run_audit('new');");
+  if (STAGE2) { psql(migrations('2026-10-11-server-freeze-stage2.sql')); psql("select run_audit('new2');"); }
   const rows = JSON.parse(psql(`select coalesce(json_agg(json_build_object('n', n, 'label', label, 'verdict', verdict, 'msg', msg)), '[]') from audit_res`, '-At'));
   const get = (label, n) => rows.find(r => r.label === label && r.n === n);
-  const out = { pairs: pairs.length, oldRefused: 0, newRefused: 0, newOnly: [], errors: [] };
+  const out = { pairs: pairs.length, oldRefused: 0, newRefused: 0, newOnly: [], stage2Only: [], errors: [] };
   pairs.forEach((p, i) => {
     const o = get('old', i), nw = get('new', i);
     if (o.verdict === 'ERROR' || nw.verdict === 'ERROR') out.errors.push({ i, name: p.name, old: o.msg, nu: nw.msg });
@@ -99,6 +101,15 @@ end $f$;\n`;
       out.newOnly.push({ i, name: p.name, at: p.at, campaign: !!(p.newCampaign), lastPair: p.last, msg: nw.msg, firstDiffIndex: at, oldEvent: A[at] ? `${A[at].type}/${A[at].cat || ''} ${keys(A[at])} cost=${A[at].cost}` : '(none)', newEvent: B[at] ? `${B[at].type}/${B[at].cat || ''} ${keys(B[at])} cost=${B[at].cost}` : '(none)', oldLen: A.length, newLen: B.length });
     }
   });
+  if (STAGE2) {   // pairs the stage-1 rule (live today) allows but the stage-2 rule refuses: each must be a rewrite of a field the tool no longer rewrites after a lock
+    pairs.forEach((p, i) => { const n1 = get('new', i), n2 = get('new2', i); if (n2 && n2.verdict === 'refused' && n1.verdict !== 'refused') {
+      const A = p.old.LOG || [], B = p.nu.LOG || []; const strip = e => { const x = { ...e }; for (const k of ['seq', 'ts', 'rules', 'label']) delete x[k]; return JSON.stringify(x); };
+      let at = -1; for (let k = 0; k < Math.max(A.length, B.length); k++) { if ((A[k] ? strip(A[k]) : '') !== (B[k] ? strip(B[k]) : '')) { at = k; break; } }
+      const ks = e => e && e.payload && e.payload.patch ? Object.keys(e.payload.patch).join(',') : '';
+      out.stage2Only.push({ i, name: p.name, at: p.at, campaign: !!p.newCampaign, lastPair: p.last, firstDiffIndex: at, oldEvent: A[at] ? `${A[at].type}/${A[at].cat || ''} ${ks(A[at])}` : '(none)', newEvent: B[at] ? `${B[at].type}/${B[at].cat || ''} ${ks(B[at])}` : '(none)' }); } });
+    console.log(`\nSTAGE 2: refused ONLY by stage 2 (allowed by the stage-1 rule that is live): ${out.stage2Only.length} of ${pairs.length}`);
+    for (const f of out.stage2Only) console.log(`  STAGE2-ONLY #${f.i} ${f.name} @${String(f.at).slice(0, 19)} diff@${f.firstDiffIndex}${f.lastPair ? ' (LAST pair: the live row)' : ''}\n     old: ${f.oldEvent}\n     new: ${f.newEvent}`);
+  }
   console.log(`\nOLD rule refuses ${out.oldRefused} of ${pairs.length}; NEW rule refuses ${out.newRefused} of ${pairs.length}; refused ONLY by the new rule: ${out.newOnly.length}; trigger errors: ${out.errors.length}`);
   for (const f of out.newOnly) console.log(`  NEW-ONLY #${f.i} ${f.name} @${String(f.at).slice(0, 19)} diff@${f.firstDiffIndex} (${f.oldLen}->${f.newLen} events)\n     old: ${f.oldEvent}\n     new: ${f.newEvent}\n     ${String(f.msg).slice(0, 110)}`);
   for (const e of out.errors) console.log('  ERROR', JSON.stringify(e).slice(0, 200));

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Throwaway-Postgres rehearsal of sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (+ its rollback). Needs Docker only; touches NO real database.
+# Throwaway-Postgres rehearsal of sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql and 2026-10-11-server-freeze-stage2.sql (+ their rollbacks). Needs Docker only; touches NO real database.
 # Usage: testing/scripts/creation-lock-guard-test/run-freeze.sh        (expect: BEFORE shows the attacks working; AFTER every row PASS; rollback byte-identical)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -23,6 +23,17 @@ psqlc < ../../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql
 echo "=== AFTER the freeze (every row must be PASS) ==="
 psqlc < freeze-cases.sql >/dev/null; echo "AFTER: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n"; echo "FAILED"; exit 1; }
+echo "=== STAGE 2: the temporary exemption is removed (sql/migrations/2026-10-11-server-freeze-stage2.sql) ==="
+tmp() { psqlc -At -c "select md5(pg_get_functiondef('public.pact_patch_temp_exempt_keys()'::regprocedure))"; }
+STAGE1_TMP=$(tmp)
+psqlc < ../../../sql/migrations/2026-10-11-server-freeze-stage2.sql
+psqlc -v tmpexp=refused < freeze-cases.sql >/dev/null; echo "STAGE 2: $(counts)"
+[ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n"; echo "STAGE 2 FAILED"; exit 1; }
+echo "=== stage-2 rollback: the stage-1 exempt list comes back exactly ==="
+psqlc < ../../../sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql
+[ "$(tmp)" = "$STAGE1_TMP" ] && echo "stage-2 rollback restores the stage-1 list exactly" || { echo "STAGE-2 ROLLBACK DIFFERS"; exit 1; }
+psqlc < freeze-cases.sql >/dev/null; echo "AFTER STAGE-2 ROLLBACK (stage-1 expectations): $(counts)"
+[ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { echo "STAGE 1 EXPECTATIONS BROKEN AFTER STAGE-2 ROLLBACK"; exit 1; }
 echo "=== rollback: definitions must be byte-identical to the live ones ==="
 psqlc < ../../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1-rollback.sql
 [ "$(defs)" = "$LIVE" ] && echo "rollback restores the live definitions exactly" || { echo "ROLLBACK DIFFERS"; exit 1; }
