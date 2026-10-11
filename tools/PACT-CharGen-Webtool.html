@@ -545,7 +545,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" id="cgFinishCreatingBtn" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" id="cgFinishCreatingBtn" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button><span id="cgNoLimitNote" style="display:none;font-size:11px;color:var(--warn);align-self:center" title="Creation ends with a Finish creating button, which appears once your DM sets a creation limit for this character.">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random character — pick a theme and a target level, then roll. Keeps your current species, class and name.">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
@@ -6649,6 +6649,10 @@ function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch
       var _cgS = creationCeiling(LOG, _cgCeilOpts());
       var _cgShow = _cgS.enforced && !_cgS.locked;
       _cgB.style.display = _cgShow ? '' : 'none';
+      // fix/no-creation-limit-note: a campaign character with no limit (joining a campaign clears it
+      // server-side) gets a note instead of a silently missing button. Solo characters keep showing nothing.
+      var _cgN = $('cgNoLimitNote');
+      if(_cgN) _cgN.style.display = (!_cgS.enforced && !_cgS.locked && !!window._cgCampaignId) ? '' : 'none';
       if(_cgShow){
         _cgB.title = 'Creation budget ' + _cgS.ceiling + ' AP'
           + (_cgS.drawbackBonus ? (' (' + _cgS.base + ' from your DM + ' + _cgS.drawbackBonus + ' from drawbacks)') : '')
