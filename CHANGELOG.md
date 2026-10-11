@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-11 · docs: three cold reviews that existed only in the gitignored `z-cold/processed/` are filed under `docs/plans/cold-reviews/`** — Gemini on the armour-selection gate (2026-09-09), Gemini 3.6 Flash and Groq gpt-oss-120b on the DM unlock-drawback plan (2026-09-30, 2026-10-01); each stamped with a triage header, bodies byte-identical to the originals. No code, data or tests changed.
+
 - **2026-10-11 · db: server freeze STAGE 2 written and rehearsed — NOT applied** — `sql/migrations/2026-10-11-server-freeze-stage2.sql` (+ rollback) empties the temporary exempt list so spellcasting, innate spells, martial binding, dabbler cantrips, origin classes, size and lineage are frozen after a lock like everything else priced; the creation tool no longer rewrites them (phase 2b, live since v1.599). The Docker rehearsal (`run-freeze.sh`) now covers it: 61/61 at stage 2, exact rollback; both audits gained a `--stage2` mode to run against a fresh export before applying.
 
 - **2026-10-11 · feat: the database refuses two active characters with the same name for one player; both tools say so plainly** —
