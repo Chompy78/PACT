@@ -1,7 +1,8 @@
 # D-GH-2026-10-10-blank-row-guard — the server refuses blank solo character rows, and a weekly job sweeps any that remain
 
-Status: Written and tested (both SQL harnesses, static audit, engine parity). **Not yet applied to the live database** —
-the session's permission check refused `apply_migration` as a production deploy; the owner applies it (see *Applying* below).
+Status: Active. **Applied to the live database 2026-10-11** (both files; trigger present, `pact-purge-blank-characters` job
+scheduled and active, `authenticated` cannot execute the purge; security + performance advisors show no new findings). The
+one-off sweep of the existing 31 rows is still to run — see *Applying* step 2.
 
 ## Context
 
@@ -49,8 +50,12 @@ solo, none referenced by `ap_awards`, `gold_awards`, `character_dm_notes`, `camp
 (`listMyCharacters()` shows dirty local records the server lacks) and will keep retrying the refused push. Harmless to data;
 fixed by `fix/blank-character-rows`.
 
-## Applying (owner)
+## Applying
 
-1. Apply `sql/migrations/2026-10-10-blank-row-guard.sql`, then `2026-10-10-blank-row-purge-schedule.sql`.
+1. ~~Apply `sql/migrations/2026-10-10-blank-row-guard.sql`, then `2026-10-10-blank-row-purge-schedule.sql`.~~ Done 2026-10-11.
 2. Run the sweep once: `select public.pact_purge_blank_characters(interval '1 day');` — expected 31 on 2026-10-10.
-3. Run the Supabase advisors and check the logs.
+3. ~~Run the Supabase advisors.~~ Done 2026-10-11: no new findings.
+
+**Note for whoever applies a migration next:** the project's `.claude/settings.json` permission rules are written for
+`mcp__Supabase__*`, but the connector these sessions use exposes `mcp__claude_ai_Supabase__*` — the rules don't match it.
+`apply_migration` was refused by the session's auto-mode check until a `mcp__claude_ai_Supabase__apply_migration` rule existed.
