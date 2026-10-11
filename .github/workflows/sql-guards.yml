@@ -78,6 +78,13 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c "drop schema if exists auth cascade;"
           psql -v ON_ERROR_STOP=1 -f testing/sql/rls-baseline-test.sql
 
+      # feat/campaign-npcs: behaviour of DM-owned NPC rows (one-per-campaign exemption, RLS, grants, unbind).
+      - name: Campaign NPCs — testing/sql/campaign-npcs-test.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -c "drop schema if exists public cascade; create schema public;"
+          psql -v ON_ERROR_STOP=1 -c "drop schema if exists auth cascade;"
+          psql -v ON_ERROR_STOP=1 -f testing/sql/campaign-npcs-test.sql
+
   # The server-freeze rehearsal (stage 1: D2 + E1). Runs the migration and its rollback on a throwaway Postgres in Docker against the LIVE trigger
   # definitions, with attack and legitimate cases (61): before = the attacks work, after = all pass, rollback = byte-identical definitions. The migration
   # is NOT applied to the live database by merging it; this keeps the file honest until the owner decides to apply it. See

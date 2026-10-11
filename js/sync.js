@@ -401,6 +401,7 @@ async function _existingIdInCampaign(campaignId) {
       .select('id')
       .eq('owner_id', user.id)
       .eq('campaign_id', campaignId)
+      .eq('is_npc', false)   // feat/campaign-npcs: a DM may hold several NPC rows here; this is the PLAYER row
       .limit(1)
       .maybeSingle();
     return (!error && data) ? data.id : null;
@@ -884,7 +885,7 @@ export async function listMyCharacters() {
   if (navigator.onLine) {
     const { data, error } = await supabase
       .from('characters')
-      .select('id, name, kind, ap, gold, campaign_id, archived_at, updated_at, autosave_enabled, log:stats->LOG')
+      .select('id, name, kind, ap, gold, campaign_id, is_npc, archived_at, updated_at, autosave_enabled, log:stats->LOG')
       .eq('owner_id', user.id)
       .order('updated_at', { ascending: false });
     if (error) throw error;
