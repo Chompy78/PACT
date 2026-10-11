@@ -1388,3 +1388,19 @@ If the Improved Combat Superiority task above also picks the engine side, do bot
 When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
 ```
 **Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## check/server-freeze-stage2-after-apply — look for refused saves and run the checks stage 2's apply skipped — TODO
+**Effort:** low · **Risk:** low — read-only checks; the only action they could lead to is the one-statement rollback.
+
+```text
+Server freeze stage 2 was applied to the live database on 2026-10-11 (migration `server_freeze_stage2`). Three checks did not happen then:
+(1) the Supabase SECURITY advisor was blocked by the permission classifier (the performance advisor ran, nothing related);
+(2) the Postgres log query returned a backend error, so refused saves since the apply were not looked for;
+(3) `roundtrip-audit.mjs --stage2 --campaign-all` needs a full export of the live characters, which cannot be saved from a Claude session.
+DO, once players have had a couple of play days on it: run the security advisor and confirm nothing new mentions the freeze functions;
+query the Postgres logs for "locked character history" since 2026-10-11 and, for each hit, find out whether it was an honest save
+(a stale copy of the tool) or a real problem; if a real player's save was wrongly refused, apply
+`sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql` and open a task for the cause. For (3), have the owner export the live
+characters to a local file outside the repo, run the audit on it, then delete the file.
+```
+**Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
