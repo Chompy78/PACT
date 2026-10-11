@@ -4,6 +4,8 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-11 · rules: Quick Patch now works once per creature per Long Rest** (owner choice D2). It still gives 1 HP and stays at 3 AP, so nothing is repriced. Unlimited at-will revives were the problem; 6 of 35 live characters own it. Wording only (`fx` is not read by `compute()`), so no `DATA.version` bump. Served guide and `pact-guide` master changed together.
+
 - **2026-10-11 · rules: Reckless reworked: a DC 12 Wisdom save to Dodge or Disengage (a failure doesn't spend the action) replaces the outright ban; +2 → +3 AP; `DATA.version` v0.372 → v0.373**. Engine data, served guide and `pact-guide` master changed together; rules-label literals in CharGen/Live Sheet mirrored. 0 of 32 live characters carry Reckless. Record: `D-GH-2026-10-11-reckless-rework`.
 
 - **2026-10-11 · docs: three cold reviews that existed only in the gitignored `z-cold/processed/` are filed under `docs/plans/cold-reviews/`** — Gemini on the armour-selection gate (2026-09-09), Gemini 3.6 Flash and Groq gpt-oss-120b on the DM unlock-drawback plan (2026-09-30, 2026-10-01); each stamped with a triage header, bodies byte-identical to the originals. No code, data or tests changed.
