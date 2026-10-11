@@ -1440,3 +1440,64 @@ Owner decides one of:
   B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
 ```
 **Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
+
+## fix/player-free-ap — players can grant themselves AP or get AP back after the lock — TODO
+Branch fix/player-free-ap. **Effort:** medium · **Risk:** high — changes who may award AP and what's editable post-lock on live characters; coordinate with feat/server-freeze-at-lock and fix/chargen-post-lock-purchases (ambiguity + damage scale).
+
+```text
+Audit 2026-10-12. Line numbers approximate.
+  1. Live Sheet "+ Award AP" / "AP code" (DM tools strip ~LS:440) are live for a player on their own campaign character. The award has
+     no noLock, so it (a) gives spendable AP unless the DM set ignore_player_ap (also bypasses _lsOverApBudget), and (b) is a permanent
+     undo barrier and a server freeze boundary (engine sealedFloor/isUndoBarrier; stage1 migration v_award_idx). Hide/disable for
+     campaign-bound characters (match CharGen's model); decide with owner whether a solo self-award should be noLock.
+  2. CharGen DM boons/drawbacks section is player-editable on campaign-bound and locked characters (not in _CG_POSTLOCK_SLOTS ~CG:3313);
+     a custom drawback at 60 AP grants 60 AP (node-checked). Make it read-only when campaign-bound and after the lock.
+  3. CharGen starting gold (ECONOMY slot) can be lowered after Finish creating for an AP refund (1 AP/gold, engine ~1043). Refuse.
+  4. Server: the stage1 migration (~line 25) exempts houseRules and gold as "no-AP" — both are priced. Feed this into
+     feat/server-freeze-at-lock's E1 list (it currently names houseRules as no-AP) rather than a separate migration.
+  5. CharGen locked campaign character with budget 0 can type a budget and append a fresh award after the lock (~CG:3727-3733) —
+     verify whether the server accepts it; refuse client-side.
+  6. CharGen updateDmToggles (~CG:6344): turning off the DM "Bound" option clears #martiallyBound by .value only (grant stays in the
+     MISC slot, still −2 AP); [id^="mbound_"] matches nothing (boxes are .disc-bound) so Magically Bound is never cleared.
+```
+**Done when:** e2e shows a campaign player has no Award AP / AP code in Live Sheet and no editable DM boons in CharGen; lowering gold after the lock is refused; turning off "Bound" removes both Bound grants from compute(); the server-freeze task's exempt list is corrected (or this task's migration lands with advisors run); `engine-parity.html` 0 failed.
+
+## fix/chargen-campaign-stuck-states — CharGen offers edits the server rejects, then autosave dead-ends — TODO
+Branch fix/chargen-campaign-stuck-states. **Effort:** low · **Risk:** medium — small client fixes, but they decide what a campaign character can edit (damage likelihood: players are stuck today).
+
+```text
+Audit 2026-10-12. Line numbers approximate.
+  1. Building level (_cgApplyBuildLevelInner ~CG:3140) and "Confirm or change" creation AP (setCreationAp ~CG:3173; link ~CG:6777)
+     emit creationLockConfig on campaign characters; the server refuses it (2026-10-04-creation-lock-guard.sql ~18-21, 80-92), the push
+     is classed as a seal rejection and autosave stops with a misleading "history is locked" alert — reload is the only exit and loses
+     work. Disable/hide when campaign-bound.
+  2. loadFile native branch (~CG:4446-4458) never calls _cgAdoptEnvelopeBinding(d) (handoff and autosave restore do) — a loaded campaign
+     character shows 0 DM AP, everything over budget, floors wrong. One-liner.
+  3. Undo across New Character / file load (restoreFrame ~CG:2806; frames hold {log,seq,id} only) restores the old character without
+     _cgCampaignId/_dmAp/_dmApStatus — re-adopt the binding when the restored id differs.
+  4. A refused budget edit (_cgSyncSingletonEvent ~CG:3727) leaves the typed value in #budget and the build-level hint — repaint on refusal.
+```
+**Done when:** e2e: a campaign character shows no build-level/creation-AP controls; Local Load of a saved campaign character shows its DM AP; New Character → Undo shows the campaign AP again; a refused budget edit snaps back; `engine-parity.html` 0 failed.
+
+## fix/livesheet-state-glitches — Live Sheet: time-travel, read-only DM view and Reset leave wrong state — TODO
+Branch fix/livesheet-state-glitches. **Effort:** low · **Risk:** low — local guards and resets; item 1 costs AP today, the rest are display or DM-local.
+
+```text
+Audit 2026-10-12. Line numbers approximate.
+  1. Buy-off from the time-travel view: the ledger draws "buy off 3×" from the past view; buyoffDrawback (~LS:1009) checks current
+     state, _openDrawbackEvent returns null, but it still charges refund×3 and emits an orphan buyoff (node: 6 AP for nothing).
+     Refuse when !src; don't draw action buttons when idx!=null.
+  2. Finish creating (~LS:575-590) pushes to LOG directly, bypassing emit(): no _viewOnlyBlock, REDO not cleared (undo→finish→redo
+     puts a pre-lock purchase after the lock), viewAt not reset; button not hidden in _lsApplyViewOnlyUi. Route through emit().
+  3. DM read-only view (?viewChar): onSheetField (~LS:2257) still csSave()s into the DM's browser; appearance inputs look editable.
+     Make Sheet inputs readOnly when VIEW_ONLY. The loader (~LS:3092-3100) also keeps the DM's own window._lsCampaignId — set it from
+     rec.campaign_id.
+  4. Reset / Import (_lsResetCloudApState ~LS:788) doesn't clear window._lsCampaignName / _cloudCampaignRules — old campaign name stays
+     in the header.
+  5. Needs-review tray (~LS:1815) validates the current state while the page shows a scrubbed past — use the scrubbed build or hide.
+  6. First description edit appends a cost-0 event (_shCommitAppearanceField ~LS:2279) that the next Undo removes instead of the last
+     purchase — exclude cost-0 appearance patches from undo, or coalesce.
+  7. CharGen Sheet tab: each keystroke in an appearance field re-renders #sheetbody and drops focus, one undo step per key
+     (onSheetField ~CG:6831) — commit on change/blur.
+```
+**Done when:** e2e: buy-off is not offered while scrubbed and an orphan buyoff can't be emitted; Finish creating in a DM read-only view does nothing; DM Sheet inputs are read-only; Reset clears the campaign name; typing a sentence into a CharGen appearance field keeps focus; `engine-parity.html` 0 failed.
