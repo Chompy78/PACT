@@ -306,6 +306,22 @@ export function lineageSpellLabel(sp){
 // Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
 // saving a build must store this `size`, not a form control's leftover value (fix/stored-size, D-GH-2026-10-11-stored-size: 23 of
 // 37 live characters stored "Small" while being Medium). Moved verbatim out of compute(), which calls it.
+// skillMods(b, r?) — every skill's total bonus, owned or not, for display (feat/livesheet-center-panel).
+// One row per DATA.skillList entry: { skill, ab, abMod, prof (0 none, 1 proficient, 2 expertise), total }.
+// total = the ability modifier + proficiency (doubled for expertise). Initiative follows compute()'s own rule:
+// unproficient it is plain DEX; proficient it switches to WIS + proficiency — so its row always equals r.init.
+// Pass compute(b)'s result as r to avoid a second compute.
+export function skillMods(b, r) {
+  r = r || compute(b);
+  const mods = r.mods || {}, prof = r.prof || 0, sk = b.skills || [], ex = b.expertise || [];
+  return (DATA.skillList || []).map(([skill, ab0]) => {
+    const p = sk.includes(skill) ? (ex.includes(skill) ? 2 : 1) : 0;
+    const ab = (skill === 'Initiative' && !p) ? 'DEX' : ab0;
+    const abMod = mods[ab] || 0;
+    return { skill, ab, abMod, prof: p, total: abMod + p * prof };
+  });
+}
+
 export function sizeOf(b){
   const _races=[b&&b.species,b&&b.species2].filter(s=>s&&s!=='(none)');
   const _isSmall=r=>(r==='Halfling'||r==='Gnome');
