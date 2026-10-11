@@ -1357,22 +1357,6 @@ B. Two guide rows the price checker cannot compare look like real disagreements 
 **Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
 
 
-## fix/livesheet-drawback-prereqs — the Live Sheet offers a drawback its stat cap or caster-only rule forbids; CharGen refuses it — TODO
-**Effort:** low · **Risk:** low — ambiguity low (CharGen's rule is the written one), damage small, and the fix only removes an offer.
-
-```text
-FOUND 2026-10-05 by the post-lock parity fuzz (docs/sessions/2026-10-05-post-lock-parity-fuzz.md). A drawback has prerequisites:
-`DATA.drawbackMaxStats` (an ability score at or under a cap) and `DATA.drawbackReq` (caster-only: needs a spellcasting discipline).
-CharGen greys the tick-box when either breaks (tools/PACT-CharGen-Webtool.html, the `.drawck` loop near "capBreaks"). The Live Sheet's
-`db(name)` tile and `takeDrawback()` check neither, so a player with, say, STR 16 can buy a drawback capped at STR 14 and the engine
-only warns (js/engine.js, "drawback requires"). 1 of 34 fuzzed drawback purchases hit it.
-DO: put the two prerequisite checks in ONE place (engine.js, e.g. `drawbackBlock(build, name)`), use it from CharGen's greying loop and
-from the Live Sheet tile + `buy('drawback')` gate, and add the case to the post-lock parity fuzz / chargen-flows-e2e. Do not change
-what the engine warns about, and do not touch characters that already hold such a drawback.
-```
-**Done when:** a Live Sheet tile for a drawback whose cap or caster rule is broken is greyed with the reason and `takeDrawback` refuses it; CharGen's greying uses the same engine function; the fuzz's drawback run reports 0 differences on a seed that previously hit this; `engine-parity` 0 failed.
-
-
 ## feat/campaign-npcs — a DM can bind several NPC characters (and several versions of each) to their own campaign — TODO
 Branch feat/campaign-npcs. **Effort:** large · **Risk:** high — schema + RLS + bind RPC + DM Console bulk actions on a live campaign; damage scale drove it (a wrong index or bulk-action filter touches real players' AP and downtime).
 

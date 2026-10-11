@@ -1233,6 +1233,11 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   // a SOLO character (no campaign at all) may take all three (owner AA2)
   await base0(); await p.evaluate(() => { window._cloudCampaign = null; }); dialogs = []; await edit(boundEdit, D); await martial(); await drawTick(); const gs = await snap();
   check('solo (no campaign): Magically Bound, Martially Bound and a drawback are all accepted after the lock', bindEv(gs).map(e => e.cat).sort().join() === 'dbound,mbound' && drawEv(gs).length === 1 && dialogs.length === 0, JSON.stringify({ b: bindEv(gs).map(e => e.cat), d: drawEv(gs).length, dialogs }));
+  // an OVER-BUDGET character may still take a drawback (found by the post-lock parity fuzz): the Live Sheet never tests a drawback against the AP left, and CharGen used to say "Not enough AP: needs -2, have -78"
+  await base0(); await p.evaluate(() => { window._cloudCampaign = null; emit({ type: 'award', amount: -5000, note: 'over budget' }); }); dialogs = [];
+  const left0 = await p.evaluate(() => compute(foldBuild(LOG), _cgDmOpts()).spendable - economy(LOG).spent);
+  await drawTick(); const gdo = await snap();
+  check('over budget (' + left0 + ' AP left): a drawback is still accepted and grants its AP, no "not enough AP"', left0 < 0 && drawEv(gdo).length === 1 && drawEv(gdo)[0].cost < 0, JSON.stringify({ left0, ev: drawEv(gdo), dialogs }));
   // the Live Sheet, same locked character: refused by default, allowed by the same two settings
   await base0(); const lenv = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
   const lp2 = await ctx.newPage(); const lsd = []; lp2.on('dialog', d => { lsd.push(d.message().slice(0, 90)); d.accept(); });
