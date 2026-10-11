@@ -3554,7 +3554,7 @@ function _cgPostLockAppend(steps){
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
   if(_histSuspended) return true;
-  var b=foldBuild(LOG), evs=[], total=0;
+  var b=foldBuild(LOG), evs=[], total=0, charged=false;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
@@ -3584,10 +3584,10 @@ function _cgPostLockAppend(steps){
       if(q){ ev.gp=q.gp; ev.days=q.days; totalQ.gp+=q.gp; totalQ.days+=q.days; }
     }
     virt.push(Object.assign({},ev,{ts:stampTs}));
-    evs.push(ev); total+=cost; b=next;
+    evs.push(ev); total+=cost; if(st.cat!=='drawback') charged=true; b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
-  if(total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }
+  if(charged&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
   // Soft shortfall warning (never a block — a DM can waive or defer any cost, \u00a717): the TOTAL of this edit against the wallet as it stands now, asked once. The Live Sheet asks per purchase;
   // CharGen edits can be several purchases at once, so this is the same question for the whole edit. Cancel abandons the edit — nothing is appended.
   if(totalQ.gp||totalQ.days){
