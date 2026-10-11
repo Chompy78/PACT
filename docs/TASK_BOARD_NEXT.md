@@ -1443,3 +1443,21 @@ Solo/local characters (no campaign) keep today's behaviour: no button, no note. 
 A locked character shows neither. Display-only: no DATA.version bump, no compute() change; log in CHANGELOG.md.
 ```
 **Done when:** in both CharGen and Live Sheet, a campaign character with no limit shows the note, a campaign character with a limit shows the button and no note, a solo character and a locked character show neither; `engine-parity` 0 failed.
+
+## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
+**Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
+
+```text
+OWNER CHOICE F3 (2026-10-11): leave for now. Players Guide §10 says 1/long-rest lineage spells cost "1st 6, 2nd 9, 3rd 12", but
+the five 2nd-level lineage spells — Darkness (Drow and Infernal), Misty Step, Pass without Trace, Hold Person, Ray of Enfeeblement —
+cost 12 in DATA.lineageSpells (js/engine-data.js). The 12 is left over from the pre-v0.373 workaround that stored them as "level 3"
+to reach a 5 Hit Dice gate; #610 (D-GH-2026-10-11-lineage-spell-gates) fixed the level and gate and deliberately left prices alone.
+
+Owner decides one of:
+  A. Price them at 9, as the guide's rule says. Rules change: edit the five entries' AP, bump DATA.version once (+ the three
+     fallback literals per docs/VERSION-SYNC.md), update the guide rows in the served copy AND the pact-guide master (run
+     verify-guide.mjs before and after; guide-table-diff.mjs must not gain differences), update lineage-spell-gates-ci.mjs's
+     price assertion ('4,6,12' -> '4,6,9'). MEASURE FIRST: live characters owning any of the five (0 on 2026-10-11).
+  B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
+```
+**Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
