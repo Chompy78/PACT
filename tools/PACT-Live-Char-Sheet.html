@@ -116,6 +116,19 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  .layout>.card.clp>:not(h3:first-child){display:none}
 }
 #lmobar{display:none}
+/* feat/livesheet-center-panel: on desktop the Buy and History panels fold to a thin strip (click the heading),
+   and the Character panel widens into the space. Phones keep the M8 fold above. Remembered per browser. */
+@media(min-width:1001px){
+ .layout>.card:not(:nth-child(2))>h3:first-child{cursor:pointer;user-select:none}
+ .layout>.card:not(:nth-child(2))>h3:first-child::before{content:"▾  ";font-size:10px;color:var(--teal)}
+ .layout>.card.clp:not(:nth-child(2))>:not(h3:first-child){display:none}
+ .layout>.card.clp:not(:nth-child(2))>h3:first-child{writing-mode:vertical-rl;margin:0;white-space:nowrap}
+ .layout>.card.clp:not(:nth-child(2))>h3:first-child::before{content:"▸  "}
+ .layout>.card.clp:not(:nth-child(2)){padding:10px 6px}
+ .layout:has(>.card:nth-child(1).clp){grid-template-columns:40px 1fr 300px}
+ .layout:has(>.card:nth-child(3).clp){grid-template-columns:300px 1fr 40px}
+ .layout:has(>.card:nth-child(1).clp):has(>.card:nth-child(3).clp){grid-template-columns:40px 1fr 40px}
+}
 @media(max-width:600px){
  body{font-size:14px}
  .top{flex-wrap:wrap}.top h1{font-size:16px}
@@ -1605,6 +1618,15 @@ function _fxPop(btn,ev){if(ev)ev.stopPropagation();var old=document.getElementBy
   var r=btn.getBoundingClientRect(),w=Math.min(320,window.innerWidth-24);d.style.width=w+'px';
   d.style.left=Math.max(12,Math.min(r.left+window.scrollX-w/2,window.scrollX+window.innerWidth-w-12))+'px';d.style.top=(r.bottom+window.scrollY+6)+'px';}
 document.addEventListener('click',function(e){var p=document.getElementById('fxpop');if(p&&!p.contains(e.target))p.remove();});
+function _lsPanelFoldInit(){
+  var cards=document.querySelectorAll('.layout>.card'),keys={0:'buy',2:'ledger'},st={};
+  try{st=JSON.parse(localStorage.getItem('pactLsPanelFold')||'{}')||{};}catch(e){}
+  Object.keys(keys).forEach(function(i){var c=cards[i];if(!c)return;var h=c.querySelector('h3');
+    if(st[keys[i]]){c.classList.add('clp');if(h)h.setAttribute('aria-expanded','false');}
+    // Save on ANY change of the fold (heading click, keyboard, or code), not just a click listener.
+    new MutationObserver(function(){st[keys[i]]=c.classList.contains('clp')?1:0;try{localStorage.setItem('pactLsPanelFold',JSON.stringify(st));}catch(e){}}).observe(c,{attributes:true,attributeFilter:['class']});});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsPanelFoldInit);else _lsPanelFoldInit();
 function render(){
   if(!LOG.length){ /* still render empty */ }
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}

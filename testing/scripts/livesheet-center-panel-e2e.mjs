@@ -3,6 +3,7 @@
  *   2. A tap-able ⓘ after each boon and drawback that shows its effect (drawbacks' hover text was always blank:
  *      it read .fx off DATA.drawbacks[x], which is a price).
  *   3. The "not named" notice lists WHICH spells and languages are blank.
+ *   5. On desktop the Buy and History panels fold to a strip (remembered per browser).
  *   4. A campaign DM can switch off the "N drawbacks chosen" advice (DM Console → rules.drawbackCountAdvice).
  *
  *   node testing/scripts/livesheet-center-panel-e2e.mjs   (expect 0 failed)
@@ -76,6 +77,22 @@ check('tapping elsewhere closes it', await page.evaluate(() => !document.getElem
 const tray = await page.evaluate(() => document.body.innerText);
 check('the notice names the blank language', /Not named yet:[^\n]*Language 2/.test(tray), (tray.match(/Not named yet:[^\n]*/) || [''])[0]);
 check('…and not the named one', !/Not named yet:[^\n]*Language 1\b/.test(tray));
+
+// 5. Desktop: the Buy and History panels fold to a strip, the Character panel widens, and the choice survives a reload.
+const w0 = await page.evaluate(() => document.querySelector('.layout>.card:nth-child(2)').getBoundingClientRect().width);
+await page.click('.layout>.card:nth-child(1)>h3');
+await page.click('.layout>.card:nth-child(3)>h3');
+const fold = await page.evaluate(() => ({ buy: document.querySelector('.layout>.card:nth-child(1)').getBoundingClientRect().width,
+  led: document.querySelector('.layout>.card:nth-child(3)').getBoundingClientRect().width,
+  mid: document.querySelector('.layout>.card:nth-child(2)').getBoundingClientRect().width,
+  buyHidden: getComputedStyle(document.getElementById('buysearch')).display === 'none' }));
+check('folding Buy and History shrinks them to a strip', fold.buy < 60 && fold.led < 60 && fold.buyHidden, JSON.stringify(fold));
+check('…and the Character panel widens', fold.mid > w0 + 400, `${Math.round(w0)} -> ${Math.round(fold.mid)}`);
+await page.reload({ waitUntil: 'load' });
+await page.waitForFunction(() => document.querySelector('#sheet .shskills'), { timeout: 25000 });
+check('the fold is remembered after a reload', await page.evaluate(() => document.querySelector('.layout>.card:nth-child(1)').classList.contains('clp') && document.querySelector('.layout>.card:nth-child(3)').classList.contains('clp')));
+await page.click('.layout>.card:nth-child(1)>h3');
+check('clicking the strip opens it again', await page.evaluate(() => document.querySelector('.layout>.card:nth-child(1)').getBoundingClientRect().width > 250));
 
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }
