@@ -26,6 +26,7 @@ on:
       - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "testing/scripts/lineage-spell-gates-ci.mjs"
+      - "testing/scripts/stored-size-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
@@ -259,3 +260,8 @@ jobs:
 
       - name: Lineage spells are gated by Hit Dice, and CharGen enforces it
         run: node testing/scripts/lineage-spell-gates-ci.mjs
+
+      # fix/stored-size (D-GH-2026-10-11-stored-size): sizeOf() is the one size rule, and CharGen stores the real size, not its
+      # hidden dropdown's parked "Small". Same browser setup as the step above, so it shares the job.
+      - name: A character's stored size matches its real size
+        run: node testing/scripts/stored-size-ci.mjs
