@@ -275,6 +275,24 @@ export function requiredHD(item){
 }
 
 
+// Lineage spell-likes (Players Guide §10) — DATA.lineageSpells[lineage] entries are [name, AP, spell level, Hit Dice].
+// The Hit Dice requirement is the PHB 2024's character level for the lineage: cantrip at 1, the 1st-level spell at 3,
+// the 2nd-level spell at 5 (fix/lineage-spell-gates, v0.373). It used to be derived from the third element through
+// DATA.hdGate, which is why Darkness was stored as a "3rd-level" spell just to reach 5 HD — and was shown as "L3".
+// Same rule as requiredHD() above: the requirement is stated, never re-derived in a tool. Both tools import these.
+export function lineageSpellHD(sp){
+  if(!sp) return 1;
+  if(sp[3] != null) return Number(sp[3]) || 1;
+  return sp[2] > 0 ? ((DATA.hdGate || [])[sp[2] - 1] || 1) : 1;   // pre-v0.373 three-element shape
+}
+const _ORD = ['cantrip', '1st-level', '2nd-level', '3rd-level', '4th-level', '5th-level', '6th-level', '7th-level', '8th-level', '9th-level'];
+export function lineageSpellLabel(sp){
+  if(!sp) return '';
+  const need = lineageSpellHD(sp);
+  return (sp[2] === 0 ? 'cantrip · cap-exempt' : (_ORD[sp[2]] || ('level ' + sp[2])) + ' · 1/long rest')
+       + (need > 1 ? ' · needs ' + need + ' HD' : '');
+}
+
 // Grit runs on the STEEP ladder — the Nth purchase costs 2N (2/4/6/8/10/12…), the same shape
 // py/pricing.py's metamagic_ap() already names "Steep" in the pact-guide project, and the same
 // linear-per-purchase escalation every other track in DATA uses (attune 4/6/8/10…, expertise
@@ -486,7 +504,7 @@ export function compute(b, opts){
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
   {const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[]; let _rs=0;
    for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s){W.push(nm+" is no longer in the rules data — no cost/effect applied");continue;} _rs+=s[1];
-     if(s[2]>0 && hd<(DATA.hdGate[s[2]-1]||1)) W.push("Lineage spell "+nm+" (L"+s[2]+") needs "+(DATA.hdGate[s[2]-1])+" Hit Dice");}
+     {const need=lineageSpellHD(s); if(hd<need) W.push("Lineage spell "+nm+" needs "+need+" Hit Dice");}}
    add("Lineage spell-likes",_rs);}
   // class access — unlock cost is 7 × classes already owned (origin + any 2nd origin counted first)
   const has2nd=(b.originClass2 && b.originClass2!=="(none)");

@@ -25,6 +25,7 @@ on:
       - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
+      - "testing/scripts/lineage-spell-gates-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
@@ -224,3 +225,37 @@ jobs:
 
       - name: One subclass ability is one purchase, through either door
         run: node testing/scripts/subclass-double-purchase-ci.mjs
+
+  lineage-spell-gates:
+    # fix/lineage-spell-gates (D-GH-2026-10-11-lineage-spell-gates, v0.373). Lineage spell-likes carry the PHB 2024 character
+    # level as their own Hit Dice (cantrip 1, 1st-level spell 3, 2nd-level spell 5). This pins the data against an independent
+    # copy of the PHB table, the engine wording (never "L3") and warning, and that CharGen greys a spell below its gate — it
+    # used to sell every one at 1 Hit Die. Needs a browser for the CharGen half.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('testing/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+
+      - name: Lineage spells are gated by Hit Dice, and CharGen enforces it
+        run: node testing/scripts/lineage-spell-gates-ci.mjs
