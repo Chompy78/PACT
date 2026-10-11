@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-11-verify-guide-blind-spots — the guide price checker fails on rows it cannot compare, unless a reason is written down
+- 2026-10-11: `guide-price-check.mjs` checks every member of a combined row, parses ranges, narrows by class before collapsing identical numbers, and fails on any ambiguous/unparsed/stepped row not in a reasoned `ALLOW` list (a stale entry fails too). Found 54 master-vs-served table differences. Full record: `decisions/2026/D-GH-2026-10-11-verify-guide-blind-spots.md`.
+
 ## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
 - Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index
   `uq_characters_owner_active_name` on `(owner_id, lower(btrim(name)))` over active rows, exempting "New Character", "Character" and "… (DM copy)"; the invite/claim RPCs now tell a name

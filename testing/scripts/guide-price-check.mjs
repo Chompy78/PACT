@@ -188,11 +188,12 @@ function resolveFeature(name, cls) {
   if (cands.length === 1) return { status: 'ok', ...cands[0] };
   // A subclass ability is normally present BOTH as a flat DATA.features key and as a
   // subAbilMap entry, with identical numbers. That is not a real ambiguity — collapse it.
+  // Narrow by the table's class BEFORE collapsing identical numbers: collapsing first dropped Paladin's
+  // Fighting Style (same numbers as Ranger's) so a Paladin-table row could never find its own entry.
   const sig = c => `${c.entry.tier}|${c.entry.tb}|${c.entry.origin}|${c.entry.cross}`;
-  const distinct = [...new Map(cands.map(c => [sig(c), c])).values()];
+  const pool = cls && cands.some(c => c.cls === cls) ? cands.filter(c => c.cls === cls) : cands;
+  const distinct = [...new Map(pool.map(c => [sig(c), c])).values()];
   if (distinct.length === 1) return { status: 'ok', ...distinct[0] };
-  const narrowed = cls ? distinct.filter(c => c.cls === cls) : [];
-  if (narrowed.length === 1) return { status: 'ok', ...narrowed[0] };
   return { status: 'ambiguous', candidates: distinct.map(c => `${c.key} [${sig(c)}]`) };
 }
 
@@ -203,12 +204,87 @@ function parsePrice(cell) {
   if (!m) return null;
   return { sticker: +m[1], origin: m[2] == null ? null : +m[2] };
 }
+/** Split "A / B (x / y) / C" on the " / " separators OUTSIDE parentheses -> ["A", "B (x / y)", "C"]. */
+function splitCombined(name) {
+  const parts = [];
+  let depth = 0, cur = '';
+  for (let i = 0; i < name.length; i++) {
+    const ch = name[i];
+    if (ch === '(') depth++;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (depth === 0 && name.startsWith(' / ', i)) { parts.push(cur.trim()); cur = ''; i += 2; continue; }
+    cur += ch;
+  }
+  parts.push(cur.trim());
+  return parts.filter(Boolean);
+}
+/** "24–28" -> {lo:24, hi:28}; anything else null. A range is a claim about EVERY member it covers. */
+function parseRange(cell) {
+  const m = cell.match(/^(\d+)\s*[–-]\s*(\d+)$/);
+  return m ? { lo: +m[1], hi: +m[2] } : null;
+}
+/** Compare one engine entry against a printed price cell / range / tier. Returns [] when it agrees. */
+function priceProblems(f, price, range, tb) {
+  const why = [];
+  let note = '';
+  if (price) {
+    if (price.sticker !== stickerOf(f)) why.push(`sticker ${price.sticker}→${stickerOf(f)}`);
+    if (price.origin != null && price.origin !== f.origin) why.push(`origin ${price.origin}→${f.origin}`);
+    // Diagnose the specific error the audit kept making.
+    if (why.length) {
+      if (price.sticker === f.origin) note = ' [guide printed ORIGIN in the sticker column]';
+      else if (price.sticker === f.cross) note = ' [guide printed CROSS in the sticker column]';
+    }
+  } else if (range && (stickerOf(f) < range.lo || stickerOf(f) > range.hi)) {
+    why.push(`range ${range.lo}–${range.hi} excludes the engine sticker ${stickerOf(f)}`);
+  }
+  if (tb && tb.tierHi == null && tb.tier !== f.tier) why.push(`tier T${tb.tier}→T${f.tier}`);
+  return { why, note };
+}
 /** "T4 Passive" -> {tier:4, band:'Passive'}; "T5–T6 Passive" -> {tier:5, tierHi:6, band:'Passive'} */
 function parseTierBand(cell) {
   const m = cell.match(/^T(\d)(?:\s*[–-]\s*T?(\d))?\s+(.+)$/);
   if (!m) return null;
   return { tier: +m[1], tierHi: m[2] ? +m[2] : null, band: m[3].trim() };
 }
+
+// ---- reviewed exceptions ----------------------------------------------------------------
+// A row the checker cannot resolve to ONE engine entry with ONE comparable price is listed as
+// `ambiguous`, `unparsed-price` or `stepped-feature`. Those used to be only listed, never failed, so a NEW row
+// of such a kind (the way four combined rows went stale unnoticed for six weeks) passed silently. Now every
+// one must be listed here WITH A REASON, and an entry that no longer matches any row is itself a failure, so
+// the list cannot rot. Key: kind | class heading of the table (or -) | sub-section header row (or -) | row name.
+// The keys are coupled to the SERVED copy's headings and row names: this checker is meant to run against
+// docs/PACT-Players-Guide.html. Run against the pact-guide master it will report stale/unreviewed entries wherever
+// the two files' tables differ (see guide-table-diff.mjs) — that is name drift, not a new unreviewed row.
+// An entry whose reason starts "OPEN QUESTION" is a suspected guide-vs-engine disagreement, kept green only until
+// an owner decides; the summary line counts them (open-questions=N) so they stay visible.
+const ALLOW = {
+  // -- overview table with no class heading: the row is one class's, priced for it
+  'ambiguous|-|-|Fighting Style': "Overview table (no class heading): the row is Fighter's (12). Ranger's and Paladin's Fighting Style are checked in their own class tables.",
+  'ambiguous|-|-|Channel Divinity': "Overview table (no class heading): the row is Cleric's (T2, 5 (4)). Paladin's Channel Divinity is a separate T3 entry, checked in the Paladin table.",
+  // -- bundle rows: one printed row, one engine bundle per subclass
+  'ambiguous|Druid|-|Circle bonus spells': 'A bundle row printed as "varies a–b": the engine has one bundle per subclass at different prices. Not compared.',
+  'ambiguous|Sorcerer|-|Origin bonus spells': 'A bundle row printed as "varies a–b": the engine has one bundle per subclass at different prices. Not compared.',
+  'ambiguous|Warlock|-|Patron bonus spells': 'A bundle row printed as "varies a–b": the engine has one bundle per subclass at different prices. Not compared.',
+  // -- rows the guide deliberately prints without a price
+  'unparsed-price|Cleric|-|Divine Order (Protector/Thaumaturge)': 'The guide prints no price (status "skill grant → ladder"), so there is nothing to compare. Whether the engine\'s flat 5 (5) is meant to be that price is NOT verified here.',
+  'unparsed-price|Druid|-|Primal Order': 'The guide prints no price (status "skill grant → ladder"), so there is nothing to compare. Whether the engine\'s flat 5 (5) is meant to be that price is NOT verified here.',
+  'unparsed-price|Fighter|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
+  'unparsed-price|Paladin|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
+  'unparsed-price|Ranger|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
+  'unparsed-price|Rogue|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
+  'unparsed-price|Fighter|Champion|Additional Fighting Style': 'Engine entry is bar:true and the guide says "Barred → A&T": they agree.',
+  // -- OPEN QUESTIONS: the guide and the engine look like they disagree; listed here only so the checker stays green until an owner decides
+  'unparsed-price|Fighter|Battle Master|Improved Combat Superiority': 'OPEN QUESTION (board: guide-vs-engine rows the checker cannot see): the guide says "Included in Premium" and prints no price, but the engine sells it separately at 14 (10) with no bar.',
+  'unparsed-price|Ranger|Gloom Stalker|Iron Mind': 'OPEN QUESTION (board: guide-vs-engine rows the checker cannot see): the guide says "Barred (→ saves)" with no price but status "Buy", while the engine sells it at 14 (11) with no bar.',
+  // -- stepped
+  'stepped-feature|Sorcerer|-|Metamagic (2 options, L2) (SP)': 'The engine prices Metamagic as 2 x purchase number (a special case in engine.js), so a single printed cell has no one engine price to match.',
+  'stepped-feature|Sorcerer|-|Metamagic (+1 option, L10) (SP)': 'The engine prices Metamagic as 2 x purchase number (a special case in engine.js), so a single printed cell has no one engine price to match.',
+  'stepped-feature|Sorcerer|-|Metamagic (+1 option, L17) (SP)': 'The engine prices Metamagic as 2 x purchase number (a special case in engine.js), so a single printed cell has no one engine price to match.',
+};
+const LISTED_KINDS = new Set(['ambiguous', 'unparsed-price', 'stepped-feature']);
+const allowKey = f => `${f.kind}|${f.table || '-'}|${f.context || '-'}|${f.name}`;
 
 // ---- main scan --------------------------------------------------------------------------
 const html = readFileSync(guidePath, 'utf-8');
@@ -245,8 +321,28 @@ for (const t of tables(html)) {
     const status = statusCol === -1 ? '' : (c[statusCol] ?? '');
     rowsChecked++;
 
+    const range = parseRange(priceCell);
+    const base = { line: t.line, context, name, guide: { tierBand: tbCell, price: priceCell, status }, table: t.cls };
+
+    // A combined row "A / B / C" that is NOT one engine entry's own name (a few engine keys bundle names, e.g.
+    // "Psionic Power / Psychic Blades") makes a claim about EACH name. resolveFeature's prefix fallback would
+    // match only the first name and never look at the rest — which is how "Roving / Tireless" stayed wrong.
+    const members = splitCombined(name);
+    if (members.length > 1 && !featureIndex.has(name.toLowerCase()) && (price || range || tb)) {
+      for (const part of members) {
+        const pb = { ...base, name: `${name} ⟶ ${part}` };
+        const pr = resolveFeature(part, t.cls);
+        if (pr.status === 'missing') { findings.push({ ...pb, kind: 'no-engine-key', detail: `combined-row member "${part}" matches no engine entry` }); continue; }
+        if (pr.status === 'ambiguous') { findings.push({ ...pb, kind: 'ambiguous', detail: `combined-row member matches ${pr.candidates.length}: ${pr.candidates.join(', ')}` }); continue; }
+        if (pr.entry.rep) { findings.push({ ...pb, kind: 'stepped-feature', engineKey: pr.key, detail: 'combined-row member is repeatable/stepped in engine' }); continue; }
+        const { why, note } = priceProblems(pr.entry, price, range, tb);
+        if (why.length) findings.push({ ...pb, kind: 'price-mismatch', engineKey: pr.key, detail: why.join(', ') + note + ' (combined-row member)',
+          engine: `${pr.entry.tb} | ${stickerOf(pr.entry)} (${pr.entry.origin})` });
+      }
+      continue;
+    }
+
     const res = resolveFeature(name, t.cls);
-    const base = { line: t.line, context, name, guide: { tierBand: tbCell, price: priceCell, status } };
 
     if (res.status === 'missing') {
       // Only report as a real problem when the row looks like a priced feature row.
@@ -307,25 +403,14 @@ for (const t of tables(html)) {
       continue;
     }
 
-    if (!price) {
+    if (!price && !range) {
       findings.push({ ...base, kind: 'unparsed-price', engineKey: res.key,
         detail: `engine says ${stickerOf(f)} (${f.origin})`, engine });
       continue;
     }
 
-    const stickerWrong = price.sticker !== stickerOf(f);
-    const originWrong = price.origin != null && price.origin !== f.origin;
-    const tierWrong = tb && tb.tierHi == null && tb.tier !== f.tier;
-
-    if (stickerWrong || originWrong || tierWrong) {
-      const why = [];
-      if (stickerWrong) why.push(`sticker ${price.sticker}→${stickerOf(f)}`);
-      if (originWrong) why.push(`origin ${price.origin}→${f.origin}`);
-      if (tierWrong) why.push(`tier T${tb.tier}→T${f.tier}`);
-      // Diagnose the specific error the audit kept making.
-      let note = '';
-      if (price.sticker === f.origin) note = ' [guide printed ORIGIN in the sticker column]';
-      else if (price.sticker === f.cross) note = ' [guide printed CROSS in the sticker column]';
+    const { why, note } = priceProblems(f, price, range, tb);
+    if (why.length) {
       findings.push({ ...base, kind: 'price-mismatch', engineKey: res.key,
         detail: why.join(', ') + note,
         engine: `${f.tb} | ${stickerOf(f)} (${f.origin})` });
@@ -354,9 +439,27 @@ for (const kind of order) {
   console.log('');
 }
 
+// Reviewed exceptions: every listed-kind finding must be in ALLOW; every ALLOW entry must still match a row.
+const unreviewed = findings.filter(f => LISTED_KINDS.has(f.kind) && !(allowKey(f) in ALLOW));
+const seenKeys = new Set(findings.map(allowKey));
+const staleAllow = Object.keys(ALLOW).filter(k => !seenKeys.has(k));
+if (unreviewed.length) {
+  console.log('## unreviewed (' + unreviewed.length + ') — a row the checker cannot compare, and nobody has said why that is fine');
+  for (const f of unreviewed) console.log(`  line ${f.line}  ${allowKey(f)}`);
+  console.log('  Fix the row, or add its key to ALLOW with a reason.\n');
+}
+if (staleAllow.length) {
+  console.log('## stale ALLOW entries (' + staleAllow.length + ') — match no row any more; delete them');
+  for (const k of staleAllow) console.log('  ' + k);
+  console.log('');
+}
+
+const openQuestions = findings.filter(f => LISTED_KINDS.has(f.kind) && String(ALLOW[allowKey(f)] || '').startsWith('OPEN QUESTION')).length;
 console.log('summary: ' + (Object.keys(byKind).length
   ? Object.entries(byKind).map(([k, v]) => `${k}=${v}`).join('  ')
-  : 'no findings'));
+  : 'no findings')
+  + (unreviewed.length ? `  UNREVIEWED=${unreviewed.length}` : '') + (staleAllow.length ? `  STALE-ALLOW=${staleAllow.length}` : '')
+  + (openQuestions ? `  open-questions=${openQuestions}` : ''));
 
 if (jsonOut) {
   writeFileSync(jsonOut, JSON.stringify({
@@ -365,4 +468,4 @@ if (jsonOut) {
   console.log(`wrote ${jsonOut}`);
 }
 
-process.exit(findings.some(f => ['price-mismatch','phantom-step-row','no-engine-key'].includes(f.kind)) ? 1 : 0);
+process.exit(findings.some(f => ['price-mismatch','phantom-step-row','no-engine-key'].includes(f.kind)) || unreviewed.length || staleAllow.length ? 1 : 0);
