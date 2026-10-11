@@ -19,6 +19,13 @@
 - Owner choices A1 + B1: the outright Dodge/Disengage ban was crippling or free depending on class. It is now a DC 12 Wis save, and a failure doesn't spend the action. The WIS cap is kept and the value goes from +2 to +3 AP;
   `DATA.version` v0.372 → v0.373. 0 live characters affected.
   Full record: `decisions/2026/D-GH-2026-10-11-reckless-rework.md`.
+## D-GH-2026-10-11-verify-guide-blind-spots — the guide price checker fails on rows it cannot compare, unless a reason is written down
+- 2026-10-11: `guide-price-check.mjs` checks every member of a combined row, parses ranges, narrows by class before collapsing identical numbers, and fails on any ambiguous/unparsed/stepped row not in a reasoned `ALLOW` list (a stale entry fails too). Found 54 master-vs-served table differences. Full record: `decisions/2026/D-GH-2026-10-11-verify-guide-blind-spots.md`.
+## D-GH-2026-10-11-campaign-npcs — a DM can bind several of their own characters to their campaign as NPCs
+- Owner choices D2 (build a real NPC flag rather than bind NPCs as ordinary characters) and C1 (Bram at 82 DM AP total). `characters.is_npc`, settable only by the new
+  `dm_bind_npc()` RPC (no client column grant); the one-per-campaign index and `is_campaign_member()` exempt NPC rows, so players keep the rule and its race guard; no starting
+  AP on an NPC bind; DM Console splits NPCs off the party at load. The basic-mode count deliberately still includes NPCs (cold review: excluding them is a bypass). Applied live 2026-10-11.
+  Full record: `decisions/2026/D-GH-2026-10-11-campaign-npcs.md`.
 
 ## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
 - Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index

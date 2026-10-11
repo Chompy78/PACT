@@ -173,6 +173,12 @@ track it.
 > the above explicitly, as fixed inventories rather than counts, so none can leave as a side effect.
 > A transfer that drops one now fails loudly instead of silently.
 >
+> **To see content drift, run `node testing/scripts/guide-table-diff.mjs <pact-guide master>`** (local only: CI has
+> no copy of the master). It diffs the visible TABLE text of the two files; `verify-guide.mjs` cannot. **As of
+> 2026-10-11 the baseline is NOT clean** (54 differences, board: "The pact-guide master has drifted far behind…"),
+> and on the price rows sampled the SERVED copy is the one that matches the engine. So a difference is a prompt to
+> decide which side the engine supports and edit the wrong side — never to sync the served copy toward the master.
+>
 > One trap worth naming: the pre-sync stylesheet's `:root` contained **nine self-referential
 > declarations** (`--bg:var(--bg)`), which are cyclic and therefore invalid — the default Parchment
 > theme was already broken. Do not restore that block verbatim; the Parchment palette recovered from

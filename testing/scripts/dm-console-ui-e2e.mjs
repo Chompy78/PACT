@@ -655,6 +655,51 @@ check('...but not the drawback trade (award ignored, drawback kept: 0 + 6 + 33 �
 check('...total drops back to 39 with the award ignored (0 + 6 + 33)',
       dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal === '39', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal);
 
+// feat/campaign-npcs: NPC rows (getRoster()'s isNpc) are split off the party at load. They render in their own
+// "NPCs" section with the per-card DM tools, and every party-wide feature — here the Award AP tick-list — ignores them.
+const npc = await page.evaluate(() => {
+  const el = document.getElementById('campRoster');
+  const built = (id, name) => ({ id, name, ap: 0, owner_id: 'o-' + id, stats: { SEQ: 2, LOG: [
+    { type: 'buy', cat: 'create', cost: 0, seq: 1, noLock: true, payload: {} },
+    { type: 'buy', cat: 'skill', cost: 2, seq: 2, payload: { v: 'Acrobatics' } } ] } });
+  window._dmCampaignApRules = { ignorePlayerAp: true };
+  window._dmRenderCloudRoster(el, [ built('p1', 'Player One'),
+    { ...built('n1', 'Bram Cotter Ch8-12'), isNpc: true }, { ...built('n2', 'Wren <b>Ch8-12</b>'), isNpc: true } ]);
+  const sec = el.querySelector('.npc-section');
+  const npcCards = sec ? [...sec.querySelectorAll('.card')] : [];
+  const out = {
+    hasSection: !!sec,
+    npcCardIds: npcCards.map(c => c.getAttribute('data-id')),
+    partyCardIds: [...el.querySelectorAll('.card')].filter(c => !c.closest('.npc-section')).map(c => c.getAttribute('data-id')),
+    tickIds: [...document.querySelectorAll('#campAwardApList input')].map(i => i.value),
+    npcBasicMode: npcCards.some(c => c.querySelector('.dm-basicmode-btn')),
+    playerBasicMode: !!el.querySelector('.card[data-id="p1"] .dm-basicmode-btn'),
+    npcAwardForm: npcCards.every(c => c.querySelector('.award-btn')),
+    npcRemoveLabel: (npcCards[0] && npcCards[0].querySelector('.unbind-btn') || {}).textContent || '',
+    addBtn: !!(sec && sec.querySelector('.npc-add-open')),
+    injected: !!(sec && sec.querySelector('b')),
+  };
+  window._dmRenderCloudRoster(el, [ built('p1', 'Player One') ]);
+  out.noNpcsStillHasAdd = !!el.querySelector('.npc-section .npc-add-open') && !el.querySelector('.npc-section .card');
+  window._dmRenderCloudRoster(el, [ { ...built('n1', 'Bram Cotter Ch8-12'), isNpc: true } ]);
+  out.onlyNpcsEmptyText = (el.querySelector('.camp-empty') || {}).textContent || '';
+  out.onlyNpcsTickCount = document.querySelectorAll('#campAwardApList input').length;
+  window._dmRenderCloudRoster(el, []);
+  window._dmCampaignApRules = null;
+  return out;
+});
+check('NPCs render in their own "NPCs" section', npc.hasSection && npc.npcCardIds.join() === 'n1,n2', JSON.stringify(npc.npcCardIds));
+check('...and not among the party cards', npc.partyCardIds.join() === 'p1', JSON.stringify(npc.partyCardIds));
+check('the Award AP tick-list (and so its Select all) holds players only', npc.tickIds.join() === 'p1', JSON.stringify(npc.tickIds));
+check('an NPC card keeps the per-character award form', npc.npcAwardForm === true);
+check('an NPC card has no basic-mode control (a player-account setting); a player card still does', !npc.npcBasicMode && npc.playerBasicMode);
+check('an NPC card says "Remove NPC from campaign"', /Remove NPC from campaign/.test(npc.npcRemoveLabel), npc.npcRemoveLabel);
+check('the NPC section offers "+ Add an NPC"', npc.addBtn === true);
+check('an NPC name is escaped (no injected markup)', npc.injected === false);
+check('with no NPCs yet the section still offers Add, with no cards', npc.noNpcsStillHasAdd === true);
+check('a campaign with only NPCs says "No player characters" and ticks nobody',
+      /No player characters/.test(npc.onlyNpcsEmptyText) && npc.onlyNpcsTickCount === 0, npc.onlyNpcsEmptyText);
+
 // feat/dm-roster-lock-icon: each character shows a locked/unlocked icon after its tier. Characters are imported
 // the way a DM imports a file (the hidden #fileInput) so the real analyser and renderers run. The state is the
 // engine's creationLockState(), never re-derived, so this only checks it is shown and shown correctly.

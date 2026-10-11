@@ -1,5 +1,5 @@
 -- PACT — server freeze, STAGE 2. Plan: docs/plans/2026-10-04-server-freeze-d2-e1.md. Decision: decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md (stage 2 section).
--- NOT APPLIED to the live database as of this file's creation — applying it is the owner's decision. Rehearsed on a throwaway Docker Postgres
+-- APPLIED to the live database on 2026-10-11 (migration `server_freeze_stage2`, owner-approved after a read-only replay of all 394 real campaign save pairs found none that only stage 2 refuses). Rehearsed on a throwaway Docker Postgres
 -- (testing/scripts/creation-lock-guard-test/run-freeze.sh, stage-2 phase). Rollback: sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql.
 --
 -- WHAT. Stage 1 (applied 2026-10-10) left a TEMPORARY exemption: patch fields the character-creation tool still rewrote in place after a lock — spellcasting (`traditions`), innate

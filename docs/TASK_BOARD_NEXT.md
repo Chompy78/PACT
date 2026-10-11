@@ -1333,38 +1333,74 @@ DO:
 ```
 **Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
 
-## `verify-guide.mjs` cannot see a combined row's second name, and only warns on ambiguous/unparsed/stepped rows — TODO
-**Effort:** low–medium · **Risk:** low — a checker and an allow-list; no pricing or guide-text change unless it finds another stale row.
+## The pact-guide master has drifted far behind the served Players Guide, and two guide-vs-engine rows are an open question — TODO
+**Effort:** medium–high (master reconciliation) / low (the two questions) · **Risk:** medium — a transfer from the master today would silently regress prices the served copy already has right; the owner decides which side is canonical row by row.
 
 ```text
-HISTORY: FOUND 2026-10-06 as "verify-guide is red at baseline"; on 2026-10-08 the four stale rows behind that were fixed (split into one row per ability in the
-pact-guide master and the served copy; the verifier now passes 11 of 11). The `feature prices` check fails ONLY on a price mismatch; it merely lists the rest.
-What is left is the blind spots that let those four rows go stale unnoticed for six weeks:
-  1. A combined row "A / B" is matched on its FIRST name only. "Roving / Tireless" priced as Roving (correct for Roving) and the checker never looked at Tireless;
-     "Empowered Strikes / Self-Restoration" was matched to Empowered Strikes alone. DO: match every name in a combined row and check each against the engine.
-  2. A price RANGE is "unparsed", so a wrong range passes ("Perfect Focus / Body & Mind 24–28" was wrong for both members; "Tactical Mind / Shift / Master 3–10" matched
-     none). DO: parse "a–b" and check that every member's price lies in it (or that the endpoints equal the min and max).
-  3. Today the check still LISTS ambiguous=6 (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells: one name in two classes), unparsed=9 (skill-ladder
-     rows, "Included in Premium", "Barred -> A&T" ...) and stepped=3 (Metamagic) without ever failing on them. DO: key ambiguous rows on the table's class heading; allow-list
-     each remaining row WITH A REASON so a NEW unparsed or ambiguous row fails.
-  4. The pact-guide master and the served copy have drifted in CONTENT, not only in the three documented presentation additions: the served copy's Ranger table has a
-     "Subclass bonus spells" row the master lacks (found 2026-10-08). DO: find any other such row (diff the two files' tables), then decide which side is right and
-     make them agree — never by copying one file over the other (see docs/VERSION-SYNC.md).
+HISTORY: the verifier blind spots (combined rows, ranges, the unreviewed ambiguous/unparsed/stepped rows) were fixed 2026-10-11, see D-GH-2026-10-11-verify-guide-blind-spots.
+The one Ranger row was added to the master the same day. What that work FOUND:
+
+A. The master and the served copy differ in table CONTENT in 54 places, not one. Run, from a checkout with both files:
+     node testing/scripts/guide-table-diff.mjs <pact-guide>/PACT-Players-Guide.html
+   Price rows where the SERVED copy matches the engine and the master does not (sample): Monk Martial Arts die and Unarmored Movement (master prints the old stepped prices,
+   served prints 5 (5)/6 (6)/8 (9) and 3 (3)..6 (6)), Sorcerer Origin bonus spells and Warlock Patron bonus spells (master "8 (6)", served "varies 8-12" / "varies 8-16"),
+   Druid Circle of the Sea/Stars spells, Barbarian "Brutal Strike, improved (L13)" (only in served), plus rewritten Premium / Sneak Attack / Rage / class-unlock prose
+   ("7 x the classes you hold" in the master, "a flat 8 AP" in the served copy) and different Boon / Drawback tables. DO: for each difference decide which side the ENGINE
+   supports, then edit the wrong side (the master through the home-server connector, the served copy locally) — never by copying one file over the other (docs/VERSION-SYNC.md).
+   Re-run the diff until it is clean, then verify-guide.mjs.
+
+B. Two guide rows the price checker cannot compare look like real disagreements with the engine (they are in guide-price-check.mjs's ALLOW list as OPEN QUESTIONs):
+   - Battle Master > Improved Combat Superiority: the guide says "Included in Premium" and prints no price; the engine sells it separately at 14 (10) with no bar.
+   - Gloom Stalker > Iron Mind: the guide says "Barred (-> saves)" with no price but status "Buy"; the engine sells it at 14 (11) with no bar. (Both guide copies agree with each other.)
+   DO: owner decides for each whether the engine should bar/include it (data change, DATA.version bump, fixtures) or the guide should print the price. Then delete its ALLOW entry.
 ```
-**Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
+**Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
 
 
-## fix/livesheet-drawback-prereqs — the Live Sheet offers a drawback its stat cap or caster-only rule forbids; CharGen refuses it — TODO
-**Effort:** low · **Risk:** low — ambiguity low (CharGen's rule is the written one), damage small, and the fix only removes an offer.
+## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
 
 ```text
-FOUND 2026-10-05 by the post-lock parity fuzz (docs/sessions/2026-10-05-post-lock-parity-fuzz.md). A drawback has prerequisites:
-`DATA.drawbackMaxStats` (an ability score at or under a cap) and `DATA.drawbackReq` (caster-only: needs a spellcasting discipline).
-CharGen greys the tick-box when either breaks (tools/PACT-CharGen-Webtool.html, the `.drawck` loop near "capBreaks"). The Live Sheet's
-`db(name)` tile and `takeDrawback()` check neither, so a player with, say, STR 16 can buy a drawback capped at STR 14 and the engine
-only warns (js/engine.js, "drawback requires"). 1 of 34 fuzzed drawback purchases hit it.
-DO: put the two prerequisite checks in ONE place (engine.js, e.g. `drawbackBlock(build, name)`), use it from CharGen's greying loop and
-from the Live Sheet tile + `buy('drawback')` gate, and add the case to the post-lock parity fuzz / chargen-flows-e2e. Do not change
-what the engine warns about, and do not touch characters that already hold such a drawback.
+The guide's Battle Master row says "Improved Combat Superiority — Included in Premium" with no price, and its Combat Superiority row is annotated "dice, scaling, 3 maneuvers".
+The engine sells it as its own purchase: `Fighter: Improved Combat Superiority` plus the `Fighter|Battle Master` copies in subAbilMap and subclasses, T5 Per-Rest 14 (10),
+lvl 10, no bar. A player following the guide would expect it free and the engine would charge them. OWNER DECIDES (put it as a lettered choice):
+  Y1  Make the engine match the guide: add bar:true to all three data copies (as `Fighter: Additional Fighting Style` already has), bump DATA.version once, add fixtures proving
+      it cannot be bought through either purchase door, mutation-check them. Guide unchanged. (Agent recommendation, moderate confidence: the guide's annotation reads as deliberate.)
+  Y2  Make the guide match the engine: print T5 Per-Rest 14 (10) and status Buy in BOTH guide copies (master through the home-server connector, served copy locally).
+      No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Fighter|Battle Master|Improved Combat Superiority`).
+If the Gloom Stalker Iron Mind task below also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
 ```
-**Done when:** a Live Sheet tile for a drawback whose cap or caster rule is broken is greyed with the reason and `takeDrawback` refuses it; CharGen's greying uses the same engine function; the fuzz's drawback run reports 0 differences on a seed that previously hit this; `engine-parity` 0 failed.
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## fix/gloom-stalker-iron-mind-decision — the guide row for Iron Mind contradicts itself and the engine sells it for 14 (11) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 0 of 31 active characters own Iron Mind; positive control Sneak Attack = 3).
+
+```text
+The guide's Ranger > Gloom Stalker row for Iron Mind reads tier "Barred (→ saves)", price "none", status "Buy" (identical in both guide copies). The engine sells
+`Ranger|Gloom Stalker|Iron Mind` and `Ranger: Iron Mind` at T4 Passive 14 (11) with no bar. Wisdom save proficiency is what the saves ladder already sells. OWNER DECIDES (lettered):
+  Z1  Bar it in the engine: bar:true on the features entry, the subAbilMap copy and the subclasses copy, DATA.version bump, fixtures proving it cannot be bought through either
+      door; and fix the guide status cell to "Barred → saves" in BOTH guide copies. (Agent recommendation: two of the three cells already say barred, so "Buy" looks like the typo.)
+  Z2  Keep it purchasable: print 14 (11) and drop the Barred wording in BOTH guide copies. No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Ranger|Gloom Stalker|Iron Mind`).
+If the Improved Combat Superiority task above also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
+```
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## check/server-freeze-stage2-after-apply — look for refused saves and run the checks stage 2's apply skipped — TODO
+**Effort:** low · **Risk:** low — read-only checks; the only action they could lead to is the one-statement rollback.
+
+```text
+Server freeze stage 2 was applied to the live database on 2026-10-11 (migration `server_freeze_stage2`). Three checks did not happen then:
+(1) the Supabase SECURITY advisor was blocked by the permission classifier (the performance advisor ran, nothing related);
+(2) the Postgres log query returned a backend error, so refused saves since the apply were not looked for;
+(3) `roundtrip-audit.mjs --stage2 --campaign-all` needs a full export of the live characters, which cannot be saved from a Claude session.
+DO, once players have had a couple of play days on it: run the security advisor and confirm nothing new mentions the freeze functions;
+query the Postgres logs for "locked character history" since 2026-10-11 and, for each hit, find out whether it was an honest save
+(a stale copy of the tool) or a real problem; if a real player's save was wrongly refused, apply
+`sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql` and open a task for the cause. For (3), have the owner export the live
+characters to a local file outside the repo, run the audit on it, then delete the file.
+```
+**Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.

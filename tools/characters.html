@@ -236,6 +236,8 @@ function rowHtml(c){
   return '<div class="row' + (archived ? ' archived' : '') + '">' +
     '<span class="nm">' + name + '</span>' +
     '<span class="badge' + (archived ? ' arch' : '') + '">' + (archived ? 'Archived' : tool.label) + '</span>' +
+    // feat/campaign-npcs: a DM's own character bound to their campaign as an NPC.
+    (c.is_npc ? '<span class="badge" title="An NPC in this campaign — bound by its DM, kept out of party-wide actions.">NPC</span>' : '') +
     sync +
     '<span class="meta">' + esc(ts) + (c.ap ? ' · ' + esc(String(c.ap)) + ' AP' : '') + '</span>' +
     '<span class="actions">' + openBtn + archBtn + delBtn + '</span>' +
