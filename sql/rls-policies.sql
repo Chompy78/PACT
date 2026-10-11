@@ -906,13 +906,13 @@ $$;
 -- Folded in from sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (applied to production 2026-10-10): the three helpers, then the ledger function that uses them.
 -- The key lists live in two tiny functions so they are visible in the database itself (COMMENT ON FUNCTION) and a later migration changes one line.
 create or replace function public.pact_patch_exempt_keys()
- returns text[] language sql immutable set search_path to 'public', 'pg_temp'
+ returns text[] language sql immutable set search_path = public, pg_temp
 as $function$ select array['appearance','houseRules','gold']::text[] $function$;
 comment on function public.pact_patch_exempt_keys() is
   'PERMANENT: patch fields that carry no AP and stay editable after a lock/seal (appearance text, house-rule toggles, the legacy wallet field). Everything else in a buy/patch event is protected (fail-closed).';
 
 create or replace function public.pact_patch_temp_exempt_keys()
- returns text[] language sql immutable set search_path to 'public', 'pg_temp'
+ returns text[] language sql immutable set search_path = public, pg_temp
 as $function$ select array['traditions','innate','dabblerCantrips','martiallyBound','originClass','originClass2','species','species2','size','lineage']::text[] $function$;
 comment on function public.pact_patch_temp_exempt_keys() is
   'TEMPORARY (stage 1, 2026-10-05): priced/identity patch fields the character-creation tool still rewrites in place after a lock until phase 2b ships (spellcasting, innate spells, martial binding, dabbler cantrips, species, origin classes, size, lineage). Removed by the stage-2 migration. Keep separate from the permanent list so an entry cannot quietly become permanent.';
@@ -921,7 +921,7 @@ comment on function public.pact_patch_temp_exempt_keys() is
 -- Returns NULL when the patch has no protected field (an appearance-only event stays unprotected). A non-object patch yields NULL too:
 -- turning a protected event into one shrinks the protected list, which the trigger refuses.
 create or replace function public.pact_patch_protected_projection(p_ev jsonb)
- returns jsonb language sql immutable set search_path to 'public', 'pg_temp'
+ returns jsonb language sql immutable set search_path = public, pg_temp
 as $function$
   select case when s.n = 0 then null
               else jsonb_build_object('type', p_ev->'type', 'cat', p_ev->'cat', 'cost', p_ev->'cost',
@@ -938,7 +938,7 @@ create or replace function public.pact_ap_ledger_protected(p_log jsonb)
  returns jsonb
  language sql
  immutable
- set search_path to 'public', 'pg_temp'
+ set search_path = public, pg_temp
 as $function$
   select coalesce(jsonb_agg(
            case when (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch'
@@ -1000,11 +1000,7 @@ create trigger trg_pact_ap_budget_consistency
 
 -- Folded in from the same migration (adds the D2 lock boundary).
 create or replace function public.pact_enforce_locked_history()
- returns trigger
- language plpgsql
- security definer
- set search_path to 'public', 'pg_temp'
-as $function$
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $function$
 declare
   v_old_log jsonb; v_award_idx int; v_seal_idx int; v_lock_idx int; v_last_lock int; v_last_unlock int; v_idx int;
   v_protected_old jsonb; v_protected_new jsonb; i int;
