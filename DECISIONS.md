@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-11-stored-size — a character's stored size matches its real size
+- Owner choice I3. CharGen saved its hidden size dropdown's parked "Small"; 23 of 37 characters stored Small while being Medium (play unaffected — compute() ignores a
+  non-choosable size — but raw readers were misled). `sizeOf()` in the engine; CharGen stores its answer; the 23 corrected by one appended 0-AP event each. The I3 "DM
+  server function" proved unnecessary: the freeze only refuses rewriting the protected history, and an appended event passes it. Applied live; play outputs unchanged.
+  Full record: `decisions/2026/D-GH-2026-10-11-stored-size.md`.
+
 ## D-GH-2026-10-11-quick-patch-split — Quick Patch keeps the revive with limited uses; Staunch the Bleeding is the new cheap stabiliser
 - Owner choices D2/E1/G1: an unlimited at-will revive to 1 HP for 3 AP was overpowered. Quick Patch now has Proficiency Bonus uses per Long Rest and stays at 3 AP. A new 2 AP boon, Staunch the Bleeding, stabilises as a Bonus Action at 0 HP.
   The name stays with the revive because live characters store boons by name (6 own it), so no data migration or repricing is needed.

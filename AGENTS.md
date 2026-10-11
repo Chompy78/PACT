@@ -432,7 +432,11 @@ branch. `EnterWorktree` sanitizes `/` out of its `name` argument, so `/run-code-
   `docs/history/` (archived, non-authoritative).
 - **Data rule:** the DB stores only raw character data (`characters.stats`) — the engine derives the rest
   (see *Persistence* above). `ap` (DM-awarded points) is server-authoritative and DM-only — never
-  overwritten by a local push.
+  overwritten by a local push. **Reading a character from the raw database** (another session, a report):
+  a value in `stats.LOG` is an INPUT, not the answer — fold it and compute (`compute(foldBuild(LOG))`),
+  and where a field appears in several patch events the LAST one wins. `size` is the trap: it only counts
+  when the species makes it a choice; the real size is `sizeOf(foldBuild(LOG)).size`. Older saves carry a
+  placeholder `"Small"` early in their history, corrected by a later event (D-GH-2026-10-11-stored-size).
 
 ## Per-change checklist
 1. One task, one branch — name it `type/short-slug` (e.g. `feat/…`, `fix/…`, `docs/…`).
