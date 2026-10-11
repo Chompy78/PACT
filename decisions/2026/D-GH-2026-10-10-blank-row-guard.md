@@ -2,7 +2,7 @@
 
 Status: Active. **Applied to the live database 2026-10-11** (both files; trigger present, `pact-purge-blank-characters` job
 scheduled and active, `authenticated` cannot execute the purge; security + performance advisors show no new findings). The
-one-off sweep of the existing 31 rows is still to run — see *Applying* step 2.
+one-off sweep ran 2026-10-11: 31 rows removed, 31 copied to `character_backups`, 0 blank rows left (64 → 33 rows).
 
 ## Context
 
@@ -53,7 +53,7 @@ fixed by `fix/blank-character-rows`.
 ## Applying
 
 1. ~~Apply `sql/migrations/2026-10-10-blank-row-guard.sql`, then `2026-10-10-blank-row-purge-schedule.sql`.~~ Done 2026-10-11.
-2. Run the sweep once: `select public.pact_purge_blank_characters(interval '1 day');` — expected 31 on 2026-10-10.
+2. ~~Run the sweep once: `select public.pact_purge_blank_characters(interval '1 day');`~~ Done 2026-10-11: 31 removed.
 3. ~~Run the Supabase advisors.~~ Done 2026-10-11: no new findings.
 
 **Note for whoever applies a migration next:** the project's `.claude/settings.json` permission rules are written for
