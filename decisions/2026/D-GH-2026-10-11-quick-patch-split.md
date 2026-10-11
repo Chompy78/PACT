@@ -1,6 +1,6 @@
 # D-GH-2026-10-11-quick-patch-split — Quick Patch keeps the revive with limited uses; Staunch the Bleeding is the new cheap stabiliser
 
-**Status:** DONE on branch `claude/eloquent-hypatia-55hkzp`; rides the `DATA.version` **v0.373** bump already on that branch (`D-GH-2026-10-11-reckless-rework`). Players Guide changed in both the served copy and the `pact-guide` master.
+**Status:** DONE on branch `claude/eloquent-hypatia-55hkzp`; rides the `DATA.version` **v0.374** bump already on that branch (`D-GH-2026-10-11-reckless-rework`). Players Guide changed in both the served copy and the `pact-guide` master.
 
 ## Context
 

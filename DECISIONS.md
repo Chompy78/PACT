@@ -17,8 +17,15 @@
 
 ## D-GH-2026-10-11-reckless-rework — Reckless becomes a Wisdom save to back off, worth 3 AP
 - Owner choices A1 + B1: the outright Dodge/Disengage ban was crippling or free depending on class. It is now a DC 12 Wis save, and a failure doesn't spend the action. The WIS cap is kept and the value goes from +2 to +3 AP;
-  `DATA.version` v0.372 → v0.373. 0 live characters affected.
+  `DATA.version` v0.373 → v0.374. 0 live characters affected.
   Full record: `decisions/2026/D-GH-2026-10-11-reckless-rework.md`.
+## D-GH-2026-10-11-lineage-spell-gates — lineage spells are gated by the PHB character level, stated per spell, and CharGen enforces it
+- Owner report: a Tiefling's Darkness showed "L3" and could be bought without 5 HD; Hellish Rebuke had no gate. The third element of each `DATA.lineageSpells` entry
+  was both a spell level and the Hit Dice gate (via `hdGate`), so 2nd-level spells were stored as "3rd" to reach 5 HD. Entries now state their own Hit Dice (PHB 2024:
+  cantrip 1, 1st-level spell 3, 2nd-level spell 5); `lineageSpellHD()`/`lineageSpellLabel()` in the engine are the only readers; CharGen greys below the gate. Prices
+  unchanged — the 2nd-level spells' 12 AP vs the guide's "2nd 9" is left as an open owner question. Rules v0.373.
+  Full record: `decisions/2026/D-GH-2026-10-11-lineage-spell-gates.md`.
+
 ## D-GH-2026-10-11-verify-guide-blind-spots — the guide price checker fails on rows it cannot compare, unless a reason is written down
 - 2026-10-11: `guide-price-check.mjs` checks every member of a combined row, parses ranges, narrows by class before collapsing identical numbers, and fails on any ambiguous/unparsed/stepped row not in a reasoned `ALLOW` list (a stale entry fails too). Found 54 master-vs-served table differences. Full record: `decisions/2026/D-GH-2026-10-11-verify-guide-blind-spots.md`.
 ## D-GH-2026-10-11-campaign-npcs — a DM can bind several of their own characters to their campaign as NPCs

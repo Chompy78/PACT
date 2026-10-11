@@ -1,6 +1,6 @@
 # D-GH-2026-10-11-reckless-rework — Reckless becomes a Wisdom save to back off, worth 3 AP
 
-**Status:** DONE on branch `claude/eloquent-hypatia-55hkzp`; `DATA.version` bumped **v0.372 → v0.373**. Players Guide changed in both the served copy and the `pact-guide` master.
+**Status:** DONE on branch `claude/eloquent-hypatia-55hkzp`; `DATA.version` bumped **v0.373 → v0.374** (originally v0.372 → v0.373; renumbered when #610 took v0.373 first). Players Guide changed in both the served copy and the `pact-guide` master.
 
 ## Context
 

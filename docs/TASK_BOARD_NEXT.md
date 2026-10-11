@@ -1404,3 +1404,60 @@ query the Postgres logs for "locked character history" since 2026-10-11 and, for
 characters to a local file outside the repo, run the audit on it, then delete the file.
 ```
 **Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
+
+## chore/racialfx-single-source — the racial-trait descriptions live in three tool copies (one dead, one already drifted) — TODO
+**Effort:** low · **Risk:** low — display-only text never read by `compute()`; damage scale is a missing tooltip at worst.
+
+```text
+DATA.racialFx (the hover text on racial-trait checkboxes) is overwritten inside each tool's module bridge:
+CharGen (~line 604), Live Sheet (~2723) and DM Console (~3395). js/engine-data.js also carries a partial
+racialFx map (4 keys) that all three tools then replace. Measured on preview a064f68 (2026-10-11):
+  - CharGen and Live Sheet copies are identical (40 keys).
+  - DM Console's copy (38 keys) has drifted: it lacks "Dragonborn: Larger breath dice (L5)/(L11)/(L17)" (the
+    real DATA.racial keys) and carries a stale "Dragonborn: Larger Breath Dice" that matches no trait.
+  - Nothing in DM Console reads DATA.racialFx at all (only the definition and a comment) — its copy is dead.
+Deep fix (recommended): move the full map into js/engine-data.js once, merged with the 4 keys already there,
+and delete all three tool copies — the same shape as DATA.lineageFx (PR #603). Check CharGen and Live Sheet
+render the same tooltips/sheet text afterwards. Shallow alternative: delete DM Console's dead copy only and
+leave the CharGen/Live Sheet duplication. Display-only: no DATA.version bump; log in CHANGELOG.md.
+```
+**Done when:** `DATA.racialFx` is defined in exactly one place (or, if the shallow fix is chosen, DM Console's dead copy is gone and the choice is noted in the changelog line); CharGen's racial-trait checkbox tooltips show the same text as before for all 40 keys; `engine-parity` 0 failed.
+
+## fix/no-creation-limit-note — a campaign character with no creation limit hides "Finish creating" without saying why — TODO
+**Effort:** low · **Risk:** low — display-only UI in two tools, never read by `compute()`; worst case is a misplaced note.
+
+```text
+Found 2026-10-11: the player of "Wren Ch4 end" (and "Wren Ch8-12") could not find how to end creation. Cause: joining a
+campaign makes the server trigger pact_campaign_move_clears_creation (sql/rls-policies.sql ~line 1254) stamp
+creationLockConfig{threshold:null} ("Creation limit cleared - joined a campaign"). With no threshold, creationCeiling().enforced
+is false, and both player tools then simply hide the button:
+  - CharGen: _cgRenderAll(), tools/PACT-CharGen-Webtool.html ~line 6638 (cgFinishCreatingBtn)
+  - Live Sheet: render(), tools/PACT-Live-Char-Sheet.html ~line 1588 (finishCreatingBtn)
+Only the DM Console says anything ("No limit set"). The fix for a player is the DM entering a figure under Creation limit ->
+Set limit, but nothing tells the player that.
+
+DO: in both tools, when the character is in a campaign, is NOT locked (creationLockState().locked false) and has no limit
+(creationCeiling().enforced false), show a short note where the button would be, e.g. "Your DM hasn't set a creation limit
+yet — ask them to set one in the DM Console, then you can finish creating." Keep the wording the same in both tools.
+Solo/local characters (no campaign) keep today's behaviour: no button, no note. A character with a limit keeps the button.
+A locked character shows neither. Display-only: no DATA.version bump, no compute() change; log in CHANGELOG.md.
+```
+**Done when:** in both CharGen and Live Sheet, a campaign character with no limit shows the note, a campaign character with a limit shows the button and no note, a solo character and a locked character show neither; `engine-parity` 0 failed.
+
+## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
+**Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
+
+```text
+OWNER CHOICE F3 (2026-10-11): leave for now. Players Guide §10 says 1/long-rest lineage spells cost "1st 6, 2nd 9, 3rd 12", but
+the five 2nd-level lineage spells — Darkness (Drow and Infernal), Misty Step, Pass without Trace, Hold Person, Ray of Enfeeblement —
+cost 12 in DATA.lineageSpells (js/engine-data.js). The 12 is left over from the pre-v0.373 workaround that stored them as "level 3"
+to reach a 5 Hit Dice gate; #610 (D-GH-2026-10-11-lineage-spell-gates) fixed the level and gate and deliberately left prices alone.
+
+Owner decides one of:
+  A. Price them at 9, as the guide's rule says. Rules change: edit the five entries' AP, bump DATA.version once (+ the three
+     fallback literals per docs/VERSION-SYNC.md), update the guide rows in the served copy AND the pact-guide master (run
+     verify-guide.mjs before and after; guide-table-diff.mjs must not gain differences), update lineage-spell-gates-ci.mjs's
+     price assertion ('4,6,12' -> '4,6,9'). MEASURE FIRST: live characters owning any of the five (0 on 2026-10-11).
+  B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
+```
+**Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
