@@ -228,20 +228,6 @@ Audit 2026-10-12. Grep the symbol; line numbers approximate.
 ```
 **Done when:** an e2e test per item reproduces the loss on old code and passes on new (names survive reload and don't leak into New Character; Save after a cloud load doesn't touch the earlier file; awards keep their notes after a Live Sheet→CharGen handoff; a refused ✕ restores the row; Elf+Elf clears to (none) in the LOG; a custom boon survives reload and prices in compute()); `engine-parity.html` 0 failed.
 
-## fix/ledger-xss-escaping — unescaped LOG values in both tools' ledgers (stored XSS into a DM's browser) — TODO
-Branch fix/ledger-xss-escaping. **Effort:** low · **Risk:** low — one-line esc() wraps; damage scale is high if left (cross-user script) but the fix is mechanical.
-
-```text
-Audit 2026-10-12 (AGENTS.md esc() rule). Player-controlled LOG values reach innerHTML raw; a DM opening the character runs them.
-  - Live Sheet ledger: e.seq and e.rules ('<span class="vtag">'+e.rules+…, ~LS:1812).
-  - CharGen renderLedger row() l[0] (~CG:6454) and explainCost label (~CG:6514) — engine line labels embed tradition/discipline names
-    (engine.js ~796, ~817); confirmed in node with a tradition named <img src=x onerror=…>.
-  - Check and escape if reachable: Live Sheet Needs-review tray '<li>'+i (~LS:1815) and Sheet AP Ledger l[0] (~LS:2400); DM Console's
-    equivalents of the same renders.
-```
-**Done when:** a test character with `<img src=x onerror=window.__xss=1>` as a tradition name and as `rules` renders as text in CharGen, Live Sheet (incl. ?viewChar) and DM Console with `window.__xss` unset; `engine-parity.html` 0 failed.
-
-
 ## feat/livesheet-buy-fullpage — Live Sheet: let the Buy / progress panel expand to the whole page — TODO
 Branch `feat/livesheet-buy-fullpage`. **Effort:** small · **Risk:** low — UI-only CSS/JS in one tool; driven by ambiguity (what
 "expanded" looks like), not damage: `buy()` and the engine are untouched.

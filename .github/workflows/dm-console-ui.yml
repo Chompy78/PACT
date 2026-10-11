@@ -26,6 +26,7 @@ on:
       - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
       - "testing/scripts/dm-impose-picker-e2e.mjs"
+      - "testing/scripts/ledger-xss-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -89,3 +90,8 @@ jobs:
       # localStorage, no Supabase), so it shares this job's Chromium install.
       - name: Live Sheet — a subclass ability held through one door is owned in both pickers
         run: node testing/scripts/live-sheet-subclass-owned-e2e.mjs
+
+      # fix/ledger-xss-escaping: player-controlled LOG values (tradition names, event/envelope `rules`, award amounts) render as
+      # text in every ledger-shaped view of all three tools, incl. the Live Sheet ?viewChar= DM view. Same cost profile.
+      - name: Ledger renders — a stored-XSS payload in the LOG renders as text in all three tools
+        run: node testing/scripts/ledger-xss-e2e.mjs

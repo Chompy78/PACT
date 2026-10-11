@@ -6461,7 +6461,7 @@ function updateSections(r){
 function renderLedger(r,b){
   b=b||readBuild();   // reuse render's build so explainText doesn't readBuild+compute per row
   let html='',matched={};
-  const row=l=>'<tr class="lrow" data-lab="'+l[0].replace(/"/g,'&quot;')+'" onclick="explainCost(this.dataset.lab)" title="'+explainText(l[0],b,r).replace(/"/g,'&quot;')+' — click for the full breakdown"><td style="padding-left:12px">'+l[0]+' <span class="qm">?</span></td><td class="v">'+l[1]+'</td></tr>';
+  const row=l=>'<tr class="lrow" data-lab="'+esc(l[0])+'" onclick="explainCost(this.dataset.lab)" title="'+esc(explainText(l[0],b,r))+' — click for the full breakdown"><td style="padding-left:12px">'+esc(l[0])+' <span class="qm">?</span></td><td class="v">'+l[1]+'</td></tr>';
   // v0.314: show each item purchased under its category line, not just the category subtotal
   const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+_csEsc(x[0])+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
   LGROUPS.forEach(g=>{const ls=r.lines.filter(l=>g.lines.some(p=>l[0].indexOf(p)===0));ls.forEach(l=>matched[l[0]]=1);
@@ -6494,7 +6494,7 @@ function explainParas(label,b,r){
   else if(L==='Weapon proficiency'){P('Flat, class-neutral: Simple 1 AP, a single martial +2, all martial 8 (after Simple), Improvised 3. Buy the bundle once you want four-plus martials.');}
   else if(L==='Weapon masteries'){const n=(b.masteries||[]).length;P('Masteries are <b>Steady</b> (first 2, then +1): 2, 3, 4, 5… and need <b>any</b> weapon proficiency first — Simple proficiency is enough. You own '+n+'.');}
   else if(L==='Armour proficiency'){P('Flat climb: Light 2, Medium +4 (needs Light <b>and STR 10</b>), Heavy +6 (needs Medium <b>and STR 10</b>), Shield 2. Full plate = 12 AP.');}
-  else if(L==='Heritage pack'){P('A species pack is a flat, subsidised bundle of that race\'s defining basics ('+(DATA.pack[b.species]||0)+' AP for '+b.species+'). Human is free.');}
+  else if(L==='Heritage pack'){P('A species pack is a flat, subsidised bundle of that race\'s defining basics ('+(DATA.pack[b.species]||0)+' AP for '+esc(b.species)+'). Human is free.');}
   else if(L.indexOf('2nd origin species')===0){P('A second origin race (creation only) costs <b>double</b> its pack, and then its traits are bought at base price with no cross-species surcharge.');}
   else if(L==='Species traits'){P('Race-defining traits are <b>T1 at character creation</b> (no Hit-Dice gate): your own race\'s at the ★ origin price, another race\'s at +1. Skill-granting traits are bought on the skill ladder instead.');if((b.budget||0)>(DATA.level1AP||79))P('⚠ Your budget is above the ~'+(DATA.level1AP||79)+' AP level-1 anchor — traits actually acquired in play would cost more (their current Tier).');}
   else if(L==='Class unlocks'){P('Unlocking another class costs <b>7 × the classes you already own</b> (7, 14, 21, 28 → cumulative 7/21/42/70). Only needed if you want several of that class\'s features.');}
@@ -6518,13 +6518,13 @@ function explainParas(label,b,r){
   else if(L.indexOf('Rank')>=0){P('Spellcasting Rank sets the highest spell level you may cast, on the <b>Steady</b> ladder (4,5,6…). It grants no slots by itself.');}
   else if(L.indexOf('Mystic Arcanum')>=0){P('Mystic Arcanum: one fixed warlock spell each of L6–9, 1/long rest, Hit-Dice gated, up to your CHA modifier in total.');}
   else if(L.indexOf('pact slots')>=0){P('Warlock pact slots all cast at your highest level (≤5th) and refresh on a <b>short</b> rest. Cost rises per slot; cap = casting modifier + proficiency.');}
-  else{P('This is the AP charged for "'+label+'". '+(line?'':'(It currently contributes 0 AP.)'));}
+  else{P('This is the AP charged for "'+esc(label)+'". '+(line?'':'(It currently contributes 0 AP.)'));}
   return {paid,body};
 }
 function explainCost(label){const o=explainParas(label);
-  showExplain('<div class="exhdr"><b>'+label+'</b><span class="exap">'+o.paid+' AP</span></div>'+o.body.map(s=>'<p>'+s+'</p>').join(''));}
+  showExplain('<div class="exhdr"><b>'+esc(label)+'</b><span class="exap">'+o.paid+' AP</span></div>'+o.body.map(s=>'<p>'+s+'</p>').join(''));}
 // plain-text version for the hover tooltip (strip the inline HTML)
-function explainText(label,b,r){try{return explainParas(label,b,r).body.join('  ').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&');}catch(e){return '';}}
+function explainText(label,b,r){try{return explainParas(label,b,r).body.join('  ').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');}catch(e){return '';}}
 function buildGuide(b,r){const tips=[];
   if(r.remaining<0)tips.push('You are <b>'+(-r.remaining)+' AP over budget</b> — trim something or raise the budget.');
   if(b.hd>=5&&b.profBonus<3)tips.push('Level '+b.hd+': you can buy <b>Proficiency +3</b> — it lifts attacks, saves, skills & spell DC at once.');
@@ -6967,7 +6967,7 @@ function renderCharSheet(b,r,ctx){
      [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
   H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies','','people and factions…',54)+'</div>');
   H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes','','backstory, session notes, treasure…',80)+'</div>');
-  H.push('<div class="shbox"><h5>AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
+  H.push('<div class="shbox"><h5>AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
   return H.join('');
 }
 
