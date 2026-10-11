@@ -76,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.612";
+export const BUILD = "v1.616";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -291,6 +291,27 @@ export function lineageSpellLabel(sp){
   const need = lineageSpellHD(sp);
   return (sp[2] === 0 ? 'cantrip · cap-exempt' : (_ORD[sp[2]] || ('level ' + sp[2])) + ' · 1/long rest')
        + (need > 1 ? ' · needs ' + need + ' HD' : '');
+}
+
+// Character size (0 AP). Halfling & Gnome packs are Small. A Halfling is ALWAYS Small (even as a second origin). A Halfling
+// or Gnome paired with a non-small second origin race may CHOOSE Small or Medium (default Small); a Tiefling chooses (default
+// Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
+// saving a build must store this `size`, not a form control's leftover value (fix/stored-size, D-GH-2026-10-11-stored-size: 23 of
+// 37 live characters stored "Small" while being Medium). Moved verbatim out of compute(), which calls it.
+export function sizeOf(b){
+  const _races=[b&&b.species,b&&b.species2].filter(s=>s&&s!=='(none)');
+  const _isSmall=r=>(r==='Halfling'||r==='Gnome');
+  const stored=b&&b.size;
+  if(_races.indexOf('Halfling')>=0){
+    const _hMed=_races.some(r=>r!=='Halfling'&&!_isSmall(r));
+    return _hMed ? {size:(stored==='Medium')?'Medium':'Small', choosable:true} : {size:'Small', choosable:false};
+  }
+  if(_races.indexOf('Gnome')>=0){
+    const _hasMedium=_races.some(r=>!_isSmall(r));
+    return _hasMedium ? {size:(stored==='Medium')?'Medium':'Small', choosable:true} : {size:'Small', choosable:false};
+  }
+  if(_races.indexOf('Tiefling')>=0) return {size:(stored==='Small')?'Small':'Medium', choosable:true};
+  return {size:'Medium', choosable:false};
 }
 
 // Grit runs on the STEEP ladder — the Nth purchase costs 2N (2/4/6/8/10/12…), the same shape
@@ -1031,22 +1052,8 @@ export function compute(b, opts){
   let hp2=hp; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
   let _spB=DATA.speed[b.species]||30,_spF=_spB; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spdSet&&rr.spdSet>_spF)_spF=rr.spdSet;}); var _lsp=(DATA.lineageSpeed&&DATA.lineageSpeed[b.lineage]); if(_lsp&&_lsp>_spF)_spF=_lsp; let speed=_spF; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spd)speed+=rr.spd;}); if(dset["Slow-Footed"])speed-=5; if(dset["Lame"])speed-=10;
   const saveAdj=dset["Weak-Willed"]?-1:0;
-  // ----- Character size (0 AP). Halfling & Gnome packs are Small. A Halfling is ALWAYS Small
-  // (even as a second origin). A Gnome paired with a non-small second origin race may CHOOSE
-  // Small or Medium; otherwise Small. Everyone else is Medium. -----
-  const _races=[b.species,b.species2].filter(s=>s&&s!=='(none)');
-  const _isSmall=r=>(r==='Halfling'||r==='Gnome');
-  let size='Medium', sizeChoosable=false;
-  if(_races.indexOf('Halfling')>=0){
-    var _hMed=_races.some(function(r){return r!=='Halfling'&&!_isSmall(r);});
-    if(_hMed){sizeChoosable=true;size=(b.size==='Medium')?'Medium':'Small';} else size='Small';
-  }
-  else if(_races.indexOf('Gnome')>=0){
-    const _hasMedium=_races.some(r=>!_isSmall(r));
-    if(_hasMedium){sizeChoosable=true; size=(b.size==='Medium')?'Medium':'Small';}
-    else size='Small';
-  }
-  else if(_races.indexOf('Tiefling')>=0){ sizeChoosable=true; size=(b.size==='Small')?'Small':'Medium'; }   // v0.194: Tiefling chooses Small or Medium
+  // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
+  const {size, choosable:sizeChoosable}=sizeOf(b);
   return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
