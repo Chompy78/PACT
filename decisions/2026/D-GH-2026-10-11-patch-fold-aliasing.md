@@ -37,3 +37,23 @@ Locked characters were refused on any purchase touching a creation-patched field
 unlocked ones had their creation record silently rewritten. The copy removes the shared reference rather than guarding each MUT, so a
 future in-place MUT cannot bring it back. B3 was not needed: `patch` is the only MUT that hands event objects to the build by
 reference (the others copy scalars or push values).
+
+## Addendum (2026-10-12) — Archer's creation patch restored (owner choice H2)
+
+The owner chose to correct Archer's altered `Spellcasting` patch rather than leave it (decision 3 above is superseded). Source of
+the original values: the `character_backups` row captured 2026-10-08 11:57 UTC, the last copy before the alteration and after the
+2026-10-04 history repair. Its event 15 reads cantrips 1, known L1 0, slots L1 0. Between that backup and the live row, event 15 was
+the only event whose content changed (events 23–25 differed only because the name event moved to the end and a `creationLockConfig`
+was appended).
+
+Engine dry run before writing: the final build and AP total (79) are identical; only history positions 15–19 read differently, and
+the creation-lock view now shows 1/0/0, matching the lock's own label ("placed before Cantrip 2 … 66 → 71").
+
+The write (2026-10-11 ≈23:04 UTC) was one transaction: `ALTER TABLE characters DISABLE TRIGGER trg_pact_locked_history`, a single
+guarded `UPDATE` (id, read `updated_at`, LOG length 28, label and cantrips = 2; it raises unless exactly one row matches), `ENABLE`,
+commit. This is the method of `docs/plans/2026-10-04-amble-lock-repair.md` §4. Every other trigger stayed on, and
+`trg_characters_snapshot` saved the pre-repair row to `character_backups` (captured 23:03:50 UTC) as the rollback copy. Verified
+afterwards: event 15 reads 1/0/0, no other event changed, `ap` is still 89, and the trigger is enabled.
+
+Residual risk: a device still holding the pre-repair copy with unsaved edits would have its next push refused ("protected event 15
+changed"). Reloading takes the server copy.
