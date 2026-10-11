@@ -73,7 +73,12 @@ function flash(msg, kind) {
 function _csCopy(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text);
+      // writeText() fails ASYNCHRONOUSLY (permission denied, document not focused), long after this function has returned
+      // true and the caller has flashed "copied". Without this catch the failure was an unhandled rejection and nothing was
+      // copied. Fall back to the same manual-copy prompt the last branch below uses (fix/copy-fallback).
+      navigator.clipboard.writeText(text).catch(function () {
+        try { window.prompt('Copy this prompt (Ctrl/Cmd-C):', text); } catch (e) {}
+      });
       return true;
     }
   } catch (e) {}
