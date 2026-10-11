@@ -1119,7 +1119,10 @@ export function baseBuild() { return {name:'',budget:0,originClass:'Fighter',ori
 /* mutators: apply one purchased payload to the build in place */
 export const MUT = {
  create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
- patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
+ // A copy, never the event's own objects: a later buy mutates the build in place (armour, abil, skill, rank…), so
+ // assigning the patch's nested objects straight onto the build rewrote the stored creation patch on every fold,
+ // and the server refused the next save of a locked character ("protected event N changed"). fix/patch-fold-aliasing.
+ patch:(b,p)=>{Object.assign(b,clone(p.patch));},   // imported-from-generator bundle (a whole field set)
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),

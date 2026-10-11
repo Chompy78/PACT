@@ -27,6 +27,7 @@ on:
       - "testing/scripts/version-label-ci.mjs"
       - "testing/scripts/lineage-spell-gates-ci.mjs"
       - "testing/scripts/stored-size-ci.mjs"
+      - "testing/scripts/patch-fold-aliasing-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
@@ -51,6 +52,11 @@ jobs:
 
       - name: Run the headless engine-parity gate
         run: node testing/scripts/engine-parity-ci.mjs
+
+      # fix/patch-fold-aliasing: replaying a log must never write a later purchase back into a creation patch (a locked
+      # character's next save is refused when it does). Engine-only, no browser.
+      - name: Replaying history never rewrites it
+        run: node testing/scripts/patch-fold-aliasing-ci.mjs
 
   log-fuzz:
     # Phase 2 of D-GH-2026-07-13-random-e2e-real-oracle: a pure-Node, LOG-direct fuzzer for

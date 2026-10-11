@@ -15,6 +15,11 @@
   a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".
   v0.375. Live: 2 of 37 characters change, both cheaper; none trip the new refusal.
   Full record: `decisions/2026/D-GH-2026-10-11-creation-lock-enforcement.md`.
+## D-GH-2026-10-11-patch-fold-aliasing — replaying a character's history never rewrites that history
+- Owner choices B2/C1. `MUT.patch` shallow-assigned a creation patch, so later in-place buys (armour, ability, skills, spellcasting)
+  wrote themselves back into the stored patch on every fold; locked characters were then refused on save ("protected event N changed" —
+  Wren, buying Light armour). `MUT.patch` now applies a copy. Live scan: 1 of 37 characters (Archer) already altered, harmless, left as is.
+  Full record: `decisions/2026/D-GH-2026-10-11-patch-fold-aliasing.md`.
 
 ## D-GH-2026-10-11-stored-size — a character's stored size matches its real size
 - Owner choice I3. CharGen saved its hidden size dropdown's parked "Small"; 23 of 37 characters stored Small while being Medium (play unaffected — compute() ignores a
