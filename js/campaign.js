@@ -345,6 +345,16 @@ export function drawbackCapFromRules(rules) {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * drawbackCountAdviceFromRules(rules) — compute()'s `opts.drawbackCountAdvice`. The "N drawbacks chosen —
+ * most DMs cap this at 2–3" warning is advice; a DM switches it off for their campaign in the DM Console
+ * (rules.drawbackCountAdvice === false). Absent means on. Returns false only when switched off, else
+ * undefined, so a caller can spread it into opts without changing anything for other campaigns.
+ */
+export function drawbackCountAdviceFromRules(rules) {
+  return (rules && rules.drawbackCountAdvice === false) ? false : undefined;
+}
+
 /** DM-only: set the "ignore player-granted AP" campaign toggle. */
 export async function setIgnorePlayerAp(campaignId, value) {
   const { error } = await supabase

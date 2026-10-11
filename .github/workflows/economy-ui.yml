@@ -25,6 +25,9 @@ on:
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/DM-Console.html"
       - "testing/scripts/economy-ui-e2e.mjs"
+      - "testing/scripts/creation-lock-enforcement-e2e.mjs"
+      - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
+      - "testing/scripts/livesheet-center-panel-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/economy-ui.yml"
@@ -64,3 +67,13 @@ jobs:
 
       - name: Economy UI checks
         run: node testing/scripts/economy-ui-e2e.mjs
+
+      # Live Sheet / CharGen buy-menu rules that had no CI wiring (fix/livesheet-second-origin-class).
+      - name: Creation lock enforcement
+        run: node testing/scripts/creation-lock-enforcement-e2e.mjs
+
+      - name: Second origin class in the Live Sheet buy menu
+        run: node testing/scripts/livesheet-second-origin-class-e2e.mjs
+
+      - name: Live Sheet center panel (skills list, effect icons, unnamed notice)
+        run: node testing/scripts/livesheet-center-panel-e2e.mjs

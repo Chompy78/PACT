@@ -176,6 +176,90 @@ runs only on Live Sheet's Rename — not on save, import or load — and CharGen
 ```
 **Done when:** a test reproduces a blank-row insert on the old code and passes on the new; `engine-parity.html` reports 0 failed; a live re-check after the fix reaches `main` shows no blank rows created after that date.
 
+## fix/livesheet-name-description-notes — Live Sheet: player can't rename, can't see the description, notes don't travel — TODO
+Branch fix/livesheet-name-description-notes. **Effort:** medium · **Risk:** medium — moving free-text Sheet fields into the LOG touches save/sync and needs a one-time copy-in of existing local notes (damage scale drives it).
+
+```text
+Owner report 2026-10-12: "I cannot change the name and see the description when I should be able to." Audit (2026-10-12) found the
+server and every lock/seal/campaign state ALLOW both — the bug is UI placement and per-device storage. Owner chose the deep fix (A2).
+Line refs are approximate (file was moving) — grep the symbol.
+
+  1. Rename: the only ✎ Rename is inside the "🛠 DM tools" strip (#dmcontent, ~LS:444; off-screen on phones). Add a player-facing ✎ on
+     the card name (.shname in render(), ~LS:1690) and make the 📋 Sheet "Character Name" (~LS:2303) editable — both call the existing
+     _lsRenameGuard -> emit({type:'name'}). Trim the name; refuse blank. Inert when VIEW_ONLY. Align _lsRenameGuard's exemptions with the
+     server's unique index (sql/schema.sql ~218-222: 'new character', 'character', '… (dm copy)') — today it only exempts 'new character'.
+  2. Description: render() never reads b.appearance. Add a read-only "Appearance & description" block to the Character panel, read from
+     foldBuild(idx).appearance (so time-travel stays honest), every value through esc(), with an ✎ that opens the Sheet. Show ALL the
+     appearance keys CharGen writes (readBuild ~CG:4319-4327: nose, demeanour, quirk, likes, dislikes, father, mother, profession,
+     familyfor, famevent, secret, drink, custom1/2 …), not just the 7 the Sheet shows today.
+  3. Notes: Backstory & Notes, Allies & Organisations, Player Name, Alignment, Background/Other go through csSave() into
+     localStorage 'pactCharSheetManual:<tool>' — per tool AND per device, never in the LOG or cloud (LS ~2235-2259, CG ~6811-6831).
+     Move them into the LOG as appearance-style exempt patch keys (same path as _shCommitAppearanceField), in BOTH tools. On load, copy
+     any existing local value into the LOG once if the LOG has none. Confirm the server's exempt-key list accepts the new keys
+     (sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql ~line 24) — extend it via a migration if not, then run get_advisors.
+  4. While there: _shCommitAppearanceField drops CharGen's _slot tag (~LS:2284) so CharGen appends a second appearance event — keep it.
+  Out of scope: Current HP / Temp HP / Hit Dice left (separate LATER task).
+```
+**Done when:** an e2e test renames from the card (not DM tools) and the name survives reload and cloud load; the Character panel shows every appearance field set in CharGen; a Backstory typed in CharGen appears in Live Sheet after Switch to Live Sheet AND after a cloud load on a clean browser; existing local-only notes are copied in once; `engine-parity.html` 0 failed.
+
+## fix/chargen-livesheet-data-loss — saved work silently lost or written to the wrong character — TODO
+Branch fix/chargen-livesheet-data-loss. **Effort:** medium · **Risk:** medium — several independent small fixes in both tools' load/save paths; damage likelihood is high today (live data loss), fixes are local.
+
+```text
+Audit 2026-10-12. Grep the symbol; line numbers approximate.
+  1. CharGen "Name spells & languages": saveNames() (~CG:4631) only sets the global CG_NAMES — no LOG event, no commitHistory. Names
+     are lost on save/reload/handoff, and CG_NAMES is never reset, so _buildEventBurst writes the PREVIOUS character's names into New
+     Character / file load / #b= link / Randomize. Fix: write a 'names' event via the LOG, seed the dialog from foldBuild(LOG) only,
+     delete the global. Fix the flash/button text that still promises "export with your Live Sheet file" (path deleted in D-GH40).
+     Same bleed: replaceWholeLogFromBuild (~CG:3678) carries epicBoonAbil from the old LOG into the new build.
+  2. CharGen Local Save overwrites another character's file: _fileHandle (~CG:4402) isn't cleared on cloud load, handoff, DM viewChar
+     copy, invite redemption, undo of a load, or a refused/failed load (loadViaPicker sets it BEFORE validating, ~CG:4438). Clear on
+     every character switch; adopt only after a successful load.
+  3. CharGen: opening a Live Sheet character runs _cgSyncAward() on load (_cgApplyEnvelope ~CG:5178), merging every award into one
+     noLock "Budget" award — loses notes/dates and Live Sheet's undo lock on them. Don't merge on load (or only for a genuine
+     single-budget LOG).
+  4. CharGen: after the lock, ✕ on a feature/subclass/spell-bundle row deletes the row but the refused retract keeps the charge; a
+     retyped row charges twice (~CG:2524, 3983-3994, 3225-3233). Call _cgRepaint() on refusal.
+  5. CharGen: annotate() clears a 2nd species/class/lineage that matches the first by direct .value (~CG:5988/5992/6034) after the
+     IDENTITY patch is built, so the LOG keeps and charges it (Elf+Elf 17 AP vs 7). Re-sync IDENTITY after the correction.
+  6. CharGen: DM custom/repriced/disabled boons & drawbacks (dmAdd/dmDisableBuiltin/dmRemove/dmToggleDisable ~CG:2244-2273) change
+     global HOUSE only — lost on save/undo, and compute() sees no houseRules. Sync PATCH_SLOTS.HOUSE_RULES. (Who may edit it: see
+     fix/player-free-ap.)
+```
+**Done when:** an e2e test per item reproduces the loss on old code and passes on new (names survive reload and don't leak into New Character; Save after a cloud load doesn't touch the earlier file; awards keep their notes after a Live Sheet→CharGen handoff; a refused ✕ restores the row; Elf+Elf clears to (none) in the LOG; a custom boon survives reload and prices in compute()); `engine-parity.html` 0 failed.
+
+## fix/ledger-xss-escaping — unescaped LOG values in both tools' ledgers (stored XSS into a DM's browser) — TODO
+Branch fix/ledger-xss-escaping. **Effort:** low · **Risk:** low — one-line esc() wraps; damage scale is high if left (cross-user script) but the fix is mechanical.
+
+```text
+Audit 2026-10-12 (AGENTS.md esc() rule). Player-controlled LOG values reach innerHTML raw; a DM opening the character runs them.
+  - Live Sheet ledger: e.seq and e.rules ('<span class="vtag">'+e.rules+…, ~LS:1812).
+  - CharGen renderLedger row() l[0] (~CG:6454) and explainCost label (~CG:6514) — engine line labels embed tradition/discipline names
+    (engine.js ~796, ~817); confirmed in node with a tradition named <img src=x onerror=…>.
+  - Check and escape if reachable: Live Sheet Needs-review tray '<li>'+i (~LS:1815) and Sheet AP Ledger l[0] (~LS:2400); DM Console's
+    equivalents of the same renders.
+```
+**Done when:** a test character with `<img src=x onerror=window.__xss=1>` as a tradition name and as `rules` renders as text in CharGen, Live Sheet (incl. ?viewChar) and DM Console with `window.__xss` unset; `engine-parity.html` 0 failed.
+
+
+## feat/livesheet-buy-fullpage — Live Sheet: let the Buy / progress panel expand to the whole page — TODO
+Branch `feat/livesheet-buy-fullpage`. **Effort:** small · **Risk:** low — UI-only CSS/JS in one tool; driven by ambiguity (what
+"expanded" looks like), not damage: `buy()` and the engine are untouched.
+```
+Owner request 2026-10-12: buying is cramped in the 300px Buy / progress column. Add an "expand" control on the Buy /
+progress heading in tools/PACT-Live-Char-Sheet.html that makes that panel fill the whole page width (the Character and
+History & ledger panels hide or fold while it is expanded), with an obvious way back. Remember the choice per browser,
+like the desktop panel fold added in PR #630 (CSS :has() rules under @media(min-width:1001px); fold state in localStorage
+'pactLsPanelFold' via _lsPanelFoldInit()). When expanded, lay the buy groups out in several columns so the extra width is
+actually used. Phones (<=1000px) already show one full-width column — decide whether expand means anything there and say
+so. Keep the AP left / spend figures visible while expanded. UI only: buy() behaviour unchanged, no DATA.version bump.
+Extend testing/scripts/livesheet-center-panel-e2e.mjs (or add an e2e) for expand / restore / remembered-after-reload and a
+purchase made while expanded.
+```
+**Done when:** on desktop one click expands Buy / progress to the full page width with its groups in several columns, one
+click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
+exactly as in the normal layout, and the e2e covering this passes.
+
 ---
 
 # Conventions

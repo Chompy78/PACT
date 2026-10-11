@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.624.html**-->
+<!--**PACT-CharGen-Webtool v1.631.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.624 · Rules v0.375</title><style>
+<title>PACT Character Generator — Web Tool v1.631 · Rules v0.376</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.624</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.375</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.631</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -648,7 +648,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // always-available self-unset control (decision A3). Bridged alongside session/auth for the same
   // CDN-resilience reason as the rest of this module.
   import { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
-  import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
+  import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
@@ -657,7 +657,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // The party downtime window is read through the same helper the Live Sheet uses (js/dm.js, RPC get_downtime_window); CharGen needs only that one function.
   import { getDowntimeWindow } from '../js/dm.js';
   window._dmBridge = { getDowntimeWindow };
-  window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
+  window._campaignBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
@@ -1638,6 +1638,11 @@ window._dmApStatus = window._dmApStatus || 'none';
 // _cloudCampaign of its own. drawbackCapFromRules() is a pure function of a rules object, so freezing
 // that object at copy-open time (done alongside _cgCopySourceIgnorePlayerAp, in the same fetch) is
 // enough — no separate network call needed here.
+function _cgDrawbackCountAdvice(rulesOverride){
+  var b=window._campaignBridge, c=window._cloudCampaign;
+  var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
+  return (b&&b.drawbackCountAdviceFromRules) ? b.drawbackCountAdviceFromRules(rules) : undefined;
+}
 function _cgDrawbackCap(rulesOverride){
   var b=window._campaignBridge, c=window._cloudCampaign;
   var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
@@ -1677,8 +1682,8 @@ function _cgDrawbackCap(rulesOverride){
 // reset to 0 by _cgResetCloudApState() on every non-copy load, so a stale positive value can't leak in —
 // and _cgCopySourceIsCopy covers exactly the zero-AP case that signal alone could never distinguish.
 function _cgDmOpts(){
-  if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
+  if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap(),drawbackCountAdvice:_cgDrawbackCountAdvice()};
+  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules),drawbackCountAdvice:_cgDrawbackCountAdvice(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -3040,7 +3045,7 @@ function cgFinishCreating(skipConfirm){
       +  '  \u2022 traits from your own species cost more to add\n'
       +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
-      +  'Only your DM can reopen creation afterwards.';
+      +  'Undo cannot go back past this point. Only your DM can reopen creation afterwards.';
   if(!skipConfirm && !confirm(msg)) return;   // skipConfirm: the reach-the-limit prompt already asked
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
@@ -3572,7 +3577,7 @@ function _cgPostLockAppend(steps){
       // Subclass abilities are offered only for the classes the character has access to (origin class + unlocked classes) — the Live Sheet's "Subclasses & abilities" panel.
       // CharGen's picker lists every class, so the same rule is enforced here (found by the post-lock parity fuzz: a Cleric bought a Fighter subclass ability).
       if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
-      var lg=purchaseLegality(b,st.cat,st.payload);
+      var lg=purchaseLegality(b,st.cat,st.payload,_cgDmOpts());
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
       if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }
@@ -6718,6 +6723,7 @@ function _cgCeilingAccept(){
     setTimeout(function(){
       var cur=_cgCeilingState(); if(!cur||cur.locked||cur.remaining!==0) return;
       if(confirm('You have used all '+cur.spent+' of your '+cur.ceiling+' creation AP.\n\nFinish creating this character now?\n\n'
+          +'Undo cannot go back past this point, so the purchase you just made stays.\n\n'
           +'OK = finish (you then build at in-play prices)\nCancel = not yet, keep building'))cgFinishCreating(true);
     },0);
   }

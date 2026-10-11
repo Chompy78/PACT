@@ -71,6 +71,10 @@ for (const [name, b] of builds) {
   for (const [cat, payload] of probes(b)) {
     let a, r, ea = null, er = null;
     try { r = refClassify(clone(b), cat, payload); } catch (e) { er = String(e.message || e); }
+    // One deliberate departure from the frozen original (fix/livesheet-second-origin-class): unlocking a class
+    // you already have — an origin class (1st or 2nd) or one already unlocked — is now a duplicate.
+    if (r && cat === 'unlockclass' && payload && (payload.v === b.originClass || payload.v === b.originClass2
+        || (b.unlockedClasses || []).indexOf(payload.v) >= 0)) r = Object.assign({}, r, { dup: true });
     try { a = E.purchaseLegality(clone(b), cat, payload); } catch (e) { ea = String(e.message || e); }
     compared++;
     if (!er && !ea) { if (r.hard.length) withHard++; if (r.soft.length) withSoft++; if (r.dup) withDup++; if (r.followup.length) withFollow++; }
@@ -90,6 +94,9 @@ check('Vigor past CON mod is a HARD block (CharGen used to let it through)', v1.
 const own = clone(nb); own.skills = ['Stealth'];
 check('re-buying an owned single-instance skill is a duplicate', E.purchaseLegality(own, 'skill', { v: 'Stealth' }).dup === true);
 check('a first purchase of it is not', E.purchaseLegality(nb, 'skill', { v: 'Stealth' }).dup === false);
+check('unlocking a 2nd origin class is a duplicate', E.purchaseLegality(Object.assign(baseBuild(), { originClass: 'Rogue', originClass2: 'Wizard' }), 'unlockclass', { v: 'Wizard' }).dup === true);
+check('unlocking an already-unlocked class is a duplicate', E.purchaseLegality(Object.assign(baseBuild(), { originClass: 'Rogue', unlockedClasses: ['Cleric'] }), 'unlockclass', { v: 'Cleric' }).dup === true);
+check('unlocking a new class is not', E.purchaseLegality(Object.assign(baseBuild(), { originClass: 'Rogue' }), 'unlockclass', { v: 'Cleric' }).dup === false);
 check('a purchase that raises nothing is clean', (() => { const r = E.purchaseLegality(nb, 'language', { to: 2 }); return r.warnings.length === 0 && !r.hard.length && !r.dup; })());
 
 console.log(`\n✓ ${pass} passed / ${fail} failed\n`);
