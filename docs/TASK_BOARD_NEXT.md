@@ -1501,3 +1501,35 @@ Audit 2026-10-12. Line numbers approximate.
      (onSheetField ~CG:6831) — commit on change/blur.
 ```
 **Done when:** e2e: buy-off is not offered while scrubbed and an orphan buyoff can't be emitted; Finish creating in a DM read-only view does nothing; DM Sheet inputs are read-only; Reset clears the campaign name; typing a sentence into a CharGen appearance field keeps focus; `engine-parity.html` 0 failed.
+
+## feat/names-before-spending — AP can't be spent until languages and spells are chosen — TODO
+Branch feat/names-before-spending. **Effort:** high · **Risk:** high — damage scale drives it: every Amble character (10 of 10, checked live 2026-10-12) owns at least one unnamed language slot, so a naive gate would block all of them from spending the moment it ships.
+
+```text
+Owner request (2026-10-12): a character can't spend AP until its languages and spells are chosen. Today a player can buy
+language slots and spell slots and never name them (names live in the separate ✎ Name spells & languages dialog, a `names`
+LOG event; compute() prices only counts), so the sheet carries blank slots indefinitely.
+
+DO:
+1. Engine (js/engine.js): one helper, e.g. unnamedChoices(build) -> [{kind:'language'|'cantrip'|'known'|'arcanum'|'dabbler'|
+   'innate'|'grant'|'fightingStyle'|'metamagic'|'maneuver', slot, label}], counting each owned slot whose name is blank. It must
+   mirror exactly the slots each tool's names dialog renders (openNames() in CharGen and Live Sheet) — read those first, and
+   move the slot enumeration into the engine so the dialog and the gate cannot disagree. Wire it into purchaseLegality() (or
+   a sibling the buy paths already call) so a purchase is refused with a reason that names the first missing choice and
+   points at ✎ Name spells & languages.
+2. Scope (recommended default, confirm with owner): the gate applies FROM THE CREATION LOCK ON (Live Sheet buy(), CharGen
+   post-lock purchases), and "Finish creating" itself requires every slot named. During creation the player buys slots and
+   names them at the end, so blocking mid-build purchases would make creation unusable. Buying the slot itself (a language,
+   a spell rank) stays allowed — only the NEXT purchase after it waits for the name. DM awards are never blocked.
+3. Existing characters: measure the live blast radius first (fold + compute every character; count unnamed slots per
+   character, per campaign) and propose a rollout to the owner — e.g. a per-campaign DM switch (rules.requireNames, off by
+   default) so a DM turns it on after the table has named everything, rather than a global rule.
+4. Players Guide: add the rule where languages/spells are bought (served copy AND pact-guide master, per AGENTS.md). Bump
+   DATA.version only if compute() output changes (it should not — this is legality, not price).
+
+Related: feat/campaign-language-list (#632) gives campaigns their own language list; names chosen under this gate should
+come from it.
+```
+**Done when:** with the gate on, a locked character with an unnamed language or spell slot cannot buy anything in either tool and is told which choice is missing; naming it in ✎ Name spells & languages lets the purchase through; Finish creating refuses while a slot is blank; DM awards are unaffected; a new e2e covers both tools; `engine-parity.html` 0 failed.
+
+---
