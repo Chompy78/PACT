@@ -76,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.616";
+export const BUILD = "v1.624";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -246,6 +246,14 @@ function _tierForHD(hd){
   let t = 1;
   for (let k = 1; k <= 7; k++) if ((Number(hd) || 1) >= (g[k] || 1)) t = k;
   return t;
+}
+// Give every owned Vigor rank that has no _vigorRankTier stamp the tier in force NOW. Existing stamps
+// are kept. See the creation-lock freeze in _replay() for why and when this runs.
+function _fillVigorStamps(b){
+  const n = Math.max(0, Math.floor(Number(b.hardy)) || 0), t = _tierForHD(b.hd || 1);
+  const s = Array.isArray(b._vigorRankTier) ? b._vigorRankTier.slice(0, n) : [];
+  for (let i = 0; i < n; i++) if (s[i] == null) s[i] = t;
+  b._vigorRankTier = s;
 }
 
 // Hit-Dice requirement for one purchasable item (a DATA.features entry, a DATA.subAbilMap entry —
@@ -517,6 +525,14 @@ export function compute(b, opts){
     // trait in or out of a heritage pack never silently makes it free — but the pack itself is what
     // grants them, so the origin race pays 0 here rather than paying twice. Cross-race buyers still
     // pay `cross` via the branches below.
+    // Guide §10: "other-race traits may be taken only at character creation. Once play begins, you can
+    // no longer add a different race's abilities." A cross-species trait whose purchase was made while
+    // locked is a hard error. Its own stamp decides; a trait with no stamp (the candidate a purchase
+    // check prices) is judged by the build's lock state after the whole log. NOT the b.inPlay fallback
+    // used for own-race pricing above: baseBuild() sets that true unconditionally, which would refuse
+    // every cross-species trait at creation for a build that never went through _replay().
+    if(!isO && (_hasLockEntry?!!b._raceTraitLocked[lab]:!!b._creationLocked))
+      W.push("⛔ "+(lab.split(": ")[1]||lab)+": traits from another species can only be taken at character creation");
     let _rc; if(_locked && isO && !r.pack){const _tt=Math.min(7,Math.max(r.tier||1,tier));const _row=DATA.MASTER[_tt];if(r.band==null){_rc=r.origin;}else{_rc=(_row&&_row[r.band])??r.origin;}} else if(isO){_rc=r.pack?0:r.origin;} else if(r.cross==null){W.push((lab.split(": ")[1]||lab)+" is origin-race only — it can't be taken cross-race.");continue;} else {_rc=r.cross;}
     racAP+=_rc;_SI.push([lab,_rc]);}
   add("Species traits",racAP,_SI.length>0);addItems("Species traits",_SI);
@@ -1103,7 +1119,10 @@ export function baseBuild() { return {name:'',budget:0,originClass:'Fighter',ori
 /* mutators: apply one purchased payload to the build in place */
 export const MUT = {
  create:(b,p)=>{},   // level-1 baseline (Hit Die + starting state); effect already in baseBuild
- patch:(b,p)=>{Object.assign(b,p.patch);},   // imported-from-generator bundle (a whole field set)
+ // A copy, never the event's own objects: a later buy mutates the build in place (armour, abil, skill, rank…), so
+ // assigning the patch's nested objects straight onto the build rewrote the stored creation patch on every fold,
+ // and the server refused the next save of a locked character ("protected event N changed"). fix/patch-fold-aliasing.
+ patch:(b,p)=>{Object.assign(b,clone(p.patch));},   // imported-from-generator bundle (a whole field set)
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
@@ -2132,10 +2151,23 @@ function _replay(b, log, onApplied) {
   // lost-purchases) — same idea as _raceTraitLocked/_vigorRankTier just below: record log-only context
   // on the build so compute(), which only ever sees `b`, can itemize it without re-deriving anything.
   b._lostPurchases = ae.lost;
-  const _lockAt = _lockStates(evs);
+  // One trailing inert probe, so the slot past the last event carries the lock state AFTER the whole
+  // log (the state entering each real event is unchanged by an appended probe). Same trick as
+  // creationLockState() — needed because a log whose final event is `creationLocked` is locked, yet no
+  // real event "enters" that state.
+  const _lockAt = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
     const _wasLocked = _lockAt[_i];
+    // fix/creation-lock-enforcement: freeze creation-time Vigor at the lock. CharGen writes Vigor during
+    // creation as a `patch` of `hardy`, not as cat:'vigor' events, so those ranks never got a
+    // _vigorRankTier stamp and compute() priced them at TODAY's tier — every Hit-Dice tier gained after
+    // creation re-priced Vigor the player had already paid for. A draft has no frozen prices (what you
+    // pay is what it costs to build today), so unstamped ranks are left alone until the lock; from the
+    // first locked event on, any rank still without a stamp is stamped at the tier it holds right now,
+    // BEFORE this event's mutator runs — so an HD purchase can never raise the price of the ranks that
+    // preceded it. Ranks bought through cat:'vigor' are already stamped and are not touched.
+    if (_wasLocked && (b.hardy || 0) > 0) _fillVigorStamps(b);
 
     if (e.type === 'name') { b.name = e.name; continue; }
     if (e.type === 'names') { MUT.names(b, e); continue; }   // names take the whole event
@@ -2170,9 +2202,18 @@ function _replay(b, log, onApplied) {
     // bundle shape) invalidates them — reset rather than let them land on whatever now sits at that slot.
     if (e.cat === 'patch' && e.payload && e.payload.patch && 'drawbacks' in e.payload.patch)
       b._imposedDrawbackIdx = [];
+    // A patch that LOWERS hardy drops the stamps of the ranks it removed, as the cat:'vigor' branch above
+    // does — otherwise re-raising it later would inherit a stale tier for a rank bought again.
+    if (e.cat === 'patch' && e.payload && e.payload.patch && 'hardy' in e.payload.patch && Array.isArray(b._vigorRankTier))
+      b._vigorRankTier = b._vigorRankTier.slice(0, Math.max(0, Math.floor(Number(e.payload.patch.hardy)) || 0));
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
     if (onApplied) onApplied(e, b, _wasLocked);
   }
+  // Lock state after the whole log, for compute(): a cross-species trait added to a LOCKED build (the
+  // candidate purchaseLegality() prices) has no _raceTraitLocked entry yet, and this is what tells
+  // compute() it is being bought in play. Derived on every fold, never saved — like every `_` key here.
+  b._creationLocked = !!_lockAt[evs.length];
+  if (b._creationLocked && (b.hardy || 0) > 0) _fillVigorStamps(b);
   // single-instance proficiency lists never hold duplicates. Factored into _dedupeProfLists() (just
   // above baseBuild()) so repriceDraft() can apply the SAME nine lists mid-walk — see its call site.
   // Set-based dedupe keeps the same first-occurrence-wins ORDER as the previous

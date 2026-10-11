@@ -10,6 +10,22 @@
 
 ## Index
 
+## D-GH-2026-10-11-creation-lock-enforcement — the creation lock is visible, refuses other species' traits, and freezes creation Vigor
+- Owner choices A2/B1/C1/D1. `_replay()` stamps unstamped (CharGen-patch) Vigor ranks at the lock so later Hit Dice don't re-price them; `compute()` hard-warns
+  a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".
+  v0.375. Live: 2 of 37 characters change, both cheaper; none trip the new refusal.
+  Full record: `decisions/2026/D-GH-2026-10-11-creation-lock-enforcement.md`.
+## D-GH-2026-10-11-patch-fold-aliasing — replaying a character's history never rewrites that history
+- Owner choices B2/C1. `MUT.patch` shallow-assigned a creation patch, so later in-place buys (armour, ability, skills, spellcasting)
+  wrote themselves back into the stored patch on every fold; locked characters were then refused on save ("protected event N changed" —
+  Wren, buying Light armour). `MUT.patch` now applies a copy. Live scan: 1 of 37 characters (Archer) already altered, harmless, left as is.
+  Full record: `decisions/2026/D-GH-2026-10-11-patch-fold-aliasing.md`.
+## D-GH-2026-10-11-sync-no-resurrect — a character the server no longer has is not re-uploaded unless it holds unsaved work
+- Owner choice D2. `reconcile()` pushed every local record with no server row, so deleted characters came back (a deleted Bram Cotter copy,
+  stopped only by a name clash) and empty placeholders were refused on every page load. Now: no LOG → never pushed; in sync → forgotten
+  locally (deleted elsewhere); unsaved work → uploaded as before.
+  Full record: `decisions/2026/D-GH-2026-10-11-sync-no-resurrect.md`.
+
 ## D-GH-2026-10-11-stored-size — a character's stored size matches its real size
 - Owner choice I3. CharGen saved its hidden size dropdown's parked "Small"; 23 of 37 characters stored Small while being Medium (play unaffected — compute() ignores a
   non-choosable size — but raw readers were misled). `sizeOf()` in the engine; CharGen stores its answer; the 23 corrected by one appended 0-AP event each. The I3 "DM
