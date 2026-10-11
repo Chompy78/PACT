@@ -2684,7 +2684,7 @@ export function priceOf(cur, cat, payload) {
 // SOFT_WARN: warnings that are advisory — the DM adjudicates (a drawback surplus is clamped, not blocked; see the drawback-cap comments in compute()).
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
 const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
-const DUP_FIELD={save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
+const DUP_FIELD={unlockclass:'unlockedClasses',save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
 export function purchaseLegality(cur, cat, payload) {
   const cand = clone(cur); (MUT[cat] || (() => {}))(cand, payload);
   const seen = {}; compute(cur).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
@@ -2694,7 +2694,10 @@ export function purchaseLegality(cur, cat, payload) {
   const hard = rest.filter(w => !SOFT_WARN.test(w));
   const soft = rest.filter(w => SOFT_WARN.test(w));
   const dup = !!(DUP_FIELD[cat] && payload && payload.v != null && (cur[DUP_FIELD[cat]] || []).indexOf(payload.v) >= 0);
-  return { warnings, followup, rest, hard, soft, dup };
+  // An origin class (1st or 2nd) is already yours: "unlocking" it is a 0-AP no-op that would still leave an
+  // event in the log. Refuse it as a duplicate (fix/livesheet-second-origin-class).
+  const dupOrigin = cat === 'unlockclass' && !!payload && payload.v != null && payload.v !== '(none)' && (payload.v === cur.originClass || payload.v === cur.originClass2);
+  return { warnings, followup, rest, hard, soft, dup: dup || dupOrigin };
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
