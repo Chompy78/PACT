@@ -556,7 +556,7 @@ function finishCreating(){
       +  '  \u2022 traits from your own species cost more to add\n'
       +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
-      +  'Only your DM can reopen creation afterwards.';
+      +  'Undo cannot go back past this point. Only your DM can reopen creation afterwards.';
   if(!confirm(msg)) return;
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:RULES,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
