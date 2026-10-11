@@ -10,6 +10,11 @@
 
 ## Index
 
+## D-GH-2026-10-11-reckless-rework — Reckless becomes a Wisdom save to back off, worth 3 AP
+- Owner choices A1 + B1: the outright Dodge/Disengage ban was crippling or free depending on class. It is now a DC 12 Wis save, and a failure doesn't spend the action. The WIS cap is kept and the value goes from +2 to +3 AP;
+  `DATA.version` v0.372 → v0.373. 0 live characters affected.
+  Full record: `decisions/2026/D-GH-2026-10-11-reckless-rework.md`.
+
 ## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
 - Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index
   `uq_characters_owner_active_name` on `(owner_id, lower(btrim(name)))` over active rows, exempting "New Character", "Character" and "… (DM copy)"; the invite/claim RPCs now tell a name
