@@ -110,7 +110,7 @@ function setTheme(t){if(t)document.body.setAttribute('data-theme',t);else docume
 </script>
 <script type="module">
 import { currentSession, onSessionChange } from '../js/auth.js';
-import { listMyCharacters, peekCharacter, archiveCharacter, unarchiveCharacter, deleteCharacter, isBasicModeRejection, BASIC_MODE_MESSAGE } from '../js/sync.js';
+import { listMyCharacters, peekCharacter, archiveCharacter, unarchiveCharacter, deleteCharacter, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE } from '../js/sync.js';
 import { listMyCampaigns } from '../js/campaign.js';
 
 const TOOL = {
@@ -254,6 +254,8 @@ async function onArchiveToggle(id, isArchived){
     // as real a rejection as a blocked new-character save (pact_enforce_basic_mode() fires on both) —
     // must not surface as a raw "Could not update" database error.
     if (isBasicModeRejection(err)) { say('🔒 ' + BASIC_MODE_MESSAGE, 'bad'); return; }
+    // feat/unique-character-names: un-archiving into a name another ACTIVE character already uses.
+    if (isDuplicateNameRejection(err)) { say('Can\u2019t unarchive: you already have an active character with this name. Rename or archive that one first.', 'bad'); return; }
     say('Could not update: ' + (err && err.message ? err.message : err), 'bad');
   }
 }

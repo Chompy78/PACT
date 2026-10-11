@@ -1353,25 +1353,3 @@ What is left is the blind spots that let those four rows go stale unnoticed for 
 ```
 **Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
 
-## feat/unique-character-names — the database refuses two active characters with the same name for one player — TODO
-Branch `feat/unique-character-names`. **Effort:** medium · **Risk:** medium — driven by damage scale: a constraint on `characters` rejects real saves if a tool doesn't handle the new error, and existing duplicates must be cleared first or the migration fails.
-
-```text
-Owner decision G2 (2026-10-10). Queued behind fix/blank-character-rows (NOW). The duplicate-name guard (_lsRenameGuard, #545,
-2026-09-18) is client-side only: it runs on Live Sheet's Rename, never on save/import/load/handoff, and CharGen has none. A
-player (Christen) ended up with two active "Caspian" rows — one campaign-bound in CharGen, one stale solo copy in Live Sheet —
-and could not tell which to load.
-
-DO:
-  1. Migration: a unique index on (owner_id, lower(trim(name))) WHERE archived_at IS NULL, excluding the default names
-     'new character' and 'character' (the tools' unnamed fallbacks — the second pair on the live DB today is one).
-     Run get_advisors + get_logs after; mirror into sql/schema.sql.
-  2. BEFORE applying: re-count live duplicates (2026-10-10: two pairs — Christen's two "Caspian", one account's two
-     "Character"). Each must be renamed or archived with owner approval, or the index creation fails.
-  3. Both tools: recognise the unique-violation error on save (Postgres 23505) and tell the player plainly ("You already
-     have a character named X — rename this one") instead of a generic sync failure; the local copy must be kept.
-     Cover CharGen and Live Sheet saves, file import, and the tool-switch handoff.
-  4. Keep _lsRenameGuard as the early, friendly warning; add the same to CharGen's rename.
-  5. Decide whether name-changing events in a sealed history can trigger the error, and test that path.
-```
-**Done when:** the index is live; a save that would create a second active same-named character is refused by the server and both tools show the plain message, with the local copy intact; CharGen warns on rename; the advisor is clean; CHANGELOG and DECISIONS are updated.
