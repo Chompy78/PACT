@@ -30,10 +30,12 @@ returns boolean language sql security definer stable set search_path = public, p
   select exists (select 1 from campaigns where id = p_campaign and dm_id = auth.uid());
 $$;
 
+-- NPC rows (feat/campaign-npcs) never make their owner a "member": a DM's NPCs must not block that DM joining as a
+-- player, nor keep a removed co-DM reading the campaign.
 create or replace function public.is_campaign_member(p_campaign uuid)
 returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (
-    select 1 from characters where campaign_id = p_campaign and owner_id = auth.uid()
+    select 1 from characters where campaign_id = p_campaign and owner_id = auth.uid() and not is_npc
   );
 $$;
 
@@ -678,6 +680,69 @@ begin
 end;
 $$;
 
+
+-- ---------------------------------------------------------------------------
+-- Campaign NPCs (feat/campaign-npcs, D-GH-2026-10-11-campaign-npcs). A DM's own character bound to their own campaign
+-- with is_npc = true. Same definitions as sql/migrations/2026-10-11-campaign-npcs.sql (the index re-scope lives in
+-- schema.sql next to the index). is_npc is in NO client column grant: dm_bind_npc() is the only setter, so a player can
+-- never self-flag past the one-per-campaign rule. The basic-mode count deliberately still includes NPCs (any user can
+-- create a campaign, so excluding them would be a bypass).
+-- ---------------------------------------------------------------------------
+alter table public.characters add column if not exists is_npc boolean not null default false;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'characters_npc_needs_campaign') then
+    alter table public.characters add constraint characters_npc_needs_campaign check (not is_npc or campaign_id is not null);
+  end if;
+end $$;
+
+create or replace function public.pact_npc_clear_on_unbind()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  new.is_npc := false;
+  return new;
+end;
+$$;
+revoke all on function public.pact_npc_clear_on_unbind() from public, anon, authenticated;
+
+drop trigger if exists trg_pact_npc_clear_on_unbind on public.characters;
+create trigger trg_pact_npc_clear_on_unbind
+  before update on public.characters
+  for each row when (new.campaign_id is null and new.is_npc)
+  execute function public.pact_npc_clear_on_unbind();
+
+create or replace function public.dm_bind_npc(p_character uuid, p_campaign uuid)
+returns uuid language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_char characters%rowtype;
+begin
+  if auth.uid() is null then
+    raise exception 'PACT: not signed in';
+  end if;
+  select * into v_char from characters where id = p_character and owner_id = auth.uid() for update;
+  if not found then
+    raise exception 'PACT: character not found (an NPC must be one of your own characters)';
+  end if;
+  if not is_campaign_dm(p_campaign) then
+    raise exception 'PACT: only a DM of this campaign can add an NPC to it';
+  end if;
+  perform assert_campaign_active(p_campaign);
+  if v_char.archived_at is not null then
+    raise exception 'PACT: un-archive this character before adding it as an NPC';
+  end if;
+  if v_char.campaign_id = p_campaign and v_char.is_npc then
+    return p_campaign;
+  end if;
+  if v_char.campaign_id is not null then
+    raise exception 'PACT: this character is already in a campaign — remove it from that campaign first';
+  end if;
+  update characters set campaign_id = p_campaign, is_npc = true where id = p_character;
+  return p_campaign;
+end;
+$$;
+revoke all on function public.dm_bind_npc(uuid, uuid) from public, anon;
+grant execute on function public.dm_bind_npc(uuid, uuid) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- dm_edit_character_log(character, events) — feat/dm-edit-events (D-GH-2026-08-10-dm-edit-events).
 -- The ONLY path a DM can append to a player's own stats->LOG through — characters_update's row policy
@@ -1307,7 +1372,7 @@ create or replace function public.is_dm_of_player(p_player uuid)
 returns boolean language sql security definer stable set search_path = public, pg_temp as $$
   select exists (
     select 1 from campaign_dms d join characters ch on ch.campaign_id = d.campaign_id
-      where d.dm_id = auth.uid() and ch.owner_id = p_player
+      where d.dm_id = auth.uid() and ch.owner_id = p_player and not ch.is_npc
   );
 $$;
 

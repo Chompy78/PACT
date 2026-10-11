@@ -1357,39 +1357,6 @@ B. Two guide rows the price checker cannot compare look like real disagreements 
 **Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
 
 
-## feat/campaign-npcs — a DM can bind several NPC characters (and several versions of each) to their own campaign — TODO
-Branch feat/campaign-npcs. **Effort:** large · **Risk:** high — schema + RLS + bind RPC + DM Console bulk actions on a live campaign; damage scale drove it (a wrong index or bulk-action filter touches real players' AP and downtime).
-
-```text
-OWNER REQUEST 2026-10-11: keep the Amble campaign's NPCs (Bram, Wren; two versions per arc) inside the campaign. Binding them as
-ordinary characters was considered and rejected (owner choice D2), because of three live constraints found that day:
-  - idx_characters_owner_campaign_unique (owner_id, campaign_id) allows ONE character per owner per campaign, so a DM who owns
-    the NPCs can bind exactly one; bind_character_to_campaign()'s is_campaign_member() check refuses the second as well.
-  - bind_character_to_campaign() auto-grants rules.startingTier.ap on first bind (Amble = 36), recorded as a DM award.
-  - A bound character is a party member everywhere in DM Console: the Award AP tile's "Select all", declare_downtime (wipes
-    banked time for EVERY character in the campaign), and the roster/party overview.
-Players cannot read NPC rows today (characters_select = owner or campaign DM) — that must stay true.
-
-DO:
-  1. MEASURE FIRST: live characters/campaigns counts, and confirm no existing row would change meaning.
-  2. Add characters.is_npc boolean not null default false (DM-owned only: a character may be is_npc only if its owner is a DM of
-     its campaign — enforce server-side, not just in the UI). Grant/RLS per sql/rls-policies.sql conventions.
-  3. Re-scope the unique index to `where campaign_id is not null and not is_npc` — do NOT drop it: it is the TOCTOU race guard for
-     player joins (see the "DM sets how many characters one player may have in a campaign" task above, feat/campaign-character-limit,
-     and coordinate with it). Exempt NPCs from is_campaign_member() for the same reason.
-  4. A DM-only bind path for NPCs (new RPC or a flag on the existing one) that skips the starting-AP grant; award_ap() keeps working
-     on NPCs so the DM can set their AP explicitly.
-  5. DM Console: NPCs in their own section, excluded from "Select all" AP awards, declare_downtime and party totals; esc() every name.
-  6. Versions: support several versions per NPC (e.g. "Bram Cotter Ch8-12"); a name convention is enough for v1 unless the plan
-     review argues for an npc group id + version label.
-  7. Migration under sql/migrations/, update rls-policies.sql + baseline, run get_advisors and skim get_logs; cloud-e2e covering
-     two NPCs in one campaign, a player still refused a second join, and a player unable to read an NPC row.
-  8. Cold plan review first (/make-code-cold-plan-review) — concurrency + RLS change on production data.
-FIRST USE once shipped: bind "Bram Cotter Ch8-12" (e4e7675b-0fcc-45fe-b70d-ba99417fe2c0, owned by the Amble DM) to Amble
-(a6687e29-7c12-46b2-a9a3-711586a9ca12) with 82 DM AP in total (owner choice C1: 82 total, not 82 on top of starting AP); Wren next.
-```
-**Done when:** a DM can bind 2+ NPCs to one campaign; a player is still refused a second join (race guard intact); NPCs are excluded from bulk AP awards, downtime and party totals; a player cannot read an NPC row; the advisor reports no new findings; `engine-parity` 0 failed; Bram is bound to Amble at 82 DM AP.
-
 ## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
 **Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
 

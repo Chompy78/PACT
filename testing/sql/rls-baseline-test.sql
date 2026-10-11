@@ -692,7 +692,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'pact_ap_ledger_protected','pact_enforce_locked_history',
                   'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player',
                   'pact_refuse_blank_solo_character','pact_purge_blank_characters',
-                  'redeem_player_invite','redeem_character_claim');
+                  'redeem_player_invite','redeem_character_claim',
+                  'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -700,8 +701,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 13 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 13);
+  perform pg_temp.ok('all 18 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 18);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -718,6 +719,7 @@ end $$;
 \ir ../../sql/migrations/2026-10-11-server-freeze-stage2.sql
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
+\ir ../../sql/migrations/2026-10-11-campaign-npcs.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -737,8 +739,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 13 functions (saw ' || v_n || ')',
-    v_n = 13);
+  perform pg_temp.ok('the drift comparison actually covered all 18 functions (saw ' || v_n || ')',
+    v_n = 18);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;
