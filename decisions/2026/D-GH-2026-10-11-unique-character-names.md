@@ -1,6 +1,7 @@
 # D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
 
-Status: Active once `sql/migrations/2026-10-11-unique-character-names.sql` is applied to live (see *Applying*).
+Status: Active. **Applied to the live database 2026-10-11** (0 violating rows re-counted immediately before; index present,
+both RPCs carry the new handler, `authenticated` can still execute them; performance advisor shows no new findings).
 
 ## Context
 
