@@ -10,6 +10,43 @@
 
 ## Index
 
+## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
+- Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index
+  `uq_characters_owner_active_name` on `(owner_id, lower(btrim(name)))` over active rows, exempting "New Character", "Character" and "… (DM copy)"; the invite/claim RPCs now tell a name
+  clash apart from "already in this campaign"; `sync.js` `isDuplicateNameRejection()` matches the index by name (the campaign index raises 23505 too) and both tools explain it plainly.
+  Full record: `decisions/2026/D-GH-2026-10-11-unique-character-names.md`.
+
+## D-GH-2026-10-08-martially-bound-fighting-styles-flat — Martially Bound does not discount Fighting Styles
+- Owner decision 2026-10-08: the Players Guide always said Fighting Styles are "priced flat regardless of class"; the engine discounted them. A `noMB` data flag (four features plus the Additional Fighting Style subclass copies) now exempts them; `DATA.version` v0.371 → v0.372. No live character affected (measured). Full record: `decisions/2026/D-GH-2026-10-08-martially-bound-fighting-styles-flat.md`.
+## D-GH-2026-10-10-blank-row-guard — the server refuses blank solo character rows; a weekly job sweeps any that remain
+- 31 cloud rows across 5 owners were pure column defaults ("New Character", stats `{}`), burying one player's real character. Owner choice I3: a BEFORE INSERT trigger refuses a solo row
+  whose stats carry no `LOG`, and `pact_purge_blank_characters()` (weekly via pg_cron) deletes solo rows that are exactly `{}`, over a day old and unreferenced. Solo-only because
+  `join_campaign()`/`redeem_player_invite()` seed campaign rows with `{}` on purpose. Deletes stay recoverable via `character_backups`. Client root cause tracked as `fix/blank-character-rows`.
+  Status: active — applied to live 2026-10-11. Full record: `decisions/2026/D-GH-2026-10-10-blank-row-guard.md`.
+
+## D-GH-2026-10-07-martially-bound-subclass-discount — Martially Bound discounts subclass abilities of the bound class
+- Owner decision 2026-10-07: the -1 AP (floor 1) Martially Bound gives a class feature of the bound class now also applies to a subclass ability of it — the guide always said "every non-spell
+  purchase that class trains you in"; the subclass loop in `compute()` had omitted it, so one ability cost 7 or 8 AP depending on which picker bought it. `_subPriceOf()` is the one place; both doors
+  now price any ability identically (gated for all 192). `DATA.version` v0.371; guide §14 clarified (master + served copy). One live character affected (frozen ledger unchanged). Status: done.
+  Full record: `decisions/2026/D-GH-2026-10-07-martially-bound-subclass-discount.md`.
+
+## D-GH-2026-10-05-subability-prereq — Circle Forms requires base Wild Shape (subclass abilities can carry a prerequisite)
+- Circle Forms improves Wild Shape but could be bought without it; the subclass loop in `compute()` had a Hit-Dice gate and no prerequisite gate. Now Circle Forms carries `prereq: [Druid: Wild Shape]`
+  in all three data copies and the subclass loop applies the feature loop's prerequisite gate (Hit Dice first, one joined warning), so both purchase doors refuse it identically. Base Wild Shape only: the
+  one live owner has it but not the 6-forms step. `DATA.version` v0.370. Guide row landed 2026-10-06 (master + served copy). Status: done.
+  Full record: `decisions/2026/D-GH-2026-10-05-subability-prereq.md`.
+
+## D-GH-2026-10-05-subclass-double-purchase-guard — one subclass ability held through both purchase doors is one purchase
+- Every subclass ability is sold through two doors (`b.subAbilities` and a mirrored `b.features` entry); `compute()` and both pickers deduped within one door only, so one ability bought
+  through both was charged twice with no warning (Anders Pipeleaf, 8 + 7 AP). Owner decision P3: charge the copy bought first; the later copy costs nothing, warns, lists once under
+  Blocked purchases, and `purchaseLegality()` refuses it in both tools. Shallow fix now; `refactor/subclass-purchase-unify` is the deep one. `DATA.version` v0.369. Status: done 2026-10-05.
+  Full record: `decisions/2026/D-GH-2026-10-05-subclass-double-purchase-guard.md`.
+## D-GH-2026-10-05-anders-double-purchase-repair — delete the duplicate subclass purchase from Anders Pipeleaf's sealed history
+- One ability was bought through both doors (subclass picker 8 AP, then the advancement picker 7 AP + 100 gp + 21 days) and charged twice with no warning.
+  Only Anders (of 53 characters) is affected. Seq 40 deleted; the lock moved to before Hit Die 4; spend 111 → 104. One guarded transaction with the
+  history-lock and budget triggers disabled for its length, rehearsed in Docker first; backup kept. Status: done 2026-10-05.
+  Full record: `decisions/2026/D-GH-2026-10-05-anders-double-purchase-repair.md`.
+
 ## D-GH-2026-10-04-wound-aliases — 15 more DM-only wounds: 8 same-effect aliases and 7 new mechanics
 - A count of skill names in the drawback texts showed 10 of 18 skills named by only one drawback (an Affliction). Added 15
   wound-only entries, DM-impose only: 8 aliases (a new name and flavour, the same price/tier/place/mechanics as Lame, Maimed Hand
@@ -17,7 +54,9 @@
   Scarred Throat, Shell-Shocked, Frostbitten Limbs, Torn Shoulder, Wrenched Back) so every skill is named by at least two drawbacks.
   Each alias is its own drawback (buy-off matches by name); aliases share the original's place so stacking still warns. Gate pins the
   skill coverage. `v0.368`. Full record: `decisions/2026/D-GH-2026-10-04-wound-aliases.md`.
-## D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (migration written, NOT applied)
+## D-GH-2026-10-05-post-lock-grants-campaign-settings — drawbacks and the two bindings after the lock: refused by default, allowed per campaign
+- Both tools refuse a new drawback, Martially Bound and Magically Bound once creation is locked, unless the campaign ticks `postLockDrawbacks` / `postLockBindings` (two separate DM Console settings; absent = refused). One definition: `postLockAllowance()` in `js/engine.js`. Solo (no campaign) = allowed (owner AA2). Full record: `decisions/2026/D-GH-2026-10-05-post-lock-grants-campaign-settings.md`.
+## D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (APPLIED to live 2026-10-10; stage 2 pending)
 - Server-side freeze (D2 lock boundary + E1 priced patch events), fail-closed on field names with a permanent and a temporary exempt list; functions only, rollback alongside. Rehearsed on Docker (36 attacks work today → 61/61 pass, rollback byte-identical),
   replayed against 457 real saves (all 24 new refusals are history rewrites after a lock) and round-tripped through the real tools (found and fixed a real CharGen load defect). Protects against accidents, not a determined cheater. **Applying it is the owner's decision.**
   Full record: `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.

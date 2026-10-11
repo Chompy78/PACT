@@ -1,0 +1,74 @@
+{
+ "description": "feat/subability-prereq: Circle Forms (Moon) requires Wild Shape, but the prerequisite is about OWNING it, not about purchase order. Circle Forms is bought FIRST (cost frozen at its real 9 AP, as every live owner's event is), Wild Shape second: at the end the prerequisite is met, so Circle Forms is priced normally with no warning. Proves the gate reads the final owned set, never the order, and that a character who owns both today (every live Circle Forms owner) is unaffected.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 200,
+   "seq": 1,
+   "note": "Budget",
+   "label": "Award — budget (200 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Druid"
+   },
+   "cost": 0,
+   "level": 1,
+   "seq": 2,
+   "label": "Origin class — Druid"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "hd": 6
+    }
+   },
+   "cost": 0,
+   "level": 6,
+   "seq": 3,
+   "label": "Hit Dice → 6"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "payload": {
+    "patch": {
+     "freeSub": {
+      "Druid": "Circle of the Moon"
+     }
+    }
+   },
+   "cost": 0,
+   "level": 6,
+   "seq": 4,
+   "label": "Subclasses · 0 AP"
+  },
+  {
+   "type": "buy",
+   "cat": "subabil",
+   "payload": {
+    "v": "Druid|Circle of the Moon|Circle Forms"
+   },
+   "cost": 9,
+   "level": 6,
+   "seq": 5,
+   "label": "Subclass ability — Druid|Circle of the Moon|Circle Forms"
+  },
+  {
+   "type": "buy",
+   "cat": "feature",
+   "payload": {
+    "v": "Druid: Wild Shape"
+   },
+   "cost": 13,
+   "level": 6,
+   "seq": 6,
+   "label": "Class feature — Druid: Wild Shape"
+  }
+ ]
+}

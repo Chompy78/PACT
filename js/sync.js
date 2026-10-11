@@ -293,6 +293,9 @@ export async function saveCharacter({ id, name, kind, stats, campaignId }) {
     // Nothing is left to keep "dirty" (deleteCharacter() already lsRemove()'d the local record), and
     // unlike a conflict, retrying this write could never succeed.
     if (error && error.deleted) return { id, synced: false, deleted: true, error, migratedFrom };
+    // A name clash cannot succeed on retry either, but unlike a seal it is fixed by the player's own next
+    // edit (a rename), so nothing is blocked: the record stays dirty and the next save tries again.
+    if (isDuplicateNameRejection(error)) return { id, synced: false, duplicateName: true, error, migratedFrom };
     return { id, synced: false, conflict: !!error.conflict, staleCopy: !!error.staleCopy, error, migratedFrom };   // stays dirty, will retry
   }
   finally { _pushInFlight.delete(id); }
@@ -365,6 +368,26 @@ export function isBasicModeRejection(error) {
 export const BASIC_MODE_MESSAGE =
   'This account is limited to one character (basic mode). You can turn it off yourself in your '
   + 'account settings, or ask a DM to.';
+
+/** Recognises the one-active-character-per-name refusal (feat/unique-character-names). Two shapes reach
+ *  the tools: a direct save hits the unique index uq_characters_owner_active_name, which PostgREST
+ *  surfaces as SQLSTATE 23505 naming the index; the invite/claim RPCs catch that and re-raise it as
+ *  "PACT: you already have a character named …". Matched on the index name rather than on 23505 alone,
+ *  because the one-character-per-campaign index raises 23505 too and means something else entirely. */
+export function isDuplicateNameRejection(error) {
+  if (!error) return false;
+  const m = [error.message, error.hint, error.details].filter(Boolean).join(' | ');
+  if (/uq_characters_owner_active_name/.test(m)) return true;
+  return /already have a character named/i.test(m);
+}
+
+/** What every tool shows when isDuplicateNameRejection() is true — one string, so the wording can't
+ *  drift between tools. The work is never lost: saveCharacter() leaves the record dirty, so the next
+ *  save after a rename goes through. */
+export const DUPLICATE_NAME_MESSAGE =
+  'You already have another character with this name, so this one was NOT saved to the cloud. '
+  + 'Nothing is lost \u2014 your changes are still on this device. Rename this character (or archive '
+  + 'the other one) and it will save again.';
 
 /** The signed-in user's existing character id in this campaign, or null. Best-effort: any failure
  *  returns null and the caller falls back to minting a new id, which is the pre-existing behaviour

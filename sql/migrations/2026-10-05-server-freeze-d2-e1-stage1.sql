@@ -1,5 +1,5 @@
 -- PACT — server freeze, stage 1 (D2 + E1). docs/plans/2026-10-04-server-freeze-d2-e1.md (cold-reviewed 2026-10-04: Gemini + Groq + a no-context judge).
--- NOT APPLIED to the live database as of this file's creation — applying it is the owner's decision. Rehearsed on a throwaway Docker Postgres
+-- APPLIED to the live PACT database on 2026-10-10 (owner-approved; the live bodies equal this file, minus the comment lines inside pact_enforce_locked_history). Rehearsed on a throwaway Docker Postgres
 -- (testing/scripts/creation-lock-guard-test/run-freeze.sh). Rollback: sql/migrations/2026-10-05-server-freeze-d2-e1-stage1-rollback.sql (functions only, no data change).
 --
 -- WHAT. (E1) a `buy` event with cat='patch' is now PROTECTED — frozen once the character is locked, sealed or awarded — except for its no-AP fields.

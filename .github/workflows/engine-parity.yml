@@ -23,6 +23,7 @@ on:
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
       - "testing/scripts/imposed-drawback-grants-ci.mjs"
       - "testing/scripts/wounds-ci.mjs"
+      - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -204,3 +205,22 @@ jobs:
 
       - name: Displayed version labels agree with DATA.version and BUILD
         run: node testing/scripts/version-label-ci.mjs
+
+  subclass-double-purchase:
+    # feat/subclass-double-purchase-guard (owner decision P3, 2026-10-05). Every subclass ability is sold through two doors
+    # (b.subAbilities and a mirrored b.features entry); compute() used to dedupe within each collection only, so one ability bought
+    # through both was charged twice with no warning (Anders Pipeleaf, 8 + 7 AP). engine-parity pins compute()'s output (fixtures
+    # CG-053..056, EV-030..031); this pins what the TOOLS rely on: purchaseLegality() refuses the second door in both orders for all
+    # 192 abilities, the shared identity helpers agree, and the guard does not over-fire. Wired in the same change as the gate,
+    # because a previous gate (undo-barrier) shipped wired into nothing and never ran again.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: One subclass ability is one purchase, through either door
+        run: node testing/scripts/subclass-double-purchase-ci.mjs

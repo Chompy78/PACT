@@ -273,6 +273,23 @@ const afterMid = await midPushRaceScenario('midrace-live.js');
 ok('  live js/sync.js: the LATE check catches a delete that lands mid-push', afterMid.synced === false && afterMid.deleted === true);
 ok('  and the character stays deleted on the server', afterMid.resurrected === false);
 
+// --- feat/unique-character-names: the name-clash classifier ------------------------------------------
+// Must match the unique index by NAME, not 23505 alone: the one-character-per-campaign index raises 23505
+// too, and reading that as a name clash would tell a player to rename a character that is fine.
+{ const A = await openPage(makePage(liveSrc,'dupname.js'));
+  ok('a direct save hitting uq_characters_owner_active_name is a name clash',
+    A.isDuplicateNameRejection({ code: '23505', message: 'duplicate key value violates unique constraint "uq_characters_owner_active_name"' }) === true);
+  ok('  so is the index named only in details',
+    A.isDuplicateNameRejection({ code: '23505', message: 'Conflict', details: 'Key (owner_id, lower(btrim(name)))=(…) already exists. uq_characters_owner_active_name' }) === true);
+  ok('the invite/claim RPC wording is a name clash',
+    A.isDuplicateNameRejection(new Error('PACT: you already have a character named "Caspian" — choose a different name')) === true);
+  ok('the one-character-per-campaign 23505 is NOT a name clash',
+    A.isDuplicateNameRejection({ code: '23505', message: 'duplicate key value violates unique constraint "idx_characters_owner_campaign_unique"' }) === false);
+  ok('a transient failure is NOT a name clash',
+    A.isDuplicateNameRejection(new Error('Failed to fetch')) === false && A.isDuplicateNameRejection(null) === false);
+  ok('the shared message is exported', typeof A.DUPLICATE_NAME_MESSAGE === 'string' && /rename/i.test(A.DUPLICATE_NAME_MESSAGE));
+}
+
 // --- feat/session-seal: a seal rejection is permanent, unlike every other failure here -----------
 // The classifier is what stops saveCharacter() retrying a write the server will refuse for ever.
 // Getting it WRONG IN EITHER DIRECTION is bad: too loose and an ordinary transient failure stops

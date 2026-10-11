@@ -14,7 +14,7 @@
  *   - compare: accepted or refused by each, the events each appended (category, payload, price, frozen gold and downtime), and the total and spent afterwards.
  * A trial stops comparing after its first mismatch (later steps would only repeat it). Every mismatch is logged with the seed so it replays.
  *
- * KNOWN, DELIBERATE DIFFERENCES (classified, not counted as defects): CharGen refuses new drawbacks and "Magically Bound" after the lock (owner P1); CharGen has no control for a few
+ * KNOWN, DELIBERATE DIFFERENCES (classified, not counted as defects): new drawbacks and the two bindings are refused by BOTH tools after the lock unless the campaign allows them (rules.postLockDrawbacks / postLockBindings, owner X1 2026-10-05; this fuzz runs with no campaign, so refused); CharGen has no control for a few
  * Live-Sheet-only purchases (reported as "no CharGen control", to be understood, not assumed).
  *
  * Usage: node testing/scripts/post-lock-parity-fuzz.mjs [--trials N] [--ops K] [--seed S] [--port P] [--out report.json] [--only cat1,cat2]
@@ -52,16 +52,24 @@ const fdir = path.join(REPO, 'testing/fixtures/builds');
 const FIX = fs.readdirSync(fdir).filter(f => f.endsWith('.json')).map(f => { const raw = JSON.parse(fs.readFileSync(path.join(fdir, f), 'utf8')); return { f, b: raw.build || raw }; });
 
 const browser = await launchChromium();
-const ctx = await browser.newContext();
-const cg = await ctx.newPage(), ls = await ctx.newPage();
+let ctx, cg, ls;
 let cgDialogs = [], lsDialogs = [];
-cg.on('dialog', d => { cgDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
-ls.on('dialog', d => { lsDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
-const errs = []; cg.on('pageerror', e => errs.push('cg: ' + String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | '))); ls.on('pageerror', e => errs.push('ls: ' + String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | ')));
-await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(2500);
-await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(2500);
-// the Live Sheet renders only a few tile groups until others are opened: make every group count as open
-await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
+const errs = [];
+const trunc = e => String(e.stack || e).split('\n').slice(0, 6).map(x => x.trim().slice(0, 110)).join(' | ');
+// (Re)open both tools in a brand-new browser context. --fresh-page does this for EVERY trial: reusing the same two pages made the tools stop answering after ~8 trials (a harness
+// effect — the same purchase replays fine on its own), which a CI gate cannot tolerate.
+async function openTools() {
+  if (ctx) { try { await ctx.close(); } catch (e) {} }
+  ctx = await browser.newContext(); cg = await ctx.newPage(); ls = await ctx.newPage();
+  cg.on('dialog', d => { cgDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
+  ls.on('dialog', d => { lsDialogs.push(d.type() + ': ' + d.message().slice(0, 100)); d.accept(); });
+  cg.on('pageerror', e => errs.push('cg: ' + trunc(e))); ls.on('pageerror', e => errs.push('ls: ' + trunc(e)));
+  await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(FRESH ? 1500 : 2500);
+  await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(FRESH ? 1500 : 2500);
+  // the Live Sheet renders only a few tile groups until others are opened: make every group count as open
+  await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
+}
+await openTools();
 
 // ---- helpers that run INSIDE the pages ----
 const CG_SNAP = () => { const L = LOG; const li = L.findIndex(e => e.type === 'creationLocked'); const b = foldBuild(LOG);
@@ -118,6 +126,12 @@ async function lsDo(intent) {   // click the matching enabled tile in the real b
     const ok = await ls.evaluate(v => { const sel = [...document.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === v)); if (!sel) return 'absent'; const o = [...sel.options].find(o => o.value === v); if (o.disabled) return 'blocked'; setWornArmour(v); return 'clicked'; }, intent.payload.v);
     await ls.waitForTimeout(100); const after = await ls.evaluate(LS_SNAP);
     return { found: { state: ok }, before, after, accepted: after.post.length > before.post.length, dialogs: lsDialogs.slice() };
+  }
+  if (intent.cat === 'drawback') {   // the Live Sheet lists drawbacks as their own buttons (takeDrawback), not as buy tiles
+    const found = await ls.evaluate(v => { const bt = [...document.querySelectorAll('button.ib.draw')].find(b => (b.getAttribute('onclick') || '') === 'takeDrawback("' + v + '")'); if (bt) { bt.click(); return { state: 'clicked' }; }
+      const dis = [...document.querySelectorAll('button.ib.draw.dis')].find(b => (b.textContent || '').includes(v)); return dis ? { state: 'blocked', reason: 'barred' } : { state: 'absent' }; }, intent.payload.v);
+    await ls.waitForTimeout(150); const after = await ls.evaluate(LS_SNAP);
+    return { found, before, after, accepted: after.post.length > before.post.length, dialogs: lsDialogs.slice() };
   }
   // cross-class features are only listed once their class is picked in the "Cross-class features" selector (buyCls)
   if (intent.cat === 'feature') await ls.evaluate(v => { try { const c = DATA.features[v] && DATA.features[v].cls; if (c && typeof buyCls !== 'undefined') { buyCls = c; refreshBuy(); } } catch (e) {} }, intent.payload.v);
@@ -185,15 +199,11 @@ async function cgDo(intent) {   // the equivalent through CharGen's real control
 
 const cgOKpre = C => C.after.post.length > C.before.post.length, lsOKpre = L => L.after.post.length > L.before.post.length;
 const sig = evs => JSON.stringify(evs.map(e => [e.cat, e.payload, e.cost, e.gp ?? null, e.days ?? null]).sort());
-const EXPECTED = new Set(['drawback']);   // CharGen refuses new drawbacks after the lock (owner P1); the Live Sheet offers them
+const EXPECTED = new Set([]);   // no category is excused: a solo character may take drawbacks in both tools (owner AA2); the fuzz has no campaign
 
 const FOLD_KEYS = b => JSON.stringify(Object.fromEntries(Object.keys(b).sort().map(k => [k, b[k]])));
 async function setup(fx, b, econ, wallet) {
-  if (FRESH) {
-    await cg.goto(`${base}/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' }); await cg.waitForTimeout(1500);
-    await ls.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await ls.waitForTimeout(1500);
-    await ls.evaluate(() => { Object.setPrototypeOf(grpOpen, new Proxy({}, { get: () => 1 })); });
-  }
+  if (FRESH) await openTools();
   await cg.evaluate(async ({ b, econ, wallet }) => {
     try { localStorage.clear(); } catch (e) {}
     applyBuild(b);
@@ -213,7 +223,7 @@ async function setup(fx, b, econ, wallet) {
   return { s0, diffKeys };
 }
 async function runOp(it, k, ctxInfo, history) {
-  const L = await lsDo(it), C = await cgDo(it);
+  globalThis.__phase = 'Live Sheet'; const L = await lsDo(it); globalThis.__phase = 'CharGen'; const C = await cgDo(it); globalThis.__phase = '';
   report.ops++; bump(report.byCat, it.cat);
   const lsOK = L.accepted, cgOK = C.accepted;
   history.push({ cat: it.cat, payload: it.payload, ls: lsOK, cg: cgOK });
@@ -234,7 +244,7 @@ async function runOp(it, k, ctxInfo, history) {
 }
 
 if (REPLAY) {
-  const rec = JSON.parse(fs.readFileSync(REPLAY, 'utf8')).report.mismatches[RINDEX];
+  const rec = JSON.parse(fs.readFileSync(REPLAY, 'utf8')).report[process.argv.includes('--errors') ? 'errors' : 'mismatches'][RINDEX];   // --errors replays a harness error / hang (its record carries the starting build too)
   const fx = FIX.find(x => x.f === rec.fixture); const b = JSON.parse(JSON.stringify(rec.build || fx.b)); b.budget = rec.budget;
   const { s0, diffKeys } = await setup(fx, b, rec.econ, rec.wallet || { gp: 0, days: 0 });
   console.log(`replay ${rec.cls}  fixture ${rec.fixture}  budget ${rec.budget}  econ ${rec.econ}  start totals cg ${s0[0].total}/${s0[0].spent} ls ${s0[1].total}/${s0[1].spent}  folded-build differences: ${JSON.stringify(diffKeys)}`);
@@ -252,18 +262,29 @@ for (let trial = 0; trial < TRIALS; trial++) {
   const econ = rnd() < 0.6, wallet = { gp: pick([0, 25, 100, 500, 3000]), days: pick([0, 14, 60, 365]) };
   const info = { trial, fixture: fx.f, budget: b.budget, econ, wallet: econ ? wallet : null, build: JSON.parse(JSON.stringify(b)) };   // the exact starting build, so a replay reproduces the randomised level and scores
   const history = [];
-  try {
+  const runTrial = async () => {
     const { s0, diffKeys } = await setup(fx, b, econ, wallet);
     report.trials++;
-    if (s0[0].total !== s0[1].total || s0[0].spent !== s0[1].spent) { report.mismatches.push({ cls: 'START STATE DIFFERS (totals)', ...info, intent: { cat: 'start' }, cg: [s0[0].total, s0[0].spent], ls: [s0[1].total, s0[1].spent], history }); continue; }
-    if (diffKeys.length) { report.mismatches.push({ cls: 'START STATE DIFFERS (folded build: ' + diffKeys.join(',') + ')', ...info, intent: { cat: 'start' }, history }); continue; }
+    if (s0[0].total !== s0[1].total || s0[0].spent !== s0[1].spent) { report.mismatches.push({ cls: 'START STATE DIFFERS (totals)', ...info, intent: { cat: 'start' }, cg: [s0[0].total, s0[0].spent], ls: [s0[1].total, s0[1].spent], history }); return; }
+    if (diffKeys.length) { report.mismatches.push({ cls: 'START STATE DIFFERS (folded build: ' + diffKeys.join(',') + ')', ...info, intent: { cat: 'start' }, history }); return; }
     for (let k = 0; k < OPS; k++) {
       let intents = await intentsFor(Math.floor(rnd() * 4294967296)); if (ONLY) intents = intents.filter(i => ONLY.includes(i.cat));
       if (!intents.length) break;
-      const cats = [...new Set(intents.map(i => i.cat))]; const cat = pick(cats); const r = await runOp(pick(intents.filter(i => i.cat === cat)), k, info, history);
+      const cats = [...new Set(intents.map(i => i.cat))]; const cat = pick(cats); const intent = pick(intents.filter(i => i.cat === cat));
+      if (process.argv.includes('--verbose')) console.log(`  trial ${trial} ${fx.f} op ${k}: ${JSON.stringify(intent).slice(0, 160)}`);
+      // a tool that stops answering is a finding, not a reason to hang the whole run: give each purchase 60 s and report the intent that did it
+      let hangT; const r = await Promise.race([runOp(intent, k, info, history), new Promise((_, rej) => { hangT = setTimeout(() => { history.push({ cat: intent.cat, payload: intent.payload, ls: null, cg: null }); const pg = globalThis.__phase === 'CharGen' ? cg : ls; Promise.race([pg.evaluate('1').then(() => 'page still answers (the call is waiting on something else)', () => 'page closed'), new Promise(r => setTimeout(() => r('the page main thread is BLOCKED (an endless loop in the tool)'), 4000))]).then(w => console.log('  hang diagnosis: ' + w), () => {}); rej(new Error('HANG (60 s, ' + (globalThis.__phase || 'a tool') + ' stopped answering) on ' + JSON.stringify(intent).slice(0, 160))); }, 60000); })]); clearTimeout(hangT);
       if (r.stop) break;
     }
-  } catch (e) { report.errors.push({ trial, fixture: fx.f, err: String(e.message).slice(0, 200), history }); }
+  };
+  // A browser tab that dies mid-trial (seen on CI and, rarely, locally; the same purchase replays fine on its own) is retried ONCE on a fresh context before it counts as an error.
+  for (let att = 0; ; att++) {
+    try { await runTrial(); break; }
+    catch (e) {
+      if (att === 0 && /HANG|has been closed|Target (page|closed)|crashed/.test(String(e.message))) { console.log(`  trial ${trial}: ${String(e.message).slice(0, 90)} — retrying once on a fresh browser context`); history.length = 0; continue; }
+      report.errors.push({ ...info, err: String(e.message).slice(0, 200), history }); break;
+    }
+  }
   if ((trial + 1) % 25 === 0) console.log(`  ... ${trial + 1}/${TRIALS} trials, ${report.ops} ops, ${report.mismatches.length} mismatches`);
 }
 await browser.close(); server.close();

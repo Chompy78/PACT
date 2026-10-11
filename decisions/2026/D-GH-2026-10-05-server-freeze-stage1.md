@@ -1,6 +1,6 @@
 # D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (D2 + E1), stage 1
 
-**Status:** MIGRATION WRITTEN, REHEARSED AND AUDITED — **NOT APPLIED to the live database** (applying it is the owner's decision). Plan: `docs/plans/2026-10-04-server-freeze-d2-e1.md`
+**Status:** **APPLIED to the live PACT database on 2026-10-10** (migration `server_freeze_d2_e1_stage1`, one apply, owner-approved). Verified afterwards: four of the five live function bodies are byte-identical to the migration file and `pact_enforce_locked_history` equals it minus three comment lines; security advisors show nothing new; the Postgres logs show no refused save since. A real campaign-character save by a player has not been observed yet. **Stage 2** (drop the temporary exempt list) is still to do, once the newest CharGen is live in shipped clients.
 (cold-reviewed by two API reviewers and a no-context judge; triage recorded there).
 
 ## Context

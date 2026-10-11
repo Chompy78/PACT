@@ -149,6 +149,33 @@ local `close-session-logging-core.md` is confirmed to carry all four patched cla
 re-applied), the stale `gh` path in AGENTS.md's Shell environment notes is corrected, and the
 sibling-file gap above is either fixed at the source or recorded as a known limitation of cloud sessions.
 
+## fix/blank-character-rows — blank "New Character" rows keep being inserted into the cloud — TODO
+Branch `fix/blank-character-rows`. **Effort:** medium · **Risk:** medium — driven by damage scale: the fix sits in `js/sync.js`'s push path, which every cloud save in both tools goes through, so a guard that's too broad could refuse a real save.
+
+```text
+FOUND 2026-10-08 (live check while helping a player who could not load his character): public.characters holds 30 active
+rows that are pure column defaults — name 'New Character', kind 'livesheet', stats '{}' — across 5 owners, created
+2026-08-08 → 2026-10-08. One owner has 16; one player got five within ~6 seconds (2026-10-08 11:47 UTC), and they
+cluttered his character list so badly he could not find the right one.
+
+Every tool's saveCharacter() call passes real stats, so the rows are not coming from a normal save. An insert with ALL
+defaults means the pushed record had no name, kind or stats. Prime suspects: noteEdit() and setAutosaveEnabled() in
+js/sync.js both write a bare local placeholder ({id, editSeq…} / {id, dirty:false, …}) with no stats, and
+pushCharacter() INSERTs whatever record it is handed when no server row exists (reconcile()'s dirty-record retry is one
+route there).
+
+DO:
+  1. Find the exact path that pushes a stats-less local record, and reproduce it in a test.
+  2. Shallow fix: pushCharacter() refuses to INSERT a record with no stats.LOG.
+     Deeper fix (preferred if low risk): a stats-less local record can never be marked for push — placeholders stay
+     local-only metadata. Present both with tradeoffs before choosing (AGENTS.md "Fix depth").
+  3. Do NOT delete the existing 30 blank rows here — that is a separate cleanup needing owner approval.
+
+Related gaps found the same day, NOT in scope (record them if left open): the duplicate-name guard (_lsRenameGuard, #545)
+runs only on Live Sheet's Rename — not on save, import or load — and CharGen has no such guard at all.
+```
+**Done when:** a test reproduces a blank-row insert on the old code and passes on the new; `engine-parity.html` reports 0 failed; a live re-check after the fix reaches `main` shows no blank rows created after that date.
+
 ---
 
 # Conventions

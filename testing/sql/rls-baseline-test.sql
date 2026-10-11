@@ -266,10 +266,10 @@ begin
   -- wrongly block anyway").
   perform set_config('pact.test_uid', v_player::text, false);
   insert into public.characters (id, owner_id, name, stats)
-    values (gen_random_uuid(), v_player, 'Flagged player''s first character', '{}'::jsonb)
+    values (gen_random_uuid(), v_player, 'Flagged player''s first character', '{"LOG":[]}'::jsonb)
     returning id into v_char1;
   insert into public.characters (id, owner_id, name, stats)
-    values (gen_random_uuid(), v_player, 'Flagged player''s second character', '{}'::jsonb)
+    values (gen_random_uuid(), v_player, 'Flagged player''s second character', '{"LOG":[]}'::jsonb)
     returning id into v_char2;
   -- shares_campaign(v_player) needs an actual character bound to the DM's campaign, not just an
   -- invite. join_campaign() is the real RPC for this; a direct UPDATE is test-only shorthand.
@@ -304,7 +304,7 @@ begin
 
   perform set_config('pact.test_uid', v_player::text, false);
   perform pg_temp.rejects('a flagged player cannot insert a THIRD active character',
-    format('insert into public.characters (id, owner_id, name, stats) values (gen_random_uuid(), %L, %L, ''{}''::jsonb)',
+    format('insert into public.characters (id, owner_id, name, stats) values (gen_random_uuid(), %L, %L, ''{"LOG":[]}''::jsonb)',
       v_player, 'Third character, should be blocked'));
 
   update public.characters set archived_at = archived_at where id = v_char1;
@@ -332,9 +332,9 @@ begin
   -- Regression control: an entirely different, never-flagged player is unaffected throughout.
   perform set_config('pact.test_uid', v_other::text, false);
   insert into public.characters (id, owner_id, name, stats)
-    values (gen_random_uuid(), v_other, 'Unflagged player, character 1', '{}'::jsonb);
+    values (gen_random_uuid(), v_other, 'Unflagged player, character 1', '{"LOG":[]}'::jsonb);
   insert into public.characters (id, owner_id, name, stats)
-    values (gen_random_uuid(), v_other, 'Unflagged player, character 2', '{}'::jsonb);
+    values (gen_random_uuid(), v_other, 'Unflagged player, character 2', '{"LOG":[]}'::jsonb);
   perform pg_temp.ok('an unflagged player can freely hold more than one active character', true);
 end $$;
 
@@ -534,6 +534,128 @@ begin
     || case when v_bad = '' then '' else ' — UNPINNED: ' || v_bad end, v_bad = '');
 end $$;
 
+
+\echo ''
+\echo 'fix/blank-row-guard — blank SOLO rows are refused; campaign seed rows still work; the purge is narrow'
+do $$
+declare v_p uuid; v_dm uuid; v_camp uuid; v_old uuid; v_new uuid; v_ref uuid; v_note uuid; v_seed uuid; v_n int;
+begin
+  perform pg_temp.ok('trg_pact_refuse_blank_solo_character is attached to characters',
+    exists (select 1 from pg_trigger where tgname = 'trg_pact_refuse_blank_solo_character' and not tgisinternal));
+  perform pg_temp.ok('the blank-row trigger function is NOT callable by authenticated',
+    not has_function_privilege('authenticated', 'public.pact_refuse_blank_solo_character()', 'EXECUTE'));
+  perform pg_temp.ok('the purge is NOT callable by authenticated or anon',
+    not has_function_privilege('authenticated', 'public.pact_purge_blank_characters(interval)', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.pact_purge_blank_characters(interval)', 'EXECUTE'));
+
+  insert into auth.users (email) values ('blank-player@example.test') returning id into v_p;
+  insert into auth.users (email) values ('blank-dm@example.test') returning id into v_dm;
+  perform set_config('pact.test_uid', v_p::text, false);
+
+  -- The observed bug: an INSERT carrying nothing but column defaults.
+  perform pg_temp.rejects('a solo row with all-default stats ({}) is refused',
+    format('insert into public.characters (owner_id) values (%L)', v_p));
+  perform pg_temp.rejects('a solo row whose stats carry no LOG key is refused',
+    format('insert into public.characters (owner_id, stats) values (%L, ''{"note":"x"}''::jsonb)', v_p));
+  insert into public.characters (owner_id, name, stats) values (v_p, 'Fresh draft', '{"LOG":[]}'::jsonb);
+  perform pg_temp.ok('a solo row with an EMPTY LOG array (an untouched draft) is allowed', true);
+
+  -- join_campaign()/redeem_player_invite() seed a campaign row with the default {} — must keep working.
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Blank-row probe') returning id into v_camp;
+  perform set_config('pact.test_uid', v_p::text, false);
+  insert into public.characters (owner_id, campaign_id) values (v_p, v_camp) returning id into v_seed;
+  perform pg_temp.ok('a CAMPAIGN seed row with stats {} is still allowed (join_campaign path)', v_seed is not null);
+
+  -- Purge fixtures. Blank rows can no longer be INSERTed, so make them the way history did: insert a valid
+  -- row, then empty it and backdate it (session_replication_role skips user triggers for the setup only).
+  insert into public.characters (owner_id, stats) values (v_p, '{"LOG":[]}'::jsonb) returning id into v_old;
+  insert into public.characters (owner_id, stats) values (v_p, '{"LOG":[]}'::jsonb) returning id into v_new;
+  insert into public.characters (owner_id, stats) values (v_p, '{"LOG":[]}'::jsonb) returning id into v_ref;
+  insert into public.characters (owner_id, stats) values (v_p, '{"LOG":[]}'::jsonb) returning id into v_note;
+  set local session_replication_role = replica;
+  update public.characters set stats = '{}'::jsonb, created_at = now() - interval '3 days',
+         updated_at = now() - interval '3 days' where id in (v_old, v_ref, v_seed);
+  update public.characters set stats = '{"note":"hello"}'::jsonb, created_at = now() - interval '3 days',
+         updated_at = now() - interval '3 days' where id = v_note;
+  update public.characters set stats = '{}'::jsonb where id = v_new;   -- blank but only just created
+  insert into public.character_dm_notes (character_id, notes) values (v_ref, 'keeps this row alive');
+  set local session_replication_role = origin;
+
+  v_n := public.pact_purge_blank_characters(interval '1 day');
+  perform pg_temp.ok('the purge removed exactly the one old, blank, solo, unreferenced row (removed ' || v_n || ')',
+    v_n = 1 and not exists (select 1 from public.characters where id = v_old));
+  perform pg_temp.ok('the purge kept a blank row younger than the minimum age',
+    exists (select 1 from public.characters where id = v_new));
+  perform pg_temp.ok('the purge kept a blank row that another table references',
+    exists (select 1 from public.characters where id = v_ref));
+  perform pg_temp.ok('the purge kept a blank CAMPAIGN row',
+    exists (select 1 from public.characters where id = v_seed));
+  perform pg_temp.ok('the purge kept a row whose stats hold data but no LOG',
+    exists (select 1 from public.characters where id = v_note));
+  perform pg_temp.ok('the purged row was backed up first (character_backups, reason delete)',
+    exists (select 1 from public.character_backups where character_id = v_old and reason = 'delete'));
+end $$;
+
+\echo ''
+\echo 'feat/unique-character-names — one ACTIVE character per name per player; defaults and DM copies exempt'
+do $$
+declare v_a uuid; v_b uuid; v_dm uuid; v_camp uuid; v_c1 uuid; v_arch uuid; v_src uuid; L jsonb := '{"LOG":[]}'::jsonb;
+        dup text := '%uq_characters_owner_active_name%';
+begin
+  perform pg_temp.ok('uq_characters_owner_active_name exists',
+    exists (select 1 from pg_indexes where indexname = 'uq_characters_owner_active_name'));
+
+  insert into auth.users (email) values ('uniq-a@example.test') returning id into v_a;
+  insert into auth.users (email) values ('uniq-b@example.test') returning id into v_b;
+  insert into auth.users (email) values ('uniq-dm@example.test') returning id into v_dm;
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Caspian', L) returning id into v_c1;
+  perform pg_temp.rejects('a second active "Caspian" for the same player is refused',
+    format('insert into public.characters (owner_id, name, stats) values (%L, %L, %L)', v_a, 'Caspian', L), dup);
+  perform pg_temp.rejects('the match ignores case and surrounding spaces ("  caspian ")',
+    format('insert into public.characters (owner_id, name, stats) values (%L, %L, %L)', v_a, '  caspian ', L), dup);
+  insert into public.characters (owner_id, name, stats) values (v_b, 'Caspian', L);
+  perform pg_temp.ok('another player may use the same name', true);
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'New Character', L), (v_a, 'New Character', L),
+                                                               (v_a, 'Character', L), (v_a, 'character', L),
+                                                               (v_a, 'Moss (DM copy)', L), (v_a, 'Moss (DM copy)', L);
+  perform pg_temp.ok('the unnamed defaults and "(DM copy)" names are exempt (two of each allowed)', true);
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Skylar', L) returning id into v_arch;
+  update public.characters set archived_at = now() where id = v_arch;
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Skylar', L);
+  perform pg_temp.ok('archiving a character frees its name for a new one', true);
+  perform pg_temp.rejects('un-archiving into a name clash is refused',
+    format('update public.characters set archived_at = null where id = %L', v_arch), dup);
+  perform pg_temp.rejects('renaming into a name clash is refused',
+    format('update public.characters set name = %L where id = (select id from public.characters where owner_id = %L and name = %L and archived_at is null)',
+           'Caspian', v_a, 'Skylar'), dup);
+
+  -- redeem_player_invite(): a clashing chosen name must say so, not "already joined this campaign".
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Unique-name probe') returning id into v_camp;
+  insert into public.campaign_invites (campaign_id, type, token, created_by) values (v_camp, 'player', 'uniq-tok-1', v_dm);
+  perform set_config('pact.test_uid', v_a::text, false);
+  perform pg_temp.rejects('redeem_player_invite with a clashing name gives the plain name message',
+    $q$select * from public.redeem_player_invite('uniq-tok-1', 'Caspian')$q$, 'PACT: you already have a character named "Caspian"%');
+  perform pg_temp.ok('a refused redemption leaves the invite unused (the whole call rolled back)',
+    (select redeemed_by from public.campaign_invites where token = 'uniq-tok-1') is null);
+  perform pg_temp.ok('redeem_player_invite with a fresh name still works',
+    (select is_new from public.redeem_player_invite('uniq-tok-1', 'Caspian the Second')));
+
+  -- redeem_character_claim(): the copied name clashes with the claimer's own character.
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Unique-name claim probe') returning id into v_camp;
+  insert into public.characters (owner_id, name, stats) values (v_dm, 'Caspian', L) returning id into v_src;
+  insert into public.campaign_invites (campaign_id, type, token, created_by, source_character_id)
+    values (v_camp, 'character_claim', 'uniq-claim-1', v_dm, v_src);
+  perform set_config('pact.test_uid', v_a::text, false);
+  perform pg_temp.rejects('redeem_character_claim into a clashing name gives the plain name message',
+    $q$select * from public.redeem_character_claim('uniq-claim-1')$q$, 'PACT: you already have a character named "Caspian"%');
+  perform set_config('pact.test_uid', '', false);
+end $$;
 \echo ''
 \echo 'The baseline and the MIGRATIONS agree — the anti-drift guard'
 -- This is the check that makes the whole file un-rottable, and it needs no access to production.
@@ -568,7 +690,9 @@ select proname,
 from pg_proc
 where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                   'pact_ap_ledger_protected','pact_enforce_locked_history',
-                  'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player');
+                  'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player',
+                  'pact_refuse_blank_solo_character','pact_purge_blank_characters',
+                  'redeem_player_invite','redeem_character_claim');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -576,8 +700,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 9 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 9);
+  perform pg_temp.ok('all 13 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 13);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -589,6 +713,10 @@ end $$;
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql
 \ir ../../sql/migrations/2026-10-04-dm-unlock-drawback.sql
+-- Server freeze, stage 1 (D2 + E1), applied to production 2026-10-10 (decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md). It REPLACES pact_ap_ledger_protected and pact_enforce_locked_history, so it must run after every migration that touched them.
+\ir ../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql
+\ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
+\ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -608,8 +736,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 9 functions (saw ' || v_n || ')',
-    v_n = 9);
+  perform pg_temp.ok('the drift comparison actually covered all 13 functions (saw ' || v_n || ')',
+    v_n = 13);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

@@ -825,6 +825,7 @@ section('CharGen: flat purchases after the lock — no refunds, no new drawbacks
   check('after the lock: a purchase made AFTER the lock cannot be unticked either', boonEv(l3.log, B2).length === 1 && l3.spent === l2.spent && await isTicked('boonck', B2));
 
   dialogs = [];
+  await p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; });   // in a CAMPAIGN a new drawback after the lock is refused unless the campaign allows it (a solo character may: owner AA2)
   const nBeforeDraw = (await snap()).log.length;
   await tick('drawck', D1, true);
   const l4 = await snap();
@@ -993,7 +994,8 @@ section('CharGen refuses post-lock edits to spellcasting, innate, misc and ident
     check('...the player is told why', dialogs.some(d => re.test(d.msg)), JSON.stringify(dialogs.map(d => d.msg.slice(0, 60)))); };
   await refused('lowering spellcasting (rank 2 -> 1, cantrips 2 -> 1)', () => p.evaluate(t => replacePatchSlot(PATCH_SLOTS.TRADITIONS, { traditions: t }), TRAD), /can only go up once creation is finished/);
   await refused('changing innate spells', () => p.evaluate(() => replacePatchSlot(PATCH_SLOTS.INNATE, { innate: [1, 0, 0, 0, 0, 0, 0, 0, 0] })), /Innate spells are chosen during creation/);
-  await refused('taking martial binding (it grants AP)', () => setSel('martiallyBound', 'Fighter'), /binding give you AP/);
+  await refused('taking martial binding in a campaign that has not allowed it (it grants AP)', async () => { await p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; }); await setSel('martiallyBound', 'Fighter'); }, /binding give you AP/);
+  await p.evaluate(() => { window._cloudCampaign = null; });   // back to a solo character for the cases below
   await refused('adding out-of-tradition cantrips', () => setSel('dabblerCantrips', 2), /Out-of-Tradition cantrips are chosen during creation/);
   const otherSpecies = await p.evaluate(() => { const cur = document.getElementById('spec').value; return [...document.getElementById('spec').options].map(o => o.value).find(v => v && v !== cur); });
   await refused('changing species', () => setSel('spec', otherSpecies), /origin .*is chosen during creation/);
@@ -1199,13 +1201,54 @@ section('CharGen records post-lock spellcasting increases as in-play purchases; 
   await refuseCase('a level-3 slot without rank 3', c => { c[0].disciplines[0].slots[2] = 1; return c; }, /Level 3 spells need Arcane rank 3/);
   await refuseCase('a level-4 slot before the Hit Dice for it (rank 4 needs 7 Hit Dice; this character has 5)', c => { c[0].rank = 4; c[0].disciplines[0].slots[3] = 1; return c; }, /Level 4 spells need Arcane rank 4 and 7 Hit Dice/);
   await refuseCase('a known spell for a prepared caster', (c, D) => { c.push({ name: 'Primal', rank: 1, disciplines: [{ name: D.primalPrep, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }] }); return c; }, /prepares its spells/);
-  await refuseCase('Magically Bound (it grants AP)', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/);
+  await refuseCase('Magically Bound (it grants AP) in a campaign that has not allowed it', c => { c[0].disciplines[0].bound = true; return c; }, /gives you AP/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: {} }; }));
   await refuseCase('Warlock pact slots (no purchase exists)', c => { c[0].disciplines[0].pactSlots = 1; return c; }, /pact slots and arcanum can.t be raised/);
   await refuseCase('a second discipline when the campaign allows only one', (c, D) => { c[0].disciplines.push({ name: D.arcane2, bound: false, cantrips: 0, slots: [0,0,0,0,0,0,0,0,0], known: [0,0,0,0,0,0,0,0,0], pactSlots: 0, arcanum: [0,0,0,0] }); return c; },
     /only allows a single discipline/, () => p.evaluate(() => { window._cloudCampaign = { name: 't', rules: { multiDisciplineAllowed: false } }; }));
 
   // a no-op is silent, and a reload of a locked spellcaster raises nothing
   await base0(); const n0 = (await snap()).log.length; await edit(c => c); check('writing the spellcasting the character already has is a silent no-op', dialogs.length === 0 && (await snap()).log.length === n0);
+
+  // ---- campaign settings: drawbacks and the two bindings after the lock (owner decision X1, 2026-10-05) — refused by default, allowed per campaign, each by its own tickbox ----
+  const withRules = r => p.evaluate(r => { window._cloudCampaign = { name: 't', rules: r }; }, r);
+  const boundEdit = c => { c[0].disciplines[0].bound = true; return c; };
+  const bindEv = s => post(s).filter(e => e.cat === 'dbound' || e.cat === 'mbound');
+  await base0(); await withRules({ postLockBindings: true }); dialogs = [];
+  await edit(boundEdit, D); const gb = await snap();
+  check('postLockBindings on: Magically Bound is accepted as one +2 AP purchase, no refusal', bindEv(gb).length === 1 && bindEv(gb)[0].cat === 'dbound' && bindEv(gb)[0].cost === -2 && dialogs.length === 0, JSON.stringify({ ev: bindEv(gb), dialogs }));
+  await base0(); await withRules({ postLockDrawbacks: true }); dialogs = [];
+  await edit(boundEdit, D); const gb2 = await snap();
+  check('only postLockDrawbacks on: Magically Bound is still refused (the tickboxes are separate)', bindEv(gb2).length === 0 && dialogs.some(d => /Magically Bound gives you AP/.test(d.msg)), JSON.stringify({ ev: bindEv(gb2), dialogs }));
+  const martial = () => p.evaluate(() => { const el = document.getElementById('martiallyBound'); const oc = foldBuild(LOG).originClass; el.value = oc; el.dispatchEvent(new Event('change', { bubbles: true })); });
+  await base0(); await withRules({}); dialogs = []; await martial(); const gm0 = await snap();
+  check('default: Martially Bound after the lock is refused', bindEv(gm0).length === 0 && dialogs.some(d => /give you AP/.test(d.msg)), JSON.stringify({ ev: bindEv(gm0), dialogs }));
+  await base0(); await withRules({ postLockBindings: true }); dialogs = []; await martial(); const gm1 = await snap();
+  check('postLockBindings on: Martially Bound is accepted as one +2 AP purchase', bindEv(gm1).length === 1 && bindEv(gm1)[0].cat === 'mbound' && bindEv(gm1)[0].cost === -2, JSON.stringify({ ev: bindEv(gm1), dialogs }));
+  const drawTick = () => p.evaluate(() => { const v = Object.keys(DATA.drawbacks)[0]; const el = [...document.querySelectorAll('.drawck')].find(e => e.value === v); el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); return v; });
+  const drawEv = s => post(s).filter(e => e.cat === 'drawback');
+  await base0(); await withRules({ postLockBindings: true }); dialogs = []; await drawTick(); const gd0 = await snap();
+  check('default (only bindings on): a new drawback after the lock is refused', drawEv(gd0).length === 0 && dialogs.some(d => /Drawbacks can.t be taken/.test(d.msg)), JSON.stringify({ ev: drawEv(gd0), dialogs }));
+  await base0(); await withRules({ postLockDrawbacks: true }); dialogs = []; await drawTick(); const gd1 = await snap();
+  check('postLockDrawbacks on: a new drawback is accepted and grants its AP', drawEv(gd1).length === 1 && drawEv(gd1)[0].cost < 0 && dialogs.length === 0, JSON.stringify({ ev: drawEv(gd1), dialogs }));
+  // a SOLO character (no campaign at all) may take all three (owner AA2)
+  await base0(); await p.evaluate(() => { window._cloudCampaign = null; }); dialogs = []; await edit(boundEdit, D); await martial(); await drawTick(); const gs = await snap();
+  check('solo (no campaign): Magically Bound, Martially Bound and a drawback are all accepted after the lock', bindEv(gs).map(e => e.cat).sort().join() === 'dbound,mbound' && drawEv(gs).length === 1 && dialogs.length === 0, JSON.stringify({ b: bindEv(gs).map(e => e.cat), d: drawEv(gs).length, dialogs }));
+  // the Live Sheet, same locked character: refused by default, allowed by the same two settings
+  await base0(); const lenv = await p.evaluate(() => JSON.stringify(_cgEnvelope(false)));
+  const lp2 = await ctx.newPage(); const lsd = []; lp2.on('dialog', d => { lsd.push(d.message().slice(0, 90)); d.accept(); });
+  await lp2.addInitScript(e => { try { localStorage.setItem('pactLiveSheet', e); } catch (x) {} }, lenv);
+  await lp2.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' }); await lp2.waitForTimeout(2500);
+  const lsPost = () => lp2.evaluate(() => JSON.parse(JSON.stringify(LOG)).filter(e => e.type === 'buy' && ['dbound', 'mbound', 'drawback'].indexOf(e.cat) >= 0).map(e => e.cat));
+  const lsBuy = () => lp2.evaluate(D => { buy('dbound', { ti: 0, di: 0, v: true }, 'Magically Bound'); buy('mbound', { v: foldBuild(null).originClass }, 'Martially Bound'); buy('drawback', { v: Object.keys(DATA.drawbacks)[0] }, 'Drawback'); }, D);
+  await lsBuy();
+  check('Live Sheet, solo (no campaign): all three are accepted after the lock', (await lsPost()).length === 3 && lsd.length === 0, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { LOG = LOG.filter(e => !(e.type === 'buy' && ['dbound', 'mbound', 'drawback'].indexOf(e.cat) >= 0)); window._rulesStatus = 'active'; window._cloudCampaignRules = {}; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, in a campaign with neither box ticked: Magically Bound, Martially Bound and a drawback are all refused after the lock', (await lsPost()).length === 0 && lsd.length === 3, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { window._rulesStatus = 'active'; window._cloudCampaignRules = { postLockBindings: true }; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, postLockBindings only: both bindings go through, the drawback is still refused', JSON.stringify(await lsPost()) === JSON.stringify(['dbound', 'mbound']) && lsd.length === 1, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.evaluate(() => { window._cloudCampaignRules = { postLockDrawbacks: true }; }); lsd.length = 0; await lsBuy();
+  check('Live Sheet, postLockDrawbacks on: the drawback goes through', (await lsPost()).indexOf('drawback') >= 0, JSON.stringify({ ev: await lsPost(), lsd }));
+  await lp2.close();
 
   // ---- property test: 300 random increase-only edits — the steps, applied to the current list, must reproduce the target exactly ----
   const prop = await p.evaluate(() => {

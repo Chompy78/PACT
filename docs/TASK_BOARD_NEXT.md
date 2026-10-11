@@ -928,41 +928,6 @@ check in `docs/VERSION-SYNC.md`.
 
 ---
 
-## Mirrored subclass abilities double-charge when bought through both paths — TODO
-Branch `fix/subclass-mirror-double-charge`. All 192 subclass abilities are mirrored into `DATA.features`,
-so one logical ability can sit in **both** `b.subAbilities` and `b.features` in a single build — and
-`compute()` prices it twice with no warning at all. Verified 2026-08-27 on `Barbarian › Path of the
-Berserker: Frenzy` at 20 HD: subclass path alone 134 AP, feature path alone 134 AP, **both together 140 AP**
-(one extra Frenzy charge), `warnings: []`. Pre-existing and independent of the HD gate, but
-`D-GH-2026-08-27-feature-hd-gate` made it visible by having to gate both doors identically. Two depths:
-**shallow** — dedupe by logical identity inside `compute()` (charge once, warn on the duplicate); **deep** —
-`refactor/subclass-purchase-unify`, collapsing the two purchase paths into one, which the v0.353 §11
-comment already names as the precondition for gating anything ("a rule that guards one of two doors teaches
-players the wrong thing about the door it does not guard"). Recommend the deep fix if it is being scheduled
-anyway, else the shallow one now — a silent double-charge on live characters is worse than a stale mirror.
-**Effort:** medium (shallow) / high (deep) · **Risk:** medium — ambiguity is the driver (which collection
-is canonical, and what a saved LOG holding both should migrate to); damage scale is medium (mis-pricing,
-not data loss) and likelihood low (needs both collections populated for one ability).
-
-```text
-1. Reproduce first: build one character holding the same subclass ability via b.subAbilities AND via its
-   mirrored "cls: name" key in b.features; confirm the AP delta equals one extra charge and no warning.
-2. Decide canonical identity (subAbilMap key vs mirrored feature label) and record it in DECISIONS.md —
-   this is the actual decision; the code is downstream of it.
-3. Shallow: in compute(), collapse duplicates by that identity before pricing — charge once, push a
-   warning naming the duplicate. Deep: unify the purchase paths so the second door stops existing, and
-   state what happens to already-saved LOGs carrying the other shape.
-4. Blocked purchases must dedupe the same way — a doubly-represented, HD-blocked ability must appear once
-   under "Blocked purchases", not twice.
-5. compute() output changes either way -> update testing/expected/ and bump DATA.version.
-```
-
-**Done when:** a build holding one ability through both collections prices it exactly once and says so;
-a fixture covers the doubled input for both the priced and the HD-blocked case; engine-parity 0 failed.
-
----
-
-
 ## Racial traits still re-derive the Hit-Dice rule instead of calling `requiredHD()` — TODO
 Branch `refactor/racial-required-hd`. `D-GH-2026-08-27-feature-hd-gate` introduced `requiredHD()` as THE
 single definition of the Hit-Dice rule and its comment says "Do not re-inline it; import it" — but four
@@ -1332,3 +1297,59 @@ only, no stored data), likelihood of harm low. Not blocking: the run passed on r
 ```
 **Done when:** the Fighter-priming check passes on 200 consecutive seeded rolls, a failing seed (if one is found)
 is recorded as a fixture, and `testing/scripts/random-quality-ci.mjs` reports 0 failed on CI across 3 runs.
+
+## Anders Pipeleaf holds one ability through both purchase doors — decide how a sealed double charge is handled — TODO
+**Effort:** low · **Risk:** medium — ambiguity drives it (the DM and player must choose what, if anything, is refunded).
+
+```text
+FOUND 2026-10-05. Anders Pipeleaf (Amble, campaign-bound; also a DM copy and a lock-check copy) bought
+`Rogue|Soulknife|Psionic Power / Psychic Blades` via the subclass picker (8 AP, seq 30, 2026-08-31) and again via the in-play
+advancement picker as `Rogue: Psionic Power / Psychic Blades` (7 AP + 100 gp + 21 days, seq 40, 2026-09-17, warns []).
+compute() charges both with no duplicate warning; replay gives 111 AP vs 104 without seq 40 (absolute totals unreliable: DM AP
+pool and campaign rules omitted; the delta is valid). The 7-vs-8 gap is the Martially Bound discount, applied only in the features
+loop. No other Amble or live character has this (checked 2026-10-05, matching by class + ability name).
+This is a live case for the existing task "Mirrored subclass abilities double-charge when bought through both paths", whose
+likelihood rating ("low") no longer holds. The history is sealed (seq 47); the DM's repair placed the creation lock before seq 40,
+and `fix/ledger-reconciliation-pass` already notes his ledger is frozen against a contaminated basis.
+DO: (1) get a DM decision on the 7 AP + 100 gp + 21 days (refund, or leave); (2) record it in DECISIONS.md; (3) confirm that
+whichever fix lands for the double-charge task does not silently change his sealed ledger; (4) apply the decision as a DM edit,
+not by hand-editing the log.
+```
+**Done when:** the DM's decision is recorded in `DECISIONS.md`; Anders's sheet (and both copies) agree with it; the double-charge
+task's likelihood note is updated by the board's owner to point at this case.
+
+## A subclass key repeated inside `b.subAbilities` alone is charged twice — TODO
+Branch `fix/subclass-same-door-repeat`. **Effort:** low · **Risk:** medium — `compute()` output changes for any saved log holding the same subclass key twice, so measure first; damage scale is medium (a mis-priced total, not data loss), likelihood low.
+
+```text
+FOUND 2026-10-05 by /code-review during feat/subclass-double-purchase-guard. The FEATURE loop in js/engine.js guards its own repeats (`fcount` -> "already
+bought — can only be taken once"); the SUBCLASS loop never did. A build whose `b.subAbilities` holds the same key twice (e.g. a duplicated buy event) is
+charged twice with no warning. The cross-door duplicate guard does not cover this: it only fires when the same ability is ALSO in b.features.
+DO:
+  1. Reproduce: a build with subAbilities [S, S] and no feature copy prices 2x with warnings [].
+  2. Add the same "already bought" guard to the subclass loop (count per key, skip and warn on the second) — reusing the wording the feature loop uses.
+  3. MEASURE FIRST: query live characters for a repeated `subabil` key in their LOG. Any hit changes that character's recomputed total; frozen ledgers do not move.
+  4. Fixture(s) for the repeat; bump DATA.version once; CHANGELOG; decision record.
+```
+**Done when:** a build holding one subclass key twice prices it once and warns once; engine-parity 0 failed with the new fixture; the live measurement is recorded in the PR.
+
+## `verify-guide.mjs` cannot see a combined row's second name, and only warns on ambiguous/unparsed/stepped rows — TODO
+**Effort:** low–medium · **Risk:** low — a checker and an allow-list; no pricing or guide-text change unless it finds another stale row.
+
+```text
+HISTORY: FOUND 2026-10-06 as "verify-guide is red at baseline"; on 2026-10-08 the four stale rows behind that were fixed (split into one row per ability in the
+pact-guide master and the served copy; the verifier now passes 11 of 11). The `feature prices` check fails ONLY on a price mismatch; it merely lists the rest.
+What is left is the blind spots that let those four rows go stale unnoticed for six weeks:
+  1. A combined row "A / B" is matched on its FIRST name only. "Roving / Tireless" priced as Roving (correct for Roving) and the checker never looked at Tireless;
+     "Empowered Strikes / Self-Restoration" was matched to Empowered Strikes alone. DO: match every name in a combined row and check each against the engine.
+  2. A price RANGE is "unparsed", so a wrong range passes ("Perfect Focus / Body & Mind 24–28" was wrong for both members; "Tactical Mind / Shift / Master 3–10" matched
+     none). DO: parse "a–b" and check that every member's price lies in it (or that the endpoints equal the min and max).
+  3. Today the check still LISTS ambiguous=6 (Fighting Style x2, Channel Divinity, Circle / Origin / Patron bonus spells: one name in two classes), unparsed=9 (skill-ladder
+     rows, "Included in Premium", "Barred -> A&T" ...) and stepped=3 (Metamagic) without ever failing on them. DO: key ambiguous rows on the table's class heading; allow-list
+     each remaining row WITH A REASON so a NEW unparsed or ambiguous row fails.
+  4. The pact-guide master and the served copy have drifted in CONTENT, not only in the three documented presentation additions: the served copy's Ranger table has a
+     "Subclass bonus spells" row the master lacks (found 2026-10-08). DO: find any other such row (diff the two files' tables), then decide which side is right and
+     make them agree — never by copying one file over the other (see docs/VERSION-SYNC.md).
+```
+**Done when:** `verify-guide.mjs` still passes 11 of 11; a deliberately wrong price in a combined row, in a range, and in an allow-listed-by-mistake row each make it FAIL (mutation check); every allow-list entry carries a reason; the master and served copy agree on every priced table row.
+

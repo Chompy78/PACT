@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.583.html**-->
+<!--**PACT-CharGen-Webtool v1.599.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.583 · Rules v0.368</title><style>
+<title>PACT Character Generator — Web Tool v1.599 · Rules v0.372</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.583</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.368</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.599</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.372</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -596,7 +596,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { DATA, compute, requiredHD, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
@@ -609,7 +609,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window._engineBridge = { validate, creationLockThreshold };
-  window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck;
+  window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck; window.postLockAllowance = postLockAllowance;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
@@ -650,7 +650,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   // The party downtime window is read through the same helper the Live Sheet uses (js/dm.js, RPC get_downtime_window); CharGen needs only that one function.
   import { getDowntimeWindow } from '../js/dm.js';
@@ -658,7 +658,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -1045,6 +1045,13 @@ document.addEventListener('sync-ready', function () {
       // a routine edit to the player's one already-allowed character.
       if (res.error && window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(res.error)) {
         alert('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+        if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
+        return;
+      }
+      // feat/unique-character-names: before the throw, for the same reason as the two checks above.
+      if (res.duplicateName) {
+        alert('\u26A0 ' + window._syncBridge.DUPLICATE_NAME_MESSAGE);
         if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
         if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
@@ -1462,6 +1469,9 @@ document.addEventListener('sync-ready', function () {
       // does its own `insert into characters` INSIDE the RPC — same reasoning as tryRedeem()'s copy.
       if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
         showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+      } else if(window._syncBridge.isDuplicateNameRejection && window._syncBridge.isDuplicateNameRejection(err)){
+        // feat/unique-character-names: the claimed character's name matches one this player already has.
+        showBanner('You already have a character with that name. Rename or archive yours, then open the claim link again.');
       } else {
         showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
       }
@@ -2303,7 +2313,7 @@ function buildForm(F){
   // prefixed ids need no per-field entry in PATCH_FIELD_SLOT.
   function apCustomField(idx){return '<div class="row apcustom"><input type="text" id="ap_custom'+idx+'Label" class="apin apcustomlabel" placeholder="Label (e.g. Catchphrase)" aria-label="Custom detail '+idx+' label"><input type="text" id="ap_custom'+idx+'Text" class="apin" placeholder="One sentence…" aria-label="Custom detail '+idx+' text"></div>';}
   grp('1 · Setup &amp; Character Description',
-    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
+    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60" onchange="_cgNameClashCheck()"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
@@ -2472,7 +2482,7 @@ function buildForm(F){
 '<div class="row"><span class="hint">Magically Bound is set per discipline above</span></div>'+
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Bonds — magical &amp; martial (each grants +2 AP for a story string)</div>'+
     '<div class="bondsgrid">'+
-      '<div class="bondcard"><h5>⚔ Martially Bound</h5><div class="hint">Bind one class’s training: −1 AP (floor 1) on that class’s features &amp; fighting styles; stacks with origin. Grants 2 AP.</div>'+
+      '<div class="bondcard"><h5>⚔ Martially Bound</h5><div class="hint">Bind one class’s training: −1 AP (floor 1) on that class’s features &amp; subclass abilities (not fighting styles, which are priced flat); stacks with origin. Grants 2 AP.</div>'+
         '<div class="row" style="margin-top:4px"><label class="l">Bound class</label><select id="martiallyBound">'+selOpts(['(none)'].concat(DATA.classes),'(none)')+'</select><span class="price" id="mboundp"></span></div></div>'+
       '<div class="bondcard"><h5>✦ Magically Bound</h5><div class="hint">Bind a Discipline: −1 AP on its Foundation, Rank, cantrips, slots &amp; spells; stacks with the origin discount. Grants 2 AP. Set it per discipline in <b>§12 Spellcasting</b> (the “Magically Bound” box).</div>'+
         '<div class="basics" id="mboundsummary" style="margin:4px 0 0">No disciplines bound.</div></div>'+
@@ -3374,7 +3384,7 @@ function _cgPostLockQuote(cost){   // mirrors the Live Sheet's _lsQuote(): null 
 // known spells may only go UP, one purchase per +1; a slot or known spell of level L needs tradition rank L and the Hit Dice gate for L; no cantrips for a discipline in
 // DATA.noCantrip; no known spells for a prepared caster (DATA.prepared); a second discipline or tradition needs a campaign that allows multi-discipline casting. "Magically Bound"
 // GRANTS AP and Warlock pact slots / arcanum have no purchase in either tool, so those are refused. Order: found, then rank, then cantrips/slots/known, so each step's gate is met.
-function _cgTraditionSteps(curList,nextList,hd,multiOK){
+function _cgTraditionSteps(curList,nextList,hd,multiOK,bindOK){
   var steps=[], refuse=null;
   var clean=function(list){ return (list||[]).filter(function(t){ return t&&t.name&&t.name!=='(none)'; }).map(function(t){
     return {name:t.name,rank:+t.rank||0,disciplines:(t.disciplines||[]).filter(function(d){ return d&&d.name&&d.name!=='(none)'; }).map(function(d){
@@ -3394,7 +3404,7 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
   if(refuse) return {steps:steps,refuse:refuse};
   var hasAny=cur.some(function(t){ return t.disciplines.length; });
   // 2. new traditions / disciplines (found), 3. rank, 4. cantrips / slots / known — collected per discipline, emitted in that order
-  var found=[], ranks=[], powers=[];
+  var found=[], binds=[], ranks=[], powers=[];
   next.forEach(function(nt,ti){
     var ct=cur[ti], isNewTrad=!ct;
     var startRank=isNewTrad?0:ct.rank;
@@ -3408,7 +3418,8 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
         hasAny=true;
       }
       var base=cd||{bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};
-      if(nd.bound!==base.bound) no(nd.bound?'Magically Bound gives you AP, and after creation only your DM awards AP.':'Magically Bound can\'t be given up once creation is finished.');
+      if(nd.bound&&!base.bound&&bindOK) binds.push({cat:'dbound',payload:{ti:ti,di:di,v:true},label:'Magically Bound'});   // the campaign allows it (rules.postLockBindings): the Live Sheet's own purchase, +2 AP; bought before the powers so its spell discount applies to them, as when the Live Sheet buys it first
+      else if(nd.bound!==base.bound) no(nd.bound?'Magically Bound gives you AP, and after creation only your DM awards AP. Your DM can allow it in the campaign settings.':'Magically Bound can\'t be given up once creation is finished.');
       if(nd.pactSlots<base.pactSlots||nd.arcanum.some(function(v,k){ return v<base.arcanum[k]; })) no('Warlock pact slots and arcanum can only go up once creation is finished.');
       else if(nd.pactSlots>base.pactSlots||nd.arcanum.some(function(v,k){ return v>base.arcanum[k]; })) no('Warlock pact slots and arcanum can\'t be raised after creation yet — there is no purchase for them.');
       if(nd.cantrips<base.cantrips) no('Cantrips can only go up once creation is finished ('+nd.name+' has '+base.cantrips+').');
@@ -3427,7 +3438,7 @@ function _cgTraditionSteps(curList,nextList,hd,multiOK){
     for(var r=startRank+1;r<=nt.rank;r++) ranks.push({cat:'rank',payload:{ti:ti,to:r},label:nt.name+' Rank '+r});
   });
   if(refuse) return {steps:[],refuse:refuse};
-  return {steps:found.concat(ranks,powers),refuse:null};
+  return {steps:found.concat(binds,ranks,powers),refuse:null};
 }
 // What an edit to `slot` would ADD, and whether it tries to take something away. Pure: reads `cur`, returns steps.
 function _cgPostLockSteps(slot,patch,cur){
@@ -3512,14 +3523,19 @@ function _cgPostLockSteps(slot,patch,cur){
     if(slot==='traditions'){
       if(patch.traditions!==undefined){
         var rules=(window._cloudCampaign&&window._cloudCampaign.rules)||null;
-        var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false));
+        var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false),window.postLockAllowance(rules).bindings);
         steps=tr.steps; refuse=tr.refuse;
         if(refuse) tail='Nothing you have bought can be removed or lowered once creation is finished. You can still add and raise things by spending AP.';
       }
     }else if(slot==='innate'){
       if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='misc'){
-      if(patch.martiallyBound!==undefined&&changed('martiallyBound')){ refuse='Martial and magical binding give you AP, and after creation only your DM awards AP.'; tail='If it fits the story, ask your DM to impose it.'; }
+      var _al=window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null);
+      if(patch.martiallyBound!==undefined&&changed('martiallyBound')){
+        // Martially Bound is a one-way +2 AP purchase for the origin class (the Live Sheet's tile); it is offered only when not yet taken, and only where the campaign allows it.
+        if(_al.bindings&&N(cur.martiallyBound)===''&&patch.martiallyBound===cur.originClass) steps.push({cat:'mbound',payload:{v:cur.originClass},label:'Martially Bound: '+cur.originClass});
+        else{ refuse='Martial and magical binding give you AP, and after creation only your DM awards AP.'+(_al.bindings?' Martial binding can only be taken once, for your origin class.':' Your DM can allow them in the campaign settings.'); tail='If it fits the story, ask your DM to impose it.'; }
+      }
       else if(patch.dabblerCantrips!==undefined&&(+cur.dabblerCantrips||0)!==(+patch.dabblerCantrips||0)){ refuse='Out-of-Tradition cantrips are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='identity'){
       var idk=['originClass','originClass2','species','species2','size','lineage'].filter(function(k){ return patch[k]!==undefined&&changed(k); });
@@ -3557,7 +3573,7 @@ function _cgPostLockAppend(steps){
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
       if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }
-      var q=_cgPostLockQuote(cost);
+      var q=(st.cat==='drawback')?null:_cgPostLockQuote(cost);   // a drawback grants AP: the Live Sheet never quotes or stamps gold/downtime on it (found by the parity fuzz, drawback-only run)
       // Wallet (Q2): the §16 trade offer is decided PER STEP against the wallet as the earlier steps of this edit left it (accepting a trade on one step changes the next); the shortfall
       // warning is ONE confirm for the whole edit, below. A drawback is never charged, and a free purchase has nothing to trade.
       if(q&&(q.gp||q.days)&&st.cat!=='drawback'){
@@ -3596,7 +3612,7 @@ function _cgPostLockSlotEdit(slot,patch){
 // character is locked (the DM can still impose one; an existing one can still be bought off in the Live Sheet).
 function _cgRefuseNewDrawback(){
   alert('\uD83D\uDD12 Drawbacks can\'t be taken once creation is finished \u2014 they give you AP, and after creation only your DM awards AP.\n\n'
-    +'If a drawback fits the story, ask your DM to impose it.');
+    +'If a drawback fits the story, ask your DM to impose it, or to allow new drawbacks in the campaign settings.');
   _cgRepaint();
 }
 function replacePatchSlot(slot,patch,label){
@@ -3842,7 +3858,7 @@ function onChecklistToggle(el){
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
-      if(cat==='drawback'){ el.checked=false; _cgRefuseNewDrawback(); return; }
+      if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
     }else{
     const before=compute(dom).total;
@@ -3973,7 +3989,7 @@ function _cgSyncFlatCategory(cat){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
       if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle; stop at the first refusal (it repaints every control)
-        if(cat==='drawback'){ _cgRefuseNewDrawback(); break; }
+        if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ _cgRefuseNewDrawback(); break; }
         if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v}])) break;
         continue;
       }
@@ -4958,10 +4974,32 @@ async function _cgCloudPushOnce(){
     // notice was reachable only from the gate on the NEXT push — which a player who stopped editing
     // never schedules.
     if(res&&res.sealed) _cgSealNotice();
+    // feat/unique-character-names: once per name — the player's fix (a rename) is itself an edit that retries.
+    if(res&&res.duplicateName) _cgDupNameNotice(stats.name);
   }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
 }
 var _cgConflictWarned=false;   // one notice per session, not one per keystroke
+var _cgDupNameWarned=null;     // feat/unique-character-names: the name last warned about
+function _cgDupNameNotice(nm){
+  var k=String(nm||'').trim().toLowerCase(); if(_cgDupNameWarned===k) return; _cgDupNameWarned=k;
+  alert('\u26A0 '+window._syncBridge.DUPLICATE_NAME_MESSAGE);
+}
+// The early, friendly half of the same rule (Live Sheet's equivalent is _lsRenameGuard): when the player
+// leaves the name field, say so if another of their ACTIVE characters already has the name. Advisory
+// only — the keystroke sync has already recorded the name, and the server is what actually refuses it.
+// Skipped for the unnamed defaults and when signed out, matching the server's exemptions.
+async function _cgNameClashCheck(){
+  var nm=String(val('cname')||'').trim(), k=nm.toLowerCase();
+  if(!nm||k==='new character'||k==='character'||/ \(dm copy\)$/.test(k)) return;
+  if(!window._cloudSignedIn||!window._syncBridge||!window._syncBridge.listMyCharacters) return;
+  try{
+    var mine=await window._syncBridge.listMyCharacters();
+    var me=String(currentCharId());
+    var dupe=(mine||[]).find(function(c){return String(c.id)!==me&&!c.archived_at&&String(c.name||'').trim().toLowerCase()===k;});
+    if(dupe&&typeof flash==='function') flash('\u26A0 You already have a character named \u201C'+nm+'\u201D'+(dupe.campaign_id?' (in a campaign)':'')+'. Pick a different name, or this one won\u2019t save to the cloud.');
+  }catch(e){ /* offline or lookup failed — the server still enforces the rule */ }
+}
 var _cgBudgetWarned=false;     // feat/campaign-ap-budget-enforce: same one-notice-per-session shape
 // Flush a pending-or-in-flight cloud autosave right now instead of leaving it on its debounce timer —
 // used before a deliberate in-app navigation (switchToLiveSheet) that would otherwise abandon it. Bounded
@@ -6120,7 +6158,7 @@ function annotate(b,r){
   if($('attune')){relabel($('attune'),n=>n+(n>0?' ('+(DATA.attune[n])+' AP)':''));if($('attunep'))$('attunep').textContent=get('Attunement slots')+' AP';}
   if($('ki')){relabel($('ki'),n=>n+(n>0?' ('+(DATA.skills[n])+' AP)':''));if($('kip'))$('kip').textContent=get('Ki / Focus points')+' AP';}
   if($('sorcery')){relabel($('sorcery'),n=>n+(n>0?' ('+(DATA.sorcCum[n])+' AP)':''));if($('sorceryp'))$('sorceryp').textContent=get('Sorcery points')+' AP';const _sSel=$('sorcery');if(_sSel){var _spOK=_cgHasDisc('Sorcerer')&&(b.hd||1)>=2;_sSel.disabled=!_spOK;_sSel.title=_spOK?'Sorcery points — bands-of-two, first two free':(_cgHasDisc('Sorcerer')?'Requires 2 Hit Dice (T2)':'Requires the Sorcerer discipline — open Arcane › Sorcerer in §13');}}
-  if($('mboundp'))$('mboundp').textContent=(b.martiallyBound&&b.martiallyBound!=='(none)')?('+2 AP gain · −1 (floor 1) on '+b.martiallyBound+' features'):'';
+  if($('mboundp'))$('mboundp').textContent=(b.martiallyBound&&b.martiallyBound!=='(none)')?('+2 AP gain · −1 (floor 1) on '+b.martiallyBound+' features &amp; subclass abilities (not fighting styles)'):'';
   if($('mboundsummary')){const bd=[];(b.traditions||[]).forEach(t=>{if(!t||!t.name||t.name==='(none)')return;(t.disciplines||[]).forEach(d=>{if(d&&d.name&&d.name!=='(none)'&&d.bound)bd.push(t.name+' / '+d.name);});});
     if($('mboundsummary'))$('mboundsummary').textContent=bd.length?('Bound: '+bd.join(' · ')+'  (+'+(2*bd.length)+' AP)'):'No disciplines bound.';}
   // class menus (#7)
@@ -6434,7 +6472,7 @@ function explainParas(label,b,r){
   else if(L.indexOf('2nd origin class')===0){P('A second origin class (creation only) is 14 AP and includes its unlock; both classes then get the origin discount on their features.');}
   else if(L==='Class features'){P('Each feature\'s price comes from the <b>Master Cost Table</b> (its Tier × availability band). Your <b>origin</b> class pays −(Tier−1) AP (floor 1); any other class pays +Tier. Martially Bound shaves a further −1 on the bound class.');}
   else if(L==='Ki / Focus points'||L==='Sorcery points'){P('Point pools ride the <b>Gentle</b> ladder (⌊owned÷2⌋) with no Hit-Dice gate — the cheap early points are free.');}
-  else if(L==='Martially Bound (gain)'){P('Martially Bound is a <b>bond</b>: it pays you +2 AP and shaves −1 AP (floor 1) off the bound class\'s features &amp; fighting styles, in exchange for a story string. Not feats or spells.');}
+  else if(L==='Martially Bound (gain)'){P('Martially Bound is a <b>bond</b>: it pays you +2 AP and shaves −1 AP (floor 1) off the bound class\'s features &amp; subclass abilities (not fighting styles, which are priced flat), in exchange for a story string. Not feats or spells.');}
   else if(L==='Subclass abilities'){P('Your first subclass per class is free to open; its abilities are then bought à la carte at the origin/cross price like any feature.');}
   else if(L.indexOf('Subclass unlocks')===0){P('Reaching into a <b>second</b> subclass of the same class costs a one-time 15 AP unlock — the brake on cherry-picking.');}
   else if(L==='Boons'){P('Boons are flat-priced extra abilities, Hit-Dice-gated by price (≤7 AP from 1 HD, 8–10 from 3 HD, 11–12 from 5 HD, 13+ from 9 HD). DM-tunable.');}

@@ -76,7 +76,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.583";
+export const BUILD = "v1.599";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -92,6 +92,50 @@ export { DATA };
  * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
  * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
 export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
+
+/* One ability, two purchase doors (feat/subclass-double-purchase-guard, owner decision P3, 2026-10-05).
+ * All 192 subclass abilities are sold twice: as `DATA.subAbilMap["Class|Sub|Name"]` (b.subAbilities) and as a
+ * mirrored `DATA.features["Class: Name"]` (b.features). The two loops in compute() used to dedupe only within
+ * their own collection, so one ability bought through both was charged twice with no warning (Anders Pipeleaf,
+ * 8 AP + 7 AP, found 2026-10-05). abilityIdent() is the ONE shared identity — the mirrored feature label.
+ * It is deliberately a function of the two keys' own shapes, not a second table that has to be kept in sync. */
+/** The shared identity of a subAbilMap entry: its mirrored feature label. The ONE place this string is built. */
+const _subIdent = a => a.cls + ': ' + a.name;
+let _mirrorIdents = null, _mirrorSrc = null, _mirrorN = -1;
+const _isMirrored = id => {
+  const m = DATA.subAbilMap || {}, n = Object.keys(m).length;
+  // rebuilt whenever DATA.subAbilMap is swapped or gains/loses an entry, so a patched DATA can never leave this answering from an old map
+  if (!_mirrorIdents || _mirrorSrc !== m || _mirrorN !== n) { _mirrorIdents = new Set(Object.values(m).map(_subIdent)); _mirrorSrc = m; _mirrorN = n; }
+  return _mirrorIdents.has(id);
+};
+/** "Class|Sub|Name" (a subAbilMap key) or "Class: Name" (a feature label) -> the shared "Class: Name" identity. */
+export function abilityIdent(key) {
+  if (typeof key !== 'string') return key;
+  if (key.indexOf('|') >= 0) { const a = (DATA.subAbilMap || {})[key]; return a ? _subIdent(a) : key; }
+  return FEAT_ALIAS(key);
+}
+/** Does the build hold this ability through EITHER door? Accepts either key shape. */
+export function ownsAbility(b, key) {
+  const id = abilityIdent(key);
+  return (b.features || []).some(l => FEAT_ALIAS(l) === id) || (b.subAbilities || []).some(k => abilityIdent(k) === id);
+}
+/* Purchase order across the two collections. b.features and b.subAbilities are separate arrays, so which door an
+ * ability was bought through FIRST is lost by the time compute() sees the build. MUT notes it (first door wins) on
+ * `b._abilDoor` — an underscore key, like `_raceTraitLocked`: derived ordering state, never saved, never compared.
+ * Called AFTER the purchase has been pushed onto its own collection. Three rules keep the stamp honest:
+ *   - first door wins: an existing stamp is kept;
+ *   - a stamp whose door no longer holds the ability (the copy was removed in place) is stale and is dropped;
+ *   - if the OTHER door already holds the ability but carries no stamp (it came in through a base snapshot or a legacy `patch`
+ *     bundle, not a buy event), that older copy is the first one, so the stamp is the other door, not this one. */
+const _holdsDoor = (b, id, door) => door === 'f'
+  ? (b.features || []).some(l => FEAT_ALIAS(l) === id)
+  : (b.subAbilities || []).some(k => abilityIdent(k) === id);
+const _noteDoor = (b, id, door) => {
+  if (!_isMirrored(id)) return;
+  const d = b._abilDoor || (b._abilDoor = {});
+  if (d[id] && !_holdsDoor(b, id, d[id])) delete d[id];
+  if (!d[id]) { const other = door === 'f' ? 's' : 'f'; d[id] = _holdsDoor(b, id, other) ? other : door; }
+};
 
 /**
  * packTraitsFor(species, species2) — the racial traits a character owns FOR FREE by virtue of their
@@ -473,8 +517,10 @@ export function compute(b, opts){
   // picker hint said "+14 AP" for six days after this rose 14 -> 18 (D-GH-2026-08-18-drawback-cap-
   // and-second-origin), quoting a player one price and charging another.
   if(has2nd) add("2nd origin class",DATA.secondOriginAP);
-  // §14 Martially Bound: choose one class; −1 AP (floor 1) on that class's features, stacks with origin. +2 AP gain.
+  // §14 Martially Bound: choose one class; −1 AP (floor 1) on every non-spell purchase that class trains you in — its class features (feature loop) AND its
+  // subclass abilities (subclass loop) — stacks with origin. +2 AP gain. ONE rule, _mbAdj() below, used by both loops so the two purchase doors cannot disagree. Exception: an item flagged noMB (Fighting Styles) is priced flat; every caller MUST pass the item.
   const mbClass=(b.martiallyBound && b.martiallyBound!=="(none)")?b.martiallyBound:null;
+  const _mbAdj=(cls,c,item)=>(mbClass&&cls===mbClass&&!(item&&item.noMB))?Math.max(1,c-1):c;   // the Martially Bound discount: 1 AP less, floor 1, only for the bound class; an item flagged noMB (Fighting Styles, "priced flat regardless of class", Players Guide §14) is never discounted
   // Membership-only view of unlockedClasses, built once and shared by the features / subclass-ability /
   // tradition / discipline loops below — each previously re-scanned the array with indexOf per iteration.
   // Used for lookups ONLY: b.unlockedClasses itself is untouched, so any order-dependent read is unaffected.
@@ -487,6 +533,27 @@ export function compute(b, opts){
   // correctly (owning steps 2 and 3 while skipping 1 blocks both, not just the one naming 1 directly).
   // (ownership resolution — _ownedFeatSet / _blockedFeat / _hdBlockedFeat — is computed near the top of
   // compute(), BEFORE any mechanical effect reads b.features. See the block above the ability-score fold.)
+  // One ability, two doors (feat/subclass-double-purchase-guard, owner decision P3 2026-10-05): an ability held through BOTH
+  // b.features ("Class: Name") and b.subAbilities ("Class|Sub|Name") is one purchase, not two. The copy bought FIRST is the one
+  // counted; the later copy costs nothing, grants nothing, raises one "⛔ … duplicate" warning (which purchaseLegality() reads as a
+  // hard refusal, so both tools turn the second purchase away) and is listed once under "Blocked purchases". Order comes from
+  // b._abilDoor (stamped by MUT). A build handed in WITHOUT it — CharGen's live state, which is read off two independent page
+  // lists, or a hand-assembled build — falls back to the FEATURE copy, because that is the order CharGen's save emits its events in
+  // (every `feature` event before any `subabil` event): the live view and the saved-then-reloaded log must agree about which copy
+  // counts, or Save + Load would silently swap it (pinned by subclass-double-purchase-ci.mjs).
+  const _dupFeat=new Set(), _dupSub=new Set(), _dupSubKey={}, _dupSubSeen=new Set();
+  // Why the SUBCLASS door will not count this ability right now ([] = it will): Hit Dice first, then prerequisites — the same two gates,
+  // in the same order and wording, that the feature loop applies, so a purchase failing both says so (feat/subability-prereq). A
+  // prerequisite is a feature label, so it is read from _ownedFeatSet/_blockedFeat exactly as the feature loop reads it.
+  const _subWhy=a=>{const why=[];const _n=requiredHD(a);
+    if(hd<_n)why.push("needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[a.tier]||1)?"(level gate)":"(T"+a.tier+")"));
+    const miss=(a.prereq||[]).filter(function(r){return !_ownedFeatSet.has(r)||_blockedFeat.has(r);});
+    if(miss.length)why.push("requires "+(miss[0].split(": ")[1]||miss[0])+" first");
+    return why;};
+  {const _byId={};for(const _k of (b.subAbilities||[])){const _a=DATA.subAbilMap[_k];if(_a&&!_byId[_subIdent(_a)])_byId[_subIdent(_a)]=_k;}
+   for(const _id in _byId){if(!_ownedFeatSet.has(_id))continue;
+     _dupSubKey[_id]=_byId[_id];
+     if(((b._abilDoor||{})[_id]||'f')==='s')_dupFeat.add(_id);else _dupSub.add(_byId[_id]);}}
   // features — non-stepped: buy once. Stepped (rep): each re-buy is the next tier up.
   let featAP=0; const fcount={}; const _FI=[];
   for(const _lab0 of (b.features||[])){const lab=FEAT_ALIAS(_lab0);const f=DATA.features[lab];if(!f){W.push((lab.split(": ")[1]||lab)+" is no longer in the rules data — no cost/effect applied");continue;}
@@ -496,7 +563,15 @@ export function compute(b, opts){
     if(f.rep){const tier=Math.min(7,f.tier+n-1);stick=DATA.MASTER[tier][f.band];origin=Math.max(1,stick-(tier-1));cross=stick+tier;}
     else {origin=f.origin;cross=f.cross;stick=Math.max(1,f.cross-f.tier);}
     const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
-    if(mbClass && f.cls===mbClass) c=Math.max(1,c-1);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
+    c=_mbAdj(f.cls,c,f);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
+    if(_dupFeat.has(lab)){
+      // The later copy of an ability whose subclass copy was bought first. If the counted (subclass) copy is itself Hit-Dice-blocked
+      // its own line already stands for this ability, so the duplicate is not listed a second time (or its price counted twice).
+      const _ka=DATA.subAbilMap[_dupSubKey[lab]];
+      W.push("⛔ "+(lab.split(": ")[1]||lab)+" — duplicate: already owned as a "+_ka.sub+" subclass ability, bought first (this copy is not counted)");
+      if(!_subWhy(_ka).length){blockedAP+=c;_BLI.push([lab,c]);}
+      continue;
+    }
     if(_blockedFeat.has(lab)){
       // Report every DIRECT cause on the item itself, HD first, so a purchase failing both gates says so
       // instead of hiding one behind the other. A pure-prereq block keeps its exact pre-existing wording
@@ -557,23 +632,42 @@ export function compute(b, opts){
   // v0.172: base pool (= Hit Dice) is FREE with the Sorcerer Discipline — b.sorcery = EXTRA points bought
   add("Sorcery points",(DATA.sorcCum&&DATA.sorcCum[Math.min(sorcery,DATA.sorcCum.length-1)])||0);
   if((b.sorcery||0)>0){var _hsd=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Sorcerer";});});if(!_hsd)W.push("⛔ Sorcery points require the Sorcerer discipline (open Arcane › Sorcerer)");else if(hd<2)W.push("⛔ Sorcery points require 2 Hit Dice (T2)");}
-  // §14 Martially Bound — taking it grants 2 AP up front (like a drawback), discount applied in the features loop above
+  // §14 Martially Bound — taking it grants 2 AP up front (like a drawback); the discount is applied by _mbAdj() in the feature loop and the subclass loop
   if(mbClass) add("Martially Bound (gain)",-2);
   // subclass abilities (à la carte) + unlocks: first subclass per class is free, others 15 AP
   const freeSub=b.freeSub||{}; const subUsed={}; let subAP=0;const _UI=[];
+  // What this ability costs this build through the subclass door (origin / unlocked-class / cross-class). One expression, used by the
+  // counted, the Hit-Dice-blocked and the duplicate branches below. Martially Bound (owner decision 2026-10-07, feat/martially-bound-subclass-discount):
+  // the discount is "1 AP less (floor 1) on every non-spell purchase the bound class trains you in" (Players Guide §14), and a subclass ability is
+  // one — so it takes the same -1 the feature loop gives a feature of the bound class, which is also what makes the two purchase doors price one
+  // ability identically (before this, the feature door took the -1 and the subclass door did not: 7 AP vs 8 AP for the same ability). Subclass SPELL
+  // bundles (b.subSpellBundles) are spells and are priced elsewhere, deliberately outside this discount ("non-spell purchase"); so is the 15 AP
+  // "open another subclass" unlock, which the guide does not call a purchase the class trains you in.
+  const _subPriceOf=a=>_mbAdj(a.cls,(a.cls===b.originClass||a.cls===b.originClass2)?a.origin:(_unlkSet.has(a.cls)?Math.max(1,a.cross-a.tier):a.cross),a);
   for(const key of (b.subAbilities||[])){const a=DATA.subAbilMap[key];if(!a){W.push((String(key).split("|").pop()||key)+" is no longer in the rules data — no cost/effect applied");continue;}
     const _sLab=(a.cls+" › "+a.sub+": "+a.name);
-    // Same Hit-Dice gate as the feature loop, via the same requiredHD(). Blocked means NOT OWNED, so the
+    if(_dupSub.has(key)){
+      // The later copy of an ability whose FEATURE copy was bought first (see the detection block above the feature loop). Not counted,
+      // and — like a blocked purchase — it must not open its subclass for the paid-unlock accounting below. Warned about and listed
+      // ONCE per key (a key repeated in b.subAbilities is still one duplicate), and not listed at all when the counted feature copy is
+      // itself blocked (Hit Dice or a prerequisite: _blockedFeat holds both) — its own line already stands for the ability.
+      if(_dupSubSeen.has(key))continue;
+      _dupSubSeen.add(key);
+      W.push("⛔ "+a.name+" — duplicate: already owned as a "+a.cls+" class feature, bought first (this copy is not counted)");
+      if(!_blockedFeat.has(_subIdent(a))){const _dc=_subPriceOf(a);blockedAP+=_dc;_BLI.push([_sLab,_dc]);}
+      continue;
+    }
+    // Same two gates as the feature loop — Hit Dice (requiredHD) and prerequisites — via _subWhy(). Blocked means NOT OWNED, so the
     // subUsed[] marking below is skipped too — a blocked ability must not drag its subclass into the
     // paid-unlock accounting for a purchase that did not happen.
-    if(hd < requiredHD(a)){
-      {const _n=requiredHD(a);
-       W.push("⛔ "+a.name+" — blocked: needs "+_n+" Hit Dice "+(_n>((DATA.tierHD||{})[a.tier]||1)?"(level gate)":"(T"+a.tier+")")+" (not counted, not owned)");}
-      const _bc=(a.cls===b.originClass||a.cls===b.originClass2)?a.origin:(_unlkSet.has(a.cls)?Math.max(1,a.cross-a.tier):a.cross);
+    const _why=_subWhy(a);
+    if(_why.length){
+      W.push("⛔ "+a.name+" — blocked: "+_why.join(" & ")+" (not counted, not owned)");
+      const _bc=_subPriceOf(a);
       blockedAP+=_bc;_BLI.push([_sLab,_bc]);continue;
     }
     (subUsed[a.cls]=subUsed[a.cls]||{})[a.sub]=1;
-    const isO=(a.cls===b.originClass||a.cls===b.originClass2);const isUS=!isO&&_unlkSet.has(a.cls);const _uc=isO?a.origin:(isUS?Math.max(1,a.cross-a.tier):a.cross);subAP+=_uc;_UI.push([_sLab,_uc]);}
+    const _uc=_subPriceOf(a);subAP+=_uc;_UI.push([_sLab,_uc]);}
   add("Subclass abilities",subAP);addItems("Subclass abilities",_UI);
   // v0.196: a bought expanded-list bundle also opens its subclass for unlock-accounting
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p[0]&&_p[1])(subUsed[_p[0]]=subUsed[_p[0]]||{})[_p[1]]=1;}
@@ -989,7 +1083,7 @@ export const MUT = {
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
  lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
- feat:()=>0, feature:(b,p)=>b.features.push(FEAT_ALIAS(p.v)), art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
+ feat:()=>0, feature:(b,p)=>{const l=FEAT_ALIAS(p.v);b.features.push(l);_noteDoor(b,l,'f');}, art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
  tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
  language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
  armour:(b,p)=>b.armour[p.v]=true, wprof:(b,p)=>b.weaponProf=clone(p.wp),
@@ -1001,7 +1095,7 @@ export const MUT = {
  subbundle:(b,p)=>{(b.subSpellBundles=b.subSpellBundles||[]).push(p.v);},
  unlockclass:(b,p)=>{(b.unlockedClasses=b.unlockedClasses||[]).push(p.v);},
  freesub:(b,p)=>{(b.freeSub=b.freeSub||{})[p.cls]=p.sub;},
- subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);},
+ subabil:(b,p)=>{(b.subAbilities=b.subAbilities||[]).push(p.v);_noteDoor(b,abilityIdent(p.v),'s');},
  tasharule:(b,p)=>{(b.houseRules=b.houseRules||{}).dmAllows=Object.assign({},(b.houseRules||{}).dmAllows||{},{tasha:p.v});},
  found:(b,p)=>{const ti=p.ti??0;const newDisc={name:p.disc,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]};if(ti===0&&!b.traditions.length){b.traditions=[{name:p.trad,rank:0,disciplines:[newDisc]}];}else if(!b.traditions[ti]){b.traditions[ti]={name:p.trad,rank:0,disciplines:[newDisc]};}else{(b.traditions[ti].disciplines=b.traditions[ti].disciplines||[]).push(newDisc);}},
  rank:(b,p)=>{const ti=p.ti??0;if(b.traditions[ti])b.traditions[ti].rank=p.to;},
@@ -2193,6 +2287,18 @@ export function creationLockState(events) {
     spentTowardThreshold: spent,
     remainingToThreshold: threshold - spent,
   };
+}
+
+// postLockAllowance(rules) — what a character may BUY after creation that GRANTS AP.
+//
+// A drawback, Martial binding and Magical binding each hand the player AP, and after the creation lock only the DM is meant to award AP. So in a CAMPAIGN all three are
+// refused once a character is locked, unless that campaign opts in, separately: `rules.postLockDrawbacks` for drawbacks, `rules.postLockBindings` for Martially / Magically
+// Bound (owner decision 2026-10-05, option X1). Only an explicit `true` allows it; a missing key (every campaign created before this existed) means refused.
+// A SOLO character (`rules` null — no campaign, so no DM to award AP or to tick the box) may take all three (owner AA2, 2026-10-05).
+export function postLockAllowance(rules) {
+  if (rules == null) return { drawbacks: true, bindings: true };
+  const r = typeof rules === 'object' ? rules : {};
+  return { drawbacks: r.postLockDrawbacks === true, bindings: r.postLockBindings === true };
 }
 
 // creationCeiling(events, opts) — the AP ceiling a character may not spend past while still being

@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.583.html**-->
+<!--**PACT-Live-Char-Sheet v1.599.html**-->
 
 <!doctype html>
 <!--
@@ -893,7 +893,17 @@ function award(amount,note,disc){ if(amount===null||amount===undefined||String(a
 // single-instance proficiencies: buying one you already own is never legal (can't stack) → blocked with a popup.
 // DUP_FIELD now lives in js/engine.js (purchaseLegality) — moved verbatim, refactor/engine-purchase-legality.
 function setWornArmour(v){emit({type:'buy',cat:'wornArmour',payload:{v:v},cost:0,label:v?('Worn armour — '+v):'Worn armour — none (unarmoured)',level:foldBuild(null).hd});}
+// After the creation lock a drawback, Martially Bound and Magically Bound — each grants AP — are refused unless the campaign allows them (rules.postLockDrawbacks / rules.postLockBindings;
+// js/engine.js postLockAllowance). '' = allowed. Before the lock they are part of building the character and are never barred here.
+function _lsBarGrant(cat){
+  if(cat!=='drawback'&&cat!=='mbound'&&cat!=='dbound') return '';
+  if(!window._engineCreationLockState||!window._engineCreationLockState(LOG).locked) return '';
+  var a=window.postLockAllowance(resolveRules());
+  if(cat==='drawback') return a.drawbacks?'':'Drawbacks can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to impose one, or to allow them in the campaign settings.';
+  return a.bindings?'':'Martial and magical binding can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to allow them in the campaign settings.';
+}
 function buy(cat,payload,label){
+  var _bar=_lsBarGrant(cat); if(_bar){ alert('\u26D4 '+_bar); return; }
   // Fold the LOG once and reuse it for every read below (dup guard, pricing, availability, hd, legal check).
   // Nothing here mutates the LOG before emit(), so this single fold is valid throughout — it removes the
   // redundant foldBuild+compute that apAvailable(null) used to run on top of priceOf()/legalCheck() (perf/
@@ -1123,6 +1133,11 @@ function _lsSealNotice(){
       + 'a record of what is on screen, then reload the page to pick the character up from the server\'s '
       + 'copy. Automatic cloud saving is paused until you do.');
 }
+var __dupNameWarned=null;
+function _lsDupNameNotice(nm){
+  var k=String(nm||'').trim().toLowerCase(); if(__dupNameWarned===k) return; __dupNameWarned=k;
+  alert('\u26A0 '+window._syncBridge.DUPLICATE_NAME_MESSAGE);
+}
 function _lsAutosaveGate(){
   if(VIEW_ONLY||!window._lsSignedIn||!window._syncBridge||!navigator.onLine) return false;
   // A seal rejection can never succeed on retry, so stop pushing rather than spinning every 3s.
@@ -1208,6 +1223,9 @@ async function _lsCloudPushOnce(){
     // stopped editing scheduled no next push, so nothing was ever said and they closed the tab believing
     // the purchase had reached the cloud.
     if(res&&res.sealed) _lsSealNotice();
+    // feat/unique-character-names: the server refused the name. Say so ONCE per name — this runs on every
+    // edit, and the player's fix (a rename) is itself an edit that retries the save.
+    if(res&&res.duplicateName) _lsDupNameNotice(b.name);
     if(typeof _lsRenderSyncChip==='function') _lsRenderSyncChip();
   }catch(e){ /* deliberately silent: the local save already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
@@ -1784,7 +1802,7 @@ function buildBuyPanel(b,r,eco,head){
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
-    const hardReason = reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
+    const hardReason = _lsBarGrant(cat) || reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
     // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
     // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
     // boons would otherwise be the only permanently-warned tiles in the panel.
@@ -1811,6 +1829,8 @@ function buildBuyPanel(b,r,eco,head){
     return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
+    var _bar=_lsBarGrant('drawback'); if(_bar&&hideUnavail) return '';
+    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" onclick="flash(&quot;'+esc(_bar)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
     return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
   // A HELD purchase that the engine reports as blocked must not read as an ordinary holding: compute()
@@ -1857,7 +1877,7 @@ function buildBuyPanel(b,r,eco,head){
      if(cloudRuleBarred('armour',an)) _reasons.push('banned in this campaign');
      var _dis=_reasons.length?(' disabled title="Can\'t wear yet — '+_reasons.join('; ').replace(/"/g,'&quot;')+'"'):'';
      return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+_dis+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(_reasons.length?' ⛔':'')+'</option>';}).join('')+'</select></div>'],
-   [b.originClass+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===b.originClass&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{const f=DATA.features[l];const need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')],
+   [b.originClass+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===b.originClass&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{const f=DATA.features[l];const need=requiredHD(f);if(ownsAbility(b,l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')],
    ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier,_inertNote(f,l));var need=requiredHD(f);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['DM house rules',()=>'<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>'],
    ['Arts \u0026 Techniques',()=>{
@@ -1939,20 +1959,20 @@ function buildBuyPanel(b,r,eco,head){
    ['Ki, Sorcery & Attunement points',()=>ib('Attunement slot '+(b.attune+1),'attune',{to:b.attune+1})
      +ib('Ki / Focus point '+(b.ki+1),'ki',{to:b.ki+1})
      +ib('Sorcery point '+(b.sorcery+1),'sorcery',{to:b.sorcery+1},(!_hasDisc('Sorcerer')?'needs the Sorcerer discipline':((b.hd||1)<2?'needs 2 Hit Dice (T2)':'')))
-     +((b.martiallyBound==='(none)')?ib('Martially Bound: '+b.originClass+' (+2 AP)','mbound',{v:b.originClass},'','−1 AP on '+b.originClass+' features from here on (floor 1) — permanent, no retroactive refund; reverse only by undo'):'')],
-   ['Cross-class features',()=>{var others=DATA.classes.filter(function(c){return c!==b.originClass&&c!==b.originClass2;});if(!others.length)return '<span class="hint">No other classes available.</span>';var sel=(buyCls&&others.indexOf(buyCls)>=0)?buyCls:'';var opts='<option value="">— pick a class to buy its features cross-class —</option>'+others.map(function(c){var u=(b.unlockedClasses||[]).indexOf(c)>=0;return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+(u?' (unlocked — discounted)':'')+'</option>';}).join('');var pick='<select onchange="setBuyCls(this.value)" style="width:100%;box-sizing:border-box;padding:5px 8px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--inp);color:var(--ink)">'+opts+'</select>';if(!sel)return pick+'<span class="hint">Any class’s features can be bought here at the cross-class price (†). Unlock the class (below) to drop them to the discounted rate.</span>';return pick+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===sel&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
+     +((b.martiallyBound==='(none)')?ib('Martially Bound: '+b.originClass+' (+2 AP)','mbound',{v:b.originClass},'','−1 AP on '+b.originClass+' features and subclass abilities (not fighting styles) from here on (floor 1) — permanent, no retroactive refund; reverse only by undo'):'')],
+   ['Cross-class features',()=>{var others=DATA.classes.filter(function(c){return c!==b.originClass&&c!==b.originClass2;});if(!others.length)return '<span class="hint">No other classes available.</span>';var sel=(buyCls&&others.indexOf(buyCls)>=0)?buyCls:'';var opts='<option value="">— pick a class to buy its features cross-class —</option>'+others.map(function(c){var u=(b.unlockedClasses||[]).indexOf(c)>=0;return '<option value="'+c+'"'+(c===sel?' selected':'')+'>'+c+(u?' (unlocked — discounted)':'')+'</option>';}).join('');var pick='<select onchange="setBuyCls(this.value)" style="width:100%;box-sizing:border-box;padding:5px 8px;margin-bottom:6px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--inp);color:var(--ink)">'+opts+'</select>';if(!sel)return pick+'<span class="hint">Any class’s features can be bought here at the cross-class price (†). Unlock the class (below) to drop them to the discounted rate.</span>';return pick+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===sel&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(ownsAbility(b,l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
    ['Unlock classes',()=>{return DATA.classes.filter(function(c){return c!==b.originClass;}).map(function(c){
        if((b.unlockedClasses||[]).indexOf(c)>=0)return ibOwned('✓ '+c+' unlocked','Its features now price at the origin (discounted) rate');
        return ib('Unlock '+c,'unlockclass',{v:c});}).join('');}],
    ['Unlocked-class features',()=>{var cls=(b.unlockedClasses||[]);if(!cls.length)return '<span class="hint">Unlock a class above, then its features become buyable here at the discounted rate.</span>';
-     return cls.map(function(c){return '<div style="font-weight:700;color:var(--navytx);margin:5px 0 1px">'+c+'</div>'+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===c&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,d){return DATA.features[a].tier-DATA.features[d].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(b.features.includes(l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):'';return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}).join('');}],
+     return cls.map(function(c){return '<div style="font-weight:700;color:var(--navytx);margin:5px 0 1px">'+c+'</div>'+Object.keys(DATA.features).filter(function(l){return DATA.features[l].cls===c&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore);}).sort(function(a,d){return DATA.features[a].tier-DATA.features[d].tier;}).map(function(l){var f=DATA.features[l];var need=requiredHD(f);if(ownsAbility(b,l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):'';return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('');}).join('');}],
    ['Subclasses & abilities',()=>{var access=[b.originClass].concat(b.unlockedClasses||[]).filter(function(c){return DATA.subList&&DATA.subList[c];});
      if(!access.length)return '<span class="hint">None of your classes have subclasses.</span>';
      var s='';access.forEach(function(c){var subs=DATA.subList[c];var fsub=(b.freeSub||{})[c];
        s+='<div style="font-weight:700;color:var(--navytx);margin:6px 0 1px">'+c+(fsub?(' — free subclass: '+fsub):' — pick a free subclass:')+'</div>';
        if(!fsub)s+=subs.map(function(sub){return ib('Free subclass → '+sub,'freesub',{cls:c,sub:sub});}).join('');
        subs.forEach(function(sub){((DATA.subclasses[c][sub]||{}).abilities||[]).forEach(function(a){var key=c+'|'+sub+'|'+a.name;
-         if((b.subAbilities||[]).indexOf(key)>=0){s+=ibOwned(sub+': '+a.name+' · '+a.tb,_inertNote(a));return;}
+         if(ownsAbility(b,key)){s+=ibOwned(sub+': '+a.name+' · '+a.tb,_inertNote(a));return;}
          var need=requiredHD(a);var why=b.hd<need?('needs '+need+' HD (T'+a.tier+')'):'';
          s+=ib(sub+': '+a.name+' · '+a.tb,'subabil',{v:key},why);});});});
      return s;}],
@@ -2661,7 +2681,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.368</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.372</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
@@ -2684,7 +2704,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -2695,12 +2715,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
+  window.postLockAllowance = postLockAllowance; window._engineCreationLockState = _engineCreationLockState;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
   // activeEvents/economy come from js/engine.js — the single source of truth — instead of
   // hand-copied inline duplicates. UI boot waits on engine-ready.
   DATA.racialFx={"Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (Live Sheet); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
+  window.DATA = DATA; window.compute = compute; window.baseBuild = baseBuild; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.ownsAbility = ownsAbility; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
@@ -2710,13 +2731,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). Nothing above depends on it, so a failure here
   // costs cloud save, campaigns and DM AP, not the tool. Listeners gate on sync-ready, which simply
   // never fires; window._syncBridge etc. stay undefined and every consumer already null-checks them.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   // myProfile/unsetMyBasicMode — feat/player-basic-mode: the player's own account-status read and
   // always-available self-unset control (decision A3).
   import { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, listMyCampaigns, getCampaign } from '../js/campaign.js';
   import { getAwardHistory, getVisibleCustomFields, getDowntimeWindow } from '../js/dm.js';
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, listMyCharacters, newCharacterId, initSync, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, withKeepalive, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
   window._authBridge = { currentSession, onAuthChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign };
   window._dmBridge = { getAwardHistory, getVisibleCustomFields, getDowntimeWindow };
@@ -3173,6 +3194,8 @@ document.addEventListener('sync-ready', function () {
           // "Save failed: " below, and only ever fires on a genuinely new character (INSERT), never a
           // routine edit to the player's one already-allowed character.
           alert('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+        } else if(res.duplicateName){
+          alert('\u26A0 ' + window._syncBridge.DUPLICATE_NAME_MESSAGE);   // feat/unique-character-names: before the throw, same reason
         } else {
           if(res.error) throw res.error;
           if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
@@ -3294,6 +3317,8 @@ document.addEventListener('sync-ready', function () {
             if(res.error && window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(res.error)){
               alert('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE); return;
             }
+            // feat/unique-character-names: a second clone of the same character reuses its "(standalone copy)" name.
+            if(res.duplicateName){ alert('You already have a character named "'+cloneName+'". Rename or archive that copy, then clone again.'); return; }
             if(res.error) throw res.error;
             delete _pendingCloneIds[cid];
             if(typeof window.flash === 'function') window.flash(res.synced

@@ -874,6 +874,12 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   <input type="checkbox" id="ruleMultiDisc"> Allow multi-discipline spellcasting
                 </label>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="rulePostLockDrawbacks"> Players may take new drawbacks after creation is finished <button type="button" class="infobtn" title="A drawback gives the player AP. By default, once a character's creation is finished only you award AP, so new drawbacks are refused in both tools. Tick this to let players take them in play. Drawbacks you impose yourself are not affected.">?</button>
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="rulePostLockBindings"> Players may take Martially Bound / Magically Bound after creation is finished <button type="button" class="infobtn" title="Each binding gives the player +2 AP. By default, once creation is finished they are refused in both tools. Tick this to let players take them in play.">?</button>
+                </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                   <input type="checkbox" id="ruleDrawbackCapOn"> Cap AP gained from drawbacks at
                   <input type="number" id="ruleDrawbackCapAp" min="0" max="99" step="1" style="width:56px;padding:2px 4px">
                   <span style="opacity:.8">AP</span>
@@ -1297,7 +1303,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.583';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.599';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -3471,6 +3477,8 @@ document.addEventListener('campaign-ready', function () {
   var campCoDmsSummary = document.getElementById('campCoDmsSummary');
   var campCoDmsRefresh = document.getElementById('campCoDmsRefresh');
   var ruleMultiDisc = document.getElementById('ruleMultiDisc');
+  var rulePostLockDrawbacks = document.getElementById('rulePostLockDrawbacks');
+  var rulePostLockBindings = document.getElementById('rulePostLockBindings');
   var ruleDrawCapOn = document.getElementById('ruleDrawbackCapOn');
   var ruleDrawCapAp = document.getElementById('ruleDrawbackCapAp');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
@@ -3697,6 +3705,8 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
     setRuleGridChecked('ruleBannedArmours', r.bannedArmours);   // feat/armour-campaign-banlist
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    rulePostLockDrawbacks.checked = r.postLockDrawbacks === true;   // absent = refused: only an explicit true allows it (js/engine.js postLockAllowance)
+    rulePostLockBindings.checked = r.postLockBindings === true;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
     // rather than off: the cap is what the rules already say, and a campaign silently opting
     // out of it by being old is the wrong default.
@@ -4243,6 +4253,8 @@ document.addEventListener('campaign-ready', function () {
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       bannedArmours: getRuleGridChecked('ruleBannedArmours'),   // feat/armour-campaign-banlist
       multiDisciplineAllowed: ruleMultiDisc.checked,
+      postLockDrawbacks: rulePostLockDrawbacks.checked,
+      postLockBindings: rulePostLockBindings.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
       // Nested under `economy` rather than sitting as a bare `economyBand` key so the block has room
       // to grow (a per-campaign gold multiplier, a custom band) without a second migration of shape.
