@@ -30,4 +30,4 @@ This keeps the revive fantasy while ending the down-and-up-again loop. It gives 
 
 ## Note
 
-The `pact-guide` master's Skill & Utility boon table has no "Touched by Fortune" row, while the served copy has one. That difference was already there before this change; it was left alone and is worth reconciling separately.
+The `pact-guide` master's Skill & Utility boon table has no "Touched by Fortune" row, while the served copy has one. That difference was already there before this change and was left alone. It is covered by the existing NEXT task "The pact-guide master has drifted far behind the served Players Guide…" (`docs/TASK_BOARD_NEXT.md`), whose `guide-table-diff.mjs` done-when condition includes the boon tables.
