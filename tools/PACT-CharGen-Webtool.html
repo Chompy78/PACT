@@ -648,7 +648,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // always-available self-unset control (decision A3). Bridged alongside session/auth for the same
   // CDN-resilience reason as the rest of this module.
   import { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword } from '../js/auth.js';
-  import { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
+  import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, PENDING_INVITE_KEY, PENDING_CLAIM_KEY, createCharacterClaim, redeemCharacterClaim } from '../js/campaign.js';
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
@@ -657,7 +657,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // The party downtime window is read through the same helper the Live Sheet uses (js/dm.js, RPC get_downtime_window); CharGen needs only that one function.
   import { getDowntimeWindow } from '../js/dm.js';
   window._dmBridge = { getDowntimeWindow };
-  window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
+  window._campaignBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
   window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
@@ -1638,6 +1638,11 @@ window._dmApStatus = window._dmApStatus || 'none';
 // _cloudCampaign of its own. drawbackCapFromRules() is a pure function of a rules object, so freezing
 // that object at copy-open time (done alongside _cgCopySourceIgnorePlayerAp, in the same fetch) is
 // enough — no separate network call needed here.
+function _cgDrawbackCountAdvice(rulesOverride){
+  var b=window._campaignBridge, c=window._cloudCampaign;
+  var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
+  return (b&&b.drawbackCountAdviceFromRules) ? b.drawbackCountAdviceFromRules(rules) : undefined;
+}
 function _cgDrawbackCap(rulesOverride){
   var b=window._campaignBridge, c=window._cloudCampaign;
   var rules = (rulesOverride!==undefined) ? rulesOverride : (c&&c.rules);
@@ -1677,8 +1682,8 @@ function _cgDrawbackCap(rulesOverride){
 // reset to 0 by _cgResetCloudApState() on every non-copy load, so a stale positive value can't leak in —
 // and _cgCopySourceIsCopy covers exactly the zero-AP case that signal alone could never distinguish.
 function _cgDmOpts(){
-  if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap()};
-  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules)};
+  if(window._dmApStatus==='active') return {dmAp:(window._dmAp||0),ignorePlayerAp:!!window._ignorePlayerAp,drawbackCap:_cgDrawbackCap(),drawbackCountAdvice:_cgDrawbackCountAdvice()};
+  if(window._cgCopySourceIsCopy || window._cgCopySourceAp>0) return {dmAp:(window._cgCopySourceAp||0),ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,drawbackCap:_cgDrawbackCap(window._cgCopySourceRules),drawbackCountAdvice:_cgDrawbackCountAdvice(window._cgCopySourceRules)};
   return {dmAp:0,ignorePlayerAp:false,drawbackCap:undefined};
 }
 // feat/campaign-ap-budget-enforce: true only for a campaign-bound character, with enforcement on,
@@ -3572,7 +3577,7 @@ function _cgPostLockAppend(steps){
       // Subclass abilities are offered only for the classes the character has access to (origin class + unlocked classes) — the Live Sheet's "Subclasses & abilities" panel.
       // CharGen's picker lists every class, so the same rule is enforced here (found by the post-lock parity fuzz: a Cleric bought a Fighter subclass ability).
       if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
-      var lg=purchaseLegality(b,st.cat,st.payload);
+      var lg=purchaseLegality(b,st.cat,st.payload,_cgDmOpts());
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
       if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }

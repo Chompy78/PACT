@@ -888,6 +888,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   The Players Guide caps drawbacks at 12 AP. Off, a character can take every drawback in
                   the book and bank over 200 AP — the cap was documented but never enforced until v0.351.
                 </div>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="ruleDrawbackCountAdvice"> Warn players who take more than 3 drawbacks <button type="button" class="infobtn" title="Shows players the advice &quot;N drawbacks chosen — most DMs cap this at 2–3&quot;. It is a guideline, not a rule: untick it if you allow more drawbacks in this campaign and the warning would only be noise. The AP cap above still applies either way.">?</button>
+                </label>
                 <div class="ruleblock">
                   <div class="lbl">Gold &amp; downtime economy</div>
                   <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0;cursor:pointer">
@@ -2709,8 +2712,13 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
                                // Shared with both player tools since fix/drawback-cap-player-tools —
                                // this used to be three lines inline here and nowhere else, which is
                                // exactly why the DM and the player saw different totals.
+                               // _apr.rules, not _apr: _apr wraps the rules blob (ignorePlayerAp, campaignId,
+                               // customFields, rules), so passing _apr itself never found drawbackCap and the
+                               // roster ran uncapped (fixed feat/livesheet-center-panel).
                                drawbackCap: (window._campBridge
-                                 ? window._campBridge.drawbackCapFromRules(_apr) : undefined) });
+                                 ? window._campBridge.drawbackCapFromRules(_apr.rules) : undefined),
+                               drawbackCountAdvice: (window._campBridge
+                                 ? window._campBridge.drawbackCountAdviceFromRules(_apr.rules) : undefined) });
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -3466,14 +3474,14 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange, myProfile, logout, updatePassword } from '../js/auth.js';
-  import { drawbackCapFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
+  import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
   import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE, listMyCharacters } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -3547,6 +3555,7 @@ document.addEventListener('campaign-ready', function () {
   var rulePostLockBindings = document.getElementById('rulePostLockBindings');
   var ruleDrawCapOn = document.getElementById('ruleDrawbackCapOn');
   var ruleDrawCapAp = document.getElementById('ruleDrawbackCapAp');
+  var ruleDrawCountAdvice = document.getElementById('ruleDrawbackCountAdvice');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
@@ -3778,6 +3787,7 @@ document.addEventListener('campaign-ready', function () {
     // out of it by being old is the wrong default.
     var _dc = r.drawbackCap || {};
     ruleDrawCapOn.checked = _dc.enabled !== false;
+    ruleDrawCountAdvice.checked = r.drawbackCountAdvice !== false;   // absent = on
     ruleDrawCapAp.value = Number.isFinite(+_dc.ap) ? +_dc.ap : (window.DATA ? DATA.drawbackCap : 12);
     // Advancement dials (feat/advancement-tracks) — display/config-only, per campaign.
     var bc = r.levelBudgetCurve || {};
@@ -4334,6 +4344,7 @@ document.addEventListener('campaign-ready', function () {
         if(rc) eco.rowCosts = rc;
         return eco;
       })(),
+      drawbackCountAdvice: ruleDrawCountAdvice.checked,
       drawbackCap: { enabled: ruleDrawCapOn.checked,
                      ap: parseInt(ruleDrawCapAp.value, 10) || (window.DATA ? DATA.drawbackCap : 12) },
       houseRules: currentHouseRules,

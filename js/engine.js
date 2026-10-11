@@ -306,6 +306,35 @@ export function lineageSpellLabel(sp){
 // Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
 // saving a build must store this `size`, not a form control's leftover value (fix/stored-size, D-GH-2026-10-11-stored-size: 23 of
 // 37 live characters stored "Small" while being Medium). Moved verbatim out of compute(), which calls it.
+// skillMods(b, r?) — every skill's total bonus, owned or not, for display (feat/livesheet-center-panel).
+// One row per DATA.skillList entry: { skill, ab, abMod, prof (0 none, 1 proficient, 2 expertise), total }.
+// total = the ability modifier + proficiency (doubled for expertise). Initiative follows compute()'s own rule:
+// unproficient it is plain DEX; proficient it switches to WIS + proficiency — so its row always equals r.init.
+// Pass compute(b)'s result as r to avoid a second compute.
+export function skillMods(b, r) {
+  r = r || compute(b);
+  const mods = r.mods || {}, prof = r.prof || 0, sk = b.skills || [], ex = b.expertise || [];
+  return (DATA.skillList || []).map(([skill, ab0]) => {
+    const p = sk.includes(skill) ? (ex.includes(skill) ? 2 : 1) : 0;
+    const ab = (skill === 'Initiative' && !p) ? 'DEX' : ab0;
+    const abMod = mods[ab] || 0;
+    return { skill, ab, abMod, prof: p, total: abMod + p * prof };
+  });
+}
+
+// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon the PLAYER entered on their sheet (the rules data has no weapon
+// table; feat/livesheet-center-panel). w = { ab: 'STR'|'DEX'|'FIN'|'none', prof: bool, bonus: number (magic +N) }.
+// 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier + proficiency (if proficient) + bonus;
+// damage bonus = ability modifier + bonus. Pass compute(b)'s result as r to avoid a second compute.
+export function weaponAttack(b, r, w) {
+  r = r || compute(b); w = w || {};
+  const m = r.mods || {}, bonus = Math.trunc(Number(w.bonus)) || 0;
+  let ab = w.ab === 'DEX' || w.ab === 'FIN' || w.ab === 'none' ? w.ab : 'STR';
+  if (ab === 'FIN') ab = (m.DEX || 0) > (m.STR || 0) ? 'DEX' : 'STR';
+  const abMod = ab === 'none' ? 0 : (m[ab] || 0), prof = w.prof ? (r.prof || 0) : 0;
+  return { ab, abMod, prof, toHit: abMod + prof + bonus, dmgBonus: abMod + bonus };
+}
+
 export function sizeOf(b){
   const _races=[b&&b.species,b&&b.species2].filter(s=>s&&s!=='(none)');
   const _isSmall=r=>(r==='Halfling'||r==='Gnome');
@@ -988,7 +1017,9 @@ export function compute(b, opts){
   // "Chosen" means chosen: a DM-imposed drawback is not the player's pick, so it does not count toward the
   // 2–3 guideline (that guideline exists to stop a build becoming an AP farm, and an imposed drawback pays 0).
   const _nChosen=(b.drawbacks||[]).filter(function(_x,_i){return !_impIdx.has(_i);}).length;
-  if(_nChosen>3) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
+  // A campaign DM can switch this advice off in the DM Console (opts.drawbackCountAdvice===false,
+  // feat/livesheet-center-panel): it is a guideline, and the DM has made the ruling it asks for.
+  if(_nChosen>3&&!(opts&&opts.drawbackCountAdvice===false)) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
   // absent from b.drawbacks/b.boons, so neither line above nor the Boons line below can show it. Yet the
@@ -2685,10 +2716,12 @@ export function priceOf(cur, cat, payload) {
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
 const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
 const DUP_FIELD={unlockclass:'unlockedClasses',save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
-export function purchaseLegality(cur, cat, payload) {
+// opts (optional) is compute()'s campaign options, so a DM's campaign settings (drawback cap, advice switched
+// off) apply to the purchase check exactly as they do to the sheet.
+export function purchaseLegality(cur, cat, payload, opts) {
   const cand = clone(cur); (MUT[cat] || (() => {}))(cand, payload);
-  const seen = {}; compute(cur).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
-  const warnings = compute(cand).warnings.filter(w => { if (/OVER BUDGET/.test(w)) return false; if (seen[w] > 0) { seen[w]--; return false; } return true; });
+  const seen = {}; compute(cur, opts).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
+  const warnings = compute(cand, opts).warnings.filter(w => { if (/OVER BUDGET/.test(w)) return false; if (seen[w] > 0) { seen[w]--; return false; } return true; });
   const followup = warnings.filter(w => EXPECTED_FOLLOWUP.test(w));
   const rest = warnings.filter(w => !EXPECTED_FOLLOWUP.test(w));
   const hard = rest.filter(w => !SOFT_WARN.test(w));
