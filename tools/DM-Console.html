@@ -922,6 +922,18 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     </div>
                   </div>
                 </div>
+                <!-- Campaign language list (feat/campaign-language-list) — saved as rules.languages {list, strict}. -->
+                <div class="ruleblock">
+                  <div class="lbl">🗣 Languages <button type="button" class="infobtn" title="The language names your players pick from when they name their languages (✎ Name spells & languages). Leave the box empty to use the standard Players Handbook list. Buying languages still costs the same AP — this only changes which names are on offer.">&#9432;</button></div>
+                  <textarea class="field" id="ruleLanguages" rows="5" style="width:100%;resize:vertical;font-family:inherit" placeholder="One language per line — leave empty for the standard list"></textarea>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
+                    <button type="button" class="btn sm ghost" id="ruleLanguagesStandard">Fill with standard list</button>
+                    <span id="ruleLanguagesCount" style="font-size:11px;color:var(--muted)"></span>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0 0;cursor:pointer">
+                    <input type="checkbox" id="ruleLanguagesStrict"> Only allow languages on this list <button type="button" class="infobtn" title="Off: your list is offered as suggestions, players can still type their own, and anything off-list is marked “Not on this campaign’s language list”. On: a player can’t save a NEW language that isn’t on your list. A language a character already has stays — languages can’t be unlearned — and is just marked.">&#9432;</button>
+                  </label>
+                </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
                   <div id="ruleHouseRules"></div>
@@ -3455,7 +3467,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules } from '../js/engine.js';
+  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules, campaignLanguages, STANDARD_LANGUAGES } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // exactly as the AP-ledger helpers above are.
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
@@ -3468,6 +3480,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // activeEvents/economy come from js/engine.js — the single source of truth. Boot waits on engine-ready.
   DATA.racialFx={"Goliath: Powerful Build":"Count as Large for carrying capacity and for grappling.","Goliath: Giant Ancestry":"Choose one giant boon (Cloud, Fire, Frost, Hill, Stone or Storm) with the Lineage / Ancestry picker; use it Proficiency Bonus times per long rest.","Goliath: Large Form":"Once per long rest, become Large (T4+).","Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger Breath Dice":"Your breath weapon's damage die climbs the chain.","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (DM Console); never read by compute()
   window.DATA = DATA; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.creationLockState = creationLockState;
+  window.campaignLanguages = campaignLanguages; window.STANDARD_LANGUAGES = STANDARD_LANGUAGES;   // feat/campaign-language-list
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script type="module">
@@ -3767,6 +3780,30 @@ document.addEventListener('campaign-ready', function () {
       btn.addEventListener('click', function(){ delete currentHouseRules[btn.dataset.hrdel]; renderHouseRules(); });
     });
   }
+  // Campaign language list (feat/campaign-language-list). The textarea holds the DM's own names, one
+  // per line; campaignLanguages() (js/engine.js) is the one place they're cleaned, so the count shown
+  // here and the list the players get can't disagree.
+  function _collectLanguages(){
+    var raw = document.getElementById('ruleLanguages').value.split(/\r?\n/);
+    // This classic script parses before the engine module bridge runs; every caller is post-boot, but
+    // fall back to plain trimming rather than throw if one ever isn't.
+    var list = window.campaignLanguages
+      ? (function(c){ return c.custom ? c.list : []; })(window.campaignLanguages({ languages: { list: raw } }))
+      : raw.map(function(n){ return n.trim(); }).filter(Boolean);
+    return { list: list, strict: document.getElementById('ruleLanguagesStrict').checked };
+  }
+  function _updateLanguagesCount(){
+    var c = _collectLanguages(), el = document.getElementById('ruleLanguagesCount');
+    el.textContent = c.list.length ? (c.list.length + ' language' + (c.list.length === 1 ? '' : 's') + ' on this campaign\u2019s list')
+                                   : 'Empty \u2014 players get the standard list';
+  }
+  document.getElementById('ruleLanguages').addEventListener('input', _updateLanguagesCount);
+  document.getElementById('ruleLanguagesStandard').addEventListener('click', function(){
+    var ta = document.getElementById('ruleLanguages');
+    if(ta.value.trim() && !confirm('Replace what is in the box with the standard list?')) return;
+    ta.value = window.STANDARD_LANGUAGES.join('\n');
+    _updateLanguagesCount();
+  });
   function loadRulesIntoPanel(rules){
     var r = rules || {};
     renderRuleGrids();
@@ -3780,6 +3817,12 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
     setRuleGridChecked('ruleBannedArmours', r.bannedArmours);   // feat/armour-campaign-banlist
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    // Campaign language list (feat/campaign-language-list). Shows the DM's own list only — an untouched
+    // campaign shows an empty box (= the standard list), not the standard list pretending to be chosen.
+    var _lg = r.languages || {};
+    document.getElementById('ruleLanguages').value = (Array.isArray(_lg.list) ? _lg.list : []).join('\n');
+    document.getElementById('ruleLanguagesStrict').checked = _lg.strict === true;
+    _updateLanguagesCount();
     rulePostLockDrawbacks.checked = r.postLockDrawbacks === true;   // absent = refused: only an explicit true allows it (js/engine.js postLockAllowance)
     rulePostLockBindings.checked = r.postLockBindings === true;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
@@ -4329,6 +4372,10 @@ document.addEventListener('campaign-ready', function () {
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       bannedArmours: getRuleGridChecked('ruleBannedArmours'),   // feat/armour-campaign-banlist
       multiDisciplineAllowed: ruleMultiDisc.checked,
+      // {list, strict} — feat/campaign-language-list. An empty list means "the standard list"; it goes
+      // through the engine's campaignLanguages() so the stored names are the same cleaned, de-duplicated
+      // names every player tool will read back.
+      languages: _collectLanguages(),
       postLockDrawbacks: rulePostLockDrawbacks.checked,
       postLockBindings: rulePostLockBindings.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.

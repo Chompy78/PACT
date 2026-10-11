@@ -15,6 +15,11 @@
   `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring
   campaign settings, and the DM Console roster never applying the drawback cap. No rules-version bump.
   Full record: `decisions/2026/D-GH-2026-10-12-livesheet-center-panel.md`.
+## D-GH-2026-10-12-campaign-language-list — a campaign can set its own language list
+- Owner choice A1 plus A3 as a DM switch. `rules.languages = {list, strict}`; engine `campaignLanguages()` + `STANDARD_LANGUAGES` replace
+  the two tools' copies of `LANGS_2024`. Off-list names are marked; strict refuses only a newly named off-list language, never one
+  already locked in. No `DATA.version` bump, no schema change.
+  Full record: `decisions/2026/D-GH-2026-10-12-campaign-language-list.md`.
 ## D-GH-2026-10-11-creation-lock-enforcement — the creation lock is visible, refuses other species' traits, and freezes creation Vigor
 - Owner choices A2/B1/C1/D1. `_replay()` stamps unstamped (CharGen-patch) Vigor ranks at the lock so later Hit Dice don't re-price them; `compute()` hard-warns
   a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".
