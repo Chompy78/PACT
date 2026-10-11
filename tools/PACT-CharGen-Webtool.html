@@ -3040,7 +3040,7 @@ function cgFinishCreating(skipConfirm){
       +  '  \u2022 traits from your own species cost more to add\n'
       +  '  \u2022 purchases start costing gold and downtime (if your DM has that switched on)\n'
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
-      +  'Only your DM can reopen creation afterwards.';
+      +  'Undo cannot go back past this point. Only your DM can reopen creation afterwards.';
   if(!skipConfirm && !confirm(msg)) return;   // skipConfirm: the reach-the-limit prompt already asked
   LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:DATA.version,
              label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
@@ -6718,6 +6718,7 @@ function _cgCeilingAccept(){
     setTimeout(function(){
       var cur=_cgCeilingState(); if(!cur||cur.locked||cur.remaining!==0) return;
       if(confirm('You have used all '+cur.spent+' of your '+cur.ceiling+' creation AP.\n\nFinish creating this character now?\n\n'
+          +'Undo cannot go back past this point, so the purchase you just made stays.\n\n'
           +'OK = finish (you then build at in-play prices)\nCancel = not yet, keep building'))cgFinishCreating(true);
     },0);
   }
