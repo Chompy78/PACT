@@ -386,7 +386,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
 <input type="file" id="imp" style="display:none" accept=".json" onchange="if(this.files[0])importJSON(this.files[0]);this.value=''">
-<button class="btn g" id="finishCreatingBtn" onclick="finishCreating()" title="End character creation. Own-species traits get pricier afterwards and purchases start costing gold and downtime; only your DM can reopen it." style="display:none">✔ <span class="bl">Finish creating</span></button><span id="noLimitNote" style="display:none;font-size:11px;color:var(--warn);align-self:center" title="Creation ends with a Finish creating button, which appears once your DM sets a creation limit for this character.">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
+<button class="btn g" id="finishCreatingBtn" onclick="finishCreating()" title="End character creation. Own-species traits get pricier afterwards and purchases start costing gold and downtime; only your DM can reopen it." style="display:none">✔ <span class="bl">Finish creating</span></button>
+<span class="btn g" id="creationLockedChip" role="status" title="Character creation is finished. Traits from your own species now cost more, traits from other species can no longer be added, and anything bought during creation stays at the price you paid. Only your DM can reopen creation." style="display:none;cursor:default">🔒 <span class="bl">Creation finished</span></span><span id="noLimitNote" style="display:none;font-size:11px;color:var(--warn);align-self:center" title="Creation ends with a Finish creating button, which appears once your DM sets a creation limit for this character.">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
 <button class="btn g" onclick="switchToCharGen()" title="Open this character back in the Character Generator — no file to export or import">⇆ <span class="bl">Open in CharGen</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" id="cloudBtn" title="Cloud save / load">☁ <span class="bl">Cloud</span></button><div id="cloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span>
 <span id="lsSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span>
@@ -1600,6 +1601,9 @@ function render(){
       var _nln = $('noLimitNote');
       var _inCamp = !!window._lsCampaignId || (!!window._rulesStatus && window._rulesStatus !== 'none');
       if(_nln) _nln.style.display = (!_cs.enforced && !_cs.locked && _inCamp) ? '' : 'none';
+      // fix/creation-lock-enforcement: say so once creation IS finished — hiding the button alone left a locked character looking
+      // exactly like a legacy one. Shown on `locked` alone, not `enforced`: a character locked before ceilings existed is still locked.
+      var _lk = $('creationLockedChip'); if(_lk) _lk.style.display = _cs.locked ? '' : 'none';
       if(_show){
         _fcb.title = 'Creation budget ' + _cs.ceiling + ' AP'
           + (_cs.drawbackBonus ? (' (' + _cs.base + ' from your DM + ' + _cs.drawbackBonus + ' from drawbacks)') : '')
@@ -2686,7 +2690,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.374</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.375</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
