@@ -56,7 +56,7 @@
   skill coverage. `v0.368`. Full record: `decisions/2026/D-GH-2026-10-04-wound-aliases.md`.
 ## D-GH-2026-10-05-post-lock-grants-campaign-settings — drawbacks and the two bindings after the lock: refused by default, allowed per campaign
 - Both tools refuse a new drawback, Martially Bound and Magically Bound once creation is locked, unless the campaign ticks `postLockDrawbacks` / `postLockBindings` (two separate DM Console settings; absent = refused). One definition: `postLockAllowance()` in `js/engine.js`. Solo (no campaign) = allowed (owner AA2). Full record: `decisions/2026/D-GH-2026-10-05-post-lock-grants-campaign-settings.md`.
-## D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (migration written, NOT applied)
+## D-GH-2026-10-05-server-freeze-stage1 — a locked character's priced history cannot be rewritten by a client (APPLIED to live 2026-10-10; stage 2 pending)
 - Server-side freeze (D2 lock boundary + E1 priced patch events), fail-closed on field names with a permanent and a temporary exempt list; functions only, rollback alongside. Rehearsed on Docker (36 attacks work today → 61/61 pass, rollback byte-identical),
   replayed against 457 real saves (all 24 new refusals are history rewrites after a lock) and round-tripped through the real tools (found and fixed a real CharGen load defect). Protects against accidents, not a determined cheater. **Applying it is the owner's decision.**
   Full record: `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.

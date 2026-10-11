@@ -84,6 +84,8 @@ end; $$;
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
+-- Server freeze, stage 1 (D2 + E1), applied to production 2026-10-10 (decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md). It REPLACES pact_ap_ledger_protected and pact_enforce_locked_history, so it must run after every migration that touched them.
+\ir ../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 
 drop trigger if exists trg_pact_locked_history on public.characters;

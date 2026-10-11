@@ -903,14 +903,53 @@ begin
 end;
 $$;
 
+-- Folded in from sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (applied to production 2026-10-10): the three helpers, then the ledger function that uses them.
+-- The key lists live in two tiny functions so they are visible in the database itself (COMMENT ON FUNCTION) and a later migration changes one line.
+create or replace function public.pact_patch_exempt_keys()
+ returns text[] language sql immutable set search_path to 'public', 'pg_temp'
+as $function$ select array['appearance','houseRules','gold']::text[] $function$;
+comment on function public.pact_patch_exempt_keys() is
+  'PERMANENT: patch fields that carry no AP and stay editable after a lock/seal (appearance text, house-rule toggles, the legacy wallet field). Everything else in a buy/patch event is protected (fail-closed).';
+
+create or replace function public.pact_patch_temp_exempt_keys()
+ returns text[] language sql immutable set search_path to 'public', 'pg_temp'
+as $function$ select array['traditions','innate','dabblerCantrips','martiallyBound','originClass','originClass2','species','species2','size','lineage']::text[] $function$;
+comment on function public.pact_patch_temp_exempt_keys() is
+  'TEMPORARY (stage 1, 2026-10-05): priced/identity patch fields the character-creation tool still rewrites in place after a lock until phase 2b ships (spellcasting, innate spells, martial binding, dabbler cantrips, species, origin classes, size, lineage). Removed by the stage-2 migration. Keep separate from the permanent list so an entry cannot quietly become permanent.';
+
+-- The protected projection of ONE buy/patch event: its type, cat, stamped cost, gp/days and the NON-exempt fields of payload.patch.
+-- Returns NULL when the patch has no protected field (an appearance-only event stays unprotected). A non-object patch yields NULL too:
+-- turning a protected event into one shrinks the protected list, which the trigger refuses.
+create or replace function public.pact_patch_protected_projection(p_ev jsonb)
+ returns jsonb language sql immutable set search_path to 'public', 'pg_temp'
+as $function$
+  select case when s.n = 0 then null
+              else jsonb_build_object('type', p_ev->'type', 'cat', p_ev->'cat', 'cost', p_ev->'cost',
+                                      'gp', p_ev->'gp', 'days', p_ev->'days', 'patch', s.patch) end
+  from (select count(*) as n, coalesce(jsonb_object_agg(kv.key, kv.value), '{}'::jsonb) as patch
+          from jsonb_each(case when jsonb_typeof(p_ev->'payload'->'patch') = 'object' then p_ev->'payload'->'patch' else '{}'::jsonb end) as kv
+         where kv.key <> all (public.pact_patch_exempt_keys() || public.pact_patch_temp_exempt_keys())) s;
+$function$;
+comment on function public.pact_patch_protected_projection(jsonb) is
+  'E1: the part of a buy/patch event that is frozen once a character is locked, sealed or awarded. See sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql.';
+
+-- pact_ap_ledger_protected: patch events with a protected field join the protected list (E1).
 create or replace function public.pact_ap_ledger_protected(p_log jsonb)
-returns jsonb
-language sql immutable set search_path = public, pg_temp as $$
-  select coalesce(jsonb_agg((ev - 'seq' - 'ts' - 'rules' - 'label') order by ord), '[]'::jsonb)
+ returns jsonb
+ language sql
+ immutable
+ set search_path to 'public', 'pg_temp'
+as $function$
+  select coalesce(jsonb_agg(
+           case when (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch'
+                then public.pact_patch_protected_projection(ev)
+                else (ev - 'seq' - 'ts' - 'rules' - 'label') end
+           order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
   where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback')
-     or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch');
-$$;
+     or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch')
+     or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch' and public.pact_patch_protected_projection(ev) is not null);
+$function$;
 
 create or replace function public.pact_enforce_ap_budget_consistency()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
@@ -959,11 +998,15 @@ create trigger trg_pact_ap_budget_consistency
   before update on public.characters
   for each row execute function public.pact_enforce_ap_budget_consistency();
 
+-- Folded in from the same migration (adds the D2 lock boundary).
 create or replace function public.pact_enforce_locked_history()
-returns trigger
-language plpgsql security definer set search_path = public, pg_temp as $$
+ returns trigger
+ language plpgsql
+ security definer
+ set search_path to 'public', 'pg_temp'
+as $function$
 declare
-  v_old_log jsonb; v_award_idx int; v_seal_idx int; v_idx int;
+  v_old_log jsonb; v_award_idx int; v_seal_idx int; v_lock_idx int; v_last_lock int; v_last_unlock int; v_idx int;
   v_protected_old jsonb; v_protected_new jsonb; i int;
   v_old_species text; v_new_species text;
   v_old_species2 text; v_new_species2 text;
@@ -982,9 +1025,22 @@ begin
     where (ev->>'type') = 'award'
       and not coalesce((ev->>'disc')::boolean, false)
       and not coalesce((ev->>'noLock')::boolean, false);
+
+    -- D2 (owner, 2026-10-04): for a campaign character that is CURRENTLY locked, nothing before the lock may change. "Currently locked" =
+    -- the last creationLocked is after the last creationUnlocked, so a DM reopening creation (dm_reopen_creation appends a creationUnlocked)
+    -- lifts this boundary; the seal/award boundary above is untouched by a reopen. Solo characters are not covered (no DM; the owner decides).
+    select max(ord) into v_last_lock
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+    where (ev->>'type') = 'creationLocked';
+    select max(ord) into v_last_unlock
+    from jsonb_array_elements(v_old_log) with ordinality as t(ev, ord)
+    where (ev->>'type') = 'creationUnlocked';
+    if v_last_lock is not null and coalesce(v_last_unlock, 0) < v_last_lock then
+      v_lock_idx := v_last_lock;
+    end if;
   end if;
 
-  v_idx := greatest(coalesce(v_seal_idx, 0), coalesce(v_award_idx, 0));
+  v_idx := greatest(coalesce(v_seal_idx, 0), coalesce(v_award_idx, 0), coalesce(v_lock_idx, 0));
   if v_idx = 0 then return NEW; end if;
 
   v_protected_old := public.pact_ap_ledger_protected(
@@ -1059,7 +1115,7 @@ begin
 
   return NEW;
 end;
-$$;
+$function$;
 
 drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history
