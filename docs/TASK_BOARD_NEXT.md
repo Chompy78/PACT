@@ -1405,3 +1405,35 @@ FIRST USE once shipped: bind "Bram Cotter Ch8-12" (e4e7675b-0fcc-45fe-b70d-ba994
 (a6687e29-7c12-46b2-a9a3-711586a9ca12) with 82 DM AP in total (owner choice C1: 82 total, not 82 on top of starting AP); Wren next.
 ```
 **Done when:** a DM can bind 2+ NPCs to one campaign; a player is still refused a second join (race guard intact); NPCs are excluded from bulk AP awards, downtime and party totals; a player cannot read an NPC row; the advisor reports no new findings; `engine-parity` 0 failed; Bram is bound to Amble at 82 DM AP.
+
+## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
+
+```text
+The guide's Battle Master row says "Improved Combat Superiority — Included in Premium" with no price, and its Combat Superiority row is annotated "dice, scaling, 3 maneuvers".
+The engine sells it as its own purchase: `Fighter: Improved Combat Superiority` plus the `Fighter|Battle Master` copies in subAbilMap and subclasses, T5 Per-Rest 14 (10),
+lvl 10, no bar. A player following the guide would expect it free and the engine would charge them. OWNER DECIDES (put it as a lettered choice):
+  Y1  Make the engine match the guide: add bar:true to all three data copies (as `Fighter: Additional Fighting Style` already has), bump DATA.version once, add fixtures proving
+      it cannot be bought through either purchase door, mutation-check them. Guide unchanged. (Agent recommendation, moderate confidence: the guide's annotation reads as deliberate.)
+  Y2  Make the guide match the engine: print T5 Per-Rest 14 (10) and status Buy in BOTH guide copies (master through the home-server connector, served copy locally).
+      No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Fighter|Battle Master|Improved Combat Superiority`).
+If the Gloom Stalker Iron Mind task below also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
+```
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
+
+## fix/gloom-stalker-iron-mind-decision — the guide row for Iron Mind contradicts itself and the engine sells it for 14 (11) — TODO
+**Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 0 of 31 active characters own Iron Mind; positive control Sneak Attack = 3).
+
+```text
+The guide's Ranger > Gloom Stalker row for Iron Mind reads tier "Barred (→ saves)", price "none", status "Buy" (identical in both guide copies). The engine sells
+`Ranger|Gloom Stalker|Iron Mind` and `Ranger: Iron Mind` at T4 Passive 14 (11) with no bar. Wisdom save proficiency is what the saves ladder already sells. OWNER DECIDES (lettered):
+  Z1  Bar it in the engine: bar:true on the features entry, the subAbilMap copy and the subclasses copy, DATA.version bump, fixtures proving it cannot be bought through either
+      door; and fix the guide status cell to "Barred → saves" in BOTH guide copies. (Agent recommendation: two of the three cells already say barred, so "Buy" looks like the typo.)
+  Z2  Keep it purchasable: print 14 (11) and drop the Barred wording in BOTH guide copies. No engine change, no version bump.
+Afterwards delete this row's OPEN QUESTION entry from the ALLOW list in testing/scripts/guide-price-check.mjs (key `unparsed-price|Ranger|Gloom Stalker|Iron Mind`).
+If the Improved Combat Superiority task above also picks the engine side, do both in ONE branch/PR (one DATA.version bump).
+When either of these two tasks lands, trim part B of "The pact-guide master has drifted far behind the served Players Guide…" accordingly.
+```
+**Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
