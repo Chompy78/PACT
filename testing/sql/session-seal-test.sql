@@ -315,10 +315,15 @@ select pg_temp.rejects('points cannot be MOVED between stats at equal cost',
                                             '{LOG,0,payload,patch,stats,DEX}','14')
      where id = '00000000-0000-0000-0000-0000000000d1'$$);
 
+-- Since the server freeze (stage 1, applied to production 2026-10-10) a sealed character's patch events are frozen too, so a raise can no longer be written INTO the creation-era
+-- patch event: that is exactly how a reversed ability raise used to get through. After the lock a raise is an APPENDED in-play `abil` purchase, which is still allowed.
+select pg_temp.rejects('an ability score cannot be raised by rewriting the frozen patch event (the freeze)',
+  $$update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,stats,WIS}','12')
+     where id = '00000000-0000-0000-0000-0000000000d1'$$);
 do $$ begin
-  update characters set stats = jsonb_set(stats,'{LOG,0,payload,patch,stats,WIS}','12')
+  update characters set stats = jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":9001,"ts":1,"type":"buy","cat":"abil","payload":{"ab":"WIS","to":12},"cost":0,"label":"Ability +2 WIS"}]'::jsonb)
     where id = '00000000-0000-0000-0000-0000000000d1';
-  perform pg_temp.ok('an ability score CAN still be raised', true);
+  perform pg_temp.ok('an ability score CAN still be raised by appending an in-play purchase', true);
 end $$;
 
 -- Fails open: a character recording no species anywhere must not be constrained into one. Two live
