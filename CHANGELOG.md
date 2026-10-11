@@ -4,6 +4,11 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-11 · rules: Bad Liar widened and raised from +1 to +2 AP**. The tell now shows when you knowingly tell *or hear* a lie or misrepresentation, and lies by omission are now included (previously: direct lies only, omission unaffected). Owner choice I2. Rides `DATA.version` v0.374. 0 of 37 live characters carry it. Served guide and `pact-guide` master changed together.
+
+- **2026-10-11 · rules: Quick Patch split in two. Quick Patch (1 HP revive, 3 AP) is now limited to Proficiency Bonus uses per Long Rest; new boon Staunch the Bleeding (2 AP) stabilises as a Bonus Action and the creature stays at 0 HP**. Owner choices D2, E1, G1. Unlimited at-will revives were the problem. Quick Patch keeps its name and price, so the 6 of 35 live characters that own it are not repriced. Rides `DATA.version` v0.374. Fixtures CG-069 (Staunch the Bleeding = 2) and CG-070 (Quick Patch control = 3). Served guide and `pact-guide` master changed together. Record: `D-GH-2026-10-11-quick-patch-split`.
+
+- **2026-10-11 · rules: Reckless reworked: a DC 12 Wisdom save to Dodge or Disengage (a failure doesn't spend the action) replaces the outright ban; +2 → +3 AP; `DATA.version` v0.373 → v0.374**. Engine data, served guide and `pact-guide` master changed together; rules-label literals in CharGen/Live Sheet mirrored. 0 of 32 live characters carry Reckless. Record: `D-GH-2026-10-11-reckless-rework`.
 - **2026-10-11 · chore(release): build `v1.599` → `v1.612`** — the `preview` → `main` promotion (PR #612) carries rules `v0.373` (#610 lineage spells gated by the PHB character level, CharGen greys them), campaign NPCs (#606: `characters.is_npc`, `dm_bind_npc()`, the DM Console NPC section), Goliath giant ancestries (#603), the post-lock drawback AP check in CharGen (#605), the guide price checker and master-vs-served table diff (#604), and server freeze stage 2 docs (#608/#611). `BUILD` in `js/engine.js` and the CharGen, Live Sheet and DM Console labels synced per `docs/VERSION-SYNC.md`; `DATA.version` untouched by the sync.
 
 - **2026-10-11 · fix(rules): lineage spells are gated by the PHB character level, and CharGen enforces it; `DATA.version` v0.372 → v0.373** —
