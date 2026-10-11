@@ -1060,8 +1060,7 @@ export function compute(b, opts){
   const init=(b.skills||[]).includes("Initiative")?(mod.WIS+prof+((b.expertise||[]).includes("Initiative")?prof:0)):dexMod;
   // v74: medium/heavy armour give no benefit unless STR >= 10
   const strOK=(st.STR||10)>=10;
-  const useHeavy=arm.heavy&&strOK, useMed=arm.medium&&strOK;
-  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];let ac;if(_wa){if(_wa.cat==="heavy")ac=_wa.base;else if(_wa.cat==="medium")ac=_wa.base+Math.min(dexMod,2);else ac=_wa.base+dexMod;if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}else{ac=useHeavy?18:useMed?13+Math.min(dexMod,2):arm.light?11+dexMod:10+dexMod;}if(arm.shield)ac+=2;if(dset["Thin-Skinned"])ac-=1;
+  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];let ac;if(_wa){if(_wa.cat==="heavy")ac=_wa.base;else if(_wa.cat==="medium")ac=_wa.base+Math.min(dexMod,2);else ac=_wa.base+dexMod;if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}else{ac=10+dexMod;}   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */if(arm.shield)ac+=2;if(dset["Thin-Skinned"])ac-=1;
   if((arm.medium||arm.heavy)&&!strOK) W.push("⛔ Medium armour requires Strength 10 (STR is "+(st.STR||10)+")");
   // §14: Frail and Glass Frame are HP-reduction drawbacks that do not stack (and may not be taken together)
   if(dset["Frail"]&&dset["Glass Frame"]) W.push("Frail and Glass Frame can't be taken together — their HP penalties don't stack");

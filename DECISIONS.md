@@ -15,6 +15,10 @@
   a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".
   v0.375. Live: 2 of 37 characters change, both cheaper; none trip the new refusal.
   Full record: `decisions/2026/D-GH-2026-10-11-creation-lock-enforcement.md`.
+## D-GH-2026-10-12-worn-armour-none — with no armour worn, AC is unarmoured
+- Owner choice G1. `compute()` fell back to the best armour the character was trained in when "Worn armour" was none, contradicting
+  the picker's "unarmoured (10 + Dex)" label and the history. Now 10 + Dex. Rules v0.376. Live: 10 of 35 characters lose 1 AC (2 campaign).
+  Full record: `decisions/2026/D-GH-2026-10-12-worn-armour-none.md`.
 ## D-GH-2026-10-11-patch-fold-aliasing — replaying a character's history never rewrites that history
 - Owner choices B2/C1. `MUT.patch` shallow-assigned a creation patch, so later in-place buys (armour, ability, skills, spellcasting)
   wrote themselves back into the stored patch on every fold; locked characters were then refused on save ("protected event N changed" —
