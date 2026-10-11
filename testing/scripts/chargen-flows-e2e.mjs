@@ -285,13 +285,17 @@ section('mobile header: Local/Cloud on the first row, Random + collapse on the l
       noToggle: !document.getElementById('mobActionsToggle'),
       noItemsWrapper: !document.getElementById('mobActionItems'),
       scrollsHorizontally: !!cs && cs.overflowX === 'auto',
-      buttonCount: el ? el.querySelectorAll('button').length : 0,
+      // #cgFinishCreatingBtnMob is conditional (shown only while a creation limit is set and creation is
+      // unfinished — fix/no-creation-limit-note), so it is counted separately from the 7 permanent buttons.
+      buttonCount: el ? el.querySelectorAll('button:not(#cgFinishCreatingBtnMob)').length : 0,
+      hasFinishBtn: !!(el && el.querySelector('#cgFinishCreatingBtnMob')),
     };
   });
   check('the collapse toggle is gone', bar.noToggle, JSON.stringify(bar));
   check('the intermediate .mob-action-items wrapper is gone', bar.noItemsWrapper, JSON.stringify(bar));
   check('the last row is a flat horizontally-scrolling strip', bar.scrollsHorizontally, JSON.stringify(bar));
   check('all 7 action buttons are directly in the row', bar.buttonCount === 7, JSON.stringify(bar));
+  check('the row also carries the conditional Finish creating button', bar.hasFinishBtn, JSON.stringify(bar));
 
   await ctx.close();
 }

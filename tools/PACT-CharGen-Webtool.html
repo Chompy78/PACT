@@ -553,6 +553,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div class="secnav" id="secnav"></div>
 <div id="warnbanner" class="warnbanner good" style="display:none" onclick="jumpFirstWarning()"></div></div>
 <div class="mobile-action-bar" id="mobActionBar">
+<!-- first, so a phone user sees it without scrolling the bar sideways (fix/no-creation-limit-note) -->
+<button class="btn ghost" id="cgFinishCreatingBtnMob" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button><span id="cgNoLimitNoteMob" style="display:none;font-size:11px;color:var(--warn);white-space:normal;max-width:240px">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
@@ -6648,16 +6650,20 @@ function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch
     if(_cgB && typeof creationCeiling === 'function'){
       var _cgS = creationCeiling(LOG, _cgCeilOpts());
       var _cgShow = _cgS.enforced && !_cgS.locked;
+      // The phone layout hides .hd-row3, so #mobActionBar carries its own copy of the button and note.
+      var _cgBM = $('cgFinishCreatingBtnMob');
       _cgB.style.display = _cgShow ? '' : 'none';
+      if(_cgBM) _cgBM.style.display = _cgShow ? '' : 'none';
       // fix/no-creation-limit-note: a campaign character with no limit (joining a campaign clears it
       // server-side) gets a note instead of a silently missing button. Solo characters keep showing nothing.
-      var _cgN = $('cgNoLimitNote');
-      if(_cgN) _cgN.style.display = (!_cgS.enforced && !_cgS.locked && !!window._cgCampaignId) ? '' : 'none';
+      var _cgNoteShow = !_cgS.enforced && !_cgS.locked && !!window._cgCampaignId;
+      ['cgNoLimitNote','cgNoLimitNoteMob'].forEach(function(id){ var n=$(id); if(n) n.style.display = _cgNoteShow ? '' : 'none'; });
       if(_cgShow){
         _cgB.title = 'Creation budget ' + _cgS.ceiling + ' AP'
           + (_cgS.drawbackBonus ? (' (' + _cgS.base + ' from your DM + ' + _cgS.drawbackBonus + ' from drawbacks)') : '')
           + ' \u2014 ' + _cgS.spent + ' spent, ' + Math.max(0,_cgS.remaining) + ' left.'
           + ' Finishing ends creation: own-species traits cost more afterwards. Only your DM can reopen it.';
+        if(_cgBM) _cgBM.title = _cgB.title;
       }
     }
   }catch(e){ /* display-only */ }
