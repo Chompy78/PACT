@@ -4,6 +4,9 @@
 > This is the scannable, going-forward log; the full pre-GitHub history is in
 > `docs/history/CHANGELOG-full.md`. *Why* lives in `DECISIONS.md`; the messy middle in `docs/sessions/`.
 
+- **2026-10-11 · fix(rules): lineage spells are gated by the PHB character level, and CharGen enforces it; `DATA.version` v0.372 → v0.373** —
+  `DATA.lineageSpells` entries are now `[name, AP, spell level, Hit Dice]`: the six 1st-level lineage spells (Faerie Fire, Detect Magic, Longstrider, Hellish Rebuke, Ray of Sickness, False Life) need 3 HD (they had no gate); the five 2nd-level ones (Darkness ×2, Misty Step, Pass without Trace, Hold Person, Ray of Enfeeblement) keep 5 HD but are stored as the 2nd-level spells they are — they were stored as "3rd-level" to reach that gate, which is why CharGen showed Darkness as "L3". Prices unchanged. New engine exports `lineageSpellHD()`/`lineageSpellLabel()` replace three local copies; labels now read e.g. "2nd-level · 1/long rest · needs 5 HD". CharGen greys a lineage spell below its Hit Dice like a tiered racial trait (it sold every one at 1 HD). Players Guide §10 (served copy + `pact-guide` master): gated rows say "needs 3/5 HD · special", plus a one-line rule. Live: 0 of 7 characters with lineage spells affected (all hold only cantrips). New `testing/scripts/lineage-spell-gates-ci.mjs` (26 checks, in engine-parity CI). Decision: D-GH-2026-10-11-lineage-spell-gates.
+
 - **2026-10-11 · docs: session note for the Fighting Style change, the guide checker's blind spots and the 54-table master drift** — `docs/sessions/2026-10-11-fighting-styles-guide-checker-and-master-drift.md`; no code, data or tests changed.
 
 - **2026-10-11 · test(guide): the Players Guide price checker now sees every name in a combined row, parses price ranges, and fails on any ambiguous / unparsed / stepped row nobody has reviewed; plus a master-vs-served table diff and the missing Ranger row in the master** —
