@@ -208,6 +208,13 @@ create table if not exists public.characters (
 
 create index if not exists idx_characters_owner    on public.characters(owner_id);
 create index if not exists idx_characters_campaign on public.characters(campaign_id);
+-- feat/unique-character-names (D-GH-2026-10-11-unique-character-names): one ACTIVE character per name per player.
+-- Exempt: the tools' unnamed defaults ('New Character', 'Character') and DM snapshot copies ('… (DM copy)').
+create unique index if not exists uq_characters_owner_active_name
+  on public.characters (owner_id, lower(btrim(name)))
+  where archived_at is null
+    and lower(btrim(name)) not in ('new character', 'character')
+    and lower(btrim(name)) not like '% (dm copy)';
 
 drop trigger if exists trg_characters_updated_at on public.characters;
 create trigger trg_characters_updated_at
@@ -806,6 +813,7 @@ declare
   v_char_id uuid;
   v_name    text;
   v_grant   integer;
+  v_con     text;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -833,6 +841,11 @@ begin
         values (auth.uid(), v_invite.campaign_id, v_name, 'chargen', v_grant)
         returning id into v_char_id;
     exception when unique_violation then
+      -- feat/unique-character-names: the same insert can now also hit uq_characters_owner_active_name.
+      get stacked diagnostics v_con = constraint_name;
+      if v_con = 'uq_characters_owner_active_name' then
+        raise exception 'PACT: you already have a character named "%" — choose a different name', v_name;
+      end if;
       raise exception 'You have already joined this campaign';
     end;
 
@@ -1037,6 +1050,7 @@ declare
   v_source characters%rowtype;
   v_new_id uuid;
   v_stats  jsonb;
+  v_con    text;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -1092,6 +1106,11 @@ begin
     insert into characters (id, owner_id, campaign_id, name, kind, stats, ap)
       values (v_new_id, auth.uid(), v_invite.campaign_id, v_source.name, v_source.kind, v_stats, v_source.ap);
   exception when unique_violation then
+    -- feat/unique-character-names: the copied name can now also hit uq_characters_owner_active_name.
+    get stacked diagnostics v_con = constraint_name;
+    if v_con = 'uq_characters_owner_active_name' then
+      raise exception 'PACT: you already have a character named "%" — rename or archive it, then use this link again', v_source.name;
+    end if;
     raise exception 'You already have a character in this campaign';
   end;
 

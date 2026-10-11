@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-11-unique-character-names — the database refuses two active characters with the same name for one player
+- Owner choice G2: the browser-only rename guard (#545) missed saves, imports, tool switches and all of CharGen, and a player ended up with two active "Caspian"s. A unique index
+  `uq_characters_owner_active_name` on `(owner_id, lower(btrim(name)))` over active rows, exempting "New Character", "Character" and "… (DM copy)"; the invite/claim RPCs now tell a name
+  clash apart from "already in this campaign"; `sync.js` `isDuplicateNameRejection()` matches the index by name (the campaign index raises 23505 too) and both tools explain it plainly.
+  Full record: `decisions/2026/D-GH-2026-10-11-unique-character-names.md`.
+
 ## D-GH-2026-10-08-martially-bound-fighting-styles-flat — Martially Bound does not discount Fighting Styles
 - Owner decision 2026-10-08: the Players Guide always said Fighting Styles are "priced flat regardless of class"; the engine discounted them. A `noMB` data flag (four features plus the Additional Fighting Style subclass copies) now exempts them; `DATA.version` v0.371 → v0.372. No live character affected (measured). Full record: `decisions/2026/D-GH-2026-10-08-martially-bound-fighting-styles-flat.md`.
 ## D-GH-2026-10-10-blank-row-guard — the server refuses blank solo character rows; a weekly job sweeps any that remain

@@ -596,6 +596,66 @@ begin
   perform pg_temp.ok('the purged row was backed up first (character_backups, reason delete)',
     exists (select 1 from public.character_backups where character_id = v_old and reason = 'delete'));
 end $$;
+
+\echo ''
+\echo 'feat/unique-character-names — one ACTIVE character per name per player; defaults and DM copies exempt'
+do $$
+declare v_a uuid; v_b uuid; v_dm uuid; v_camp uuid; v_c1 uuid; v_arch uuid; v_src uuid; L jsonb := '{"LOG":[]}'::jsonb;
+        dup text := '%uq_characters_owner_active_name%';
+begin
+  perform pg_temp.ok('uq_characters_owner_active_name exists',
+    exists (select 1 from pg_indexes where indexname = 'uq_characters_owner_active_name'));
+
+  insert into auth.users (email) values ('uniq-a@example.test') returning id into v_a;
+  insert into auth.users (email) values ('uniq-b@example.test') returning id into v_b;
+  insert into auth.users (email) values ('uniq-dm@example.test') returning id into v_dm;
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Caspian', L) returning id into v_c1;
+  perform pg_temp.rejects('a second active "Caspian" for the same player is refused',
+    format('insert into public.characters (owner_id, name, stats) values (%L, %L, %L)', v_a, 'Caspian', L), dup);
+  perform pg_temp.rejects('the match ignores case and surrounding spaces ("  caspian ")',
+    format('insert into public.characters (owner_id, name, stats) values (%L, %L, %L)', v_a, '  caspian ', L), dup);
+  insert into public.characters (owner_id, name, stats) values (v_b, 'Caspian', L);
+  perform pg_temp.ok('another player may use the same name', true);
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'New Character', L), (v_a, 'New Character', L),
+                                                               (v_a, 'Character', L), (v_a, 'character', L),
+                                                               (v_a, 'Moss (DM copy)', L), (v_a, 'Moss (DM copy)', L);
+  perform pg_temp.ok('the unnamed defaults and "(DM copy)" names are exempt (two of each allowed)', true);
+
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Skylar', L) returning id into v_arch;
+  update public.characters set archived_at = now() where id = v_arch;
+  insert into public.characters (owner_id, name, stats) values (v_a, 'Skylar', L);
+  perform pg_temp.ok('archiving a character frees its name for a new one', true);
+  perform pg_temp.rejects('un-archiving into a name clash is refused',
+    format('update public.characters set archived_at = null where id = %L', v_arch), dup);
+  perform pg_temp.rejects('renaming into a name clash is refused',
+    format('update public.characters set name = %L where id = (select id from public.characters where owner_id = %L and name = %L and archived_at is null)',
+           'Caspian', v_a, 'Skylar'), dup);
+
+  -- redeem_player_invite(): a clashing chosen name must say so, not "already joined this campaign".
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Unique-name probe') returning id into v_camp;
+  insert into public.campaign_invites (campaign_id, type, token, created_by) values (v_camp, 'player', 'uniq-tok-1', v_dm);
+  perform set_config('pact.test_uid', v_a::text, false);
+  perform pg_temp.rejects('redeem_player_invite with a clashing name gives the plain name message',
+    $q$select * from public.redeem_player_invite('uniq-tok-1', 'Caspian')$q$, 'PACT: you already have a character named "Caspian"%');
+  perform pg_temp.ok('a refused redemption leaves the invite unused (the whole call rolled back)',
+    (select redeemed_by from public.campaign_invites where token = 'uniq-tok-1') is null);
+  perform pg_temp.ok('redeem_player_invite with a fresh name still works',
+    (select is_new from public.redeem_player_invite('uniq-tok-1', 'Caspian the Second')));
+
+  -- redeem_character_claim(): the copied name clashes with the claimer's own character.
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Unique-name claim probe') returning id into v_camp;
+  insert into public.characters (owner_id, name, stats) values (v_dm, 'Caspian', L) returning id into v_src;
+  insert into public.campaign_invites (campaign_id, type, token, created_by, source_character_id)
+    values (v_camp, 'character_claim', 'uniq-claim-1', v_dm, v_src);
+  perform set_config('pact.test_uid', v_a::text, false);
+  perform pg_temp.rejects('redeem_character_claim into a clashing name gives the plain name message',
+    $q$select * from public.redeem_character_claim('uniq-claim-1')$q$, 'PACT: you already have a character named "Caspian"%');
+  perform set_config('pact.test_uid', '', false);
+end $$;
 \echo ''
 \echo 'The baseline and the MIGRATIONS agree — the anti-drift guard'
 -- This is the check that makes the whole file un-rottable, and it needs no access to production.
@@ -631,7 +691,8 @@ from pg_proc
 where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_history',
                   'pact_ap_ledger_protected','pact_enforce_locked_history',
                   'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player',
-                  'pact_refuse_blank_solo_character','pact_purge_blank_characters');
+                  'pact_refuse_blank_solo_character','pact_purge_blank_characters',
+                  'redeem_player_invite','redeem_character_claim');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -639,8 +700,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 11 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 11);
+  perform pg_temp.ok('all 13 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 13);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -653,6 +714,7 @@ end $$;
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-review-fixes.sql
 \ir ../../sql/migrations/2026-10-04-dm-unlock-drawback.sql
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
+\ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -672,8 +734,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 11 functions (saw ' || v_n || ')',
-    v_n = 11);
+  perform pg_temp.ok('the drift comparison actually covered all 13 functions (saw ' || v_n || ')',
+    v_n = 13);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

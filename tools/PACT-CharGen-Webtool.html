@@ -650,7 +650,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   // The party downtime window is read through the same helper the Live Sheet uses (js/dm.js, RPC get_downtime_window); CharGen needs only that one function.
   import { getDowntimeWindow } from '../js/dm.js';
@@ -658,7 +658,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window._campaignBridge = { drawbackCapFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, getPageBase, adoptRestoredCopy };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -1045,6 +1045,13 @@ document.addEventListener('sync-ready', function () {
       // a routine edit to the player's one already-allowed character.
       if (res.error && window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(res.error)) {
         alert('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+        if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
+        if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
+        return;
+      }
+      // feat/unique-character-names: before the throw, for the same reason as the two checks above.
+      if (res.duplicateName) {
+        alert('\u26A0 ' + window._syncBridge.DUPLICATE_NAME_MESSAGE);
         if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
         if (typeof _cgRenderSyncChip === 'function') _cgRenderSyncChip();
         return;
@@ -1462,6 +1469,9 @@ document.addEventListener('sync-ready', function () {
       // does its own `insert into characters` INSIDE the RPC — same reasoning as tryRedeem()'s copy.
       if(window._syncBridge.isBasicModeRejection && window._syncBridge.isBasicModeRejection(err)){
         showBanner('🔒 ' + window._syncBridge.BASIC_MODE_MESSAGE);
+      } else if(window._syncBridge.isDuplicateNameRejection && window._syncBridge.isDuplicateNameRejection(err)){
+        // feat/unique-character-names: the claimed character's name matches one this player already has.
+        showBanner('You already have a character with that name. Rename or archive yours, then open the claim link again.');
       } else {
         showBanner('Could not claim character: '+(err&&err.message?err.message:String(err)));
       }
@@ -2303,7 +2313,7 @@ function buildForm(F){
   // prefixed ids need no per-field entry in PATCH_FIELD_SLOT.
   function apCustomField(idx){return '<div class="row apcustom"><input type="text" id="ap_custom'+idx+'Label" class="apin apcustomlabel" placeholder="Label (e.g. Catchphrase)" aria-label="Custom detail '+idx+' label"><input type="text" id="ap_custom'+idx+'Text" class="apin" placeholder="One sentence…" aria-label="Custom detail '+idx+' text"></div>';}
   grp('1 · Setup &amp; Character Description',
-    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
+    '<div class="row"><label class="l">Character name</label><input type="text" id="cname" maxlength="60" onchange="_cgNameClashCheck()"><button class="btn ghost" type="button" onclick="genName()" title="Roll a random name in the chosen style(s)">🎲 Generate</button></div>'+
     '<div class="namelab">Name flavour</div><div class="namesty">'+styleChips+'</div>'+
     '<div class="namelab">Influence</div><div class="namesty influ">'+influChips+'</div>'+
     '<div class="hint" style="margin:2px 0 4px 218px">Tick flavours and/or influence toggles — the generator blends every chosen pool. Species/Class-linked pull from your origin species &amp; class. Leave the name as-is to keep it.</div>'+
@@ -4964,10 +4974,32 @@ async function _cgCloudPushOnce(){
     // notice was reachable only from the gate on the NEXT push — which a player who stopped editing
     // never schedules.
     if(res&&res.sealed) _cgSealNotice();
+    // feat/unique-character-names: once per name — the player's fix (a rename) is itself an edit that retries.
+    if(res&&res.duplicateName) _cgDupNameNotice(stats.name);
   }catch(e){ /* deliberately silent: the local autosave already holds the work and sync.js leaves the
                 record dirty for the next retry — a toast on every failed keystroke would be noise */ }
 }
 var _cgConflictWarned=false;   // one notice per session, not one per keystroke
+var _cgDupNameWarned=null;     // feat/unique-character-names: the name last warned about
+function _cgDupNameNotice(nm){
+  var k=String(nm||'').trim().toLowerCase(); if(_cgDupNameWarned===k) return; _cgDupNameWarned=k;
+  alert('\u26A0 '+window._syncBridge.DUPLICATE_NAME_MESSAGE);
+}
+// The early, friendly half of the same rule (Live Sheet's equivalent is _lsRenameGuard): when the player
+// leaves the name field, say so if another of their ACTIVE characters already has the name. Advisory
+// only — the keystroke sync has already recorded the name, and the server is what actually refuses it.
+// Skipped for the unnamed defaults and when signed out, matching the server's exemptions.
+async function _cgNameClashCheck(){
+  var nm=String(val('cname')||'').trim(), k=nm.toLowerCase();
+  if(!nm||k==='new character'||k==='character'||/ \(dm copy\)$/.test(k)) return;
+  if(!window._cloudSignedIn||!window._syncBridge||!window._syncBridge.listMyCharacters) return;
+  try{
+    var mine=await window._syncBridge.listMyCharacters();
+    var me=String(currentCharId());
+    var dupe=(mine||[]).find(function(c){return String(c.id)!==me&&!c.archived_at&&String(c.name||'').trim().toLowerCase()===k;});
+    if(dupe&&typeof flash==='function') flash('\u26A0 You already have a character named \u201C'+nm+'\u201D'+(dupe.campaign_id?' (in a campaign)':'')+'. Pick a different name, or this one won\u2019t save to the cloud.');
+  }catch(e){ /* offline or lookup failed — the server still enforces the rule */ }
+}
 var _cgBudgetWarned=false;     // feat/campaign-ap-budget-enforce: same one-notice-per-session shape
 // Flush a pending-or-in-flight cloud autosave right now instead of leaving it on its debounce timer —
 // used before a deliberate in-app navigation (switchToLiveSheet) that would otherwise abandon it. Bounded
