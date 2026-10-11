@@ -62,11 +62,17 @@ select t('E1  change the protected field of a MIXED event', 'refused', $b$ selec
 select t('admin session (no claims) also cannot rewrite it — the trigger has never exempted admins', 'refused', $b$ select as_admin(); update characters set stats = jsonb_set(stats,'{LOG,1,payload,patch,hd}','2') where name='lockedA' $b$);
 select t('a campaign DM updating the row directly cannot rewrite it either (DM routes are append-only)', 'refused', $b$ select as_user('d0000000-0000-0000-0000-000000000001'); update characters set stats = jsonb_set(stats,'{LOG,1,payload,patch,hd}','2') where name='lockedA' $b$);
 
+-- Stage-aware: run with `psql -v tmpexp=refused` after stage 2 (the temporary exemption is gone); the default is stage 1, where those fields may still be rewritten.
+\if :{?tmpexp}
+\else
+\set tmpexp allowed
+\endif
+
 -- ===== LEGITIMATE (allowed before and after) =====
 select t('edit the appearance patch in place after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,2,payload,patch,appearance,eyes}','"red"') $e$) $b$);
 select t('edit house rules in place after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,3,payload,patch,houseRules,a}','2') $e$) $b$);
 select t('edit ONLY the appearance inside a mixed event (hd + appearance)', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,7,payload,patch,appearance,eyes}','"grey"') $e$) $b$);
-select t('stage 1: spellcasting (temporary exemption) can still be rewritten after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,6,payload,patch,traditions}','[{"name":"Divine"}]') $e$) $b$);
+select t('spellcasting (the stage-1 temporary exemption): rewritten after the lock — allowed at stage 1, refused at stage 2', :'tmpexp', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,6,payload,patch,traditions}','[{"name":"Divine"}]') $e$) $b$);
 select t('append a new in-play purchase after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":11,"type":"buy","cat":"hd","cost":4,"payload":{"to":6},"gp":25,"days":7}]') $e$) $b$);
 select t('undo the last in-play purchase (removal after the lock, before any seal)', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') - 9) $e$) $b$);
 select t('rename the character (column only)', 'allowed', $b$ select as_user('a0000000-0000-0000-0000-000000000001'); update characters set name='renamed' where name='lockedA' $b$);
@@ -105,8 +111,8 @@ create temp table keys(k text, cls text, expect text, i int);
 insert into keys(k, cls, expect, i)
 select k, cls, expect, row_number() over () from (values
   ('appearance','permanent','allowed'),('houseRules','permanent','allowed'),('gold','permanent','allowed'),
-  ('traditions','temporary','allowed'),('innate','temporary','allowed'),('dabblerCantrips','temporary','allowed'),('martiallyBound','temporary','allowed'),
-  ('originClass','temporary','allowed'),('originClass2','temporary','allowed'),('size','temporary','allowed'),('lineage','temporary','allowed'),
+  ('traditions','temporary',:'tmpexp'),('innate','temporary',:'tmpexp'),('dabblerCantrips','temporary',:'tmpexp'),('martiallyBound','temporary',:'tmpexp'),
+  ('originClass','temporary',:'tmpexp'),('originClass2','temporary',:'tmpexp'),('size','temporary',:'tmpexp'),('lineage','temporary',:'tmpexp'),
   ('species','temporary','refused'),('species2','temporary','refused'),   -- still refused: the existing species-freeze rule, independent of stage 1
   ('stats','protected','refused'),('hd','protected','refused'),('profBonus','protected','refused'),('languages','protected','refused'),('hardy','protected','refused'),
   ('tough','protected','refused'),('ki','protected','refused'),('sorcery','protected','refused'),('attune','protected','refused'),('armour','protected','refused'),

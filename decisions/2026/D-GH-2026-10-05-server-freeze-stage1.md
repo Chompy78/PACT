@@ -43,3 +43,7 @@ loud, visible and one line to fix. (Both API reviewers and the judge reached thi
   advisors, watch the logs. Until then the baseline correctly describes production.
 - Stage 2 (a later migration) deletes `pact_patch_temp_exempt_keys()` once the creation tool buys spellcasting, innate spells and identity changes the proper way (phase 2b; 2b-1 already refuses them after the lock). Until then those slots can still be rewritten in place.
 - Known residual, unchanged by this: a DM has no in-app way to rewrite sealed history (only a privileged database write) — by design (O1).
+
+## Stage 2 (prepared 2026-10-11, NOT applied)
+
+`sql/migrations/2026-10-11-server-freeze-stage2.sql` makes `pact_patch_temp_exempt_keys()` return an empty list: the eight temporarily exempt fields are protected from then on. One line, functions only, with a rollback that restores the stage-1 list exactly. Precondition met: the newest CharGen (refusals + in-play spellcasting purchases) has been live since v1.599. Rehearsed on Docker (61/61, exact rollback; CI `freeze-rehearsal`). Still to do before applying: re-run `backup-replay-audit.mjs --stage2` and `roundtrip-audit.mjs --stage2` against a fresh read-only export and confirm nothing a current tool does is refused. The apply is the owner's decision.

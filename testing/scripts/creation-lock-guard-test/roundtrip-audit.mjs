@@ -26,14 +26,14 @@ import { launchChromium } from '../lib/launch-chromium.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../../..');
 const argv = process.argv.slice(2);
-const ALLC = argv.includes('--campaign-all'), SYNTH = argv.includes('--synthetic');
+const ALLC = argv.includes('--campaign-all'), SYNTH = argv.includes('--synthetic'), STAGE2 = argv.includes('--stage2');   // --stage2: mirror the stage-2 rule (the temporary exempt list is empty)
 const [exportPath, reportPath] = argv.filter(a => !a.startsWith('--'));
 if (!exportPath) { console.error('usage: roundtrip-audit.mjs <export.json> [report.json]'); process.exit(2); }
 const exp = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
 
 // ---- mirror of the server's protected projection ----
 const EXEMPT = new Set(['appearance', 'houseRules', 'gold']);
-const TEMP_EXEMPT = new Set(['traditions', 'innate', 'dabblerCantrips', 'martiallyBound', 'originClass', 'originClass2', 'species', 'species2', 'size', 'lineage']);
+const TEMP_EXEMPT = new Set(STAGE2 ? [] : ['traditions', 'innate', 'dabblerCantrips', 'martiallyBound', 'originClass', 'originClass2', 'species', 'species2', 'size', 'lineage']);
 const PROT_TYPES = new Set(['buyoff', 'names', 'award', 'sessionSeal', 'dmRemoveBoon', 'dmUnlockDrawback']);
 const strip = e => { const x = { ...e }; for (const k of ['seq', 'ts', 'rules', 'label']) delete x[k]; return x; };
 const patchProj = e => {
