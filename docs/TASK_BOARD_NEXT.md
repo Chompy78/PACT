@@ -1422,3 +1422,24 @@ render the same tooltips/sheet text afterwards. Shallow alternative: delete DM C
 leave the CharGen/Live Sheet duplication. Display-only: no DATA.version bump; log in CHANGELOG.md.
 ```
 **Done when:** `DATA.racialFx` is defined in exactly one place (or, if the shallow fix is chosen, DM Console's dead copy is gone and the choice is noted in the changelog line); CharGen's racial-trait checkbox tooltips show the same text as before for all 40 keys; `engine-parity` 0 failed.
+
+## fix/no-creation-limit-note — a campaign character with no creation limit hides "Finish creating" without saying why — TODO
+**Effort:** low · **Risk:** low — display-only UI in two tools, never read by `compute()`; worst case is a misplaced note.
+
+```text
+Found 2026-10-11: the player of "Wren Ch4 end" (and "Wren Ch8-12") could not find how to end creation. Cause: joining a
+campaign makes the server trigger pact_campaign_move_clears_creation (sql/rls-policies.sql ~line 1254) stamp
+creationLockConfig{threshold:null} ("Creation limit cleared - joined a campaign"). With no threshold, creationCeiling().enforced
+is false, and both player tools then simply hide the button:
+  - CharGen: _cgRenderAll(), tools/PACT-CharGen-Webtool.html ~line 6638 (cgFinishCreatingBtn)
+  - Live Sheet: render(), tools/PACT-Live-Char-Sheet.html ~line 1588 (finishCreatingBtn)
+Only the DM Console says anything ("No limit set"). The fix for a player is the DM entering a figure under Creation limit ->
+Set limit, but nothing tells the player that.
+
+DO: in both tools, when the character is in a campaign, is NOT locked (creationLockState().locked false) and has no limit
+(creationCeiling().enforced false), show a short note where the button would be, e.g. "Your DM hasn't set a creation limit
+yet — ask them to set one in the DM Console, then you can finish creating." Keep the wording the same in both tools.
+Solo/local characters (no campaign) keep today's behaviour: no button, no note. A character with a limit keeps the button.
+A locked character shows neither. Display-only: no DATA.version bump, no compute() change; log in CHANGELOG.md.
+```
+**Done when:** in both CharGen and Live Sheet, a campaign character with no limit shows the note, a campaign character with a limit shows the button and no note, a solo character and a locked character show neither; `engine-parity` 0 failed.
