@@ -913,9 +913,9 @@ comment on function public.pact_patch_exempt_keys() is
 
 create or replace function public.pact_patch_temp_exempt_keys()
  returns text[] language sql immutable set search_path = public, pg_temp
-as $function$ select array['traditions','innate','dabblerCantrips','martiallyBound','originClass','originClass2','species','species2','size','lineage']::text[] $function$;
+as $function$ select array[]::text[] $function$;
 comment on function public.pact_patch_temp_exempt_keys() is
-  'TEMPORARY (stage 1, 2026-10-05): priced/identity patch fields the character-creation tool still rewrites in place after a lock until phase 2b ships (spellcasting, innate spells, martial binding, dabbler cantrips, species, origin classes, size, lineage). Removed by the stage-2 migration. Keep separate from the permanent list so an entry cannot quietly become permanent.';
+  'EMPTY since stage 2 (2026-10-11). Was the stage-1 TEMPORARY exemption (spellcasting, innate spells, martial binding, dabbler cantrips, origin classes, size, lineage, species); the creation tool no longer rewrites those after a lock. Kept as an empty list so the projection function is unchanged; a later cleanup may delete it.';
 
 -- The protected projection of ONE buy/patch event: its type, cat, stamped cost, gp/days and the NON-exempt fields of payload.patch.
 -- Returns NULL when the patch has no protected field (an appearance-only event stays unprotected). A non-object patch yields NULL too:
