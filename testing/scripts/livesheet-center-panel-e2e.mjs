@@ -3,6 +3,7 @@
  *   2. A tap-able ⓘ after each boon and drawback that shows its effect (drawbacks' hover text was always blank:
  *      it read .fx off DATA.drawbacks[x], which is a price).
  *   3. The "not named" notice lists WHICH spells and languages are blank.
+ *   4. A campaign DM can switch off the "N drawbacks chosen" advice (DM Console → rules.drawbackCountAdvice).
  *
  *   node testing/scripts/livesheet-center-panel-e2e.mjs   (expect 0 failed)
  *   SHOT_DIR=<dir> node …            also saves desktop and phone screenshots of the panel there
@@ -89,6 +90,35 @@ check('on a phone the skills list stacks above the sheet', await ph.page.evaluat
 check('no sideways scroll on a phone', await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
 if (SHOT) await ph.page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-phone.png') });
 await ph.ctx.close();
+
+// 4. The DM can switch off the "N drawbacks chosen" advice for a campaign (DM Console → rules.drawbackCountAdvice=false).
+const E = await import('../../js/engine.js');
+const C = await import('../../js/campaign.js').catch(() => null);
+const many = Object.assign(E.baseBuild(), { drawbacks: Object.keys(E.DATA.drawbacks).filter(d => !/Frail|Glass/.test(d)).slice(0, 5) });
+const has = o => E.compute(many, o).warnings.some(w => /drawbacks chosen/.test(w));
+check('engine: 5 drawbacks raise the count advice by default', has({}));
+check('engine: drawbackCountAdvice:false switches it off', !has({ drawbackCountAdvice: false }));
+check('engine: purchaseLegality honours it too',
+  !E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }, { drawbackCountAdvice: false }).warnings.some(w => /drawbacks chosen/.test(w))
+  && E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }).warnings.some(w => /drawbacks chosen/.test(w)));
+if (C) {
+  check('campaign rule: absent means on', C.drawbackCountAdviceFromRules({}) === undefined && C.drawbackCountAdviceFromRules(null) === undefined);
+  check('campaign rule: false switches it off', C.drawbackCountAdviceFromRules({ drawbackCountAdvice: false }) === false);
+}
+{
+  const ctx3 = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  const p3 = await ctx3.newPage();
+  const L2 = [LOG[0], { ...LOG[1], payload: { patch: { ...LOG[1].payload.patch, drawbacks: many.drawbacks } } }];
+  await p3.addInitScript((env) => { try { localStorage.setItem('pactLiveSheet', JSON.stringify(env)); } catch (e) {} },
+    { schema: 'pact-character/1', LOG: L2, SEQ: 3 });
+  await p3.goto(`http://localhost:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`, { waitUntil: 'load' });
+  await p3.waitForFunction(() => window.skillMods && document.querySelector('#sheet .shskills') && window._campaignBridge, { timeout: 25000 });
+  const tray = async (rules) => p3.evaluate((rules) => { window._rulesStatus = rules ? 'active' : 'none'; window._cloudCampaignRules = rules; render(); return document.getElementById('tray').innerText; }, rules);
+  check('Live Sheet: the advice shows with no campaign', /drawbacks chosen/.test(await tray(null)));
+  check('Live Sheet: the advice shows in a campaign that leaves it on', /drawbacks chosen/.test(await tray({})));
+  check('Live Sheet: the advice is gone when the DM switches it off', !/drawbacks chosen/.test(await tray({ drawbackCountAdvice: false })));
+  await ctx3.close();
+}
 
 await browser.close(); server.close();
 console.log(`\n${fail ? '✗' : '✓'} ${pass} passed / ${fail} failed`);

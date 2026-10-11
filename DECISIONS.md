@@ -10,6 +10,11 @@
 
 ## Index
 
+## D-GH-2026-10-12-livesheet-center-panel — skill totals come from the engine; the drawback-count advice is a DM switch
+- Owner choices B1/C1/D (DM Console)/E1. New engine export `skillMods()`; campaign rule `drawbackCountAdvice` (DM Console checkbox) reaches
+  `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring
+  campaign settings, and the DM Console roster never applying the drawback cap. No rules-version bump.
+  Full record: `decisions/2026/D-GH-2026-10-12-livesheet-center-panel.md`.
 ## D-GH-2026-10-11-creation-lock-enforcement — the creation lock is visible, refuses other species' traits, and freezes creation Vigor
 - Owner choices A2/B1/C1/D1. `_replay()` stamps unstamped (CharGen-patch) Vigor ranks at the lock so later Hit Dice don't re-price them; `compute()` hard-warns
   a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".

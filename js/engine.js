@@ -1004,7 +1004,9 @@ export function compute(b, opts){
   // "Chosen" means chosen: a DM-imposed drawback is not the player's pick, so it does not count toward the
   // 2–3 guideline (that guideline exists to stop a build becoming an AP farm, and an imposed drawback pays 0).
   const _nChosen=(b.drawbacks||[]).filter(function(_x,_i){return !_impIdx.has(_i);}).length;
-  if(_nChosen>3) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
+  // A campaign DM can switch this advice off in the DM Console (opts.drawbackCountAdvice===false,
+  // feat/livesheet-center-panel): it is a guideline, and the DM has made the ruling it asks for.
+  if(_nChosen>3&&!(opts&&opts.drawbackCountAdvice===false)) W.push(_nChosen+" drawbacks chosen — most DMs cap this at 2–3; more may not be reasonable or approved");
   // Lost purchases (feat/ledger-show-lost-purchases, D-GH-2026-08-10): a bought-off drawback or a
   // DM-removed boon drops OUT of the fold entirely (see _replay's boughtOff/boonRemoved guards) — it's
   // absent from b.drawbacks/b.boons, so neither line above nor the Boons line below can show it. Yet the
@@ -2701,10 +2703,12 @@ export function priceOf(cur, cat, payload) {
 const SOFT_WARN=/surplus charged double|most tables cap at|most DMs cap|needs DM approval|to benefit|add no benefit|no Ki-using ability|caps them at|injure the same place/i;
 const EXPECTED_FOLLOWUP=/choose an ability to raise/i;
 const DUP_FIELD={unlockclass:'unlockedClasses',save:'saves',skill:'skills',expertise:'expertise',toolexpertise:'toolExpertise',tool:'tools',instrument:'instruments',mastery:'masteries',racial:'racialTraits',racialspell:'racialSpells'};
-export function purchaseLegality(cur, cat, payload) {
+// opts (optional) is compute()'s campaign options, so a DM's campaign settings (drawback cap, advice switched
+// off) apply to the purchase check exactly as they do to the sheet.
+export function purchaseLegality(cur, cat, payload, opts) {
   const cand = clone(cur); (MUT[cat] || (() => {}))(cand, payload);
-  const seen = {}; compute(cur).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
-  const warnings = compute(cand).warnings.filter(w => { if (/OVER BUDGET/.test(w)) return false; if (seen[w] > 0) { seen[w]--; return false; } return true; });
+  const seen = {}; compute(cur, opts).warnings.forEach(w => { seen[w] = (seen[w] || 0) + 1; });
+  const warnings = compute(cand, opts).warnings.filter(w => { if (/OVER BUDGET/.test(w)) return false; if (seen[w] > 0) { seen[w]--; return false; } return true; });
   const followup = warnings.filter(w => EXPECTED_FOLLOWUP.test(w));
   const rest = warnings.filter(w => !EXPECTED_FOLLOWUP.test(w));
   const hard = rest.filter(w => !SOFT_WARN.test(w));
