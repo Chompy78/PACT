@@ -3905,6 +3905,9 @@ function _cgSyncName(){const nm=val('cname')||'';
 //
 // The invariant to hold on to: b.budget, val('budget') and this award's amount are ALL the raw award
 // now. No conversion belongs anywhere on this path.
+// fix/server-player-award-after-lock: a campaign character that is locked OR sealed (a DM can seal before creation is locked). The database refuses a rise
+// in its award total from anyone but the DM there (pact_enforce_player_ap_ceiling), so offering the budget edit would only strand the save.
+function _cgAwardsFrozen(){return _cgIsCampaignBound()&&(_cgIsLocked()||LOG.some(function(e){return e&&e.type==='sessionSeal';}));}
 function _cgAwardCount(){return LOG.filter(function(e){return e&&e.type==='award';}).length;}
 function _cgSyncAward(){
   // A character whose AP came as SEVERAL awards (the Live Sheet records each with its own note and date)
@@ -3936,7 +3939,7 @@ function _cgSyncAward(){
   // DM pool) the singleton guard below has no event to protect, so typing a figure appended a fresh award after the lock, and the server
   // accepts it (pact_enforce_ap_budget_consistency counts it as player-earned AP unless ignore_player_ap). Refuse any change here.
   // Any-route binding, same as _cgLockFloor(): an unconfirmed binding is still a campaign character until the server says otherwise.
-  if(_cgIsCampaignBound()&&_cgIsLocked()){
+  if(_cgAwardsFrozen()){
     const _have=(foldBuild(LOG).budget)||0;
     if(amt!==_have){const bi=$('budget');if(bi)bi.value=_have;try{_cgSyncBuildLevelDisplay();}catch(e){}   // the hint too, not only the field
       if(!_histSuspended)flash('\uD83D\uDD12 Creation is finished \u2014 a campaign character\u2019s AP comes from your DM. Ask them to award it in the DM Console.','error');}
@@ -7015,7 +7018,7 @@ function _cgRenderInner(){
   // the Live Sheet, so the two tools show the identical spendable total for the same character. Never
   // written back into b.budget/the LOG/an export — see the anti-double-count invariant on compute().
   const _dmO=_cgDmOpts();const r=compute(b,_dmO);annotate(b,r);
-  {const _lkc=!_dmO.ignorePlayerAp&&_cgIsCampaignBound()&&_cgIsLocked();   // fix/player-free-ap item 5
+  {const _lkc=!_dmO.ignorePlayerAp&&_cgAwardsFrozen();   // fix/player-free-ap item 5
    const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp||_lkc;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':(_lkc?'🔒 creation is finished — your DM awards AP from here':'');}
   {const al=$('apSourceLine');if(al)al.innerHTML=_apSourceHTML(r);}
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): non-blocking
