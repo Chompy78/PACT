@@ -2332,7 +2332,7 @@ function buildForm(F){
     // stays in the DOM as a number input because the whole tool reads val('budget') and _cgSyncAward()
     // writes the award from it — it is now DERIVED from the two selectors, and editable directly for a
     // table running a figure no curve produces.
-    '<div class="row"><label class="l">Building level</label><select id="buildLevel">'+
+    '<div class="row" id="buildLevelRow"><label class="l">Building level</label><select id="buildLevel">'+
       Array.from({length:21},function(_,L){return '<option value="'+L+'"'+(L===1?' selected':'')+'>'+(L===0?'0 — prelude':'Level '+L)+'</option>';}).join('')+
       '</select><select id="buildCurve" style="margin-left:6px">'+
       Object.keys(DATA.levelBudgetCurves||{standard:0}).map(function(k){
@@ -2764,7 +2764,7 @@ let _openKey=null,_openTs=0;   // the still-coalescing group (top of HIST) — i
 let _hkSeq=0;                  // lazy stable keys for id-less text inputs (e.g. cprof rows)
 
 function _histClone(x){return JSON.parse(JSON.stringify(x));}
-function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId};}   // Step 5: name/budget live in the LOG now
+function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId,campaignId:_cgIsCampaignBound()?(window._cgCampaignId||_cgPendingCampaignId):null};}   // Step 5: name/budget live in the LOG now; campaignId: see restoreFrame()
 function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
 function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
 // Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
@@ -2821,10 +2821,16 @@ function restoreFrame(f){
     // DOM re-derivation diverges on anything the DOM cannot represent. A frame is a snapshot of an
     // already-reconciled state, so it needs no repricing on the way back in.
     const _frLog=_histClone(f.log), _frSeq=f.seq;
+    const _prevId=__charId;                // BEFORE applyBuild, which mints a fresh id for an id-less fold
     LOG=_histClone(f.log);SEQ=f.seq;
     applyBuild(foldBuild(LOG));            // paints every control (incl. name/budget from the LOG)
     LOG=_frLog;SEQ=_frSeq;                 // …then take the frame's log back, unmodified
     __charId=f.id||__charId;
+    // fix/chargen-campaign-stuck-states: undo across New Character / a file load lands on a DIFFERENT
+    // character. Its campaign binding (and so its DM AP) is not in the LOG, so re-adopt it from the frame;
+    // otherwise the restored campaign character showed 0 DM AP and over budget — or a solo character
+    // inherited the campaign of the one undone away from. Before render(), so the floor is right.
+    if(String(__charId)!==String(_prevId)) _cgAdoptEnvelopeBinding({id:__charId,campaignId:f.campaignId||null});
     render();
   }finally{_histSuspended=false;}
   _openKey=null;_turnLatched=false;_coalesceKey=null;
@@ -3131,6 +3137,12 @@ function _cgBudgetFor(level,curveKey){
 // would move it and could un-trip a lock that had already fired (D4).
 let _cgApplyingBuildLevel=false;
 function _cgApplyBuildLevel(){
+  // fix/chargen-campaign-stuck-states: a campaign character's creation-AP threshold is the DM's. The
+  // server's creation-lock guard (sql/migrations/2026-10-04-creation-lock-guard.sql, rule 2) refuses any
+  // player-appended creationLockConfig that carries a `threshold`, so emitting one here made every later
+  // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
+  // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
+  if(_cgIsCampaignBound()){ _cgSyncBuildLevelDisplay(); return; }
   // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
   // triggered mid-apply can re-enter here on a half-updated budget.
   if(_cgApplyingBuildLevel)return;
@@ -3164,6 +3176,9 @@ function _cgApplyBuildLevelInner(){
 // the budget and the creation-AP threshold in the LOG are the outputs. Their initial values are set
 // once on load (see applyBuild), not continuously.
 function _cgSyncBuildLevelDisplay(){
+  // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
+  // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
+  {const row=$('buildLevelRow'); if(row) row.style.display=_cgIsCampaignBound()?'none':'';}
   const bi=$('budget'), hint=$('buildLevel_hint');
   if(!bi||!hint)return;
   const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
@@ -3171,7 +3186,15 @@ function _cgSyncBuildLevelDisplay(){
   hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'');
 }
 
+// TRUE when this character belongs to a campaign by any route, including a binding still being adopted
+// (_cgPendingCampaignId, set synchronously by _cgAdoptEnvelopeBinding). Same test _cgSealedFloor() uses.
+function _cgIsCampaignBound(){
+  return !!(window._cgCampaignId || (typeof _cgPendingCampaignId!=='undefined' && _cgPendingCampaignId));
+}
 function setCreationAp(){
+  // Campaign characters: the creation limit is the DM's (DM Console sets it); the server refuses a
+  // player-written threshold, so offering the prompt would only strand autosave. See _cgApplyBuildLevel.
+  if(_cgIsCampaignBound()){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
   if(raw===null)return;
@@ -3729,7 +3752,12 @@ function _cgSyncSingletonEvent(type,makeEvent){
       const _at=LOG.findIndex(function(e){return e.type===type;});
       if(_at>-1 && _at<_floor){
         // While a load/restore is reconciling (history suspended) this is the tool tidying up, not the player editing: skip silently, no warning on every open.
-        if(!_histSuspended) flash('\uD83D\uDD12 That is part of this character\'s locked history and can no longer be changed here.');
+        if(!_histSuspended){
+          flash('\uD83D\uDD12 That is part of this character\'s locked history and can no longer be changed here.');
+          // fix/chargen-campaign-stuck-states: snap the field back to what the LOG still says, rather
+          // than leave the refused figure showing in #budget (and in the build-level hint) as if it took.
+          if(type==='award'){ try{ const _b=foldBuild(LOG), bi=$('budget'); if(bi) bi.value=(_b.budget!=null?_b.budget:DATA.level1AP); _cgSyncBuildLevelDisplay(); }catch(e){} }
+        }
         return;
       }
     }
@@ -4459,6 +4487,10 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
       if(!Array.isArray(d.LOG)){alert('Could not load: this PACT CharGen file is missing its event log (LOG).');return;}
       _commitWholeBuildFrame();
       _cgApplyEnvelope(d);
+      // fix/chargen-campaign-stuck-states: the handoff and autosave-restore paths already adopt the file's
+      // campaign binding; this one did not, so a Local Load of a campaign character showed 0 DM AP and
+      // flagged every purchase as over budget. Async; sets the pending binding synchronously.
+      _cgAdoptEnvelopeBinding(d);
       const fv=d.rules||'(unstamped)';
       if(_tampered){if(typeof flash==='function')flash('⚠ This file was edited outside PACT — its signature no longer matches. Loaded anyway; double-check the build.');}
       else if(typeof flash==='function')flash(fv===DATA.version?('Loaded a '+DATA.version+' character.'):('Loaded a '+fv+' character — repriced live under current '+DATA.version+' rules.'));
@@ -6784,7 +6816,7 @@ function _cgRenderInner(){
    {var _cl=_creationLockState();
     if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
       _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
-      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a></li>');}}
+      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgIsCampaignBound()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>')+'</li>');}}
    $('warns').innerHTML=_wr.join('');
    {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
   // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an
