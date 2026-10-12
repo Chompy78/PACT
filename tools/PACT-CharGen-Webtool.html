@@ -4719,6 +4719,9 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       if(!b.species)b.species='Human';
       if(!b.hd)b.hd=1;
       b.version=d.rules||DATA.version;
+      // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
+      // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
+      if(d.id)b.id=d.id;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
       // chore/audit-fix-followups-2026-10-12 (item 3): adopt the file's campaign binding here too, as branch 1 does
