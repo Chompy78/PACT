@@ -2318,7 +2318,8 @@ function _bondLadder(src,hd){
        '<div style="font-size:11px;opacity:.92">'+esc(r.d)+'</div></div>';});
   return h+'</div>';
 }
-function pickBond(kind,name){var o=_bondGet();o[kind]=name||'';_bondSet(o);
+function pickBond(kind,name){if(VIEW_ONLY)return;   // DM read-only view writes nothing (fix/livesheet-state-glitches)
+  var o=_bondGet();o[kind]=name||'';_bondSet(o);
   try{var both=[o.mag,o.mar].filter(Boolean).join(' · ');csSave(currentCharId(),'bondSource',both);}catch(e){}
   _bondRender();}
 // Starting AP and the creation-lock threshold are the SAME figure by construction: both are

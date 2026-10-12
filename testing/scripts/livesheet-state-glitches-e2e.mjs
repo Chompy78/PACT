@@ -7,7 +7,9 @@
  *   5. The Needs-review tray does not show present-day issues under a past (scrubbed) sheet.
  *   6. A cost-0 appearance-only event at the LOG TAIL (written by an older Live Sheet) is stepped over by Undo — the last real
  *      action is undone, hair/playerSheet survive — and Redo puts the action back in its original place. A barrier still holds.
- *   7. CharGen Sheet: typing a sentence into an appearance field keeps focus and is ONE undo step, not one per key.
+ *   7. CharGen Sheet: typing a sentence into an appearance field keeps focus and is ONE undo step, not one per key; Ctrl+Z
+ *      inside a field with uncommitted text is native text undo, and the Undo button undoes that pending text (appearance
+ *      and notes fields). 3b: pickBond() writes nothing in the DM read-only view.
  *
  *   node testing/scripts/livesheet-state-glitches-e2e.mjs        (expect 0 failed)
  *   PACT_REPO=<other checkout> node …                             runs the same cases against another checkout (old code)
@@ -201,6 +203,60 @@ section('7. CharGen Sheet: a typed sentence keeps focus and is one undo step');
   check('focus moved to the field clicked next', await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-mf')) === 'ap_eyes');
   await page.evaluate(() => undo()); await page.waitForTimeout(200);
   check('ONE Undo removes the whole sentence (not one letter)', !((await page.evaluate(() => (foldBuild(LOG).appearance || {}).hair)) || ''), String(await page.evaluate(() => (foldBuild(LOG).appearance || {}).hair)));
+  check('no page errors', !errs.length, errs.join(' | '));
+  await ctx.close();
+}
+
+section('7b. CharGen Sheet: Ctrl+Z / Undo button while a field has uncommitted text');
+async function cgSheet() {
+  const ctx = await browser.newContext(); const page = await ctx.newPage();
+  const errs = []; page.on('pageerror', e => errs.push(String(e))); page.on('dialog', d => d.accept());
+  await page.goto(CG_URL, { waitUntil: 'load' });
+  await page.waitForFunction(() => window.compute && window.foldBuild, { timeout: 25000 });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => toggleSheet()); await page.waitForTimeout(300);
+  return { ctx, page, errs };
+}
+const cgAp = (p, k) => p.evaluate(k => (foldBuild(LOG).appearance || {})[k] || '', k);
+for (const [first, second, label] of [['ap_hair', 'ap_eyes', 'appearance'], ['ap_hair', 'notes', 'Backstory (notes)']]) {
+  const secondKey = second === 'notes' ? 'backstory' : second.slice(3);
+  {
+    const { ctx, page, errs } = await cgSheet();
+    await page.click(`#sheetbody [data-mf="${first}"]`); await page.keyboard.type('red', { delay: 20 });
+    await page.click(`#sheetbody [data-mf="${second}"]`); await page.waitForTimeout(300);
+    check(`[${label}] (setup) hair committed`, await cgAp(page, 'hair') === 'red');
+    await page.keyboard.type('blue', { delay: 20 });
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(200);
+    check(`[${label}] Ctrl+Z inside a field with uncommitted text leaves the earlier hair edit alone`, await cgAp(page, 'hair') === 'red', await cgAp(page, 'hair'));
+    await page.click(`#sheetbody [data-mf="${first}"]`); await page.waitForTimeout(300);
+    check(`[${label}] …and still after the blur commit (nothing lost)`, await cgAp(page, 'hair') === 'red', await cgAp(page, 'hair'));
+    check(`[${label}] no page errors`, !errs.length, errs.join(' | '));
+    await ctx.close();
+  }
+  {
+    const { ctx, page, errs } = await cgSheet();
+    await page.click(`#sheetbody [data-mf="${first}"]`); await page.keyboard.type('red', { delay: 20 });
+    await page.click(`#sheetbody [data-mf="${second}"]`); await page.waitForTimeout(300);
+    await page.keyboard.type('blue', { delay: 20 });
+    // A button click: the field blurs (change) and the click's undo() runs before the deferred blur commit.
+    await page.evaluate(() => { document.activeElement.blur(); const b = document.getElementById('undoBtn'); if (b && !b.disabled) b.click(); else undo(); });
+    await page.waitForTimeout(300);
+    check(`[${label}] the Undo button undoes the pending text, not the older hair edit`, await cgAp(page, 'hair') === 'red' && await cgAp(page, secondKey) === '', `hair=${await cgAp(page, 'hair')} ${secondKey}=${await cgAp(page, secondKey)}`);
+    await page.evaluate(() => redo()); await page.waitForTimeout(300);
+    check(`[${label}] …and Redo brings that text back`, await cgAp(page, secondKey) === 'blue', await cgAp(page, secondKey));
+    check(`[${label}] no page errors`, !errs.length, errs.join(' | '));
+    await ctx.close();
+  }
+}
+
+section('3b. DM read-only view: pickBond writes nothing');
+{
+  const { ctx, page, errs } = await lsPage(seqd([...BASE]));
+  await page.evaluate(() => { VIEW_ONLY = true; });
+  const before = await page.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)])));
+  await safe(() => page.evaluate(() => pickBond('mag', 'Some Source')));
+  const after = await page.evaluate(() => JSON.stringify(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)])));
+  check('pickBond() in the DM view leaves localStorage untouched', before === after);
   check('no page errors', !errs.length, errs.join(' | '));
   await ctx.close();
 }

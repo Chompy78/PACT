@@ -2913,6 +2913,7 @@ function restoreFrame(f){
 
 function undo(){
   if(_histSuspended)return;
+  _cgFlushSheetField();                    // Sheet text typed but not yet committed becomes its own step, and is what this undoes
   _sealOpenGroup();                        // seal-before-undo: never land mid-word
   if(!HIST.length)return;
   // UNDO BARRIER (feat/undo-barrier-shared). The rule is js/engine.js's isUndoBarrier/undoFloor, shared
@@ -2938,6 +2939,7 @@ function undo(){
 // _undoBarrierMsg() now lives in js/ui-helpers.js — one copy, loaded by both tools. See it there.
 function redo(){
   if(_histSuspended)return;
+  _cgFlushSheetField();                    // as undo(): pending Sheet text is a new action (so there is nothing left to redo)
   _sealOpenGroup();
   if(!REDO.length)return;
   // The SAME barrier check undo() makes, and for a sharper reason. Only commitHistory() clears REDO, but
@@ -3042,10 +3044,13 @@ function _cgWireUndoKeys(){
   document.addEventListener('keydown',function(e){
     if(!(e.ctrlKey||e.metaKey))return;
     const k=(e.key||'').toLowerCase();
+    // A Sheet field with uncommitted text (_cgSheetDirty, committed on blur) is mid-edit too — fix/livesheet-state-glitches.
+    var _mid=_isTextish(e.target)&&(_openKey!==null||_cgSheetDirty===e.target);
     if(k==='z'&&!e.shiftKey){
-      if(_isTextish(e.target)&&_openKey!==null)return;   // still mid-edit → native text undo
+      if(_mid)return;   // still mid-edit → native text undo
       e.preventDefault();undo();
     }else if((k==='z'&&e.shiftKey)||k==='y'){
+      if(_isTextish(e.target)&&_cgSheetDirty===e.target)return;   // native text redo inside a dirty Sheet field
       e.preventDefault();redo();
     }
   });
@@ -7128,7 +7133,10 @@ function onSheetField(el,ev){var f=el.getAttribute('data-mf');if(!f)return;var v
     var _k=_apF?f.slice(3):PACT_SHEET_LOG_FIELDS[f];
     // A real blur `change` commits on the next tick: the commit re-renders the Sheet, and by then the focus has moved to
     // whatever the player clicked next, so the rebuild can put it back there. The pagehide flush and direct calls commit now.
-    if(typeof Event!=='undefined'&&ev instanceof Event){setTimeout(function(){if(_cgSheetDirty===el)_cgSheetDirty=null;_shCommitAppearanceField(_k,el.value);},0);return;}
+    // Committed only if still pending then: an Undo/Redo button click arrives between this blur and the timeout, and
+    // undo()/redo() flush the pending text first (fix/livesheet-state-glitches) — committing it again here would put back
+    // the text the player just undid and clear Redo.
+    if(typeof Event!=='undefined'&&ev instanceof Event){_cgSheetDirty=el;setTimeout(function(){var d=_cgSheetDirty;if(!d||d.getAttribute('data-mf')!==f)return;_cgSheetDirty=null;_shCommitAppearanceField(_k,d.value);},0);return;}
     _cgSheetDirty=null;_shCommitAppearanceField(_k,v);return;}
   csSave(_csId,f,v);}
 var _cgSheetDirty=null;   // a LOG-backed Sheet field typed in but not yet committed (no blur yet)
