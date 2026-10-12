@@ -147,6 +147,33 @@ section('3. an untagged Live Sheet file adopts its campaign binding');
   check('...with its DM AP (42)', st.ap===42 && st.status==='active', JSON.stringify(st));
 }
 
+// -------------------------------------------------------------------------------------------------
+section('4. Live Sheet: the non-core switch is locked on a campaign or finished character');
+{
+  const lsFresh = async () => {
+    await p.goto(`${base}/tools/PACT-Live-Char-Sheet.html`, {waitUntil:'load'});
+    await p.evaluate(()=>{ try{ localStorage.clear(); }catch(e){} }); await p.reload({waitUntil:'load'});
+    await p.waitForFunction(() => window.compute && document.querySelector('#sheet .shname'), { timeout: 25000 });
+    await p.waitForTimeout(400); dialogs=[];
+  };
+  const tasha = () => p.evaluate(()=>{ const b=foldBuild(null); return !((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false); });
+  await lsFresh();
+  const t0 = await tasha();
+  await p.evaluate(()=>toggleTasha()); await p.waitForTimeout(150);
+  check('solo, in creation: the switch still flips (unchanged)', (await tasha())===!t0);
+  await p.evaluate((C1)=>{ window._lsCampaignId=C1; render(); }, C1);
+  const n0 = await p.evaluate(()=>LOG.length), t1 = await tasha();
+  await p.evaluate(()=>toggleTasha()); await p.waitForTimeout(150);
+  check('campaign character: toggleTasha() appends nothing', (await p.evaluate(()=>LOG.length))===n0 && (await tasha())===t1);
+  await lsFresh();
+  await p.evaluate(()=>{ window.confirm=()=>true; finishCreating(); });
+  await p.waitForTimeout(200);
+  check('(precondition) the character is finished', await p.evaluate(()=>window._engineCreationLockState(LOG).locked));
+  const n1 = await p.evaluate(()=>LOG.length), t2 = await tasha();
+  await p.evaluate(()=>toggleTasha()); await p.waitForTimeout(150);
+  check('finished solo character: toggleTasha() appends nothing', (await p.evaluate(()=>LOG.length))===n1 && (await tasha())===t2);
+}
+
 check('no page errors', errs.length===0, errs.join(' | ').slice(0,400));
 console.log(`\n[audit-followups] ${pass} passed, ${fail} failed`);
 await browser.close(); server.close();
