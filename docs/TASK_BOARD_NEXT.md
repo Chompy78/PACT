@@ -1501,8 +1501,11 @@ DO:
   1. Engine: economy() treats a dmDiscount as AP returned FOR THAT PURCHASE — if the target is undone, bought off or removed,
      the discount goes with it (this is the difference from a plain award). Expose a running total (e.g. economy().dmDiscounted,
      plus per-purchase entries). Public API additive only.
-  2. DECIDE WITH THE OWNER before coding: does a discounted purchase still count its FULL price toward "AP spent" (track level,
-     creation-lock threshold, drawback/creation ceilings) or only what the player paid? Record it in a D-GH decision.
+  2. OWNER DECISION B1 (2026-10-13): a discounted purchase counts its FULL price toward equivalent level (track level) and the
+     creation lock. So carry TWO totals with clear names, e.g. "AP value" (full list price of everything owned — drives track
+     level, creation-lock threshold) and "AP paid" (what the player actually spent — drives AP left). Their difference is the
+     DM-discount total. Check every reader of "AP spent" (track level, creation lock, drawback/creation ceilings, DM Console
+     roster, Live Sheet header) and point each at the right one; record the mapping in the D-GH decision.
   3. Migration extending the allowlist; run get_advisors + get_logs afterwards (AGENTS.md checklist step 4).
   4. DM Console: on the character card, "DM edit — discount a purchase": pick a purchase from that character's log, enter AP
      or a %, note required; show the campaign/character total discounted. All player text through esc().
@@ -1510,7 +1513,7 @@ DO:
   6. MEASURE the live characters table first (AGENTS.md: no longer pre-launch) — this should not move any existing character's
      AP; prove it with a before/after over every live character.
 ```
-**Done when:** engine-parity fixtures cover a discount, a discount on an undone purchase (gone), and an over-discount (refused); `expected-results.csv` updated if compute() output moved (bump `DATA.version` only then); an e2e drives the DM Console discount and the Live Sheet shows the line and the total; the before/after over the live characters shows no unintended change; the AP-spent decision is recorded.
+**Done when:** engine-parity fixtures cover a discount, a discount on an undone purchase (gone), and an over-discount (refused); `expected-results.csv` updated if compute() output moved (bump `DATA.version` only then); an e2e drives the DM Console discount and the Live Sheet shows the line and the total; the before/after over the live characters shows no unintended change; the AP value / AP paid split is recorded in a D-GH decision with every reader mapped.
 
 ## feat/dm-grant-purchase — DM Console "grant a spell / skill" (any purchase, free to the player) — TODO
 Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low once feat/dm-ap-discount exists; damage scale is a priced write to a live character. Depends on feat/dm-ap-discount.
@@ -1528,20 +1531,21 @@ to the boon instead of being a free-floating award.
 ```
 **Done when:** an e2e grants a spell and a skill and the player's AP left is unchanged, and the ledger shows them as DM-granted; undoing/removing the grant removes the discount with it; get_advisors clean after the migration.
 
-## feat/wizard-scribe — the Players Guide's "scribe a found spell" rule exists in the tools (rules change) — TODO
-Branch feat/wizard-scribe. **Effort:** medium · **Risk:** high — a rules change; engine AND Players Guide must land together with `DATA.version` bumped once, and the size of the discount is still an open owner decision.
+## feat/wizard-scribe — the Players Guide's "scribe a found spell" rule exists in the tools — TODO
+Branch feat/wizard-scribe. **Effort:** medium · **Risk:** medium — owner decision C (2026-10-13) makes the reduction the DM's call, so there is no fixed rules number; still needs the engine and the Players Guide to agree. Depends on feat/dm-ap-discount.
 
 ```text
 The Players Guide ("Learning new spells") promises the wizard a second path: when the DM supplies a scroll, a captured
-spellbook or a teacher, the wizard copies a Wizard-list spell for gold + downtime + a REDUCED AP cost. No tool implements it,
-and the guide never says how much the AP cost is reduced.
+spellbook or a teacher, the wizard copies a Wizard-list spell for gold + downtime + a REDUCED AP cost. No tool implements it.
+
+OWNER DECISION C (2026-10-13): the size of the reduction is up to the DM and must be flexible — no fixed rate.
 
 DO:
-  1. Owner decision first: the size of the reduction (e.g. half price rounded up, minimum 1), and the gold and downtime per
-     spell level. Record it as a D-GH decision.
-  2. Build it on feat/dm-ap-discount: the DM approves the scribe (the source is in the fiction), which writes the spell
-     purchase plus a dmDiscount at the rule's fixed rate, plus the gold/downtime cost. Wizard list only; refuse other casters.
-  3. Players Guide: state the numbers in the master and the served copy (run testing/scripts/verify-guide.mjs before and
-     after; testing/scripts/guide-price-check.mjs for the prices) and bump DATA.version once, in the engine.
+  1. Build it on feat/dm-ap-discount: a "Scribe a spell" action in the DM Console writes the spell purchase plus a dmDiscount
+     whose size the DM enters (AP or %, any amount up to the full price), plus whatever gold/downtime the DM sets, labelled as
+     scribed with the source (scroll / spellbook / teacher) in the note. Wizard list only; refuse other casters.
+  2. Players Guide: replace "reduced AP cost" with wording that the DM sets the reduction (and the gold and downtime), in the
+     master and the served copy; run testing/scripts/verify-guide.mjs before and after. Bump DATA.version ONLY if compute()
+     output changes — a DM-set discount alone should not.
 ```
-**Done when:** the decision is recorded; fixtures cover a scribed spell at each relevant level and a non-wizard refused; the guide states the numbers and verify-guide.mjs passes; an e2e scribes a spell from the DM Console.
+**Done when:** fixtures cover a scribed spell with a DM-set discount and a non-wizard refused; the guide wording matches and verify-guide.mjs passes; an e2e scribes a spell from the DM Console with two different discounts.
