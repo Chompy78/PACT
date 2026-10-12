@@ -653,7 +653,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Cloud character load/save (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): CharGen never
   // had a cloud character concept before — only the campaign-RULES picker above. js/sync.js belongs in
   // THIS module (not the engine bridge) for the same CDN-resilience reason as auth/campaign.
-  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
+  import { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerBinding, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy } from '../js/sync.js';
   window._authBridge = { currentSession, onSessionChange, myProfile, unsetMyBasicMode, logout, updatePassword };
   // The party downtime window is read through the same helper the Live Sheet uses (js/dm.js, RPC get_downtime_window); CharGen needs only that one function.
   import { getDowntimeWindow } from '../js/dm.js';
@@ -661,7 +661,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window._campaignBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, redeemPlayerInvite, bindCharacterToCampaign, peekPlayerInvite, createCharacterClaim, redeemCharacterClaim };
   window.PENDING_INVITE_KEY = PENDING_INVITE_KEY;
   window.PENDING_CLAIM_KEY = PENDING_CLAIM_KEY;
-  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
+  window._syncBridge = { saveCharacter, loadCharacter, peekCharacter, refreshServerAp, refreshServerBinding, refreshServerGold, cachedServerGold, listMyCharacters, newCharacterId, initSync, withKeepalive, noteEdit, getSyncState, checkFreshness, chipPresentation, getAutosaveEnabled, setAutosaveEnabled, isSealBlocked, isBasicModeRejection, BASIC_MODE_MESSAGE, isDuplicateNameRejection, DUPLICATE_NAME_MESSAGE, getPageBase, adoptRestoredCopy };
   document.dispatchEvent(new Event('campaign-ready'));
   initSync();
   document.dispatchEvent(new Event('sync-ready'));
@@ -768,7 +768,14 @@ document.addEventListener('campaign-ready', function () {
 // (letting a player preview a different campaign's rules while building), so it can be overwritten
 // again after this call returns; a caller that needs to display/act on THIS resolution's specific
 // result (e.g. "you just joined campaign X") must use the return value, not the global afterward.
-async function _cgResolveDmApStatus(ap, campaignId){
+async function _cgResolveDmApStatus(ap, campaignId, opts){
+  // fix/chargen-campaign-stuck-states: every resolve owns a GENERATION. A resolve started for one
+  // character must not write its result onto another one opened while it was awaiting (New Character,
+  // Undo/Redo across characters, another load). _cgResetCloudApState() and every fresh resolve bump
+  // window._cgBindGen; this one bails after each await once it is no longer current. _cgAdoptEnvelopeBinding
+  // passes the generation it already holds (opts.gen) instead of starting a new one.
+  var _gen = (opts && opts.gen != null) ? opts.gen : (window._cgBindGen = (window._cgBindGen||0) + 1);
+  var _stale = function(){ return _gen !== window._cgBindGen; };
   // fix/chargen-dm-copy-ap-stale (2026-08-22): a "Copy to CharGen" sandbox's frozen AP snapshot
   // (window._cgCopySourceAp) is now budget-relevant (_cgDmOpts()), not just display text, so it MUST be
   // cleared here too -- this is the function _cgResetCloudApState()'s own comment names as the one
@@ -792,11 +799,17 @@ async function _cgResolveDmApStatus(ap, campaignId){
   // downgrade it to "local, save manually" — that is the state this whole change exists to remove.
   window._cgCampaignBound = !!campaignId;
   window._cgCampaignId = campaignId || null;   // this CHARACTER's campaign — see saveCharacter()'s id migration
+  // CONFIRMED = the campaign id came from the server row (cloud load, join, claim) or the server has just
+  // confirmed it (_cgAdoptEnvelopeBinding). A binding that only the file/autosave/baton asserts is NOT
+  // confirmed: the DM may have unbound the character since. Only a confirmed binding hides the
+  // DM-only creation-AP controls (_cgCreationApIsDms).
+  window._cgBindingConfirmed = !!campaignId && !(opts && opts.unconfirmed);
   window._dmApStatus = campaignId ? 'unavailable' : 'none';   // resolved below -- 'unavailable' is the correct interim state, not silently 0
   if(!campaignId) return null;
   var C = window._campaignBridge;
   try{
     var camp = C && await C.getCampaign(campaignId);
+    if(_stale()) return null;
     if(camp){
       window._ignorePlayerAp = !!camp.ignore_player_ap;
       // Default true when absent/unset (opposite default from ignore_player_ap) — a campaign whose
@@ -805,6 +818,7 @@ async function _cgResolveDmApStatus(ap, campaignId){
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
       await _cgRefreshWalletInputs(campaignId);   // DM-held gold + the party downtime window (non-fatal; see its comment)
+      if(_stale()) return null;
       // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
       // header status line — none of which the old `selEl.value = camp.id` here could do from outside
       // that closure. Falls back to the bare assignment if the bridge somehow isn't up yet.
@@ -1705,7 +1719,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
+function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1726,6 +1740,12 @@ async function _cgAdoptEnvelopeBinding(d){
   _cgResetCloudApState();
   var campId = d && d.campaignId; if(!campId) return;
   _cgPendingCampaignId = campId;
+  // The generation this adopt owns (see _cgResolveDmApStatus). Re-checked after EVERY await below: the
+  // player can switch character (New Character, Undo/Redo, another load) while we wait, and a late
+  // result must not bind THAT character to this one's campaign — the binding would then ride into its
+  // autosave, handoff baton and saved files, and a legacy-id save could adopt the campaign's real row.
+  var gen = window._cgBindGen;
+  var stale = function(){ return gen !== window._cgBindGen; };
   // fix/campaign-binding-survives-reload: this runs from _cgBoot(), which fires synchronously off
   // 'engine-ready' — dispatched by the FIRST of two <script type="module"> blocks, strictly before the
   // SECOND (the auth/campaign/sync bridge, kept separate deliberately — see the comment above its own
@@ -1739,6 +1759,7 @@ async function _cgAdoptEnvelopeBinding(d){
   // rather than resolving too early and missing the window for good.
   if(!window._campaignBridge){
     await new Promise(function(res){ document.addEventListener('campaign-ready', res, {once:true}); });
+    if(stale()) return;
   }
   // fix/dm-ap-lost-on-handoff (found live, 2026-08-10 — a real Amble character's DM AP read as
   // "🛡 0 AP — DM only" on a Live Sheet → CharGen handoff even though it was genuinely signed in): the
@@ -1752,20 +1773,38 @@ async function _cgAdoptEnvelopeBinding(d){
   // plus a silently-zeroed dmAp is exactly the "0 AP — DM only" label. Ask the auth bridge directly
   // instead, the same way _cgConsumeViewChar() already does — it doesn't depend on a second listener
   // having already run by this point, so there's no window for this race at all.
-  var ap = 0;
+  var ap = 0, confirmed = false;
   try{
     var S = window._syncBridge, A = window._authBridge;
     var _session = A && await A.currentSession();
-    if(S && _session && navigator.onLine && d.id){
+    if(stale()) return;
+    // fix/chargen-campaign-stuck-states: ask the server which campaign this character is in NOW. The
+    // envelope's campaignId is only what was true when the file/autosave/baton was written; after
+    // dm_unbind_character it is stale, and treating it as true kept a now-solo character from its own
+    // build-level and creation-AP controls. Unconfirmed (offline, signed out, no row) keeps the
+    // envelope's binding but marks it unconfirmed, so those controls stay usable — the server refuses
+    // a threshold write if the character really is still in a campaign.
+    if(S && S.refreshServerBinding && _session && navigator.onLine && d.id){
+      var bnd = await S.refreshServerBinding(d.id);
+      if(stale()) return;
+      if(bnd){
+        confirmed = true;
+        if(typeof bnd.ap === 'number') ap = bnd.ap;
+        if(!bnd.campaignId){ _cgPendingCampaignId = null; render(); return; }   // the server says solo: drop the binding
+        campId = bnd.campaignId; _cgPendingCampaignId = campId;
+      }
+    } else if(S && _session && navigator.onLine && d.id){
       // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, which is right for stats (this
       // device's edits are freshest) but wrong for `ap` — that only ever changes server-side (a DM award,
       // a join grant), so a cached record is stale by definition. Still a pure read: it never reconciles
       // or pushes (D-GH-2026-07-11), and touches only `ap` on the local record.
       var srvAp = await S.refreshServerAp(d.id);
+      if(stale()) return;
       if(typeof srvAp === 'number') ap = srvAp;
     }
   }catch(e){ /* stays 0; _cgResolveDmApStatus reports 'unavailable', not a bogus total */ }
-  try{ await _cgResolveDmApStatus(ap, campId); render(); }catch(e){}
+  if(stale()) return;
+  try{ await _cgResolveDmApStatus(ap, campId, {gen:gen, unconfirmed:!confirmed}); if(!stale()) render(); }catch(e){}
 }
 function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 // The drawback pool's share of the AP breakdown, or '' when a character has no drawbacks.
@@ -2764,7 +2803,10 @@ let _openKey=null,_openTs=0;   // the still-coalescing group (top of HIST) — i
 let _hkSeq=0;                  // lazy stable keys for id-less text inputs (e.g. cprof rows)
 
 function _histClone(x){return JSON.parse(JSON.stringify(x));}
-function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId,campaignId:_cgIsCampaignBound()?(window._cgCampaignId||_cgPendingCampaignId):null};}   // Step 5: name/budget live in the LOG now; campaignId: see restoreFrame()
+function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId,campaignId:_cgIsCampaignBound()?(window._cgCampaignId||_cgPendingCampaignId):null,copy:_cgCopyState()};}   // Step 5: name/budget live in the LOG now; campaignId/copy: see restoreFrame()
+// A DM copy's frozen source-AP display state (see the "Copy to CharGen" flow). Not in the LOG, so a frame
+// carries it for restoreFrame() — otherwise undo/redo back onto a DM copy reset it to a bare local build.
+function _cgCopyState(){return window._cgCopySourceIsCopy?{isCopy:true,ap:window._cgCopySourceAp||0,name:window._cgCopySourceName||'',ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,rules:window._cgCopySourceRules||null}:null;}
 function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
 function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
 // Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
@@ -2830,7 +2872,11 @@ function restoreFrame(f){
     // character. Its campaign binding (and so its DM AP) is not in the LOG, so re-adopt it from the frame;
     // otherwise the restored campaign character showed 0 DM AP and over budget — or a solo character
     // inherited the campaign of the one undone away from. Before render(), so the floor is right.
-    if(String(__charId)!==String(_prevId)) _cgAdoptEnvelopeBinding({id:__charId,campaignId:f.campaignId||null});
+    if(String(__charId)!==String(_prevId)){
+      _cgAdoptEnvelopeBinding({id:__charId,campaignId:f.campaignId||null});   // resets synchronously, then resolves async
+      if(f.copy){ window._cgCopySourceIsCopy=true; window._cgCopySourceAp=f.copy.ap; window._cgCopySourceName=f.copy.name;
+        window._cgCopySourceIgnorePlayerAp=f.copy.ignorePlayerAp; window._cgCopySourceRules=f.copy.rules; }
+    }
     render();
   }finally{_histSuspended=false;}
   _openKey=null;_turnLatched=false;_coalesceKey=null;
@@ -3142,7 +3188,7 @@ function _cgApplyBuildLevel(){
   // player-appended creationLockConfig that carries a `threshold`, so emitting one here made every later
   // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
   // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
-  if(_cgIsCampaignBound()){ _cgSyncBuildLevelDisplay(); return; }
+  if(_cgCreationApIsDms()){ _cgSyncBuildLevelDisplay(); return; }
   // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
   // triggered mid-apply can re-enter here on a half-updated budget.
   if(_cgApplyingBuildLevel)return;
@@ -3178,12 +3224,13 @@ function _cgApplyBuildLevelInner(){
 function _cgSyncBuildLevelDisplay(){
   // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
   // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
-  {const row=$('buildLevelRow'); if(row) row.style.display=_cgIsCampaignBound()?'none':'';}
+  {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApIsDms()?'none':'';}
   const bi=$('budget'), hint=$('buildLevel_hint');
   if(!bi||!hint)return;
   const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
   const awarded=cur-thr;
-  hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'');
+  hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'')
+    +(_cgIsCampaignBound()&&!_cgCreationApIsDms()?' · '+_CG_UNCONFIRMED_NOTE:'');
 }
 
 // TRUE when this character belongs to a campaign by any route, including a binding still being adopted
@@ -3191,10 +3238,15 @@ function _cgSyncBuildLevelDisplay(){
 function _cgIsCampaignBound(){
   return !!(window._cgCampaignId || (typeof _cgPendingCampaignId!=='undefined' && _cgPendingCampaignId));
 }
+// TRUE only when the server has CONFIRMED the campaign binding (window._cgBindingConfirmed, set by
+// _cgResolveDmApStatus). A binding asserted only by a file/autosave/baton may be stale — the DM can unbind
+// a character — so it does not hide the controls; the server refuses the write if it is still bound.
+function _cgCreationApIsDms(){ return !!window._cgCampaignId && !!window._cgBindingConfirmed; }
+var _CG_UNCONFIRMED_NOTE='could not confirm with the server whether this character is still in a campaign; if it is, only your DM can change its creation AP and the save will be refused';
 function setCreationAp(){
   // Campaign characters: the creation limit is the DM's (DM Console sets it); the server refuses a
   // player-written threshold, so offering the prompt would only strand autosave. See _cgApplyBuildLevel.
-  if(_cgIsCampaignBound()){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
+  if(_cgCreationApIsDms()){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
   if(raw===null)return;
@@ -6816,7 +6868,7 @@ function _cgRenderInner(){
    {var _cl=_creationLockState();
     if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
       _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
-      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgIsCampaignBound()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>')+'</li>');}}
+      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgCreationApIsDms()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>'+(_cgIsCampaignBound()?' <i>(Note: '+_CG_UNCONFIRMED_NOTE+'.)</i>':''))+'</li>');}}
    $('warns').innerHTML=_wr.join('');
    {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
   // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an

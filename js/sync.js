@@ -655,6 +655,23 @@ export async function refreshServerAp(id) {
   return data.ap;
 }
 
+/** The character's server-held `ap` AND its current `campaign_id`, read together (fix/chargen-campaign-stuck-states).
+ *  A file, autosave or handoff baton records the campaign a character was in when it was written; the DM can
+ *  unbind it since (dm_unbind_character), so a tool that must know whether the binding still holds asks here.
+ *  Returns {ap, campaignId} (campaignId null = the server says it is in no campaign), or null when it could not
+ *  be confirmed (offline, signed out, no row, RLS, error) — the caller must treat null as UNCONFIRMED. Updates
+ *  the cached `ap` exactly as refreshServerAp() does; never pushes or reconciles. */
+export async function refreshServerBinding(id) {
+  if (!id || !navigator.onLine || !(await currentUser())) return null;
+  const { data, error } = await supabase
+    .from('characters').select('ap, campaign_id').eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  const ap = typeof data.ap === 'number' ? data.ap : null;
+  const rec = lsGet(id);
+  if (rec && ap != null) { rec.ap = ap; lsSet(rec); }
+  return { ap, campaignId: data.campaign_id || null };
+}
+
 /** The DM-held gold pool for one character (the `gold` column, written only by the server function award_gold()), read the same way refreshServerAp() reads `ap`
  *  and cached on the local record so an offline session still has the last figure it saw. Returns the number, or null when it could not be read (offline, signed out,
  *  RLS, error) — the caller must treat null as UNCONFIRMED, never as zero. */

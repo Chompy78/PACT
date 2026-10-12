@@ -48,7 +48,12 @@ const fresh = async () => {
   // Stub the cloud: a signed-in session, the character's server-held AP, and its campaign.
   await p.evaluate((C1)=>{
     window._authBridge.currentSession = async()=>({user:{id:'test-session'}});
-    window._syncBridge.refreshServerAp = async()=>42;
+    // The server's answer, adjustable per test: window.__srv = {ap, campaignId} (null = unconfirmed), and
+    // window.__delay ms before it arrives. refreshServerAp is the fallback for a bridge without the binding read.
+    window.__srv = {ap:42, campaignId:C1}; window.__delay = 0;
+    const wait = ()=>new Promise(r=>setTimeout(r, window.__delay));
+    window._syncBridge.refreshServerBinding = async()=>{ await wait(); return window.__srv; };
+    window._syncBridge.refreshServerAp = async()=>{ await wait(); return window.__srv ? window.__srv.ap : null; };
     window._campaignBridge.getCampaign = async(id)=>({id, name:'Test campaign', rules:{}, ignore_player_ap:false});
     window.__C1 = C1;
   }, C1);
@@ -62,7 +67,7 @@ section('1. no build-level / creation-AP controls on a campaign character');
 {
   await fresh();
   check('a solo character still shows the Building-level row', await rowShown());
-  await p.evaluate(()=>{ window._cgCampaignId = window.__C1; window._cgCampaignBound = true; render(); });
+  await p.evaluate(()=>{ window._cgCampaignId = window.__C1; window._cgCampaignBound = true; window._cgBindingConfirmed = true; render(); });
   check('a campaign character does NOT show the Building-level row', !(await rowShown()));
   check('...and the creation-AP note offers no "Confirm or change" link',
     !(await p.evaluate(()=>/setCreationAp/.test(document.getElementById('warns').innerHTML))));
@@ -96,6 +101,7 @@ let env;
   check('the loaded character is the saved one', st.name==='Campaign Probe', JSON.stringify(st));
   check('...bound to its campaign', st.id===C1, JSON.stringify(st));
   check('...with its DM AP (42), not 0', st.ap===42 && st.status==='active', JSON.stringify(st));
+  check('...and, the server having confirmed the campaign, no Building-level row', !(await rowShown()));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -129,6 +135,74 @@ section('4. a refused budget edit snaps back');
   check('the award in the LOG is unchanged (the edit was refused)', after.awards===before.awards);
   check('#budget shows the real figure again, not the refused 150', after.v===before.v, `${before.v} -> ${after.v}`);
   check('...and the build-level hint does not claim 150', !/^150 AP/.test(after.hint), after.hint);
+}
+
+// -------------------------------------------------------------------------------------------------
+section('5. a slow binding resolve cannot land on a different character (undo -> redo)');
+{
+  await fresh();
+  await p.evaluate(()=>{ const e=document.getElementById('cname'); e.value='Campaign Probe'; e.dispatchEvent(new Event('change',{bubbles:true})); });
+  await p.waitForTimeout(300);
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(1200);
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate(()=>{ window.__delay = 1000; });
+  await p.evaluate(()=>undo()); await p.waitForTimeout(100);
+  await p.evaluate(()=>redo()); await p.waitForTimeout(1600);
+  const st = await p.evaluate(()=>({id:window._cgCampaignId, ap:window._dmAp, pend:_cgPendingCampaignId, name:document.getElementById('cname').value, env:_cgEnvelope(false).campaignId||null}));
+  check('back on the blank character after the slow fetch resolves: no campaign, no DM AP', !st.id && !st.ap && !st.pend && st.name!=='Campaign Probe', JSON.stringify(st));
+  check('...and its saved envelope carries no campaign', !st.env, JSON.stringify(st));
+  check('...and the Building-level row is still shown', await rowShown());
+}
+
+// -------------------------------------------------------------------------------------------------
+section('6. a slow binding resolve cannot land on a different character (Load file -> New Character)');
+{
+  await fresh();
+  await p.evaluate(()=>{ window.__delay = 1000; });
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(100);
+  await p.evaluate(()=>resetBuild());
+  await p.waitForTimeout(1600);
+  const st = await p.evaluate(()=>({id:window._cgCampaignId, ap:window._dmAp, env:_cgEnvelope(false).campaignId||null}));
+  check('the New Character is not bound to the loaded file\'s campaign', !st.id && !st.ap && !st.env, JSON.stringify(st));
+}
+
+// -------------------------------------------------------------------------------------------------
+section('7. a character the DM has unbound gets its controls back');
+{
+  await fresh();
+  await p.evaluate(()=>{ window.__srv = {ap:0, campaignId:null}; });   // the server: no campaign any more
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(1200);
+  const st = await p.evaluate(()=>({id:window._cgCampaignId, pend:_cgPendingCampaignId, status:window._dmApStatus}));
+  check('the file\'s stale campaign is dropped once the server says solo', !st.id && !st.pend && st.status==='none', JSON.stringify(st));
+  check('...and the Building-level row is shown', await rowShown());
+}
+
+// -------------------------------------------------------------------------------------------------
+section('8. an UNCONFIRMED binding (offline / signed out) does not hard-refuse');
+{
+  await fresh();
+  await p.evaluate(()=>{ window.__srv = null; });   // the server could not be asked
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(1200);
+  const st = await p.evaluate(()=>({id:window._cgCampaignId, conf:!!window._cgBindingConfirmed, hint:document.getElementById('buildLevel_hint').textContent}));
+  check('the file\'s campaign is kept, but marked unconfirmed', st.id===C1 && !st.conf, JSON.stringify(st));
+  check('...the Building-level row stays usable', await rowShown());
+  check('...with a note saying the binding could not be confirmed', /could not confirm/.test(st.hint), st.hint);
+}
+
+// -------------------------------------------------------------------------------------------------
+section('9. undo back onto a DM copy keeps its copy state');
+{
+  await fresh();
+  await p.evaluate(()=>{ window._cgCopySourceIsCopy = true; window._cgCopySourceAp = 30; window._cgCopySourceName = 'Src'; window._cgCopySourceIgnorePlayerAp = true; render(); });
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  check('(precondition) New Character clears the copy state', await p.evaluate(()=>!window._cgCopySourceIsCopy));
+  await p.evaluate(()=>undo()); await p.waitForTimeout(500);
+  const st = await p.evaluate(()=>({c:!!window._cgCopySourceIsCopy, ap:window._cgCopySourceAp, ig:!!window._cgCopySourceIgnorePlayerAp, n:window._cgCopySourceName}));
+  check('Undo restores the DM copy with its source AP display state', st.c && st.ap===30 && st.ig && st.n==='Src', JSON.stringify(st));
 }
 
 const fatal = errs.filter(e=>!/Failed to load|net::|supabase|fetch/i.test(e));
