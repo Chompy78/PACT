@@ -775,6 +775,11 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
   // window._cgBindGen; this one bails after each await once it is no longer current. _cgAdoptEnvelopeBinding
   // passes the generation it already holds (opts.gen) instead of starting a new one.
   var _gen = (opts && opts.gen != null) ? opts.gen : (window._cgBindGen = (window._cgBindGen||0) + 1);
+  // A NEW generation takes over from any adopt still in flight (review of #643): that adopt's finally only
+  // clears its pending state while its own generation is current, so without this a cloud load / join / claim
+  // started mid-adopt left _cgBindingPending true for good -- creation-AP controls refused on a solo character
+  // -- and a stale _cgPendingCampaignId counting as a campaign binding. This resolve sets its own binding below.
+  if(!(opts && opts.gen != null)){ window._cgBindingPending = false; try{ _cgPendingCampaignId = null; }catch(e){} }
   var _stale = function(){ return _gen !== window._cgBindGen; };
   // fix/chargen-dm-copy-ap-stale (2026-08-22): a "Copy to CharGen" sandbox's frozen AP snapshot
   // (window._cgCopySourceAp) is now budget-relevant (_cgDmOpts()), not just display text, so it MUST be
