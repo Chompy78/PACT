@@ -159,6 +159,7 @@ window._qaRoll=function(themeKey,budget,forceClass){
     hd:b.hd, spent:r.total, spendable:r.spendable, hard:hard.length, hardText:hard.slice(0,3),
     species:b.species, cls:b.originClass,
     armour:{light:!!b.armour.light,medium:!!b.armour.medium,heavy:!!b.armour.heavy,shield:!!b.armour.shield},
+    worn:b.wornArmour||'', ac:r.ac,
     wpn:{simple:!!b.weaponProf.simple,martial:!!b.weaponProf.allMartial},
     nSkills:(b.skills||[]).length, nBoons:(b.boons||[]).length, nArts:(b.arts||[]).length,
     stats:b.stats, rank:((b.traditions||[])[0]||{}).rank||0,
@@ -225,6 +226,10 @@ try {
                                   (th.weapons === 'simple' && r.wpn.martial));
     check(`${th.label} — weapons never exceed "${th.weapons}"`, badW.length === 0,
       badW.length ? `${badW.length}/${rows.length} broke the ceiling` : '');
+    // fix/roller-wears-armour: since rules v0.376 training alone gives no AC, so a roll trained in armour must WEAR some.
+    const bare = rows.filter(r => (r.armour.light || r.armour.medium || r.armour.heavy) && !r.worn);
+    check(`${th.label} — armour it is trained in is worn`, bare.length === 0,
+      bare.length ? `${bare.length}/${rows.length} trained but unarmoured, e.g. ${JSON.stringify(bare[0].armour)} AC ${bare[0].ac}` : '');
     const badShield = th.shield ? [] : rows.filter(r => r.armour.shield);
     check(`${th.label} — ${th.shield ? 'may take a shield' : 'takes no shield'}`, badShield.length === 0,
       badShield.length ? `${badShield.length}/${rows.length} took one anyway` : '');
