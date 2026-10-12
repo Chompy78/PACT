@@ -1512,3 +1512,43 @@ Add a collapsible read-only "Appearance & backstory" block to the DM Console cha
 every value through DM Console's esc(). Skip empty keys. No editing from the DM side.
 ```
 **Done when:** dm-console-ui-e2e.mjs (or a new script) loads a character with appearance.backstory containing `<img src=x onerror=window.__xss=1>` and a normal backstory, and shows both as text on the card with `window.__xss` unset; `engine-parity-ci` 0 failed.
+
+## chore/audit-fix-followups-2026-10-12 — small follow-ups from the reviews of PRs #633–#638 — TODO
+Branch per item or one small batch. **Effort:** low · **Risk:** low–medium per item (noted).
+
+```text
+Found by the adversarial reviews of the 2026-10-12 audit fixes. Each is small; none was blocking.
+  1. CharGen _cgRefreshWalletInputs writes _cgDmGold/_cgDmWindow/_cgWalletConfirmed after awaits with no _cgBindGen check —
+     switching campaign A→B mid-fetch shows A's gold (advisory display only). Pass the generation in. (low)
+  2. CharGen: while campaign binding confirmation is in flight (or offline), a campaign character shows the build-level /
+     creation-AP controls; choosing writes a threshold the server refuses (the original stuck state). Refuse while
+     _cgPendingCampaignId is set and unconfirmed-but-in-flight; keep the offline case open with its note. Also a LOCKED
+     character with an unconfirmed binding can still emit creationLockConfig via _cgApplyBuildLevelInner. (medium)
+  3. CharGen loadFile branch 2 (untagged Live Sheet files) doesn't adopt a campaign binding (branch 1 does since #634). (low)
+  4. Live Sheet toggleTasha() still writes dmAllows.tasha on campaign/locked characters; CharGen locks the same switch
+     since #638. Make them agree. (low)
+  5. CharGen Randomise mints a new character id (applyBuild(clone(readBuild())) carries no b.id), so a re-roll becomes a new
+     cloud row. Confirm intended; if not, keep the id. (medium — affects cloud rows)
+  6. No test covers a CharGen Setup appearance edit on a LOG that already has duplicate appearance events. Add one. (low)
+  7. testing/scripts/cost-customization-ci.mjs reported "DM Console never became ready" locally on preview while passing in
+     CI — likely a port/timing clash with parallel runs; make its port configurable like the others. Several e2e scripts
+     hardcode ports (chargen-flows 7979, chargen-campaign-stuck 7983) and random-manual-e2e resolves the app via a `PACT`
+     symlink one folder up — both broke parallel agent runs on 2026-10-12. (low)
+  8. feat/server-freeze-at-lock and feat/server-freeze-apply board entries look stale (stages reported applied 2026-10-10/11)
+     — verify against live and graduate them. (low)
+```
+**Done when:** each item is fixed with a test or explicitly closed as intended, and the board entries in item 8 are verified.
+
+## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
+Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
+
+```text
+Since fix/player-free-ap (#638, 2026-10-12) a player can't edit a server-confirmed campaign character's houseRules (DM Calls:
+Bound/Boons/Drawbacks/Non-core; custom and repriced boons/drawbacks), because they are priced. But nobody else can either:
+DM Console's currentHouseRules is campaign free-text labels and never reaches a character's houseRules. Decide with the owner
+whether house rules belong on the CAMPAIGN (all characters inherit — engine reads campaign rules) or per character via a DM
+RPC (dm_edit_character_log allowlist), then build it. Also revisit the #638 H2 decisions recorded in
+decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; solo characters lose DM Calls after their own
+lock; starting gold refused both ways after the lock).
+```
+**Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.

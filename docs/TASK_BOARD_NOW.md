@@ -195,6 +195,21 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
+## fix/server-player-award-after-lock — the server accepts a player-appended AP award after the creation lock — TODO
+Branch fix/server-player-award-after-lock. **Effort:** medium · **Risk:** high — a trigger change on every campaign character save (damage scale); needs owner approval to apply to live.
+
+```text
+Found 2026-10-12 while fixing fix/player-free-ap (#638), by reading the SQL: pact_enforce_locked_history only blocks changes
+to EXISTING history, and pact_enforce_ap_budget_consistency counts a newly appended `award` event as player-earned AP unless
+the campaign has ignore_player_ap. So a player on a locked campaign character can append their own award with a modified
+client and get spendable AP. #638 closed it in both tools' UIs; the server gap remains.
+DO: write a migration that refuses a player-appended `award` (not disc, not a DM RPC, not a redeemed DM grant code — check how
+redeemGrant's events are shaped and keep them working) on a campaign-bound character; test it in the Docker harness
+(testing/scripts/creation-lock-guard-test/) including legit DM awards, award_ap_and_seal, grant-code redemption, solo
+characters; MEASURE live first: how many campaign characters already carry a player-appended award. Owner applies + get_advisors.
+```
+**Done when:** the harness refuses a player-appended award on a campaign character and accepts every legitimate award path; the live measurement is shown to the owner; applied with owner approval and advisors clean.
+
 ---
 
 # Conventions
