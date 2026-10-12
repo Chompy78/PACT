@@ -6144,6 +6144,18 @@ function randomizeRoll(themeKey,lvlWanted){
   // build -- which made every re-roll of a saved character a NEW cloud row (and, on a campaign character, a second
   // row carrying the same binding) while the original was left behind.
   b.id=currentCharId();
+  // fix/roller-wears-armour: the kit bucket buys armour TRAINING, never a worn piece. Since rules v0.376 an empty
+  // "Worn armour" is unarmoured (10 + Dex), so wear the best piece this build may legally wear (armourEligible: trained
+  // + STR; not banned by the campaign), by the AC it gives with this DEX. An allowed piece already worn is kept.
+  (function(){
+    var _wOk=function(n){ return !!(DATA.armours&&DATA.armours[n]) && armourEligible(b,n).ok &&
+      !(typeof cloudRuleBarred==='function'&&cloudRuleBarred('armour',n)); };
+    if(b.wornArmour&&_wOk(b.wornArmour)) return;
+    var dm=Math.floor(((b.stats&&b.stats.DEX)||10)/2)-5, best='', bestAc=10+dm;
+    Object.keys(DATA.armours||{}).forEach(function(n){ if(!_wOk(n)) return; var a=DATA.armours[n];
+      var ac=a.base+(a.cat==='heavy'?0:a.cat==='medium'?Math.min(dm,2):dm); if(ac>bestAc){best=n;bestAc=ac;} });
+    b.wornArmour=best;
+  })();
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
