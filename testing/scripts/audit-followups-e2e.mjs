@@ -159,6 +159,34 @@ section('5. Randomise keeps the character id');
 }
 
 // -------------------------------------------------------------------------------------------------
+section('6. a Setup appearance edit on a LOG with two appearance events');
+{
+  await cgFresh();
+  await p.evaluate(()=>{ const e=document.getElementById('ap_hair'); e.value='Black'; e.dispatchEvent(new Event('change',{bubbles:true})); });
+  await p.waitForTimeout(300);
+  // A second, later, untagged appearance event (what a Live Sheet edit can leave behind) — it wins the fold.
+  const env = await p.evaluate(()=>{
+    const e=_cgEnvelope(false); const cur=JSON.parse(JSON.stringify(foldBuild(e.LOG).appearance||{}));
+    e.LOG.push({type:'buy',cat:'patch',payload:{patch:{appearance:Object.assign(cur,{hair:'Red',backstory:'Grew up on a barge.'})}},cost:0,seq:e.SEQ,ts:Date.now(),label:'Appearance'});
+    e.SEQ+=1; return JSON.stringify(e); });
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate((txt)=>loadFile(new File([txt],'dup.json',{type:'application/json'})), env);
+  await p.waitForTimeout(1200);
+  const apEvents = () => p.evaluate(()=>LOG.map((e,i)=>({i,e})).filter(x=>x.e.type==='buy'&&x.e.cat==='patch'&&x.e.payload&&x.e.payload.patch&&('appearance' in x.e.payload.patch)).map(x=>({i:x.i,ap:x.e.payload.patch.appearance})));
+  const before = await apEvents();
+  check('(precondition) the loaded LOG has two appearance events', before.length===2, JSON.stringify(before.map(x=>x.i)));
+  check('(precondition) the form shows the later one (hair Red)', await p.evaluate(()=>document.getElementById('ap_hair').value==='Red'));
+  await p.evaluate(()=>{ const e=document.getElementById('ap_eyes'); e.value='Green'; e.dispatchEvent(new Event('change',{bubbles:true})); });
+  await p.waitForTimeout(400);
+  const after = await apEvents();
+  const fold = await p.evaluate(()=>foldBuild(LOG).appearance||{});
+  check('still two appearance events (none added, none dropped)', after.length===2, JSON.stringify(after.map(x=>x.i)));
+  check('the earlier event is untouched', JSON.stringify(after[0])===JSON.stringify(before[0]));
+  check('the edit landed on the later event, at the same position', after[1] && after[1].i===before[1].i && after[1].ap.eyes==='Green', JSON.stringify(after[1]));
+  check('the folded appearance has the new eyes, the later hair, and the backstory', fold.eyes==='Green' && fold.hair==='Red' && fold.backstory==='Grew up on a barge.', JSON.stringify(fold));
+}
+
+// -------------------------------------------------------------------------------------------------
 section('4. Live Sheet: the non-core switch is locked on a campaign or finished character');
 {
   const lsFresh = async () => {
