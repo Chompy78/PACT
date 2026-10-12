@@ -89,6 +89,51 @@ section('1. wallet refresh: a stale campaign fetch does not overwrite the newer 
   check('B\'s downtime window (2 days) stays, not A\'s 30', st.days===2, JSON.stringify(st));
 }
 
+// -------------------------------------------------------------------------------------------------
+section('2. no creation-AP threshold while the binding is confirming, or on a finished campaign character');
+{
+  await cgFresh();
+  await p.evaluate(()=>{ const e=document.getElementById('cname'); e.value='Pending Probe'; e.dispatchEvent(new Event('change',{bubbles:true})); });
+  await p.waitForTimeout(300);
+  await p.evaluate(()=>{ window._cgCampaignId = window.__C1; });
+  const env = await p.evaluate(()=>JSON.stringify(_cgEnvelope(false)));
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate(()=>{ window.__delay = 2500; });
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(600);
+  check('(precondition) the binding is still being confirmed', await p.evaluate(()=>!window._cgBindingConfirmed && _cgIsCampaignBound()));
+  check('while confirming: no Building-level row', !(await rowShown()));
+  const n0 = await thresholdConfigs();
+  await pickOtherCurve(); await p.waitForTimeout(200);
+  check('while confirming: picking a level writes no threshold', (await thresholdConfigs())===n0);
+  await p.evaluate(()=>{ window.prompt = ()=>'90'; setCreationAp(); }); await p.waitForTimeout(200);
+  check('while confirming: setCreationAp() writes no threshold', (await thresholdConfigs())===n0);
+  await p.waitForTimeout(2800);
+  check('confirmed afterwards: still no row (the DM owns it)', !(await rowShown()));
+
+  // Offline / unconfirmed: the controls stay open, with the note.
+  await cgFresh();
+  await p.evaluate(()=>{ window.__srv = null; });
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(1500);
+  check('(precondition) unconfirmed binding, resolve finished', await p.evaluate(()=>!window._cgBindingConfirmed && _cgIsCampaignBound() && !window._cgBindingPending));
+  check('unconfirmed (offline): the Building-level row stays usable', await rowShown());
+  const n1 = await thresholdConfigs();
+  await p.evaluate(()=>{ window.prompt = ()=>'90'; setCreationAp(); }); await p.waitForTimeout(200);
+  check('unconfirmed (offline): setCreationAp() still works', (await thresholdConfigs())===n1+1);
+
+  // Finished character, unconfirmed binding.
+  await cgFresh();
+  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>{ window._cgCampaignId = window.__C1; window._cgCampaignBound = true; window._cgBindingConfirmed = false; render(); });
+  const n2 = await thresholdConfigs();
+  await pickOtherCurve(); await p.waitForTimeout(200);
+  await p.evaluate(()=>_cgApplyBuildLevel()); await p.waitForTimeout(200);
+  check('finished + unconfirmed binding: a level pick writes no threshold', (await thresholdConfigs())===n2);
+  await p.evaluate(()=>{ window.prompt = ()=>'90'; setCreationAp(); }); await p.waitForTimeout(200);
+  check('finished + unconfirmed binding: setCreationAp() writes no threshold', (await thresholdConfigs())===n2);
+}
+
 check('no page errors', errs.length===0, errs.join(' | ').slice(0,400));
 console.log(`\n[audit-followups] ${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

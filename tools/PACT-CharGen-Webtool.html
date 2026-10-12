@@ -1719,7 +1719,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
+function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1740,6 +1740,18 @@ async function _cgAdoptEnvelopeBinding(d){
   _cgResetCloudApState();
   var campId = d && d.campaignId; if(!campId) return;
   _cgPendingCampaignId = campId;
+  // chore/audit-fix-followups-2026-10-12 (item 2): TRUE while the server is being asked about this binding.
+  // The creation-AP controls are refused meanwhile (_cgCreationApRefused) -- a choice made in this window on a
+  // character the server then confirms as a campaign one writes a threshold the server refuses, the original
+  // stuck state. Cleared when this adopt finishes (confirmed, solo, or unconfirmed/offline -- the offline case
+  // keeps its controls and note) or by _cgResetCloudApState.
+  window._cgBindingPending = true;
+  try{ _cgSyncBuildLevelDisplay(); }catch(e){}   // hide the row now: the load that called us has already rendered
+  var _genP = window._cgBindGen;
+  try{ await _cgAdoptEnvelopeBindingInner(d, campId); }
+  finally{ if(_genP === window._cgBindGen){ window._cgBindingPending = false; try{ render(); }catch(e){} } }
+}
+async function _cgAdoptEnvelopeBindingInner(d, campId){
   // The generation this adopt owns (see _cgResolveDmApStatus). Re-checked after EVERY await below: the
   // player can switch character (New Character, Undo/Redo, another load) while we wait, and a late
   // result must not bind THAT character to this one's campaign — the binding would then ride into its
@@ -3221,7 +3233,7 @@ function _cgApplyBuildLevel(){
   // player-appended creationLockConfig that carries a `threshold`, so emitting one here made every later
   // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
   // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
-  if(_cgCreationApIsDms()){ _cgSyncBuildLevelDisplay(); return; }
+  if(_cgCreationApRefused()){ _cgSyncBuildLevelDisplay(); return; }
   // Several awards: the budget is their sum and is changed in the Live Sheet (see _cgSyncAward), so a level
   // pick could only write a creation-AP threshold that no longer matches the budget. The controls are
   // disabled (_cgSyncBuildLevelDisplay); this is the belt to that brace.
@@ -3261,7 +3273,7 @@ function _cgApplyBuildLevelInner(){
 function _cgSyncBuildLevelDisplay(){
   // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
   // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
-  {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApIsDms()?'none':'';}
+  {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApRefused()?'none':'';}
   const _multi=_cgAwardCount()>1;
   ['buildLevel','buildCurve'].forEach(function(id){const e=$(id);if(e){e.disabled=_multi;e.title=_multi?_CG_MULTI_AWARD_NOTE:'';}});
   const bi=$('budget'), hint=$('buildLevel_hint');
@@ -3283,11 +3295,26 @@ function _cgIsCampaignBound(){
 // _cgResolveDmApStatus). A binding asserted only by a file/autosave/baton may be stale — the DM can unbind
 // a character — so it does not hide the controls; the server refuses the write if it is still bound.
 function _cgCreationApIsDms(){ return !!window._cgCampaignId && !!window._cgBindingConfirmed; }
+// chore/audit-fix-followups-2026-10-12 (item 2): every reason the player may NOT write a creation-AP
+// threshold right now ('' = they may). 'campaign': the server confirmed the binding (the DM owns it).
+// 'pending': a binding is still being confirmed -- wait, rather than write one the server may refuse.
+// 'locked': a finished character with any campaign binding, confirmed or not -- the server refuses a
+// player threshold on a campaign character, and past the lock it changes nothing a player needs anyway.
+// An UNCONFIRMED binding on an unfinished character (offline) stays open, with _CG_UNCONFIRMED_NOTE.
+function _cgCreationApRefused(){
+  if(_cgCreationApIsDms()) return 'campaign';
+  if(window._cgBindingPending && _cgIsCampaignBound()) return 'pending';
+  if(_cgIsCampaignBound() && _cgIsLocked()) return 'locked';
+  return '';
+}
 var _CG_UNCONFIRMED_NOTE='could not confirm with the server whether this character is still in a campaign; if it is, only your DM can change its creation AP and the save will be refused';
 function setCreationAp(){
   // Campaign characters: the creation limit is the DM's (DM Console sets it); the server refuses a
   // player-written threshold, so offering the prompt would only strand autosave. See _cgApplyBuildLevel.
-  if(_cgCreationApIsDms()){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
+  {const why=_cgCreationApRefused();
+   if(why==='campaign'){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
+   if(why==='pending'){alert('Still checking this character\u2019s campaign with the server \u2014 try again in a moment.');return;}
+   if(why==='locked'){alert('This campaign character has finished creation, so its creation AP is fixed.\n\nAsk your DM if it looks wrong.');return;}}
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
   if(raw===null)return;
@@ -7066,7 +7093,7 @@ function _cgRenderInner(){
    {var _cl=_creationLockState();
     if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
       _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
-      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgCreationApIsDms()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>'+(_cgIsCampaignBound()?' <i>(Note: '+_CG_UNCONFIRMED_NOTE+'.)</i>':''))+'</li>');}}
+      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgCreationApRefused()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>'+(_cgIsCampaignBound()?' <i>(Note: '+_CG_UNCONFIRMED_NOTE+'.)</i>':''))+'</li>');}}
    $('warns').innerHTML=_wr.join('');
    {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
   // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an
