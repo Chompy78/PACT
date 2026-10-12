@@ -36,7 +36,10 @@ spell will be a DM-set partial discount (second follow-up).
 ## Verified vs. Assumed
 **Verified** (read in the code, 2026-10-13):
 - Equivalent level ("Track-Level") is computed from **earned** AP (`earnedWithDm()`), not from spent.
-- The creation lock fires when the **spent** total of non-`noLock` events reaches a threshold (`creationLockState()`).
+- Creation ends ONLY when someone presses the lock button (an explicit `creationLocked` event). The old automatic lock on
+  crossing a spend threshold was retired. That threshold is now only the creation **ceiling**'s figure: a purchase that
+  would take `spent` past it is refused while the character is still in creation. (Corrected after review: the first
+  draft wrongly said spend crossing the threshold fires the lock.)
 - The creation ceiling is `threshold + drawback refunds − spent` (`creationCeiling()`).
 - A campaign switch `ignorePlayerAp` drops player `award`s from the spendable pool, but keeps drawback refunds
   (they are a trade the player made, not a gift).
@@ -44,7 +47,9 @@ spell will be a DM-set partial discount (second follow-up).
   spend exceeds `characters.ap` (DM-granted AP) plus the log's earnings. That SQL sum does **not** resolve
   cancellations the way the engine does. It just adds up every `buy`/`buyoff`/`names` cost and every `award`.
 - Another trigger refuses a **non-DM** save that raises the log's total `award` amount once a campaign character
-  is locked or sealed.
+  is locked or sealed. It identifies a DM by WHO is writing, not by a flag in the event.
+- A character's owner can write their own log directly, so **a player can forge any event, including `dmEdit: true`**.
+  The database notes say this was accepted for the drawback unlock because that event moves no AP. A discount does move AP.
 - About 65 call sites in the three tools read `economy()`, `earnedWithDm()`, `creationCeiling()` or
   `creationLockState()` (DM Console 19, CharGen 22, Live Sheet 29).
 
@@ -59,7 +64,13 @@ the creation lock is unchanged. The discount is added to `earned`, so equivalent
 earned. **AP paid** = `spent − discounted`, and "AP left" (`earned − spent`) comes out right automatically.
 
 1. **New event `dmDiscount`** `{targetSeq, refVal, amount, note}`. DM-only, written through
-   `dm_edit_character_log`, and pointing at its purchase by `seq`, exactly as `dmUnlockDrawback` does.
+   `dm_edit_character_log`, and pointing at its purchase by `seq`, exactly as `dmUnlockDrawback` does. `refVal` is the
+   target's value (e.g. the spell or skill name), cross-checked against the target so a wrong `seq` is refused.
+   `amount` is whole AP, stored as a JSON number. A percentage is converted in the DM Console: round to the nearest
+   whole AP, at least 1, never more than the cost not yet discounted.
+   **Correcting a mistake:** the DM appends another `dmDiscount` on the same target with a NEGATIVE amount. The
+   purchase's net discount is clamped between 0 and its cost. No delete, no edit, so the log stays append-only and
+   the correction is visible in the history.
 2. **Engine (`activeEvents` / `economy`).** Resolve each `dmDiscount` against its target. If the target is not an
    active priced purchase (cancelled, bought off, removed or missing), the discount counts 0. Cap the total
    discounts on one purchase at its frozen cost. Add `discounted` to `earned`, and expose new additive fields
@@ -68,8 +79,13 @@ earned. **AP paid** = `spent − discounted`, and "AP left" (`earned − spent`)
    budget it hands to `compute()`.
 3. **SQL migration.** Add `dmDiscount` to `dm_edit_character_log`. Validate the target there: it must exist by
    `seq`, be a priced `buy` or `buyoff`, and existing discounts plus this one must not exceed its cost. Rebuild the
-   event from a whitelist of fields. Teach `pact_ap_ledger_spend` to count a `dmDiscount` as income, and add it to
-   the protected (frozen) event types. Then run the database advisor and check recent logs.
+   event from a whitelist of fields. Teach `pact_ap_ledger_spend` to count a `dmDiscount` as income, and count it even when the
+   campaign ignores player AP (it is DM-given). Add it to the protected (frozen) event types.
+   **Anti-forgery (required):** extend `pact_enforce_player_ap_ceiling` (the trigger that already refuses a non-DM rise
+   in `award` totals) so that on a campaign character, a save by anyone other than a DM of that campaign may not raise
+   the log's total `dmDiscount` amount, in any lock state. Any `dmDiscount` amount that is not a JSON number is refused.
+   Add a negative test: a player save appending a forged `dmDiscount` is refused. Then run the database advisor
+   (`get_advisors`) and check recent logs.
 4. **DM Console.** On each character card, "DM edit — discount a purchase": pick a priced purchase from the log,
    enter AP or %, note required. Show that character's discount total, and a campaign total. Every player-set
    string goes through the escape helper.
@@ -100,14 +116,12 @@ Wizard scribing (`feat/wizard-scribe`). Moving the existing boon grant onto disc
 ## Risks / open questions
 1. **Creation ceiling — DECIDED (owner F1, 2026-10-13).** A discount raises the creation ceiling by its amount, the same
    way drawback refunds do (`creationCeiling()` gains the discount alongside `drawbackBonus`), so a gift never uses up the
-   player's own creation budget. The creation lock still fires on full value (AP value), per B1. A gift during creation can
-   therefore still bring the lock forward — intended, since the character really owns that power.
+   player's own creation budget. The creation lock still fires on full value (AP value), per B1. The lock itself is manual (see Verified), so a gift cannot end creation early.
 2. **Database sum without cancellation.** The SQL sum doesn't drop cancelled purchases, so it may still count a
    discount whose target was bought off. That can only make the server *more* generous than the engine. Is that
    acceptable, or must the SQL check the target is still active?
-3. **The locked-award trigger** watches `award` totals only, so a discount isn't affected by it. But a player client
-   must never be able to append a `dmDiscount`. Confirm that the trigger which freezes history, or a new check,
-   refuses a non-DM `dmDiscount`.
+3. **Forged discounts — RESOLVED in the approach** (step 3, anti-forgery). Both reviewers flagged it; the code confirms
+   players can write any event, so this is a required server check, not an open question.
 4. **Existing quirk:** in an `ignorePlayerAp` campaign, today's boon-grant `award` is dropped from the pool while the
    boon's cost still counts. Not fixed here, but the grant task should move boons onto discounts.
 
@@ -117,9 +131,10 @@ The end-to-end DM Console → Live Sheet test passes. A read-only replay of ever
 `earned`, `spent` and `available` before and after. The database advisor shows no new findings.
 
 ## Done when
-A DM can discount any priced purchase. The discount disappears with its purchase. AP value and AP paid are shown in
-all three tools. The campaign discount total is visible to the DM. All checks above pass, and the decision record
-maps every reader.
+A DM can discount any priced purchase, and correct a discount. The discount disappears with its purchase. A forged
+player-side `dmDiscount` is refused by the database, proven by a negative test. AP value and AP paid are shown in
+all three tools. The campaign discount total is visible to the DM. All checks above pass. A decision record (`decisions/2026/D-GH-<date>-dm-ap-discount.md`) maps every reader of the AP
+totals to AP value or AP paid.
 
 ---
 
@@ -133,4 +148,14 @@ maps every reader.
 5. Output a markdown file named `dm-ap-discount-review-<model>.md`.
 
 ## Review outcome
-_(to be filled in after review)_
+Round 1, 2026-10-13. Two reviewers via API: Gemini (`gemini-3.8-flash`; self-identified wrongly as gemini-2.5-pro) and
+OpenRouter Nemotron (`nvidia/nemotron-3-ultra-550b-a55b:free`; self-identified wrongly as gpt-4o). Both: approve with conditions.
+- **Accepted:** percentage rounding rule (both); DM correction path (Gemini); forged `dmDiscount` must be refused by the
+  database (both; confirmed in code, now a required step with a negative test); `refVal` meaning (Nemotron); discount
+  survives `ignorePlayerAp` on the server too; decision record promoted to Done-when (Nemotron).
+- **Rejected:** "a free gift can lock creation early" (Gemini). The automatic lock was retired; creation ends only by an
+  explicit lock. But it exposed a wrong Verified fact in this plan, now corrected.
+- **Rejected:** "the ledger object type is unclear" (Nemotron). It is a SQL function; context the reviewer could not see.
+- **Open → owner:** Risk 2, the server sum not dropping cancelled purchases (reviewers split: Gemini OK-as-is, Nemotron
+  "decide before merge").
+- **Deferred to the build:** confirm no live log already contains a `dmDiscount` (a one-line SQL count).
