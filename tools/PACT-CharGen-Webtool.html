@@ -6116,6 +6116,11 @@ function randomizeRoll(themeKey,lvlWanted){
   // name style and demeanour match the build instead of being rolled independently of it. Always cleared
   // in the finally, so a later manual 🎲 on a field is unaffected by whatever was last rolled.
   window._rollThemeActive=TH;
+  // chore/audit-fix-followups-2026-10-12 (item 5, D-GH-2026-10-12-audit-fix-followups-2026-10-12): a roll is the same
+  // character, so it keeps its id. readBuild() carries no b.id, and applyBuild() mints a fresh one for an id-less
+  // build -- which made every re-roll of a saved character a NEW cloud row (and, on a campaign character, a second
+  // row carrying the same binding) while the original was left behind.
+  b.id=currentCharId();
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}

@@ -148,6 +148,17 @@ section('3. an untagged Live Sheet file adopts its campaign binding');
 }
 
 // -------------------------------------------------------------------------------------------------
+section('5. Randomise keeps the character id');
+{
+  await cgFresh();
+  const id0 = await p.evaluate(()=>currentCharId());
+  await p.evaluate(()=>randomizeRoll(null, 0)); await p.waitForTimeout(800);
+  const id1 = await p.evaluate(()=>currentCharId());
+  check('a re-roll is the same character (same id)', id0===id1, `${id0} -> ${id1}`);
+  check('...and its saved envelope carries that id', await p.evaluate((id0)=>_cgEnvelope(false).id===id0, id0));
+}
+
+// -------------------------------------------------------------------------------------------------
 section('4. Live Sheet: the non-core switch is locked on a campaign or finished character');
 {
   const lsFresh = async () => {
