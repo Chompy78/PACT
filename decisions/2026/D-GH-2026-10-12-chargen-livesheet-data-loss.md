@@ -25,7 +25,16 @@ the LOG; DM house rules synced to the `HOUSE_RULES` patch slot). Three points hi
   awards are never touched on load.
 - 2a: with more than one award the Budget field refuses edits (flash; field restored to the sum). Awards are
   edited in the Live Sheet, where each is its own line.
-- 3a: after the lock CharGen refuses to change an already-set name; filling a blank is allowed.
+- 3a: after the lock CharGen refuses to change an already-set name; filling a blank is allowed. Only the rows
+  the dialog renders are compared, so stored names it has no row for (an unowned grant, a dropped language
+  slot) never block a save; a save with no grant rows leaves stored grant names alone.
+- 2a also disables the Build-level selector on a multi-award character (a level pick would otherwise write a
+  creation-AP threshold that no longer matches the awards' sum).
+- 4 (added after review of PR #636): CharGen's feature / subclass-ability / spell-bundle reconcile now treats an
+  owned value its own validity filter rejects — a barred feature such as "Fighter: Weapon Mastery", or one no
+  longer in DATA — as **kept**, never as excess. **AP behaviour change, pre-lock:** before this, any unrelated
+  edit to a feature row silently retracted such a feature and refunded its AP; now the character keeps it (and
+  its cost). After the lock the old counting made every new purchase in that category impossible.
 
 ## Why
 Each pick is the one that refuses rather than rewrites or grants: no award is merged or minted (2b would

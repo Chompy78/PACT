@@ -77,6 +77,20 @@ section('1. spell & language names');
   await p.evaluate(()=>openNames());
   check('New Character dialog starts blank', await p.inputValue('#namesBox .nmf[data-k="lang::0"]') === '');
   await p.evaluate(()=>closeNames());
+  // After the lock, a stored name the dialog has no row for must not block filling a blank one.
+  await p.evaluate(()=>{ emit({type:'names',lang:['','Dwarvish'],grants:{'Nowhere: Gift':['Fire Bolt']},cost:0,label:'ls names'}); cgFinishCreating(true); });
+  await p.waitForTimeout(300);
+  await p.evaluate(()=>openNames());
+  await p.fill('#namesBox .nmf[data-k="lang::0"]', 'Elvish');
+  await p.evaluate(()=>saveNames());
+  const ln = await p.evaluate(()=>({lang:readBuild().languageNames, gr:readBuild().grantNames}));
+  check('after the lock, filling a blank saves despite unshown stored names', (ln.lang||[])[0]==='Elvish', JSON.stringify(ln));
+  check('…and does not wipe the unshown grant names', !!(ln.gr||{})['Nowhere: Gift'], JSON.stringify(ln));
+  await p.evaluate(()=>openNames());
+  await p.fill('#namesBox .nmf[data-k="lang::0"]', 'Orcish');
+  await p.evaluate(()=>saveNames());
+  check('after the lock, changing a set name is refused', (await p.evaluate(()=>readBuild().languageNames[0]))==='Elvish');
+  await p.evaluate(()=>closeNames());
   check('no page errors', errs.length===0, errs.join(' | '));
   await ctx.close();
 }
@@ -140,6 +154,11 @@ section('3. awards keep their notes through a Live Sheet -> CharGen handoff');
   const aw2 = await p.evaluate(()=>LOG.filter(e=>e.type==='award').length);
   check('editing the budget does not merge the awards', aw2===2, aw2+' awards');
   check('…and the field goes back to their sum', +(await p.inputValue('#budget')) === 85, await p.inputValue('#budget'));
+  check('Build-level selector is disabled on a multi-award character', await p.evaluate(()=>document.getElementById('buildLevel').disabled && document.getElementById('buildCurve').disabled));
+  const cfg0 = await p.evaluate(()=>LOG.filter(e=>e.type==='creationLockConfig').length);
+  await p.evaluate(()=>{ const l=document.getElementById('buildLevel'); l.disabled=false; l.value='5'; l.dispatchEvent(new Event('change',{bubbles:true})); });
+  await p.waitForTimeout(300);
+  check('…and a forced level pick writes no creation-AP threshold', (await p.evaluate(()=>LOG.filter(e=>e.type==='creationLockConfig').length))===cfg0);
   check('no page errors', errs.length===0, errs.join(' | '));
   await ctx.close();
 }
@@ -173,6 +192,25 @@ section('4. a refused ✕ after the lock puts the row back');
   check('refused ✕: LOG still holds it once', fe.filter(v=>v===F1).length===1, JSON.stringify(fe));
   check('spent unchanged after ✕', (await p.evaluate(()=>economy(LOG).spent))===spent0);
   check('no page errors', errs.length===0, errs.join(' | '));
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
+section('4b. an owned barred feature (Weapon Mastery) is kept, and never blocks new purchases');
+for (const locked of [false, true]) {
+  const { ctx, p, errs } = await fresh();
+  const WM='Fighter: Weapon Mastery', SW='Fighter: Second Wind';
+  await setSel(p,'oclass','Fighter');
+  await p.evaluate(wm=>{ LOG.push({type:'buy',cat:'feature',payload:{v:wm},cost:2,level:1,label:'Class feature — '+wm,seq:SEQ++,ts:Date.now(),rules:DATA.version}); _cgRepaint(); }, WM);
+  await p.waitForTimeout(300);
+  if (locked) { await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300); }
+  await p.evaluate(f=>{ addRow('feat2',f); const r=[...document.querySelectorAll('.feat2row')].pop(); r.dispatchEvent(new Event('input',{bubbles:true})); }, SW);
+  await p.waitForTimeout(500);
+  const fe = await p.evaluate(()=>LOG.filter(e=>e.type==='buy'&&e.cat==='feature').map(e=>e.payload.v));
+  const tag = locked ? 'locked' : 'pre-lock';
+  check(`${tag}: Second Wind is bought alongside an owned Weapon Mastery`, fe.includes(SW), JSON.stringify(fe));
+  check(`${tag}: Weapon Mastery is kept (not retracted / refunded)`, fe.includes(WM), JSON.stringify(fe));
+  check(`${tag}: no page errors`, errs.length===0, errs.join(' | '));
   await ctx.close();
 }
 

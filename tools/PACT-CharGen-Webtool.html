@@ -3193,6 +3193,10 @@ function _cgApplyBuildLevel(){
   // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
   // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
   if(_cgCreationApIsDms()){ _cgSyncBuildLevelDisplay(); return; }
+  // Several awards: the budget is their sum and is changed in the Live Sheet (see _cgSyncAward), so a level
+  // pick could only write a creation-AP threshold that no longer matches the budget. The controls are
+  // disabled (_cgSyncBuildLevelDisplay); this is the belt to that brace.
+  if(_cgAwardCount()>1){ _cgSyncBuildLevelDisplay(); return; }
   // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
   // triggered mid-apply can re-enter here on a half-updated budget.
   if(_cgApplyingBuildLevel)return;
@@ -3229,13 +3233,17 @@ function _cgSyncBuildLevelDisplay(){
   // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
   // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
   {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApIsDms()?'none':'';}
+  const _multi=_cgAwardCount()>1;
+  ['buildLevel','buildCurve'].forEach(function(id){const e=$(id);if(e){e.disabled=_multi;e.title=_multi?_CG_MULTI_AWARD_NOTE:'';}});
   const bi=$('budget'), hint=$('buildLevel_hint');
   if(!bi||!hint)return;
   const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
   const awarded=cur-thr;
   hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'')
-    +(_cgIsCampaignBound()&&!_cgCreationApIsDms()?' · '+_CG_UNCONFIRMED_NOTE:'');
+    +(_cgIsCampaignBound()&&!_cgCreationApIsDms()?' · '+_CG_UNCONFIRMED_NOTE:'')
+    +(_multi?' · '+_CG_MULTI_AWARD_NOTE:'');
 }
+var _CG_MULTI_AWARD_NOTE='this character\u2019s AP comes from several awards \u2014 change them in the Live Sheet, where each award is its own line';
 
 // TRUE when this character belongs to a campaign by any route, including a binding still being adopted
 // (_cgPendingCampaignId, set synchronously by _cgAdoptEnvelopeBinding). Same test _cgSealedFloor() uses.
@@ -4094,7 +4102,12 @@ function _cgSyncFlatCategory(cat){
   const isValid=_CG_RECONCILE_VALID[cat]||function(){return true;};
   const currentValues=(_domReadBuild()[domField]||[]).filter(isValid);
   const currentCounts={};currentValues.forEach(function(v){currentCounts[v]=(currentCounts[v]||0)+1;});
-  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;logCounts[v]=(logCounts[v]||0)+1;}});
+  // Only a value the form can SHOW is compared. currentValues above drops what isValid() rejects (a barred
+  // feature such as "Fighter: Weapon Mastery", one no longer in DATA), so the LOG side must drop the same
+  // values — they are KEPT, never "excess". Counting them made every pass try to retract an owned feature:
+  // before the lock that silently refunded it on any unrelated row edit, and after the lock the refusal
+  // below blocked every new purchase in the category (review of PR #636).
+  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;if(!isValid(v))return;logCounts[v]=(logCounts[v]||0)+1;}});
   let _refused=false;
   Object.keys(logCounts).forEach(function(v){
     let excess=logCounts[v]-(currentCounts[v]||0);
@@ -4796,22 +4809,22 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
   var ev={type:'names',dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];}),cost:0,label:'Named spells & languages'};
   // This dialog has no feat rows: an empty `feat` would make MUT.names wipe feat names the Live Sheet set.
   if(!Object.keys(feat).length)delete ev.feat;
+  // Same for grants: with no grant rows shown, an empty map would wipe grant names saved elsewhere.
+  if(!document.querySelector('#namesBox .nmf[data-k^="grant::"]'))delete ev.grants;
   // After "Finish creating" a saved name is part of the character's played history: the Live Sheet treats
   // it as locked (changing it is a Hit-Die swap with its own rules). CharGen has no swap rules, so here it
   // may only fill a blank — changing a name that is already set is refused (H2, conservative).
-  if(_cgIsLocked()){var _chg=_cgNamesChangedSet(readBuild(),ev);if(_chg){flash('\uD83D\uDD12 \u201c'+_chg+'\u201d is already named \u2014 once creation is finished, change a saved name in the Live Sheet.','error');return;}}
+  if(_cgIsLocked()){var _chg=_cgNamesChangedSet();if(_chg){flash('\uD83D\uDD12 \u201c'+_chg+'\u201d is already named \u2014 once creation is finished, change a saved name in the Live Sheet.','error');return;}}
   // Nothing changed → write nothing (no dead event, no dead undo step).
   var _cur=readBuild(),_nxt=JSON.parse(JSON.stringify(_cur));MUT.names(_nxt,JSON.parse(JSON.stringify(ev)));
   closeNames();
   if(JSON.stringify(_cgNamesOf(_cur))===JSON.stringify(_cgNamesOf(_nxt))){flash('No changes to your spell & language names.');return;}
   emit(ev);flash('Spell & language names saved to this character.');}
-// The first already-set name the event would CHANGE (a non-blank saved value replaced by a different one), or ''.
-function _cgNamesChangedSet(b,ev){var hit='';
-  function cmp(was,now){if(hit)return;if(Array.isArray(was)){was.forEach(function(w,i){cmp(w,Array.isArray(now)?now[i]:undefined);});return;}
-    if(was&&typeof was==='object'){Object.keys(was).forEach(function(k){cmp(was[k],now&&now[k]);});return;}
-    var w=String(was==null?'':was).trim(),n=String(now==null?'':now).trim();if(w&&n!==w)hit=w;}
-  cmp(b.languageNames||[],ev.lang);cmp(b.dabblerCantripNames||[],ev.dab);cmp(b.innateNames||[],ev.inn);cmp(b.grantNames||{},ev.grants);
-  (ev.tr||[]).forEach(function(t){var d=(((b.traditions||[])[t.ti]||{}).disciplines||[])[t.di];if(!d)return;cmp(d.cantripNames||[],t.cn);cmp(d.knownNames||[],t.kn);});
+// The first already-set name the dialog would CHANGE (a non-blank saved value replaced by a different one), or ''.
+// Compares only the rows the dialog RENDERS — each row's value attribute is the saved name it opened with —
+// so a stored name the dialog has no row for (an unowned grant, a dropped language slot) never blocks a save.
+function _cgNamesChangedSet(){var hit='';
+  document.querySelectorAll('#namesBox .nmf').forEach(function(e){if(hit)return;var w=String(e.defaultValue||'').trim(),n=String(e.value||'').trim();if(w&&n!==w)hit=w;});
   return hit;}
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
 function _buildEventBurst(b,opts){
