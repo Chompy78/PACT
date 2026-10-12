@@ -35,6 +35,8 @@ the LOG; DM house rules synced to the `HOUSE_RULES` patch slot). Three points hi
   longer in DATA — as **kept**, never as excess. **AP behaviour change, pre-lock:** before this, any unrelated
   edit to a feature row silently retracted such a feature and refunded its AP; now the character keeps it (and
   its cost). After the lock the old counting made every new purchase in that category impossible.
+  The count is taken on the folded name (`DATA.featureAliases`, as `FEAT_ALIAS`/`MUT.feature` do), so a feature
+  owned under a legacy name owns the new one and is not bought again (re-review of PR #636).
 
 ## Why
 Each pick is the one that refuses rather than rewrites or grants: no award is merged or minted (2b would

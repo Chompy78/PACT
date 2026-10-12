@@ -4107,14 +4107,20 @@ function _cgSyncFlatCategory(cat){
   // values — they are KEPT, never "excess". Counting them made every pass try to retract an owned feature:
   // before the lock that silently refunded it on any unrelated row edit, and after the lock the refusal
   // below blocked every new purchase in the category (review of PR #636).
-  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;if(!isValid(v))return;logCounts[v]=(logCounts[v]||0)+1;}});
+  // A feature bought under a legacy name (DATA.featureAliases, the map js/engine.js's FEAT_ALIAS reads —
+  // MUT.feature folds it to the new name) owns the NEW name the form shows. Count and retract by the
+  // folded name, or the old event looks missing from the form and the new name is bought again on every
+  // load (a Paladin's "Aura expansions" piled up 1 -> 2 -> 4 rows). Subclass abilities and spell bundles
+  // have no alias map (MUT.subabil / MUT.subbundle push the raw value).
+  const _al=function(v){return (cat==='feature'&&DATA.featureAliases&&DATA.featureAliases[v])||v;};
+  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=_al(e.payload.v);if(!isValid(v))return;logCounts[v]=(logCounts[v]||0)+1;}});
   let _refused=false;
   Object.keys(logCounts).forEach(function(v){
     let excess=logCounts[v]-(currentCounts[v]||0);
     // BREAK on a refusal. retractFlatEvent() returns false when the only match is inside the locked
     // prefix, and that cannot change by looping — the old `while` kept calling with identical arguments,
     // making no progress and re-entering render() from inside an input handler on each turn.
-    while(excess-->0){ if(retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;})===false){ _refused=true; break; } }
+    while(excess-->0){ if(retractFlatEvent(cat,function(e){return e.payload&&_al(e.payload.v)===v;})===false){ _refused=true; break; } }
   });
   // A refused removal (after the lock, or inside sealed history) keeps the purchase in the LOG, so the
   // row must come back: ✕ had already deleted it from the form, and a row retyped to something else would

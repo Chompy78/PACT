@@ -215,6 +215,27 @@ for (const locked of [false, true]) {
 }
 
 // -------------------------------------------------------------------------------------------------
+section('4c. a feature owned under a legacy (aliased) name is not bought again');
+{
+  const { ctx, p, errs } = await fresh();
+  const OLD='Paladin: Aura expansions', NEW='Paladin: Aura range → 30 ft (L18)', SW='Paladin: Lay on Hands';
+  await setSel(p,'oclass','Paladin');
+  await p.evaluate(o=>{ LOG.push({type:'buy',cat:'feature',payload:{v:o},cost:5,level:1,label:'Class feature — '+o,seq:SEQ++,ts:Date.now(),rules:DATA.version}); _cgRepaint(); }, OLD);
+  await p.waitForTimeout(300);
+  // Any feature edit runs the reconcile; use a second feature row (or re-fire on the existing one if absent).
+  await p.evaluate(f=>{ const ok=!!DATA.features[f]; if(ok){ addRow('feat2',f); } const r=[...document.querySelectorAll('.feat2row')].pop(); r.dispatchEvent(new Event('input',{bubbles:true})); }, SW);
+  await p.waitForTimeout(400);
+  await p.evaluate(()=>{ const r=[...document.querySelectorAll('.feat2row')][0]; r.dispatchEvent(new Event('input',{bubbles:true})); });
+  await p.waitForTimeout(400);
+  const n = await p.evaluate(([o,nw])=>LOG.filter(e=>e.type==='buy'&&e.cat==='feature'&&(e.payload.v===o||e.payload.v===nw)).length, [OLD,NEW]);
+  check('aura owned once, under either name', n===1, n+' events');
+  const rows = await p.evaluate(nw=>[...document.querySelectorAll('.feat2row')].filter(x=>x.value===nw).length, NEW);
+  check('…and shown in one row', rows===1, rows+' rows');
+  check('no page errors', errs.length===0, errs.join(' | '));
+  await ctx.close();
+}
+
+// -------------------------------------------------------------------------------------------------
 section('5. Elf + Elf clears to (none) in the LOG, not only on screen');
 {
   const { ctx, p, errs } = await fresh();
