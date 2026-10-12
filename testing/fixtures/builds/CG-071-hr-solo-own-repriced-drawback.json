@@ -1,0 +1,120 @@
+{
+ "name": "",
+ "budget": 50,
+ "originClass": "(none)",
+ "originClass2": "(none)",
+ "species": "(none)",
+ "species2": "(none)",
+ "racialTraits": [],
+ "lineage": "",
+ "racialSpells": [],
+ "stats": {
+  "STR": 10,
+  "DEX": 10,
+  "CON": 10,
+  "INT": 10,
+  "WIS": 10,
+  "CHA": 10
+ },
+ "hd": 1,
+ "profBonus": 2,
+ "hardy": 0,
+ "tough": 0,
+ "saves": [],
+ "skills": [],
+ "expertise": [],
+ "languages": 1,
+ "tools": [],
+ "instruments": [],
+ "customProfs": [],
+ "toolExpertise": [],
+ "arts": [],
+ "weaponProf": {
+  "simple": false,
+  "martial": 0,
+  "allMartial": false,
+  "improvised": false
+ },
+ "masteries": [],
+ "armour": {
+  "light": false,
+  "medium": false,
+  "heavy": false,
+  "shield": false
+ },
+ "extraClasses": 0,
+ "unlockedClasses": [],
+ "features": [],
+ "traditions": [],
+ "subAbilities": [],
+ "subSpellBundles": [],
+ "freeSub": {},
+ "drawbacks": [
+  "Slow to Mend"
+ ],
+ "gold": 0,
+ "dabblerCantrips": 0,
+ "attune": 0,
+ "ki": 0,
+ "sorcery": 0,
+ "wornArmour": "",
+ "martiallyBound": "(none)",
+ "boons": [],
+ "innate": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "appearance": {
+  "gender": "",
+  "age": "",
+  "height": "",
+  "build": "",
+  "hair": "",
+  "eyes": "",
+  "nose": "",
+  "skin": "",
+  "marks": "",
+  "voice": "",
+  "demeanour": "",
+  "quirk": "",
+  "likes": "",
+  "dislikes": "",
+  "father": "",
+  "mother": "",
+  "hometown": "",
+  "profession": "",
+  "familyfor": "",
+  "famevent": "",
+  "secret": "",
+  "drink": "",
+  "ambition": "",
+  "fear": "",
+  "prized": "",
+  "faith": "",
+  "companion": "",
+  "overall": ""
+ },
+ "size": "Small",
+ "houseRules": {
+  "draws": {
+   "Slow to Mend": {
+    "ap": 7
+   }
+  }
+ },
+ "version": "v0.322",
+ "id": "cmqxitainhby8e",
+ "description": "Campaign house rules (D-GH-2026-10-13-campaign-house-rules), plan §12(a): a SOLO build whose own CharGen house rules reprice Slow to Mend (printed 5) to 7. No campaign context, so the own patch applies: the drawback grants 7 (drawbackAp 7, spendable 50+7).",
+ "_expect": {
+  "drawbackAp": 7,
+  "spendable": 57,
+  "remaining": 55
+ }
+}

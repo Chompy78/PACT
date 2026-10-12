@@ -1454,6 +1454,39 @@ come from it.
 ---
 
 
+## feat/campaign-house-rules — campaign-wide house rules: tools, server, DM editor, #642 rework, Players Guide (PRs 2–6) — TODO
+Branches one per PR below. **Effort:** high · **Risk:** high — priced data across all three tools plus an AP-moving server migration.
+
+```text
+Owner decisions P2/R1/U1/T2/S2/V1/W1/X1/Y1 (2026-10-13) — read decisions/2026/D-GH-2026-10-13-campaign-house-rules.md and the plan
+docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) has landed:
+houseRulesCtx / withHouseRulesCtx / resolveHouseRules / effective tables / drawbackValue / drawbackBuyoffQuote / houseRulesImpact /
+serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events. Remaining, each its own PR:
+  PR2 feat/campaign-house-rules-tools (read-only): js/campaign.js houseRulesCtxFromRules(rules, campaignId) + a shared
+      latestRulesSnapshot(LOG); stamp the ctx at every fold entry point (Live Sheet + DM Console foldBuild wrappers, CharGen
+      readBuild, DM Console cloudAnalyze/analyzeAug); Live Sheet pickers/prices from the effective tables, buy-off via
+      drawbackBuyoffQuote (W1, fixes the free buy-off at ~LS 1064), ledger rows for the new events with esc(); CharGen HOUSE (own,
+      edited only when solo) vs EFF (effective) split — never re-emit the own patch slot from EFF; _cgRepriceDraft passes
+      {houseRulesCtx}; V1: relax _lsOverApBudget / _cgOverApBudget to refuse only spend INCREASES while AP left < 0.
+  PR3 feat/campaign-house-rules-server: one migration + rollback + Docker SQL harness (plan §6.1–6.5 + addendum M1/M3/M4/X1):
+      campaigns charHouseRules guard trigger, RPC dm_apply_house_rules_change, dm_edit_character_log accepts dmHouseRules,
+      pact_ap_ledger_spend counts the new events (dmEdit only, ΣΔ), split award/drawback earned + drawback cap (X1), DM-family
+      forgery guard. NOT applied without the owner; then get_advisors + logs. Resolve the X1 open question first (below).
+  PR4 feat/campaign-house-rules-dm-editor: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
+      houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does.
+  PR5 feat/dm-house-rules-editor (rework #642): per-character overrides as dmHouseRules on the same RPC/validator.
+  PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
+      testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
+      merge BEFORE preview is promoted to main.
+OPEN OWNER QUESTION (blocks PR3): with a campaign's drawback cap switched off, compute() grants drawbacks uncapped but X1's server
+falls back to capping at DATA.drawbackCap (12) — server stricter. Choose: browser caps at 12 in such a campaign, or server uncapped
+when the DM turned the cap off. house-rules-ledger-ci.mjs counts the cases.
+```
+**Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
+server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;
+leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
+verify-guide.mjs passes; promotion to main only after PR3 is applied and PR6 has landed.
+
 ## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
 Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
 
@@ -1467,6 +1500,8 @@ decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; so
 lock; starting gold refused both ways after the lock).
 ```
 **Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
+> **2026-10-13:** the owner chose BOTH — campaign-wide rules with this editor kept as per-character overrides (P2/R1). This branch
+> becomes PR5 of `feat/campaign-house-rules` above (its `buy/patch` event is replaced by `dmHouseRules`; see the plan's §8).
 
 ## fix/chargen-join-generation-guard — CharGen's join-campaign flow can bind the wrong character if the player switches mid-join — TODO
 Branch fix/chargen-join-generation-guard. **Effort:** low · **Risk:** medium — damage likelihood is low (narrow race), but the damage is a character attached to the wrong campaign.
