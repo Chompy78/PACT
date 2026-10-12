@@ -68,7 +68,9 @@
      non-functional — not merely degraded. This line used to claim file:// worked; it had not since
      D-GH26. Restoring it is a LATER consideration (docs/TASK_BOARD_LATER.md), not a live constraint.
    • Prices freeze at purchase; rules-version changes never retro-change paid costs (grandfathered).
-   • State persists to localStorage (KEY='pactLiveSheet'; manual fields under 'pactCharSheetManual:livesheet').
+   • State persists to localStorage (KEY='pactLiveSheet'; device-only manual fields — spell trackers etc. — under
+     'pactCharSheetManual:livesheet'; Player Name/Alignment/Background/Allies/Backstory are in the LOG since
+     fix/livesheet-name-description-notes).
      Keep the event-LOG / saved-JSON schema backward-compatible.
    • compute() must match the Players-Guide ladders (HD ladder; Ability Increase = 4 + |mod before|;
      Vigor cap = CON mod; Tiers T1–T7 Hit-Dice gates; origin discount vs cross-class surcharge;
@@ -300,6 +302,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
  .shtop{position:static}
 }
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
+.lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
 .shcol{display:flex;flex-direction:column;gap:10px}
 .shbox{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card)}
@@ -441,7 +444,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <button class="btn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
   <button class="btn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
   <button class="btn" style="padding:3px 8px" title="Redeem an AP grant code from your DM" onclick="redeemGrant()">⎀ Redeem</button>
-  <button class="btn" style="padding:3px 8px" onclick="(async function(){var n=prompt('Character name?');if(n==null)return;if(!(await _lsRenameGuard(n,currentCharId())))return;emit({type:'name',name:n,label:'Named: '+n});})()">✎ Rename</button>
+  <button class="btn" style="padding:3px 8px" onclick="lsRename()">✎ Rename</button>
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
@@ -900,7 +903,8 @@ function _viewOnlyBlock(){ if(!VIEW_ONLY) return false; if(typeof flash==='funct
 // check against, so nothing to enforce.
 async function _lsRenameGuard(newName, currentId){
   const trimmed = String(newName||'').trim();
-  if(!trimmed || trimmed.toLowerCase()==='new character') return true;
+  // Exempt exactly what the server's unique-name index exempts (sql/migrations/2026-10-11-unique-character-names.sql).
+  if(!trimmed || /^(new character|character)$/i.test(trimmed) || / \(dm copy\)$/i.test(trimmed)) return true;
   if(!window._lsSignedIn || !window._syncBridge || !window._syncBridge.listMyCharacters) return true;
   try{
     const mine = await window._syncBridge.listMyCharacters();
@@ -912,6 +916,24 @@ async function _lsRenameGuard(newName, currentId){
   }catch(e){ /* offline or lookup failed — don't block a rename on a check that couldn't run */ }
   return true;
 }
+// fix/livesheet-name-description-notes: the ONE rename path — the card's ✎, the Sheet's ✎ and the DM-tools ✎ all call it.
+// Trimmed; blank refused; a name ending " (DM copy)" refused (H2: reserved for DM snapshots — CharGen shows its DM-copy
+// banner for it, and the server's unique-name index exempts it). `name` events are not server-protected, so a rename is
+// allowed in every lock/seal/campaign state.
+async function lsRename(){
+  if(_viewOnlyBlock())return;
+  if(viewAt!=null){flash('Return to the present to rename.');return;}
+  var cur=foldBuild(null).name||'';
+  var n=prompt('Character name?',cur);if(n==null)return;
+  var t=String(n).trim();
+  if(!t){alert('A character needs a name — nothing was changed.');return;}
+  if(t===cur.trim())return;
+  if(/ \(dm copy\)$/i.test(t)){alert('Names ending in "(DM copy)" are reserved for a DM’s snapshot of a character. Pick a different name.');return;}
+  if(!(await _lsRenameGuard(t,currentCharId())))return;
+  emit({type:'name',name:t,label:'Named: '+t});
+  var ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}   // the open Sheet shows the new name too
+}
+function _lsRenameBtn(){return (VIEW_ONLY||viewAt!=null)?'':' <button type="button" class="btn shrename" onclick="lsRename()" aria-label="Rename character" title="Rename character" style="padding:1px 7px;font-size:13px;vertical-align:middle">✎</button>';}
 function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
 function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
@@ -1746,7 +1768,7 @@ function render(){
   // b.name/LOG, purely rendered here so two characters that legitimately share a name (e.g. a stray
   // unbound draft and the real campaign one, exactly the confusion that prompted this) are visually
   // distinguishable the moment the sheet is open, without having to check My Characters first.
-  let sh='<div class="shname">'+esc(b.name||'New Character')+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -1797,10 +1819,12 @@ function render(){
   const _cfVals=window._lsVisibleCustomFields||{};
   const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
   if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
+  sh+=_lsDescBlock(b);
   sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
   sh+='</div></div>';   // .shmain, .shgrid
   $('sheet').innerHTML=sh;
+  _lsScheduleCopyIn();
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
   // fix/history-shows-derived-lines: Heritage pack / 2nd origin species pack are DERIVED costs —
@@ -2163,7 +2187,7 @@ function buildBuyPanel(b,r,eco,head){
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
   const avail=_apRemaining(r.spendable,eco.spent);
-  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell});}
+  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell,nameEdit:_lsRenameBtn()});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
@@ -2305,8 +2329,9 @@ function csLoad(id){var all=_csStore();return all[_csKey(id)]||{};}
 function csSave(id,fieldId,val){try{var all=_csStore();var k=_csKey(id);(all[k]=all[k]||{})[fieldId]=val;localStorage.setItem(_sheetStoreKey(),JSON.stringify(all));}catch(e){}}
 var _csId='(none)';
 // fix/sheet-tab-appearance-not-persisted: these `data-mf` ids are real character data (b.appearance),
-// unlike Player Name/Alignment/Background-Other/Allies/Backstory-Notes/spell trackers, which have no LOG
-// concept and are genuinely device-local scratch notes. Before this fix ALL of them — appearance included
+// unlike the spell trackers, which are genuinely device-local scratch notes. (Player Name/Alignment/
+// Background-Other/Allies/Backstory-Notes were device-local too until fix/livesheet-name-description-notes
+// moved them into b.appearance — see PACT_SHEET_LOG_FIELDS in js/ui-helpers.js.) Before this fix ALL of them — appearance included
 // — went through csSave()/csLoad() only: a local, per-tool, per-character-id scratchpad that never
 // touched the LOG, so an edit made here never reached a cloud save, and looked like it "disappeared" the
 // moment the character was opened in the other tool (a different tool = a different scratchpad
@@ -2316,6 +2341,7 @@ var _csId='(none)';
 var SHEET_APPEARANCE_FIELDS=['ap_gender','ap_age','ap_height','ap_build','ap_hair','ap_eyes','ap_skin','ap_marks','ap_voice','ap_hometown','ap_faith','ap_ambition','ap_fear','ap_prized','ap_companion','ap_overall'];
 function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
   if(SHEET_APPEARANCE_FIELDS.indexOf(f)>=0){_shCommitAppearanceField(f.slice(3),v);return;}
+  if(Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){_shCommitAppearanceField(PACT_SHEET_LOG_FIELDS[f],v);return;}   // fix/livesheet-name-description-notes
   csSave(_csId,f,v);}
 // after innerHTML is set, fill manual fields from store (seeded with build defaults baked into data-seed) and wire save
 function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
@@ -2324,27 +2350,66 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
     // Appearance fields always show the LIVE LOG value (data-seed, freshly computed on every render) —
     // never a stored scratch override, so this view can no longer silently diverge from what Save/cloud
     // sync actually persists. Everything else keeps the original stored-or-seed behaviour.
-    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0)?null:data[id];
+    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0||Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,id))?null:data[id];
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
     if(el.addEventListener){el.addEventListener('input',function(){onSheetField(el);});el.addEventListener('change',function(){onSheetField(el);});}
   });}
 // Merge the edited key into the FULL current appearance object (so fields the Sheet doesn't show — nose,
-// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
-// survive untouched, matching CharGen's own _shCommitAppearanceField) and replace the LATEST existing
-// appearance-patch event in place (append one if none exists yet) — position-stability mirrors
-// replacePatchSlot()'s own rule (a re-append would move the ledger's Appearance line and, worse, put a
-// cost:0 event at the END of the LOG where undo() could pop it on the player's next click, undoing the
-// edit instead of their last real purchase).
+// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink, the
+// center panel's playerSheet — survive untouched) and write it through pactWithAppearance() (js/ui-helpers.js,
+// shared with CharGen): it rewrites ONLY the appearance of the LAST appearance event in place (keeping its seq,
+// cost, label, CharGen's _slot tag and any other patch field), or inserts a new one at LOG index 0 — never at the
+// tail, where undo() would pop it on the player's next click and wipe every appearance field
+// (fix/livesheet-name-description-notes; before it, this function dropped _slot and replaced the whole event).
 function _shCommitAppearanceField(key,v){
   if(_viewOnlyBlock())return;
   var merged=Object.assign({},(foldBuild(null).appearance)||{});merged[key]=v;
-  var at=-1;
-  for(var i=LOG.length-1;i>=0;i--){var e=LOG[i];if(e&&e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&Object.prototype.hasOwnProperty.call(e.payload.patch,'appearance')){at=i;break;}}
-  var ev={type:'buy',cat:'patch',payload:{patch:{appearance:merged}},cost:0,label:'Appearance & description (0 AP)',
-    seq:(at===-1?SEQ++:LOG[at].seq),ts:Date.now(),rules:RULES};
-  if(at===-1){LOG=LOG.concat([ev]);}else{LOG=LOG.slice();LOG[at]=ev;}
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,merged,{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
   save();render();
+}
+// One-time copy-in (fix/livesheet-name-description-notes): Player Name, Alignment, Background, Allies and Backstory used to
+// live only in this device's localStorage scratch (csSave, one bucket per tool). On the first render of a character whose
+// LOG lacks one of those keys, any local value from EITHER tool's bucket is written into the LOG once (pactNotesCopyInPlan).
+// Not an undo step (no REDO change, no viewAt change), never in the DM read-only view or while time-travelling. Idempotent:
+// afterwards the key is present (even '' once the player clears it), so it never runs again. The local scratch is NOT
+// deleted — kept for rollback/manual recovery; these fields simply stop reading it.
+var _lsCopyInPending=false;
+function _lsScheduleCopyIn(){ if(_lsCopyInPending||VIEW_ONLY||viewAt!=null)return; _lsCopyInPending=true; setTimeout(_lsNotesCopyIn,0); }
+function _lsNotesCopyIn(){
+  _lsCopyInPending=false;
+  if(VIEW_ONLY||viewAt!=null||typeof pactNotesCopyInPlan!=='function')return;
+  var id=currentCharId(); if(!id||id==='(none)')return;
+  var mine=pactSheetScratch('livesheet',id), other=pactSheetScratch('chargen',id);
+  if(!mine&&!other)return;
+  var cur=foldBuild(null).appearance||{};
+  var plan=pactNotesCopyInPlan(cur,mine,other,'Character Creator'); if(!plan)return;
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,Object.assign({},cur,plan),{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
+  save();render();
+}
+// Read-only "Appearance & description" block on the Character panel (fix/livesheet-name-description-notes). Reads the build
+// render() already folded (foldBuild(idx)), so time-travel stays honest. Every value through esc().
+var LS_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['build','Build'],['hair','Hair'],['eyes','Eyes'],['nose','Nose'],
+  ['skin','Skin'],['marks','Marks'],['voice','Voice'],['demeanour','Demeanour'],['quirk','Quirk'],['likes','Likes'],['dislikes','Dislikes'],
+  ['father','Father'],['mother','Mother'],['hometown','Home town'],['profession','Former trade'],['familyfor','Family known for'],
+  ['famevent','Notable past event'],['secret','Family secret'],['drink','Favourite drink'],['ambition','Ambition'],['fear','Greatest fear'],
+  ['prized','Prized possession'],['faith','Faith'],['companion','Companion'],['custom1','',1],['custom2','',1],
+  ['playerName','Player name'],['alignment','Alignment'],['background','Background'],['allies','Allies & organisations']];
+function _lsDescTxt(v){return esc(String(v)).replace(/\n/g,'<br>');}
+function _lsDescBlock(b){
+  var ap=(b&&b.appearance)||{}, rows=[], filled=function(v){return typeof v==='string'&&v.trim()!=='';};
+  LS_DESC_FIELDS.forEach(function(f){
+    if(f[2]){var lab=ap[f[0]+'Label'],txt=ap[f[0]+'Text'];if(filled(txt)||filled(lab))rows.push('<div class="seg"><b>'+(filled(lab)?esc(lab):'Note')+':</b> '+(filled(txt)?_lsDescTxt(txt):'')+'</div>');return;}
+    if(filled(ap[f[0]]))rows.push('<div class="seg"><b>'+esc(f[1])+':</b> '+_lsDescTxt(ap[f[0]])+'</div>');
+  });
+  var over=filled(ap.overall)?'<div class="seg">'+_lsDescTxt(ap.overall)+'</div>':'';
+  var back=filled(ap.backstory)?'<div class="seg"><b>Backstory &amp; notes:</b><br>'+_lsDescTxt(ap.backstory)+'</div>':'';
+  var any=!!(over||back||rows.length);
+  var edit=VIEW_ONLY?'':' <button type="button" class="btn" style="padding:1px 7px;font-size:12px" onclick="event.preventDefault();toggleSheet()" title="Edit these on the Sheet">✎ Edit on the Sheet</button>';
+  return '<details class="lsdesc"'+(any?' open':'')+'><summary><b>Appearance &amp; description</b>'+edit+'</summary>'
+    +(any?over+rows.join('')+back:'<div class="seg" style="color:var(--grey)">Nothing written yet — add a description on the 📋 Sheet or in the Character Creator.</div>')+'</details>';
 }
 var _CSABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
 function _csEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -2360,12 +2425,12 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+(ctx.nameEdit||'')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
-    '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
+    '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName',(b.appearance||{}).playerName||'','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
-    '<div class="cs-fld"><label>Alignment</label>'+_mfIn('alignment','','','e.g. NG')+'</div>'+
-    '<div class="cs-fld"><label>Background / Other</label>'+_mfIn('bg','','','background')+'</div>'+
+    '<div class="cs-fld"><label>Alignment</label>'+_mfIn('alignment',(b.appearance||{}).alignment||'','','e.g. NG')+'</div>'+
+    '<div class="cs-fld"><label>Background / Other</label>'+_mfIn('bg',(b.appearance||{}).background||'','','background')+'</div>'+
   '</div>');
   H.push('<div class="shsub" style="margin:-4px 0 8px">'+_csEsc(ctx.apText||'')+'</div>');
   {var ap=b.appearance||{};
@@ -2455,8 +2520,8 @@ function renderCharSheet(b,r,ctx){
   {var ap=b.appearance||{};
    H.push('<div class="shbox"><h5>Background &amp; Personality</h5><div class="cs-grid2">'+
      [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
-  H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies','','people and factions…',54)+'</div>');
-  H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes','','backstory, session notes, treasure…',80)+'</div>');
+  H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies',(b.appearance||{}).allies||'','people and factions…',54)+'</div>');
+  H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes',(b.appearance||{}).backstory||'','backstory, session notes, treasure…',80)+'</div>');
   H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
   return H.join('');
 }

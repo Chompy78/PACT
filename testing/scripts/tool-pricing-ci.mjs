@@ -1277,12 +1277,20 @@ try {
       const el=document.querySelector('#sheetbody [data-mf="ap_hometown"]');
       return el?el.value:null;})()`),
     'Testville');
-  check('a genuinely scratch field (Player Name) still round-trips via the local store, unaffected',
+  // fix/livesheet-name-description-notes moved Player Name (and Alignment/Background/Allies/Backstory) into the LOG as
+  // appearance sub-keys — it used to be the example of a scratch field here. The spell list is still genuinely device-local.
+  check('Player Name is now character data: committing it writes b.appearance.playerName, not the local store',
     await cg.evaluate(`(()=>{
       const el=document.querySelector('#sheetbody [data-mf="playerName"]');
       el.value='Jamie'; onSheetField(el);
-      return csLoad(currentCharId()).playerName;})()`),
-    'Jamie');
+      return [readBuild().appearance.playerName, readBuild().appearance.hometown, csLoad(currentCharId()).playerName||null];})()`),
+    ['Jamie', 'Testville', null]);
+  check('a genuinely scratch field (the spell list) still round-trips via the local store, unaffected',
+    await cg.evaluate(`(()=>{
+      const el=document.querySelector('#sheetbody [data-mf="spelllist"]');
+      el.value='Shield'; onSheetField(el);
+      return csLoad(currentCharId()).spelllist;})()`),
+    'Shield');
 
   // fix/randomise-appearance-not-persisted: found live (a real Amble character's randomised description
   // vanished after a Live Sheet <-> CharGen round trip). _rollField()/genDescription() set DOM .value
