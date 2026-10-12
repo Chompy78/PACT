@@ -17,6 +17,12 @@ than grants AP or opens an edit).
     is "Randomise re-applies them (same character)". B is also the conservative side: it cannot create a second row that a
     DM roster would show as another character. "New Character" still mints a new id; a player who wants a separate rolled
     character starts there.
+  - **Consequence handled in the same change (review of #643):** keeping the id means a roll UPDATEs the real row, so the
+    server's creation-lock guard (`pact_enforce_creation_lock`: the old lock family must be an exact prefix of the new one)
+    now sees it. The roll therefore carries the whole lock family — every `creationLockConfig` (threshold and auto-arm),
+    `creationLocked` and `creationUnlocked` — back in its original order, dropping the rebuild's fresh auto-arm when one was
+    carried. Carrying only threshold/lock events had turned an invite-seeded `[threshold, auto]` into `[auto, threshold]`;
+    a throwaway Postgres with the live guard and freeze stack refused that save and accepts the fixed one.
 - **Item 2 — when CharGen's creation-AP controls are refused.** Before: hidden only on a server-CONFIRMED campaign binding.
   While a binding was still being confirmed (or on a finished character whose binding could not be confirmed) a choice wrote
   a `creationLockConfig` threshold the server's guard refuses for a campaign character — the "history is locked" stuck state.
@@ -25,7 +31,8 @@ than grants AP or opens an edit).
   - **Decision: B**, as the task asked. A would lock a possibly-solo player (unbound by the DM since the file was saved) out of
     their own creation AP whenever they are offline; the server refuses the write anyway if the character really is bound.
     The "confirming" window is `window._cgBindingPending`, set when `_cgAdoptEnvelopeBinding()` starts and cleared when it
-    finishes or the character changes.
+    finishes, when the character changes, or when a newer `_cgResolveDmApStatus()` (cloud load, join, claim) takes over —
+    which also drops a stale `_cgPendingCampaignId`.
 - **Item 4 — what counts as "campaign" for the Live Sheet's non-core (Tasha) switch.** CharGen keys its DM-call lock on a
   CONFIRMED binding; the Live Sheet has no confirmed/unconfirmed distinction.
   - A. Lock on `window._lsCampaignId` (any route), as the Live Sheet's self-award block already does. B. Add a confirmed flag to

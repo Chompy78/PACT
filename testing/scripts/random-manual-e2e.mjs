@@ -149,7 +149,9 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
   '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
 async function startServer(port) {
   const server = http.createServer(async (q, r) => {
-    const rel = decodeURIComponent(q.url.split('?')[0]).replace(/^\/PACT\/?/, '') || 'index.html';
+    let rel;
+    try { rel = decodeURIComponent(q.url.split('?')[0]).replace(/^\/PACT\/?/, '') || 'index.html'; }
+    catch { r.writeHead(400); return r.end('bad request'); }   // a malformed %-escape must not crash the run
     const file = path.join(REPO_ROOT, rel);
     if (!file.startsWith(REPO_ROOT)) { r.writeHead(403); return r.end('forbidden'); }
     try {

@@ -52,7 +52,9 @@ const cgFresh = async () => {
     window._authBridge.currentSession = async()=>({user:{id:'test-session'}});
     window.__srv = {ap:42, campaignId:C1}; window.__delay = 0;
     const wait = ()=>new Promise(r=>setTimeout(r, window.__delay));
-    window._syncBridge.refreshServerBinding = async()=>{ await wait(); return window.__srv; };
+    // window.__srvId (optional): the server answers only for that character id; any other id has no row.
+    window.__srvId = null;
+    window._syncBridge.refreshServerBinding = async(id)=>{ await wait(); return (window.__srvId==null || id===window.__srvId) ? window.__srv : null; };
     window._syncBridge.refreshServerAp = async()=>{ await wait(); return window.__srv ? window.__srv.ap : null; };
     window._campaignBridge.getCampaign = async(id)=>({id, name:'Test campaign '+id.slice(-2), rules:{}, ignore_player_ap:false});
     window.__C1 = C1;
@@ -111,6 +113,21 @@ section('2. no creation-AP threshold while the binding is confirming, or on a fi
   await p.waitForTimeout(2800);
   check('confirmed afterwards: still no row (the DM owns it)', !(await rowShown()));
 
+  // A newer resolve (here: a cloud load of a SOLO character) takes over while an adopt is still in flight.
+  await cgFresh();
+  await p.evaluate(()=>{ window.__delay = 2500; });
+  await p.evaluate((txt)=>loadFile(new File([txt],'probe.json',{type:'application/json'})), env);
+  await p.waitForTimeout(400);
+  check('(precondition) an adopt is in flight', await p.evaluate(()=>!!window._cgBindingPending));
+  await p.evaluate(()=>_cgResolveDmApStatus(0, null)); await p.waitForTimeout(300);
+  const stP = await p.evaluate(()=>({pending:!!window._cgBindingPending, bound:_cgIsCampaignBound(), why:_cgCreationApRefused()}));
+  check('a newer resolve clears the pending flag and the stale pending campaign', !stP.pending && !stP.bound && stP.why==='', JSON.stringify(stP));
+  await p.waitForTimeout(2600);
+  const stP2 = await p.evaluate(()=>({pending:!!window._cgBindingPending, bound:_cgIsCampaignBound(), why:_cgCreationApRefused()}));
+  check('...and the old adopt finishing late does not bring them back', !stP2.pending && !stP2.bound && stP2.why==='', JSON.stringify(stP2));
+  await p.evaluate(()=>render());   // a real cloud load renders after its resolve
+  check('...so the solo character keeps its Building-level row', await rowShown());
+
   // Offline / unconfirmed: the controls stay open, with the note.
   await cgFresh();
   await p.evaluate(()=>{ window.__srv = null; });
@@ -138,13 +155,16 @@ section('2. no creation-AP threshold while the binding is confirming, or on a fi
 section('3. an untagged Live Sheet file adopts its campaign binding');
 {
   await cgFresh();
-  const raw = await p.evaluate((C1)=>{ const e=_cgEnvelope(false); return JSON.stringify({name:'Untagged Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, campaignId:C1}); }, C1);
+  const FID = '11111111-2222-4333-8444-555555555555';
+  const raw = await p.evaluate(([C1,FID])=>{ const e=_cgEnvelope(false); return JSON.stringify({name:'Untagged Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, id:FID, campaignId:C1}); }, [C1,FID]);
   await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate((FID)=>{ window.__srvId = FID; }, FID);   // the server has a row for the FILE's id only
   await p.evaluate((txt)=>loadFile(new File([txt],'ls.json',{type:'application/json'})), raw);
   await p.waitForTimeout(1500);
-  const st = await p.evaluate(()=>({id:window._cgCampaignId, ap:window._dmAp, status:window._dmApStatus}));
+  const st = await p.evaluate(()=>({cid:currentCharId(), id:window._cgCampaignId, ap:window._dmAp, status:window._dmApStatus, confirmed:!!window._cgBindingConfirmed}));
+  check('the untagged file keeps its own character id', st.cid===FID, JSON.stringify(st));
   check('the untagged file\'s character is bound to its campaign', st.id===C1, JSON.stringify(st));
-  check('...with its DM AP (42)', st.ap===42 && st.status==='active', JSON.stringify(st));
+  check('...confirmed by the server for that id, with its DM AP (42)', st.confirmed && st.ap===42 && st.status==='active', JSON.stringify(st));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -156,6 +176,36 @@ section('5. Randomise keeps the character id');
   const id1 = await p.evaluate(()=>currentCharId());
   check('a re-roll is the same character (same id)', id0===id1, `${id0} -> ${id1}`);
   check('...and its saved envelope carries that id', await p.evaluate((id0)=>_cgEnvelope(false).id===id0, id0));
+
+  // The server's creation-lock guard compares the old lock family to the new one position by position
+  // (pact_lock_family: lock/unlock/config events, minus seq/ts/rules/label). Since the roll keeps the id it
+  // UPDATEs the real row, so the old family must be an exact prefix of the new one.
+  const fam = () => p.evaluate(()=>LOG.filter(e=>e&&['creationLocked','creationUnlocked','creationLockConfig'].includes(e.type))
+    .map(e=>{ const o=Object.assign({},e); delete o.seq; delete o.ts; delete o.rules; delete o.label; return JSON.stringify(o); }));
+  const isPrefix = (a,b) => a.length<=b.length && a.every((x,i)=>x===b[i]);
+  // (a) the invite-join seed: a DM-set threshold first, then the tool's own auto-arm.
+  await cgFresh();
+  await p.evaluate(()=>{ LOG = LOG.filter(e=>!['creationLocked','creationUnlocked','creationLockConfig'].includes(e.type));
+    LOG.unshift({type:'creationLockConfig',payload:{threshold:79},seq:SEQ++,ts:Date.now(),systemEdit:true});
+    _cgEnsureLockArmed(); render(); });
+  const la0 = await p.evaluate(()=>JSON.stringify(LOG));
+  const fa0 = await fam();
+  check('(precondition) invite seed: [threshold, auto]', fa0.length===2 && /threshold/.test(fa0[0]) && /auto/.test(fa0[1]), JSON.stringify(fa0));
+  await p.evaluate(()=>randomizeRoll(null, 0)); await p.waitForTimeout(800);
+  const fa1 = await fam();
+  if(process.env.PACT_DUMP_ROLL_LOGS) fs.writeFileSync(process.env.PACT_DUMP_ROLL_LOGS, JSON.stringify({before:JSON.parse(la0), after:await p.evaluate(()=>LOG)}));
+  check('invite seed: the old lock family is an exact prefix of the rolled one', isPrefix(fa0, fa1), JSON.stringify(fa1));
+  check('invite seed: no second auto-arm', fa1.filter(x=>/"auto"/.test(x)).length===1, JSON.stringify(fa1));
+  // (b) a DM reopen: [auto, ..., locked, unlocked], then a roll.
+  await cgFresh();
+  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>{ LOG.push({type:'creationUnlocked',seq:SEQ++,ts:Date.now(),label:'Creation reopened by the DM'}); render(); });
+  const fb0 = await fam();
+  check('(precondition) reopened: the family ends locked, unlocked', /creationLocked/.test(fb0[fb0.length-2]||'') && /creationUnlocked/.test(fb0[fb0.length-1]||''), JSON.stringify(fb0));
+  await p.evaluate(()=>randomizeRoll(null, 0)); await p.waitForTimeout(800);
+  const fb1 = await fam();
+  check('reopened: the old lock family is an exact prefix of the rolled one', isPrefix(fb0, fb1), JSON.stringify(fb1));
+  check('reopened: the roll left the character reopened (not locked)', await p.evaluate(()=>!_cgIsLocked()));
 }
 
 // -------------------------------------------------------------------------------------------------
