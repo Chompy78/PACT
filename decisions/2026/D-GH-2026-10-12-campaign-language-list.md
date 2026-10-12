@@ -41,3 +41,16 @@ text, with a fixed suggestion list (`LANGS_2024`, the 2024 PHB list) copied sepa
 
 - Gate: `testing/scripts/campaign-language-list-e2e.mjs` (22 checks), wired into `economy-ui.yml`.
 - Not done: the DM Console roster doesn't mark off-list names (its proficiency overview shows language counts only).
+
+## Addendum (2026-10-12) — Amble configured, Common removed
+
+- Release: #631 (v1.631) was merged before #632 landed, so the feature shipped in v1.641 (#641). The v1.631 changelog line
+  that listed #632 was removed in #640.
+- Amble now has the eight-language list with `strict: true` (owner: "remove common as a selectable language"). This was a
+  direct database write, not the DM Console, at the owner's request.
+- "Haldeni first" was done by **appending** a `names` event carrying only `lang` to each character. `MUT.names` sets only the
+  fields an event carries, so the character's existing spell, feat and other names survive. Rewriting the old `names` event
+  was not an option: `names` is in the protected ledger projection (`pact_ap_ledger_protected`), and the history guard refuses
+  changes to it. Wren Ashdown Ch8-12's old `["Common","",""]` therefore stays in her history, superseded and not displayed.
+- Slots after the first were left blank for players to fill from the list. `feat/names-before-spending` (NEXT) will make
+  naming them mandatory before more AP is spent.
