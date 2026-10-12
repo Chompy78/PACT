@@ -34,7 +34,7 @@ import { purchaseCost, effectiveBandRows, bandRowKey, wealthLedger, priceLabel, 
   from '../../js/engine.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 8733, CDP_PORT = 9335;   // distinct from tool-pricing-ci.mjs so the two can run at once
+const PORT = Number(process.env.PACT_E2E_PORT) || 8733, CDP_PORT = Number(process.env.PACT_E2E_CDP_PORT) || 9335;   // distinct from tool-pricing-ci.mjs so the two can run at once
 
 let pass = 0, fail = 0;
 function check(name, actual, expected) {

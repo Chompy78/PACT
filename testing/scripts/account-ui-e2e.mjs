@@ -26,7 +26,7 @@ import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7976;   // not 7970/7971/7973/7974/7975/7979/7987/7991
+const PORT = Number(process.env.PACT_E2E_PORT) || 7976;   // not 7970/7971/7973/7974/7975/7979/7987/7991
 
 let pass = 0, fail = 0;
 let _summaryPrinted = false;

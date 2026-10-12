@@ -92,7 +92,7 @@ if (args.help || process.argv.slice(2).includes('-h')) {
 }
 
 const REPO = path.resolve(args.repo || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
-const PORT = 8737, CDP_PORT = 9339;   // distinct from the CI gates' ports so this can run alongside them
+const PORT = Number(process.env.PACT_E2E_PORT) || 8737, CDP_PORT = Number(process.env.PACT_E2E_CDP_PORT) || 9339;   // distinct from the CI gates' ports so this can run alongside them
 const csv = v => (v == null ? [] : String(v).split(',').map(s => s.trim()).filter(Boolean));
 
 function findChrome() {

@@ -17,7 +17,7 @@ import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7997;   // distinct from cloud-e2e 7970 / seed 7971 / dm-console-ui 7973 / chargen-flows 7979 / protected-roundtrip 7991 / live-sheet-unlock 7992 / dm-console-unlock 7994 / wounds-ui 7995 / 7996
+const PORT = Number(process.env.PACT_E2E_PORT) || 7997;   // distinct from cloud-e2e 7970 / seed 7971 / dm-console-ui 7973 / chargen-flows 7979 / protected-roundtrip 7991 / live-sheet-unlock 7992 / dm-console-unlock 7994 / wounds-ui 7995 / 7996
 const MIME = { '.html':'text/html','.js':'text/javascript','.json':'application/json',
                '.css':'text/css','.webp':'image/webp','.png':'image/png','.svg':'image/svg+xml' };
 const server = http.createServer((q, r) => {

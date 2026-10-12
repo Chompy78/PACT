@@ -18,6 +18,7 @@ on:
       - "testing/scripts/chargen-campaign-stuck-e2e.mjs"
       - "testing/scripts/player-free-ap-e2e.mjs"
       - "testing/scripts/player-award-after-lock-e2e.mjs"
+      - "testing/scripts/audit-followups-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/chargen-flows.yml"
@@ -30,7 +31,7 @@ concurrency:
 jobs:
   chargen-flows:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,3 +60,5 @@ jobs:
         run: node testing/scripts/player-free-ap-e2e.mjs
       - name: No AP-adding write the server refuses on a finished campaign character
         run: node testing/scripts/player-award-after-lock-e2e.mjs
+      - name: Audit-fix follow-ups (wallet race, creation AP, binding, Tasha, Randomise id)
+        run: node testing/scripts/audit-followups-e2e.mjs

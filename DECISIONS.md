@@ -17,6 +17,13 @@
   relocation keeps working. A redeemed AP code counts as a player award there (Live Sheet refuses Redeem first). Closes the award
   route only (negative costs remain a board task). Migration NOT APPLIED — owner applies + runs get_advisors.
   Full record: `decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md`.
+## D-GH-2026-10-12-audit-fix-followups-2026-10-12 — Randomise keeps the id; creation AP refused while confirming; Live Sheet Tasha lock
+- H2 (owner away), provisional. A CharGen re-roll is the same character, so it keeps its id (no second cloud row). CharGen's
+  creation-AP controls are refused while a campaign binding is being confirmed and on a finished campaign character; an
+  unconfirmed binding on an unfinished character (offline) stays usable. The Live Sheet's non-core switch locks on
+  `_lsCampaignId` (its existing campaign test) and after the lock. An untagged Live Sheet file keeps its id and campaign
+  binding only when its LOG has no lock event, award or seal; otherwise it opens as a separate copy.
+  Full record: `decisions/2026/D-GH-2026-10-12-audit-fix-followups-2026-10-12.md`.
 ## D-GH-2026-10-12-player-free-ap — players can't grant themselves AP or get AP back after the lock
 - H2 (owner away), provisional. Live Sheet hides/refuses + Award AP, + Discount and ⎘ AP code on a campaign character (⎀ Redeem
   stays); solo self-awards unchanged (not made `noLock`). CharGen's DM house rules are read-only on a confirmed campaign character

@@ -22,7 +22,7 @@
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7987;   // distinct from the other gates' ports
+const PORT = Number(process.env.PACT_E2E_PORT) || 7987;   // distinct from the other gates' ports
 const srv=http.createServer((q,r)=>{const rel=decodeURIComponent(q.url.split('?')[0]).replace(/^\/PACT\/?/,'')||'index.html';
   fs.readFile(path.join(REPO,rel),(e,d)=>{if(e){r.writeHead(404);return r.end('nf');}
     r.writeHead(200,{'Content-Type':rel.endsWith('.html')?'text/html':'text/plain','Cache-Control':'no-store'});r.end(d);});});
