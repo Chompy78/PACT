@@ -545,7 +545,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="toggleSheet()">📋 Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button><button class="btn ghost" id="cgFinishCreatingBtn" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button><span class="btn ghost" id="cgCreationLockedChip" role="status" title="Character creation is finished. Traits from your own species now cost more, traits from other species can no longer be added, and anything bought during creation stays at the price you paid. Only your DM can reopen creation." style="display:none;cursor:default">🔒 Creation finished</span><span id="cgNoLimitNote" style="display:none;font-size:11px;color:var(--warn);align-self:center" title="Creation ends with a Finish creating button, which appears once your DM sets a creation limit for this character.">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — saved into this character's history">✎ Name spells</button><button class="btn ghost" id="cgFinishCreatingBtn" onclick="cgFinishCreating()" title="End character creation." style="display:none">✔ Finish creating</button><span class="btn ghost" id="cgCreationLockedChip" role="status" title="Character creation is finished. Traits from your own species now cost more, traits from other species can no longer be added, and anything bought during creation stays at the price you paid. Only your DM can reopen creation." style="display:none;cursor:default">🔒 Creation finished</span><span id="cgNoLimitNote" style="display:none;font-size:11px;color:var(--warn);align-self:center" title="Creation ends with a Finish creating button, which appears once your DM sets a creation limit for this character.">Your DM hasn't set a creation limit yet — ask them to set one in the DM Console, then you can finish creating.</span>
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random character — pick a theme and a target level, then roll. Keeps your current species, class and name.">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button></div>
@@ -559,7 +559,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn ghost" onclick="switchToLiveSheet()" title="Open this character in the Live Sheet right now — no file to save or import">⇆ Open in Live Sheet</button>
 <button class="btn ghost" onclick="genPortrait()" title="Generate AI image-generator prompts from this character">📷 AI Portrait</button>
 <button class="btn ghost" onclick="shareLink()" title="Copy a shareable link that encodes this whole build in the URL">🔗 Share</button>
-<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — they carry into the Live Sheet export">✎ Name spells</button>
+<button class="btn ghost" onclick="openNames()" title="Name your spells & languages — saved into this character's history">✎ Name spells</button>
 <button class="btn ghost" onclick="randomizeBuild()" title="Roll a random character — pick a theme and a target level, then roll. Keeps your current species, class and name.">🎲 Random</button>
 <button class="btn ghost" onclick="showInfo()" title="How this tool works and how the two tools link">&#x2139;&#xFE0F; Info</button>
 </div>
@@ -2286,7 +2286,14 @@ function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();
   if(kind==='boon'){HOUSE.boons[name]={hd:+val('dmhd')||1,ap,fx:desc};}
   else{HOUSE.draws[name]={ap,fx:desc};}
   $('dmname').value='';$('dmdesc').value='';
+  _cgHouseChanged();}
+// Every DM house-rule edit lands in the LOG (the HOUSE_RULES patch slot), not only in the page's HOUSE
+// global — otherwise a custom/repriced/disabled boon or drawback was lost on save, reload and undo, and the
+// engine's compute(foldBuild(LOG)) never saw it (fix/chargen-livesheet-data-loss).
+function _cgHouseChanged(){
   buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
+  _cgSyncPatchSlot(PATCH_SLOTS.HOUSE_RULES);
+  _cgReconcileChecklistDependents();   // a disabled/removed item unticks its box — take it out of the LOG too
   render();}
 // repricing an existing boon/drawback: when the typed name exactly matches a built-in or custom item,
 // pre-fill HD / AP / description from its current values so leaving a field untouched keeps that value
@@ -2300,17 +2307,14 @@ function dmDisableBuiltin(){const kind=val('dmkind');const name=(val('dmname')||
   if(!(name in pool)){flash('No built-in '+kind+' named "'+name+'".');return;}
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   if(!HOUSE.disabled[dk].includes(name))HOUSE.disabled[dk].push(name);
-  $('dmname').value='';buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  render();}
+  $('dmname').value='';_cgHouseChanged();}
 function dmRemove(kind,name){const map=kind==='boon'?HOUSE.boons:HOUSE.draws;delete map[name];
   // also clear from disabled list if present
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=(HOUSE.disabled[dk]||[]).filter(x=>x!==name);
-  buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  render();}
+  _cgHouseChanged();}
 function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   const i=HOUSE.disabled[dk].indexOf(name);if(i>=0)HOUSE.disabled[dk].splice(i,1);else HOUSE.disabled[dk].push(name);
-  buildArtGrid(); buildBoonGrid();buildDrawGrid();buildDmList();
-  render();}
+  _cgHouseChanged();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
   const add=(kind,name,meta)=>{const off=isDisabled(kind==='boon'?'boons':'draws',name);
     // A house-rule name is user-typed and rides in the saved envelope, so it crosses users: esc() it
@@ -3189,6 +3193,10 @@ function _cgApplyBuildLevel(){
   // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
   // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
   if(_cgCreationApIsDms()){ _cgSyncBuildLevelDisplay(); return; }
+  // Several awards: the budget is their sum and is changed in the Live Sheet (see _cgSyncAward), so a level
+  // pick could only write a creation-AP threshold that no longer matches the budget. The controls are
+  // disabled (_cgSyncBuildLevelDisplay); this is the belt to that brace.
+  if(_cgAwardCount()>1){ _cgSyncBuildLevelDisplay(); return; }
   // Re-entrancy guard: this writes the budget and then emits, and emit() renders. Without it a render
   // triggered mid-apply can re-enter here on a half-updated budget.
   if(_cgApplyingBuildLevel)return;
@@ -3225,13 +3233,17 @@ function _cgSyncBuildLevelDisplay(){
   // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
   // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
   {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApIsDms()?'none':'';}
+  const _multi=_cgAwardCount()>1;
+  ['buildLevel','buildCurve'].forEach(function(id){const e=$(id);if(e){e.disabled=_multi;e.title=_multi?_CG_MULTI_AWARD_NOTE:'';}});
   const bi=$('budget'), hint=$('buildLevel_hint');
   if(!bi||!hint)return;
   const cur=Number(bi.value)||0, thr=_creationLockState().threshold;
   const awarded=cur-thr;
   hint.textContent=cur+' AP total · '+Math.min(cur,thr)+' creation'+(awarded>0?(' + '+awarded+' awarded'):'')
-    +(_cgIsCampaignBound()&&!_cgCreationApIsDms()?' · '+_CG_UNCONFIRMED_NOTE:'');
+    +(_cgIsCampaignBound()&&!_cgCreationApIsDms()?' · '+_CG_UNCONFIRMED_NOTE:'')
+    +(_multi?' · '+_CG_MULTI_AWARD_NOTE:'');
 }
+var _CG_MULTI_AWARD_NOTE='this character\u2019s AP comes from several awards \u2014 change them in the Live Sheet, where each award is its own line';
 
 // TRUE when this character belongs to a campaign by any route, including a binding still being adopted
 // (_cgPendingCampaignId, set synchronously by _cgAdoptEnvelopeBinding). Same test _cgSealedFloor() uses.
@@ -3755,11 +3767,15 @@ function replaceWholeLogFromBuild(b,opts){
   // user edit. A character saved in that window would carry no arming event, and the Live Sheet would
   // not add one either (it arms only in seedNew(), which runs on an EMPTY log). SEQ is set first
   // because _cgEnsureLockArmed() consumes one.
-  // epicBoonAbil has no CharGen control, so a build read from the DOM never carries it and the
-  // rewritten log used to drop it: a Live Sheet character with epic boons, opened here and
-  // re-saved, lost its ability choices and kept a permanent "choose an ability to raise" warning.
-  // Recover it from the log we are about to replace and hand it to the burst on the build.
-  try{ if(b&&!b.epicBoonAbil){ var _pv=foldBuild(LOG); if(_pv&&_pv.epicBoonAbil&&Object.keys(_pv.epicBoonAbil).length)b.epicBoonAbil=_pv.epicBoonAbil; } }catch(e){}
+  // Names (incl. epicBoonAbil, which has no CharGen control) come from opts.names when the caller passes
+  // it — applyBuild ALWAYS does, with the incoming build's own names (null for a blank build). They used to
+  // be recovered from the LOG being replaced, which on New Character / file load / #b= link is the PREVIOUS
+  // character, so its names and epic-boon choices leaked into the next one (fix/chargen-livesheet-data-loss).
+  // Only a caller that passes no `names` at all — a same-character rewrite — still carries the current LOG's.
+  if(!(opts&&Object.prototype.hasOwnProperty.call(opts,'names'))){
+    var _keep=null;try{_keep=_cgNamesOf(foldBuild(LOG));}catch(e){}
+    opts=Object.assign({},opts||{},{names:_keep});
+  }
   commitHistory();LOG=buildToEventLog(b,opts);SEQ=nextSeq(LOG);_cgEnsureLockArmed();_cgRepriceDraft();render();
 }
 
@@ -3854,7 +3870,18 @@ function _cgSyncName(){const nm=val('cname')||'';
 //
 // The invariant to hold on to: b.budget, val('budget') and this award's amount are ALL the raw award
 // now. No conversion belongs anywhere on this path.
+function _cgAwardCount(){return LOG.filter(function(e){return e&&e.type==='award';}).length;}
 function _cgSyncAward(){
+  // A character whose AP came as SEVERAL awards (the Live Sheet records each with its own note and date)
+  // has no single budget to edit: the singleton rewrite below would merge them all into one line. Refuse
+  // and put the field back to their sum (H2, D-GH-2026-10-12-chargen-livesheet-data-loss) — awards are
+  // changed in the Live Sheet, where each one is its own line.
+  if(_cgAwardCount()>1){
+    const _sum=(foldBuild(LOG).budget)||0, bi=$('budget');
+    if(bi&&String(bi.value)!==String(_sum)){bi.value=_sum;
+      if(!_histSuspended)flash('\uD83D\uDD12 This character\u2019s AP comes from '+_cgAwardCount()+' separate awards \u2014 change them in the Live Sheet, where each award is its own line.','error');}
+    return;
+  }
   // Number(), not `||`: a budget of 0 is a REAL value for a campaign character (its AP lives in the DM
   // pool, not in an award event), and `0 || DATA.level1AP` silently turned that into 79. Only a blank or
   // unparseable field falls back to the level-1 default.
@@ -4075,14 +4102,31 @@ function _cgSyncFlatCategory(cat){
   const isValid=_CG_RECONCILE_VALID[cat]||function(){return true;};
   const currentValues=(_domReadBuild()[domField]||[]).filter(isValid);
   const currentCounts={};currentValues.forEach(function(v){currentCounts[v]=(currentCounts[v]||0)+1;});
-  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=e.payload.v;logCounts[v]=(logCounts[v]||0)+1;}});
+  // Only a value the form can SHOW is compared. currentValues above drops what isValid() rejects (a barred
+  // feature such as "Fighter: Weapon Mastery", one no longer in DATA), so the LOG side must drop the same
+  // values — they are KEPT, never "excess". Counting them made every pass try to retract an owned feature:
+  // before the lock that silently refunded it on any unrelated row edit, and after the lock the refusal
+  // below blocked every new purchase in the category (review of PR #636).
+  // A feature bought under a legacy name (DATA.featureAliases, the map js/engine.js's FEAT_ALIAS reads —
+  // MUT.feature folds it to the new name) owns the NEW name the form shows. Count and retract by the
+  // folded name, or the old event looks missing from the form and the new name is bought again on every
+  // load (a Paladin's "Aura expansions" piled up 1 -> 2 -> 4 rows). Subclass abilities and spell bundles
+  // have no alias map (MUT.subabil / MUT.subbundle push the raw value).
+  const _al=function(v){return (cat==='feature'&&DATA.featureAliases&&DATA.featureAliases[v])||v;};
+  const logCounts={};LOG.forEach(function(e){if(e.type==='buy'&&e.cat===cat){const v=_al(e.payload.v);if(!isValid(v))return;logCounts[v]=(logCounts[v]||0)+1;}});
+  let _refused=false;
   Object.keys(logCounts).forEach(function(v){
     let excess=logCounts[v]-(currentCounts[v]||0);
     // BREAK on a refusal. retractFlatEvent() returns false when the only match is inside the locked
     // prefix, and that cannot change by looping — the old `while` kept calling with identical arguments,
     // making no progress and re-entering render() from inside an input handler on each turn.
-    while(excess-->0){ if(retractFlatEvent(cat,function(e){return e.payload&&e.payload.v===v;})===false) break; }
+    while(excess-->0){ if(retractFlatEvent(cat,function(e){return e.payload&&_al(e.payload.v)===v;})===false){ _refused=true; break; } }
   });
+  // A refused removal (after the lock, or inside sealed history) keeps the purchase in the LOG, so the
+  // row must come back: ✕ had already deleted it from the form, and a row retyped to something else would
+  // otherwise be charged as a NEW purchase on top of the one the LOG kept. Put the form back from the LOG
+  // and stop — nothing in this pass may be added (fix/chargen-livesheet-data-loss).
+  if(_refused){ if(!_histSuspended) _cgRepaint(); return false; }
   Object.keys(currentCounts).forEach(function(v){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
@@ -4176,7 +4220,7 @@ function _cgSlotPatch(slot,dom){
     case PATCH_SLOTS.ECONOMY: return {gold:dom.gold};
     case PATCH_SLOTS.MISC: return {martiallyBound:dom.martiallyBound,dabblerCantrips:dom.dabblerCantrips};
     case PATCH_SLOTS.IDENTITY: return {originClass:dom.originClass,originClass2:dom.originClass2,species:dom.species,species2:dom.species2,size:dom.size,lineage:dom.lineage};
-    case PATCH_SLOTS.HOUSE_RULES: return {houseRules:dom.houseRules};
+    case PATCH_SLOTS.HOUSE_RULES: return {houseRules:JSON.parse(JSON.stringify(dom.houseRules||{}))};   // a copy: HOUSE is edited in place, and an aliased LOG payload would change with it
     case PATCH_SLOTS.APPEARANCE: return {appearance:dom.appearance};
     case PATCH_SLOTS.INNATE: return {innate:dom.innate};
     case PATCH_SLOTS.CUSTOM_PROFS: return {customProfs:dom.customProfs};   // Chunk 4A
@@ -4499,6 +4543,12 @@ function buildSubPickers(){
   grid.querySelectorAll('.freesub').forEach(sel=>sel.addEventListener('change',render));
 }
 let _fileHandle=null;
+// The character id the open file belongs to. Local Save writes back to _fileHandle ONLY while the same
+// character is open: a cloud load, a Live Sheet handoff, a DM "copy to CharGen", an invite, an undo past a
+// load, New Character — every character switch changes currentCharId(), so none of them can overwrite the
+// earlier character's file (fix/chargen-livesheet-data-loss). Explicit clears below stay as belt and braces.
+let _fileHandleFor=null;
+function _cgOpenFileHandle(){if(_fileHandle&&_fileHandleFor===currentCharId())return _fileHandle;_fileHandle=null;_fileHandleFor=null;return null;}
 async function _fsWrite(h,data){const w=await h.createWritable();await w.write(data);await w.close();}
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
@@ -4526,18 +4576,21 @@ async function saveBuild(){
   const b=readBuild();const data=JSON.stringify(_cgEnvelope(),null,1);
   const nm=(b.name||'pact-character').replace(/[^a-z0-9_-]+/gi,'_')+'-'+DATA.version+'.json';
   // if a file is already open (loaded or saved this session) write straight back to it — no prompt
-  if(_fileHandle){try{await _fsWrite(_fileHandle,data);flash('Saved to '+(_fileHandle.name||nm));return;}catch(e){_fileHandle=null;}}
+  const _fh=_cgOpenFileHandle();
+  if(_fh){try{await _fsWrite(_fh,data);flash('Saved to '+(_fh.name||nm));return;}catch(e){_fileHandle=null;_fileHandleFor=null;}}
   // native Save dialog (Chromium desktop + Android Chrome) — user chooses the location
-  if(window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:nm,types:[{description:'PACT character',accept:{'application/json':['.json']}}]});await _fsWrite(h,data);_fileHandle=h;flash('Saved to '+(h.name||nm));return;}catch(e){if(e&&e.name==='AbortError')return;}}
+  if(window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:nm,types:[{description:'PACT character',accept:{'application/json':['.json']}}]});await _fsWrite(h,data);_fileHandle=h;_fileHandleFor=currentCharId();flash('Saved to '+(h.name||nm));return;}catch(e){if(e&&e.name==='AbortError')return;}}
   const blob=new Blob([data],{type:'application/json'});
   await _pactShareOrSave(blob,nm,'“'+nm+'” sent to the share sheet — choose Save to Files to keep it.','Saved to your Downloads folder: '+nm);
 }
 async function loadViaPicker(){
   // native Open dialog — remembers the file so the next Save writes back to the same place
-  if(window.showOpenFilePicker){try{const [h]=await window.showOpenFilePicker({types:[{description:'PACT character',accept:{'application/json':['.json']}}]});const f=await h.getFile();_fileHandle=h;loadFile(f);return;}catch(e){if(e&&e.name==='AbortError')return;}}
+  if(window.showOpenFilePicker){try{const [h]=await window.showOpenFilePicker({types:[{description:'PACT character',accept:{'application/json':['.json']}}]});const f=await h.getFile();_fileHandle=null;_fileHandleFor=null;loadFile(f,h);return;}catch(e){if(e&&e.name==='AbortError')return;}}   // the handle is adopted only once the load succeeds (loadFile)
   const li=document.getElementById('loadfile');if(li)li.click();
 }
-function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
+// fh: the picker's file handle, adopted for Save-back only after a load that actually succeeded.
+function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHandleFor=fh?currentCharId():null;};
+  const fr=new FileReader();fr.onload=e=>{try{
     const d=JSON.parse(e.target.result);
     // A load that KEEPS this character's id would rebuild a sealed history from the form; the server
     // rejects that. A file carrying a DIFFERENT id is a different character and switches to it
@@ -4556,7 +4609,7 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
     if(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA){
       if(!Array.isArray(d.LOG)){alert('Could not load: this PACT CharGen file is missing its event log (LOG).');return;}
       _commitWholeBuildFrame();
-      _cgApplyEnvelope(d);
+      _cgApplyEnvelope(d);_adopt();   // _adopt: Save-back handle, bound to the id _cgApplyEnvelope just set
       // fix/chargen-campaign-stuck-states: the handoff and autosave-restore paths already adopt the file's
       // campaign binding; this one did not, so a Local Load of a campaign character showed 0 DM AP and
       // flagged every purchase as over budget. Async; sets the pending binding synchronously.
@@ -4577,13 +4630,13 @@ function loadFile(file){const fr=new FileReader();fr.onload=e=>{try{
       if(!b.hd)b.hd=1;
       b.version=d.rules||DATA.version;
       _commitWholeBuildFrame();
-      applyBuild(b);
+      applyBuild(b);_adopt();
       flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
       return;
     }
     // Branch 3: legacy CharGen flat build format (every file saved before Step 4 still opens)
     _commitWholeBuildFrame();
-    applyBuild(d);
+    applyBuild(d);_adopt();
     const fv=d.version||'(unstamped)';
     if(typeof flash==='function')flash(fv===DATA.version?('Loaded a '+DATA.version+' build.'):('Loaded a '+fv+' build — repriced live under current '+DATA.version+' rules.'));
   }catch(err){alert('Could not load that file: '+err.message);}};fr.readAsText(file);}
@@ -4679,7 +4732,9 @@ function liveBase(){
 }
 
 /* ── Spell/Language name picker (ported from Live Sheet, v0.099) — CharGen-side; names carry across via the LOG (D-GH40) ── */
-var CG_NAMES=null;
+// Names live in the LOG as a `names` event (the engine's own type — MUT.names, the same event the Live
+// Sheet writes), never in a page global. A global used to hold them here: it was never saved, never reset,
+// and _buildEventBurst() wrote it into whichever character was rebuilt next (fix/chargen-livesheet-data-loss).
 // The language names this character's campaign offers (feat/campaign-language-list) — the DM's own list
 // when the campaign set one, else the engine's STANDARD_LANGUAGES. Same rules source as cloudRuleBarred,
 // plus the "Copy to CharGen" sandbox's carried rules.
@@ -4693,7 +4748,18 @@ function _ownedGrants(b){var cg=(DATA.spellGrants&&DATA.spellGrants.choiceGrants
     if(!owned)return;out.push({key:key,label:(key.split(": ")[1]||key),from:CLS.filter(function(c){return (g.from||"").indexOf(c)>=0;}),note:g.from||""});});
   return out;}
 function _nmRow(key,label,val,listId){return '<div style="display:flex;gap:6px;align-items:center;margin:2px 0"><span style="flex:0 0 118px;font-size:11px;color:var(--grey)">'+label+'</span><input class="nmf" data-k="'+key+'"'+(listId?' list="'+listId+'" autocomplete="off"':'')+' value="'+String(val||'').replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:5px"></div>';}
-function _applyCgNames(b){var N=CG_NAMES;if(!N)return;if(N.lang)b.languageNames=N.lang.slice();if(N.dab)b.dabblerCantripNames=N.dab.slice();if(N.inn)b.innateNames=N.inn.map(function(a){return (a||[]).slice();});if(N.grants)b.grantNames=JSON.parse(JSON.stringify(N.grants));if(N.tr)N.tr.forEach(function(t){var tr=(b.traditions||[])[t.ti];if(!tr)return;var d=(tr.disciplines||[])[t.di];if(!d)return;if(t.cn)d.cantripNames=t.cn.slice();if(t.kn)d.knownNames=t.kn.map(function(a){return (a||[]).slice();});});}
+// The names a build carries, as a `names` event payload (the shape MUT.names folds) — or null when it has
+// none. Carries the Live-Sheet-only fields (eb/fs/mm/mv/fsc) too, so a whole-log rebuild keeps them.
+function _cgNamesOf(b){if(!b)return null;var n={},has=false;
+  function put(k,v){if(v!=null&&!_cgIsEmptyish(v)){n[k]=JSON.parse(JSON.stringify(v));has=true;}}
+  put('eb',b.epicBoonAbil);put('fs',b.fightingStyleNames);put('mm',b.metamagicNames);put('mv',b.maneuverNames);put('fsc',b.fsCantripNames);
+  put('dab',b.dabblerCantripNames);put('inn',b.innateNames);put('feat',b.featNames);put('lang',b.languageNames);put('grants',b.grantNames);
+  var tr=[];(b.traditions||[]).forEach(function(t,ti){((t&&t.disciplines)||[]).forEach(function(d,di){if(!d)return;
+    if(_cgIsEmptyish(d.cantripNames)&&_cgIsEmptyish(d.knownNames)&&_cgIsEmptyish(d.arcanumNames))return;
+    var e={ti:ti,di:di,cn:JSON.parse(JSON.stringify(d.cantripNames||[])),kn:JSON.parse(JSON.stringify(d.knownNames||[[],[],[],[],[],[],[],[],[]]))};
+    if(d.arcanumNames)e.an=JSON.parse(JSON.stringify(d.arcanumNames));tr.push(e);});});
+  if(tr.length){n.tr=tr;has=true;}
+  return has?n:null;}
 // Reliable JS spell/name picker — replaces the flaky native <datalist> in "Name your spells".
 // Reads the row's associated datalist (by id, via _dlid) and shows a filtered clickable dropdown. v0.314.
 function _spellAC(inp){
@@ -4720,7 +4786,7 @@ function _spellAC(inp){
   window.addEventListener('scroll',function(){if(menu.style.display!=='none')place();},true);
   window.addEventListener('resize',function(){if(menu.style.display!=='none')place();});
 }
-function openNames(){var b=readBuild();_applyCgNames(b);document.querySelectorAll('.spellac').forEach(function(m){m.remove();});var H='',DLS='';
+function openNames(){var b=readBuild();document.querySelectorAll('.spellac').forEach(function(m){m.remove();});var H='',DLS='';
   function _e(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
   function _dl(id,arr){DLS+='<datalist id="'+id+'">'+arr.map(function(n){return '<option value="'+_e(n)+'">';}).join('')+'</datalist>';}
   var _nl=b.languages||1;if(_nl>0){var _lc=_cgLangCfg();_dl('dl_lang',_lc.list);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>'+(_lc.custom?'<div style="font-size:10.5px;color:var(--grey);margin:0 0 3px">Your campaign\u2019s languages: '+_lc.list.map(function(n){return String(n).replace(/</g,'&lt;');}).join(', ')+(_lc.strict?' \u2014 only these are allowed.':'')+'</div>':'');for(var i=0;i<_nl;i++){var _lv=(b.languageNames||[])[i]||'';H+=_nmRow('lang::'+i,'Language '+(i+1),_lv,'dl_lang')+_langOffNote(_lc,_lv);}}
@@ -4740,27 +4806,38 @@ function saveNames(){var _dup=_cgNameDupes();if(_dup.length){flash('⛔ “'+_du
   // Strict campaign language list (feat/campaign-language-list): refuse a NEWLY named off-list language.
   // A name unchanged from the one already saved in that slot is let through — it may predate the list,
   // and a language can't be unlearned, so refusing it would block every other name edit too.
-  var _lc=_cgLangCfg();if(_lc.strict){var _was=(CG_NAMES&&CG_NAMES.lang)||readBuild().languageNames||[];var _bad=[].slice.call(document.querySelectorAll('#namesBox .nmf[data-k^="lang::"]')).filter(function(e){var v=String(e.value||'').trim(),i=+e.dataset.k.split('::')[1];return !_lc.isListed(v)&&v!==String(_was[i]||'').trim();}).map(function(e){return String(e.value).trim();});if(_bad.length){flash('⛔ “'+_bad[0]+'” isn’t on your campaign’s language list. Pick one of: '+_lc.list.join(', ')+'.','error');return;}}
+  var _lc=_cgLangCfg();if(_lc.strict){var _was=readBuild().languageNames||[];var _bad=[].slice.call(document.querySelectorAll('#namesBox .nmf[data-k^="lang::"]')).filter(function(e){var v=String(e.value||'').trim(),i=+e.dataset.k.split('::')[1];return !_lc.isListed(v)&&v!==String(_was[i]||'').trim();}).map(function(e){return String(e.value).trim();});if(_bad.length){flash('⛔ “'+_bad[0]+'” isn’t on your campaign’s language list. Pick one of: '+_lc.list.join(', ')+'.','error');return;}}
   var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={},lang=[],grants={},GR=_ownedGrants(readBuild());
   document.querySelectorAll('#namesBox .nmf').forEach(function(e){var p=e.dataset.k.split('::'),v=e.value;
     if(p[0]==='grant'){var _gk=GR[+p[1]]&&GR[+p[1]].key;if(_gk){(grants[_gk]=grants[_gk]||[])[+p[2]]=v;}}
     else if(p[0]==='lang')lang[+p[1]]=v;else if(p[0]==='feat')feat[p[1]]=v;else if(p[0]==='dab')dab[+p[1]]=v;else if(p[0]==='inn')inn[+p[1]-1][+p[2]]=v;
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else trMap[kk].kn[+p[4]-1][+p[5]]=v;}});
-  CG_NAMES={dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];})};closeNames();flash('Spell & language names saved — they will export with your Live Sheet file.');}
+  var ev={type:'names',dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];}),cost:0,label:'Named spells & languages'};
+  // This dialog has no feat rows: an empty `feat` would make MUT.names wipe feat names the Live Sheet set.
+  if(!Object.keys(feat).length)delete ev.feat;
+  // Same for grants: with no grant rows shown, an empty map would wipe grant names saved elsewhere.
+  if(!document.querySelector('#namesBox .nmf[data-k^="grant::"]'))delete ev.grants;
+  // After "Finish creating" a saved name is part of the character's played history: the Live Sheet treats
+  // it as locked (changing it is a Hit-Die swap with its own rules). CharGen has no swap rules, so here it
+  // may only fill a blank — changing a name that is already set is refused (H2, conservative).
+  if(_cgIsLocked()){var _chg=_cgNamesChangedSet();if(_chg){flash('\uD83D\uDD12 \u201c'+_chg+'\u201d is already named \u2014 once creation is finished, change a saved name in the Live Sheet.','error');return;}}
+  // Nothing changed → write nothing (no dead event, no dead undo step).
+  var _cur=readBuild(),_nxt=JSON.parse(JSON.stringify(_cur));MUT.names(_nxt,JSON.parse(JSON.stringify(ev)));
+  closeNames();
+  if(JSON.stringify(_cgNamesOf(_cur))===JSON.stringify(_cgNamesOf(_nxt))){flash('No changes to your spell & language names.');return;}
+  emit(ev);flash('Spell & language names saved to this character.');}
+// The first already-set name the dialog would CHANGE (a non-blank saved value replaced by a different one), or ''.
+// Compares only the rows the dialog RENDERS — each row's value attribute is the saved name it opened with —
+// so a stored name the dialog has no row for (an unowned grant, a dropped language slot) never blocks a save.
+function _cgNamesChangedSet(){var hit='';
+  document.querySelectorAll('#namesBox .nmf').forEach(function(e){if(hit)return;var w=String(e.defaultValue||'').trim(),n=String(e.value||'').trim();if(w&&n!==w)hit=w;});
+  return hit;}
 // ---- bridge: convert the current build into a Live-Sheet event log (frozen per-step prices) ----
-function _buildEventBurst(b){
+function _buildEventBurst(b,opts){
+  var _cgBurstNames=(opts&&opts.names)||null;
   // epicBoonAbil has NO CharGen control — only the Live Sheet's ✎ Names dialog sets it — so
-  // _domReadBuild() cannot see it and the rewritten log used to drop it silently. A Live Sheet
-  // character with epic boons, opened in CharGen and re-saved, came back with its ability choices
-  // gone and a permanent "<boon>: choose an ability to raise (+2)" warning.
-  // Recover it from the log we are about to REPLACE: replaceWholeLogFromBuild() assigns the new LOG
-  // only after this returns, so the global LOG here is still the previous one. Prefer the passed
-  // build if it happens to carry the field (the export path hands over a folded build).
-  // The caller attaches this (see replaceWholeLogFromBuild) — it CANNOT be recovered here. This
-  // function declares its own `let LOG=[]` below, so a bare `LOG` is in that binding's temporal dead
-  // zone, and the top-level `LOG` is a `let` too, so it is not on `window` either. Both were tried.
-  var _cgEB=(b&&b.epicBoonAbil)||null;
-  if(_cgEB&&!Object.keys(_cgEB).length)_cgEB=null;
+  // _domReadBuild() cannot see it; it arrives with every other name on opts.names (see
+  // replaceWholeLogFromBuild), taken from the build being written and never from a page global.
   // Shared "flat build -> canonically-serialized noLock:true event burst" builder (Phase 2 Step 3,
   // Chunk 0). Originally lived only inside buildToLiveLog() (the CharGen->Live-Sheet export path);
   // factored out here so buildToEventLog() (used by replaceWholeLogFromBuild() for all whole-build-
@@ -4819,16 +4896,15 @@ function _buildEventBurst(b){
   (b.drawbacks||[]).forEach(v=>evItem('Drawback — '+v,'drawback',v, -(DATA.drawbacks[v])));
   emitPatch('Attunement',{attune:b.attune});emitPatch('Ki & Sorcery points',{ki:b.ki,sorcery:b.sorcery});emitPatch('Martially Bound',{martiallyBound:b.martiallyBound});
   emitPatch('Character size',{size:b.size});emitPatch('Starting gold',{gold:b.gold});
-  // A character can carry an epic-boon ability choice with no other named spells/languages, so this
-  // fires on _cgEB alone. Read through a local alias rather than mutating the CG_NAMES global.
-  var _cgN=CG_NAMES||{};
-  if((_cgN.lang&&_cgN.lang.length)||(_cgN.dab&&_cgN.dab.length)||(_cgN.inn&&_cgN.inn.some(function(a){return a&&a.length;}))||(_cgN.tr&&_cgN.tr.length)||(_cgN.grants&&Object.keys(_cgN.grants).length)||(_cgN.feat&&Object.keys(_cgN.feat).length)||_cgEB)ev({type:'names',eb:_cgEB||{},dab:_cgN.dab||[],inn:_cgN.inn||[[],[],[],[],[],[],[],[],[]],feat:_cgN.feat||{},lang:_cgN.lang||[],grants:_cgN.grants||{},tr:_cgN.tr||[],label:'Named spells & languages'});
+  // The names the build being written carries (opts.names, from replaceWholeLogFromBuild) — one `names`
+  // event, the engine's own type. Never a page global: that leaked one character's names into the next.
+  if(_cgBurstNames)ev(Object.assign({type:'names'},JSON.parse(JSON.stringify(_cgBurstNames)),{label:'Named spells & languages'}));
   return LOG;
 }
 // Phase 2 Step 3 (Chunk 0): the LOG-mutation-API's whole-build-replacement helper. opts is currently
 // unused but kept in the signature — Chunk 5 (full convergence of loadFile/loadFromHash/autosave-restore/
 // randomize) is expected to need it (e.g. to distinguish "fresh boot" from "user-initiated replace").
-function buildToEventLog(b,opts){return _buildEventBurst(b);}
+function buildToEventLog(b,opts){return _buildEventBurst(b,opts);}
 // D-GH40: buildToLiveLog()/exportToLiveSheet() removed — CharGen's native Save and the Live Sheet's native
 // Load now speak the same file format (CHAR_SCHEMA), so the separate "export a Live-Sheet-shaped file"
 // converter is redundant; a normal Save + the other tool's normal Load does the same thing, without the
@@ -4863,6 +4939,7 @@ function applyBuild(b,opts){
   const _prevSusp=_histSuspended;_histSuspended=true;
   try{
   __charId=(b&&b.id)||genCharId();   // loading a build adopts its id; a fresh/blank build gets a new one
+  const _inNames=_cgNamesOf(b);       // the incoming build's own names — written into the rebuilt LOG below
   const set=(id,v)=>{const e=$(id);if(e)e.value=v;};
   set('cname',b.name||'');set('budget',b.budget!=null?b.budget:DATA.level1AP);set('oclass',b.originClass||'(none)');set('oclass2',b.originClass2||'(none)');
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
@@ -4913,7 +4990,7 @@ function applyBuild(b,opts){
   // just at boot. This supersedes the partial LOG mutations the add-row/add-disc nudges made while this
   // function was writing the DOM (they fired mid-write; this wipes and rebuilds cleanly, exactly as boot's
   // own post-restore resync does). render() happens inside replaceWholeLogFromBuild.
-  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
+  if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild(),{names:_inNames});
   else render();
   }finally{_histSuspended=_prevSusp;}
   if(opts.clearHistory)_clearHistory();
@@ -5287,7 +5364,11 @@ function _cgApplyEnvelope(d,opts){
   // a STALE `name`/`award` in its LOG (Step 4 didn't event-source live name/budget edits). applyBuild has
   // already written the correct top-level values into #cname/#budget, so re-sync the singleton events to
   // match. Suspended → records no undo frame; a no-op for Step-5 files (their LOG is already consistent).
-  {const _p=_histSuspended;_histSuspended=true;try{_cgSyncName();_cgSyncAward();}finally{_histSuspended=_p;}}
+  // The award is re-synced ONLY for that legacy case (a top-level budget on the envelope) and only when the
+  // LOG holds at most one award. Every current envelope has no top-level budget, so its award events are
+  // left exactly as saved: _cgSyncAward() is a singleton filter-and-append, and on a Live Sheet character
+  // it merged every award into one "Budget" line, losing their notes and dates (fix/chargen-livesheet-data-loss).
+  {const _p=_histSuspended;_histSuspended=true;try{_cgSyncName();if(d.budget!=null&&_cgAwardCount()<=1)_cgSyncAward();}finally{_histSuspended=_p;}}
   render();
   return b;
 }
@@ -5949,6 +6030,7 @@ function randomizeRoll(themeKey,lvlWanted){
     // to be DOM-only here too; fix/randomise-appearance-not-persisted made randomiseAppearance() commit
     // to the LOG on its own — but it skips that commit while _histSuspended, exactly because THIS
     // resync already covers it a few lines later; see that fix's comment on _rollField's `set`.)
+    // A roll is the same character, so no `names` is passed: those applyBuild(b) just wrote carry across.
     if(typeof replaceWholeLogFromBuild==='function')replaceWholeLogFromBuild(_domReadBuild());
     // Restore the creation state the rebuild above dropped. Appended AFTER the burst and after
     // _cgRepriceDraft() has priced it as a draft — the same ordering D-GH34 established for the lock,
@@ -6105,11 +6187,11 @@ function annotate(b,r){
   // Prevent same species being selected twice
   {const sp2sel=$('spec2');if(sp2sel){const cur1=b.species||'';[...sp2sel.options].forEach(function(opt){
     if(opt.value&&opt.value!=='(none)')opt.disabled=(opt.value===cur1);
-  });if(sp2sel.value===cur1&&cur1){sp2sel.value='(none)';}}}
+  });if(sp2sel.value===cur1&&cur1){sp2sel.value='(none)';_cgIdentityFixed=true;}}}
   // Prevent same origin class being selected twice
   {const oc2sel=$('oclass2');if(oc2sel){const cur1c=b.originClass||'';[...oc2sel.options].forEach(function(opt){
     if(opt.value&&opt.value!=='(none)')opt.disabled=(opt.value===cur1c);
-  });if(oc2sel.value===cur1c&&cur1c){oc2sel.value='(none)';}}}
+  });if(oc2sel.value===cur1c&&cur1c){oc2sel.value='(none)';_cgIdentityFixed=true;}}}
   if($('packb2'))$('packb2').textContent=(b.species2&&b.species2!=='(none)')?('Free pack basics (×2 pack): '+(DATA.packBasics[b.species2]||'')):'';
   if($('specp'))$('specp').textContent=(DATA.pack[b.species]||0)+' AP';
   if($('spec2p'))$('spec2p').textContent=b.species2!=='(none)'?(2*(DATA.pack[b.species2]||0)+' AP'):'';
@@ -6151,7 +6233,7 @@ function annotate(b,r){
    if(_lab)_lab.style.display=_show?'':'none'; if(_row)_row.style.display=_show?'':'none'; if(_wrap)_wrap.style.display=_show?'':'none';
    if(_sel){const _mine=_show?((DATA.lineageOf[_sp]||[]).concat(DATA.lineageOf[_sp2]||[])):[];
      [...(_sel.options||[])].forEach(o=>{if(o.value)o.disabled=!_mine.includes(o.value);});
-     if(_sel.value&&!_mine.includes(_sel.value))_sel.value='';}
+     if(_sel.value&&!_mine.includes(_sel.value)){_sel.value='';_cgIdentityFixed=true;}}
    const _chosen=_sel?_sel.value:'';
    {const _fx=$('linfx'),_t=(_show&&_chosen&&DATA.lineageFx&&DATA.lineageFx[_chosen])||'';if(_fx){_fx.textContent=_t;_fx.style.display=_t?'':'none';}}
    document.querySelectorAll('.linsub').forEach(el=>{el.style.display=(el.dataset.lin===_chosen)?'':'none';});
@@ -6848,10 +6930,21 @@ function _cgCeilingAccept(){
     },0);
   }
 }
+// Set by annotate() when it corrects an identity control directly (.value — no change event): a second
+// species/origin class equal to the first, or a lineage the species no longer offers. The IDENTITY patch
+// was built from the form BEFORE that correction, so without a re-sync the LOG keeps — and charges — the
+// value the form no longer shows (Elf + Elf: 17 AP instead of 7). fix/chargen-livesheet-data-loss.
+let _cgIdentityFixed=false;
 function render(){
   if(_cgCeilingCheck()) return;      // refused: restoreFrame() has already repainted the accepted state
+  _cgIdentityFixed=false;
   _cgRenderAll();
   _cgCeilingAccept();
+  if(_cgIdentityFixed){ _cgIdentityFixed=false;
+    // Not while a repaint/whole-build write is in progress (applyBuild rebuilds the LOG from the corrected form
+    // itself), and not after the lock: identity is frozen then, so the re-sync would only be refused on every render.
+    if(!_histSuspended&&!_cgIsLocked()){ _cgSyncPatchSlot(PATCH_SLOTS.IDENTITY); _cgReconcileUnlockClass(); _cgReconcileChecklistDependents(); }
+  }
 }
 function _cgRenderInner(){
   const b=readBuild();

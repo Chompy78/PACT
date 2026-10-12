@@ -109,7 +109,7 @@ const namesOpen = p => p.evaluate(() => { const b=document.getElementById('names
   check('CG: strict refuses new off-list "Draconic"', /isn.t on your campaign/.test(await flashText(page)), await flashText(page));
   await page.fill('#namesBox .nmf[data-k="lang::0"]', 'Albric');
   await page.evaluate(() => saveNames());
-  check('CG: listed name saves', await page.evaluate(() => CG_NAMES.lang[0]) === 'Albric');
+  check('CG: listed name saves', await page.evaluate(() => (readBuild().languageNames||[])[0]) === 'Albric');
   check('CG: no page errors', errors.length === 0, errors.join(' | '));
   await page.close();
 }

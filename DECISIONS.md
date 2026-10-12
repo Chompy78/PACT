@@ -10,6 +10,11 @@
 
 ## Index
 
+## D-GH-2026-10-12-chargen-livesheet-data-loss — CharGen keeps names, house rules and awards in the LOG; refuses rather than merges
+- H2 (owner away), provisional. Names → `names` LOG events; DM house rules → `HOUSE_RULES` slot; Local Save bound to the
+  character id it was opened for. A multi-award character's awards are never merged: not on load, and the Budget field
+  refuses edits. After the lock CharGen may only fill blank name slots.
+  Full record: `decisions/2026/D-GH-2026-10-12-chargen-livesheet-data-loss.md`.
 ## D-GH-2026-10-12-chargen-campaign-stuck-states — CharGen trusts a campaign binding only once the server confirms it
 - DM-only creation-AP controls are hidden only when the server confirms the campaign binding (`refreshServerBinding()`); an unconfirmed
   binding leaves them usable with a note. Async binding resolves carry a generation and drop stale results. No migration.
