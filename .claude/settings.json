@@ -22,8 +22,14 @@
       "mcp__Supabase__get_advisors",
       "mcp__Supabase__query_logs",
       "mcp__Supabase__search_docs",
-      "mcp__claude_ai_Supabase__execute_sql",
       "mcp__Supabase__generate_typescript_types"
+    ],
+    "ask": [
+      "mcp__Supabase__apply_migration",
+      "mcp__Supabase__deploy_edge_function",
+      "mcp__Supabase__create_branch",
+      "mcp__Supabase__merge_branch",
+      "mcp__Supabase__rebase_branch"
     ],
     "deny": [
       "mcp__home-server-mcp__delete_project_file",
@@ -33,14 +39,6 @@
       "mcp__Supabase__pause_project",
       "mcp__Supabase__restore_project",
       "mcp__Supabase__create_project"
-    ],
-    "ask": [
-      "mcp__Supabase__apply_migration",
-      "mcp__Supabase__deploy_edge_function",
-      "mcp__Supabase__create_branch",
-      "mcp__Supabase__merge_branch",
-      "mcp__Supabase__rebase_branch",
-      "mcp__claude_ai_Supabase__apply_migration"
     ]
   },
   "hooks": {
