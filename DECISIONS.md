@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-12-player-free-ap — players can't grant themselves AP or get AP back after the lock
+- H2 (owner away), provisional. Live Sheet hides/refuses + Award AP, + Discount and ⎘ AP code on a campaign character (⎀ Redeem
+  stays); solo self-awards unchanged (not made `noLock`). CharGen's DM house rules are read-only on a confirmed campaign character
+  and after the lock; starting gold and a locked campaign character's budget are refused after the lock. The server's exempt list
+  is corrected on the board, not by an unapplied migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-player-free-ap.md`.
 ## D-GH-2026-10-12-chargen-livesheet-data-loss — CharGen keeps names, house rules and awards in the LOG; refuses rather than merges
 - H2 (owner away), provisional. Names → `names` LOG events; DM house rules → `HOUSE_RULES` slot; Local Save bound to the
   character id it was opened for. A multi-award character's awards are never merged: not on load, and the Budget field

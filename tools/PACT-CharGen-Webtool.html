@@ -2281,12 +2281,36 @@ function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild(
       '<span class="dsc">'+esc(dr.fx||'')+'</span></label>';}).join('')+'</div>';});
   html=html||'<span class="hint">No drawbacks match your filter.</span>';
   g.innerHTML=html;}
-function dmAdd(){const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Enter a name first.');return;}
+function dmAdd(){if(_cgDmCustomRefuse())return;const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Enter a name first.');return;}
   const ap=+val('dmap')||0;const desc=(val('dmdesc')||'').trim();
   if(kind==='boon'){HOUSE.boons[name]={hd:+val('dmhd')||1,ap,fx:desc};}
   else{HOUSE.draws[name]={ap,fx:desc};}
   $('dmname').value='';$('dmdesc').value='';
   _cgHouseChanged();}
+// fix/player-free-ap (H2, D-GH-2026-10-12-player-free-ap): the DM Calls toggles and DM customisations are PRICED — a custom drawback
+// at 60 AP grants 60 AP, a repriced boon costs what the house rule says — so a player must not edit them where the DM owns them:
+// on a campaign character whose binding the server has CONFIRMED (an unconfirmed one does not lock a solo player out), and on any
+// character once creation is finished. Returns '' when editable, else the reason.
+function _cgDmCustomReadOnly(){
+  if(_cgCreationApIsDms()) return 'campaign';
+  if(_cgIsLocked()) return 'locked';
+  return '';
+}
+function _cgDmCustomRoText(why){
+  return why==='campaign'?'\uD83D\uDD12 Your DM sets these for campaign characters.':(why==='locked'?'\uD83D\uDD12 Fixed once creation is finished \u2014 they change what boons and drawbacks cost.':'');
+}
+function _cgDmCustomRefuse(){
+  var why=_cgDmCustomReadOnly(); if(!why) return false;
+  flash(_cgDmCustomRoText(why)+(why==='campaign'?' There is no DM editor for these yet \u2014 tell your DM if one needs to change.':''),'error');
+  return true;
+}
+// Every render: disable (not hide) the controls, so the table's rules stay readable. Follows a binding that confirms late.
+function _cgSyncDmCustomUi(){
+  var why=_cgDmCustomReadOnly(), ro=!!why;
+  ['dmCallsRow','dmCustomRow','dmlist'].forEach(function(id){var box=$(id);if(!box)return;
+    box.querySelectorAll('input,select,button').forEach(function(e){e.disabled=ro;});});
+  var n=$('dmRoNote'); if(n) n.textContent=ro?_cgDmCustomRoText(why):'';
+}
 // Every DM house-rule edit lands in the LOG (the HOUSE_RULES patch slot), not only in the page's HOUSE
 // global — otherwise a custom/repriced/disabled boon or drawback was lost on save, reload and undo, and the
 // engine's compute(foldBuild(LOG)) never saw it (fix/chargen-livesheet-data-loss).
@@ -2302,17 +2326,17 @@ function dmPrefill(){const kind=val('dmkind');const name=(val('dmname')||'').tri
   if(kind==='boon'){const b=(HOUSE.boons&&HOUSE.boons[name])||DATA.boons[name];if(b){const hh=$('dmhd');if(hh)hh.value=b.hd||1;const aa=$('dmap');if(aa)aa.value=(b.ap!=null?b.ap:0);const dd=$('dmdesc');if(dd)dd.value=b.fx||'';}}
   else{let d2=(HOUSE.draws&&HOUSE.draws[name]);if(!d2&&DATA.drawbacks[name]!=null)d2={ap:DATA.drawbacks[name],fx:(DATA.drawbackFx&&DATA.drawbackFx[name])||''};
     if(d2){const aa=$('dmap');if(aa)aa.value=(d2.ap!=null?d2.ap:0);const dd=$('dmdesc');if(dd)dd.value=d2.fx||'';}}}
-function dmDisableBuiltin(){const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Type the exact built-in name to disable.');return;}
+function dmDisableBuiltin(){if(_cgDmCustomRefuse())return;const kind=val('dmkind');const name=(val('dmname')||'').trim();if(!name){flash('Type the exact built-in name to disable.');return;}
   const pool=kind==='boon'?DATA.boons:DATA.drawbacks;
   if(!(name in pool)){flash('No built-in '+kind+' named "'+name+'".');return;}
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   if(!HOUSE.disabled[dk].includes(name))HOUSE.disabled[dk].push(name);
   $('dmname').value='';_cgHouseChanged();}
-function dmRemove(kind,name){const map=kind==='boon'?HOUSE.boons:HOUSE.draws;delete map[name];
+function dmRemove(kind,name){if(_cgDmCustomRefuse())return;const map=kind==='boon'?HOUSE.boons:HOUSE.draws;delete map[name];
   // also clear from disabled list if present
   const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=(HOUSE.disabled[dk]||[]).filter(x=>x!==name);
   _cgHouseChanged();}
-function dmToggleDisable(kind,name){const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
+function dmToggleDisable(kind,name){if(_cgDmCustomRefuse())return;const dk=kind==='boon'?'boons':'draws';HOUSE.disabled[dk]=HOUSE.disabled[dk]||[];
   const i=HOUSE.disabled[dk].indexOf(name);if(i>=0)HOUSE.disabled[dk].splice(i,1);else HOUSE.disabled[dk].push(name);
   _cgHouseChanged();}
 function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
@@ -2385,8 +2409,8 @@ function buildForm(F){
     '<div class="row"><label class="l" title="AP awarded to this character. Drawbacks are granted on top of this, so the spendable total in the header can be higher.">AP budget</label><input type="number" id="budget" min="0" max="9999" step="1" value="79" style="width:96px" title="AP awarded to this character. Drawbacks are granted on top of this, so the spendable total in the header can be higher.">'+
       '<span class="warn" id="budget_w"></span>'+
       '<span class="hint" id="budget_hint">Set by the level and track above · edit directly for a custom figure · 0 = none of your own (a campaign character spends DM-granted AP)</span></div>'+
-'<div class="sublab">DM Calls &mdash; what is permitted at this table</div>'+
-    '<div class="row" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
+'<div class="sublab">DM Calls &mdash; what is permitted at this table <span class="hint" id="dmRoNote"></span></div>'+
+    '<div class="row" id="dmCallsRow" style="gap:20px;flex-wrap:wrap;padding:4px 0">'+
       '<label class="ck" title="Allow Martially Bound and Magically Bound options"><input type="checkbox" id="dm_bound" checked onchange="updateDmToggles()"> ⚔✦ Bound (martial &amp; magical)</label>'+
       '<label class="ck" title="Allow Boons (extra abilities costing AP)"><input type="checkbox" id="dm_boons" checked onchange="updateDmToggles()"> ✦ Boons</label>'+
       '<label class="ck" title="Allow Drawbacks (accept a hindrance, gain AP back)"><input type="checkbox" id="dm_draws" checked onchange="updateDmToggles()"> ✗ Drawbacks</label>'+
@@ -2541,7 +2565,7 @@ function buildForm(F){
     '</div>'+
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px;color:#b35a00">DM customisations — add, reprice, or disable boons & drawbacks</div>'+
     '<div class="hint">Anything changed here is tagged <span class="dmtag">DM</span> and tinted orange, and is saved with the build. Re-add an existing name to reprice it.</div>'+
-    '<div class="row" style="gap:5px;flex-wrap:wrap">'+
+    '<div class="row" id="dmCustomRow" style="gap:5px;flex-wrap:wrap">'+
       '<select id="dmkind" onchange="dmPrefill()"><option value="boon">Boon</option><option value="draw">Drawback</option></select>'+
       '<input type="text" id="dmname" placeholder="name" style="min-width:120px" oninput="dmPrefill()" title="Type an existing name to reprice it — its current HD/AP/description load automatically">'+
       '<input type="number" id="dmhd" value="1" min="1" max="20" title="min Hit Dice (boons only)" style="width:50px">'+
@@ -3399,7 +3423,8 @@ function _cgSealPatchRefusal(patch){
 // the economy charges), and a DECREASE is refused ("nothing bought can be removed once creation is finished"). Every
 // other slot still takes the old path until its phase lands. Pre-lock behaviour is untouched.
 var _CG_POSTLOCK_SLOTS={hdProf:1,stats:1,languages:1,vigor:1,ki:1,sorcery:1,attunement:1,armour:1,weaponProf:1,freeSub:1,customProfs:1,
-  traditions:1,innate:1,misc:1,identity:1};   // phase 2a added the middle ones; phase 2b-1 adds the last four, all REFUSED after the lock (no Live Sheet purchase / AP-granting / creation-only)
+  traditions:1,innate:1,misc:1,identity:1,
+  economy:1};   // phase 2a added the middle ones; phase 2b-1 adds the next four, all REFUSED after the lock (no Live Sheet purchase / AP-granting / creation-only); fix/player-free-ap adds economy (starting gold), refused both ways
 function _cgIsLocked(){try{return !!creationCeiling(LOG,_cgCeilOpts()).locked;}catch(e){return false;}}
 // render() alone does NOT repaint a form control from the LOG (a refused Hit Dice edit left the select showing the refused value
 // while the character stayed put — found by the phase-1 test). restoreFrame() does: it repaints every control from a frame with
@@ -3603,6 +3628,11 @@ function _cgPostLockSteps(slot,patch,cur){
     Object.keys(nf).forEach(function(cl){ if(!refuse&&nf[cl]&&!cf[cl]&&access.indexOf(cl)<0) refuse='You can only pick a free subclass for a class you have ('+(access.join(', ')||'none')+').'; });
     Object.keys(cf).forEach(function(cl){ if(!refuse&&cf[cl]&&nf[cl]!==cf[cl]) refuse=(nf[cl]?'A free subclass, once chosen, can\'t be swapped':'A free subclass can\'t be given up')+' after creation (you chose '+cf[cl]+' for '+cl+').'; });
     if(!refuse) Object.keys(nf).forEach(function(cl){ if(nf[cl]&&!cf[cl]) steps.push({cat:'freesub',payload:{cls:cl,sub:nf[cl]},label:'Free subclass \u2192 '+nf[cl]}); });
+  }else if(slot==='economy'){
+    // fix/player-free-ap item 3 (H2): starting gold is BOUGHT with AP during creation (1 AP per step, compute()'s "Starting gold" line), so lowering
+    // it after the lock was an AP refund and raising it a purchase with no in-play price. The Live Sheet has no gold purchase to mirror, so both are
+    // refused; gold earned in play is recorded in the Live Sheet (\uD83C\uDF92 Record gold & downtime) or granted by the DM.
+    if(patch.gold!==undefined&&(+cur.gold||0)!==(+patch.gold||0)){ refuse='Starting gold is bought during creation (you bought '+(+cur.gold||0)+').'; tail='Gold you earn in play is recorded in the Live Sheet (\uD83C\uDF92 Record gold & downtime), or granted by your DM.'; }
   }else if(slot==='customProfs'){
     // The free-text proficiencies a player types. The Live Sheet has no equivalent, so there is no vetted price or identity to record: after
     // the lock this is the DM's to add (plan §9, corrected 2026-10-04). A write that changes nothing is already a no-op.
@@ -3897,6 +3927,16 @@ function _cgSyncAward(){
   // silently became 0, a display/reality mismatch /code-review caught on this same fix.
   if(Number.isFinite(parsed)&&parsed<0){const bi=$('budget');if(bi)bi.value=base;}
   const amt=base;
+  // fix/player-free-ap item 5: a LOCKED campaign character's AP comes from its DM. With no award in the LOG yet (budget 0 — its AP lives in the
+  // DM pool) the singleton guard below has no event to protect, so typing a figure appended a fresh award after the lock, and the server
+  // accepts it (pact_enforce_ap_budget_consistency counts it as player-earned AP unless ignore_player_ap). Refuse any change here.
+  // Any-route binding, same as _cgLockFloor(): an unconfirmed binding is still a campaign character until the server says otherwise.
+  if(_cgIsCampaignBound()&&_cgIsLocked()){
+    const _have=(foldBuild(LOG).budget)||0;
+    if(amt!==_have){const bi=$('budget');if(bi)bi.value=_have;try{_cgSyncBuildLevelDisplay();}catch(e){}   // the hint too, not only the field
+      if(!_histSuspended)flash('\uD83D\uDD12 Creation is finished \u2014 a campaign character\u2019s AP comes from your DM. Ask them to award it in the DM Console.','error');}
+    return;
+  }
   // Don't mint a zero award for a character that has none. Without this, every load of a DM-AP-only
   // character would append `award 0` — a meaningless event that also makes the log look edited.
   if(amt===0&&!LOG.some(function(e){return e.type==='award';}))return;
@@ -4322,6 +4362,7 @@ function onPatchFieldChange(el){
   // Level/track drive the budget AND the creation-AP threshold (feat/creation-vs-awarded-ap).
   if(id==='buildLevel'||id==='buildCurve'){_cgApplyBuildLevel();return;}
   const slot=_cgPatchSlotForId(id);if(!slot)return;
+  if(slot===PATCH_SLOTS.HOUSE_RULES&&_cgDmCustomReadOnly()){render();return;}   // fix/player-free-ap: updateDmToggles() already refused and put the boxes back
   _cgSyncPatchSlot(slot);
   // The ARMOUR slot's STR<10 guard depends on STATS — without this cascade, dropping STR below 10 via a
   // stat field leaves LOG's ARMOUR patch stale (still showing medium/heavy=true) until the next unrelated
@@ -6537,13 +6578,19 @@ function renderSheet(){const b=readBuild(),r=compute(b,_cgDmOpts());
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;const showing=ov.style.display==='block';
   if(showing){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 function updateDmToggles(){
+  // fix/player-free-ap: read-only for a campaign character / after the lock — put the boxes back from the LOG (the controls are disabled; this is the belt).
+  if(_cgDmCustomRefuse()){const da=((foldBuild(LOG).houseRules||{}).dmAllows)||{};
+    if($('dm_bound'))$('dm_bound').checked=da.bound!==false;if($('dm_boons'))$('dm_boons').checked=da.boons!==false;
+    if($('dm_tasha'))$('dm_tasha').checked=da.tasha!==false;if($('dm_draws'))$('dm_draws').checked=da.drawbacks!==false;
+    render();return;}
   const bOn=!($('dm_boons')&&!$('dm_boons').checked);
   const dOn=!($('dm_draws')&&!$('dm_draws').checked);
   const mbOn=!($('dm_bound')&&!$('dm_bound').checked);
   // Option A: clear selections when a category is disabled (with confirm)
   if(!bOn){const sel=ckVals('boonck');if(sel.length&&confirm('Boons are disabled — clear '+sel.length+' boon(s) already selected?'))document.querySelectorAll('.boonck').forEach(e=>e.checked=false);}
   if(!dOn){const sel=ckVals('drawck');if(sel.length&&confirm('Drawbacks are disabled — clear '+sel.length+' drawback(s) already selected?'))document.querySelectorAll('.drawck').forEach(e=>e.checked=false);}
-  if(!mbOn){const mb=$('martiallyBound');if(mb&&mb.value!=='(none)'&&confirm('Bound is disabled — reset Martially Bound to (none)?'))mb.value='(none)';}
+  // fix/player-free-ap item 6: setting .value alone left the grant in the MISC patch (still +2 AP in compute()) — write it through the LOG.
+  if(!mbOn){const mb=$('martiallyBound');if(mb&&mb.value!=='(none)'&&confirm('Bound is disabled — reset Martially Bound to (none)?')){mb.value='(none)';_cgSyncPatchSlot(PATCH_SLOTS.MISC);}}
   // Boons
   ['boonfilter','boongrid','boonsp'].forEach(id=>{const e=$(id);if(e){e.style.opacity=bOn?'':'0.3';e.style.pointerEvents=bOn?'':'none';}});
   // Drawbacks
@@ -6553,8 +6600,10 @@ function updateDmToggles(){
   document.querySelectorAll('.boonck,.artck').forEach(e=>{const it=DATA.boons[e.value]||DATA.arts[e.value]||{};if(it.noncore){const lab=e.closest('label')||e;lab.style.opacity=tOn?'':'0.35';e.disabled=!tOn;if(!tOn&&e.checked)e.checked=false;}});
   // Bonds section
   const bg=document.querySelector('.bondsgrid');if(bg){bg.style.opacity=mbOn?'':'0.3';bg.style.pointerEvents=mbOn?'':'none';}
-  // Per-tradition "Magically Bound" checkboxes
-  document.querySelectorAll('[id^="mbound_"]').forEach(e=>{e.disabled=!mbOn;if(!mbOn)e.checked=false;});
+  // Per-discipline "Magically Bound" checkboxes. They are .disc-bound (no id) — the old [id^="mbound_"] selector matched nothing, so the
+  // grant was never cleared (fix/player-free-ap item 6). Clearing one rewrites the TRADITIONS patch so compute() drops the +2 AP too.
+  {let _mbCleared=false;document.querySelectorAll('.disc-bound').forEach(e=>{e.disabled=!mbOn;if(!mbOn&&e.checked){e.checked=false;_mbCleared=true;}});
+   if(_mbCleared)_cgSyncPatchSlot(PATCH_SLOTS.TRADITIONS);}
   render();
 }
 const SECTIONS=[
@@ -6851,7 +6900,7 @@ function _cgSyncArmourPicker(){
     opt.title = reasons.length ? ("Can't wear yet — "+reasons.join('; ')) : '';
   });
 }
-function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){}
+function _cgRenderAll(){ _cgRenderInner(); try{_cgSyncBuildLevelDisplay();}catch(e){} try{_cgSyncDmCustomUi();}catch(e){}
   try{_cgSyncArmourPicker();}catch(e){}
   try{_cgLockSealedControls();}catch(e){}
   // Creation state: reveal "Finish creating" only while this character is genuinely still in creation
@@ -6955,7 +7004,8 @@ function _cgRenderInner(){
   // the Live Sheet, so the two tools show the identical spendable total for the same character. Never
   // written back into b.budget/the LOG/an export — see the anti-double-count invariant on compute().
   const _dmO=_cgDmOpts();const r=compute(b,_dmO);annotate(b,r);
-  {const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':'';}
+  {const _lkc=!_dmO.ignorePlayerAp&&_cgIsCampaignBound()&&_cgIsLocked();   // fix/player-free-ap item 5
+   const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp||_lkc;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':(_lkc?'🔒 creation is finished — your DM awards AP from here':'');}
   {const al=$('apSourceLine');if(al)al.innerHTML=_apSourceHTML(r);}
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): non-blocking
   // — purchases already made with player AP are kept (never deleted/refunded/rewritten), this only informs.

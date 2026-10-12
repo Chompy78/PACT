@@ -440,9 +440,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div class="eco" id="eco"></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="genPortraitFor(foldBuild(null))">📷 AI Portrait</button><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn g" onclick="toggleSheet()">✕ Close</button></div><div id="sheetbody"></div></div>
 <div class="bar"><button onclick="toggleDM()" id="dmtoggle" class="dmtog">🛠 DM tools ▾</button><span id="dmcontent" style="display:inline">
-  <button class="btn" style="padding:3px 8px" onclick="(function(){var a=prompt('Award how many AP?','6');if(a==null||a==='')return;if(+a<0){alert('Award amount cannot be negative.');return;}var dt=new Date();var ds=String(dt.getFullYear()%100).padStart(2,'0')+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var n=prompt('What for? (logged with today\'s date)',ds);award(a,n||'');})()">+ Award AP</button>
-  <button class="btn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
-  <button class="btn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
+  <button class="btn" id="lsAwardBtn" style="padding:3px 8px" onclick="(function(){var a=prompt('Award how many AP?','6');if(a==null||a==='')return;if(+a<0){alert('Award amount cannot be negative.');return;}var dt=new Date();var ds=String(dt.getFullYear()%100).padStart(2,'0')+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var n=prompt('What for? (logged with today\'s date)',ds);award(a,n||'');})()">+ Award AP</button>
+  <button class="btn" id="lsDiscountBtn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
+  <button class="btn" id="lsGrantBtn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
   <button class="btn" style="padding:3px 8px" title="Redeem an AP grant code from your DM" onclick="redeemGrant()">⎀ Redeem</button>
   <button class="btn" style="padding:3px 8px" onclick="lsRename()">✎ Rename</button>
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
@@ -935,7 +935,13 @@ async function lsRename(){
 }
 function _lsRenameBtn(){return (VIEW_ONLY||viewAt!=null)?'':' <button type="button" class="btn shrename" onclick="lsRename()" aria-label="Rename character" title="Rename character" style="padding:1px 7px;font-size:13px;vertical-align:middle">✎</button>';}
 function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
-function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
+// fix/player-free-ap (H2, D-GH-2026-10-12-player-free-ap): a campaign character's AP comes from its DM (DM Console, or an AP code the DM
+// hands out, which ⎀ Redeem still accepts). The sheet's own + Award AP / + Discount / ⎘ AP code would let a player grant themselves
+// spendable AP and a permanent undo/server-freeze boundary, so they are hidden and refused for a campaign character. Solo is unchanged.
+function _lsSelfAwardBlocked(){ return !!window._lsCampaignId; }
+function _lsSyncDmAwardUi(){ var off=_lsSelfAwardBlocked(); ['lsAwardBtn','lsDiscountBtn','lsGrantBtn'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=off?'none':''; }); }
+function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console, or to send you an AP code to \u2380 Redeem.'); return true; }
+function award(amount,note,disc){ if(_lsRefuseSelfAward())return; if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
 // "caps them at" (code-review catch on fix/livesheet-drawback-legalcheck): the drawback-cap warning
@@ -1718,6 +1724,7 @@ function render(){
   if(!LOG.length){ /* still render empty */ }
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}
   try{_showVersionBanner();}catch(e){}   // self-correcting: raises OR clears the banner to match loadedRules
+  _lsSyncDmAwardUi();   // fix/player-free-ap: follows a binding that loads late
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
@@ -2850,7 +2857,7 @@ function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={
 // otherwise throw an uncaught TypeError on window.apEncodeGrant/apDecodeGrant being undefined and fail
 // silently (the pre-refactor plain-function versions had no such dependency) — same guard shape
 // DM Console's dmMakeGrant() call site already has (/code-review ultra, 2026-09-10).
-function makeGrant(){var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
+function makeGrant(){if(_lsRefuseSelfAward())return;var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
   var code;
   try{code=window.apEncodeGrant({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:window.makeGrantId()});}
   catch(e){flash('Could not generate a code — the sheet is still loading, try again in a moment.');return;}
