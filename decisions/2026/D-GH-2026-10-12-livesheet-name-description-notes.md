@@ -56,6 +56,14 @@ server and every lock/seal/campaign state allow both; the bugs were UI placement
   list if it is a bundle; the fold only reads the last, which is what the writer targets.
 - **Q7** Make the 16 extra CharGen appearance keys editable on the Live Sheet Sheet → **no** (read-only panel shows them all;
   editing stays in CharGen). Smallest Live Sheet hunk while another session works on that file.
+- **D1 (review of PR #635)** Reset and an id-less import must not re-import stale device-local notes. The local scratch is kept
+  (Q2) and Reset keeps the character id, so the copy-in brought frozen pre-migration values back into a freshly wiped
+  character (probe: "NEW story v2" → after Reset "OLD pre-migration story") and pushed them. Two layers:
+  (a) Reset and an id-less import write the five keys as `''` — present means "cleared", so the copy-in skips them;
+  (b) an imported file with **no id** now mints a **fresh id** instead of inheriting the previous character's. Verified before
+  the fix: it kept the previous `__charId`, so the next cloud push overwrote the PREVIOUS character's row with the imported one.
+  This matches CharGen, whose `applyBuild()` already does `__charId=(b&&b.id)||genCharId()`. The existing "don't import over a
+  sealed character" refusal for id-less files is left as it is (it is now merely stricter than needed).
 - Rename-guard exemptions now match the server's unique index exactly (`'new character'`, `'character'`, `'… (dm copy)'`).
 
 ## Why

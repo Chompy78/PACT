@@ -264,6 +264,34 @@ section('7. a LOCKED character still takes appearance edits and the copy-in');
   await ctx.close();
 }
 
+// -------------------------------------------------------------------------------------------------
+section('8. Reset and an id-less import never bring back device-local notes (review D1)');
+{
+  const id = 'id-reset';
+  const LOG = mkLog([{ type: 'buy', cat: 'patch', cost: 0, _slot: 'appearance', payload: { patch: { appearance: { backstory: 'NEW story v2', alignment: 'CG' } } } }]);
+  const scratch = { 'pactCharSheetManual:livesheet': { [id]: { notes: 'OLD pre-migration story', alignment: 'LE' }, 'id-other': { notes: 'should never appear' } } };
+  const { ctx, page, errs } = await lsPage({ id, LOG, scratch });
+  check('before Reset the LOG value wins over the stale local one', (await lsAp(page)).backstory === 'NEW story v2');
+  await page.evaluate(() => resetAll()); await page.waitForTimeout(500);
+  const r = await page.evaluate(() => ({ id: currentCharId(), ap: foldBuild(null).appearance || {} }));
+  check('Reset keeps the id (same character, wiped)', r.id === id, r.id);
+  check('…and does NOT re-import the stale pre-migration notes', !r.ap.backstory && !r.ap.alignment, JSON.stringify(r.ap));
+  await page.reload({ waitUntil: 'load' }); await lsReady(page); await page.waitForTimeout(400);
+  check('…still clear after a reload', !(await lsAp(page)).backstory);
+  // an id-less file (pre-D-GH40 export) imported over this character
+  const imp = await page.evaluate(async () => {
+    const env = { schema: 'pact-character/1', name: 'Imported Ivo', LOG: [{ seq: 1, type: 'award', amount: 50 }, { seq: 2, type: 'name', name: 'Imported Ivo' }], SEQ: 3 };
+    importJSON(new File([JSON.stringify(env)], 'ivo.json', { type: 'application/json' }));
+    await new Promise(r => setTimeout(r, 600));
+    return { id: currentCharId(), name: foldBuild(null).name, ap: foldBuild(null).appearance || {} };
+  });
+  check('an id-less import gets a FRESH id (does not take over the previous character\'s cloud row)', imp.id !== id && /^[0-9a-f-]{36}$/.test(String(imp.id)), imp.id);
+  check('…is the imported character', imp.name === 'Imported Ivo', imp.name);
+  check('…and does NOT inherit the previous character\'s device-local notes', !imp.ap.backstory && !imp.ap.alignment, JSON.stringify(imp.ap));
+  check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await ctx.close();
+}
+
 await browser.close(); server.close();
 console.log(`\n${fail ? '✗' : '✓'} ${pass} passed / ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1458,7 +1458,12 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // that distinction and this copy had dropped it.
   if(d.LOG&&((d.id&&String(d.id)!==String(currentCharId()))||!_lsBlockedBySeal('Importing over this character',
       'Import a file that carries its own character id instead, or open the other character from \u2601 Cloud \u2192 Load.'))
-    &&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+    &&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;
+    // fix/livesheet-name-description-notes (D1): a file with no id is a DIFFERENT character, not this one — mint a fresh id, as
+    // CharGen's applyBuild() already does. Keeping the previous id made the next cloud push overwrite the previous character's
+    // row, and the notes copy-in import the previous character's device-local notes into it.
+    if(d.id)__charId=d.id; else {__charId=null;currentCharId();_lsNotesCleared();}
+    REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1516,6 +1521,7 @@ function resetAll(){ if(confirm('Wipe this character and its whole history? This
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
   seedNew();   // re-seed a fresh level-1 character so the budget isn't empty (no false "over budget")
+  _lsNotesCleared();   // a reset keeps the id: mark the five notes as cleared so the copy-in can't bring back stale device-local values
   save();render();} }
 
 // ---------------- validation tray ----------------
@@ -2375,6 +2381,15 @@ function _shCommitAppearanceField(key,v){
 // Not an undo step (no REDO change, no viewAt change), never in the DM read-only view or while time-travelling. Idempotent:
 // afterwards the key is present (even '' once the player clears it), so it never runs again. The local scratch is NOT
 // deleted — kept for rollback/manual recovery; these fields simply stop reading it.
+// The five note keys present but empty = "cleared": pactNotesCopyInPlan() never copies over a present key. Used by Reset (same id)
+// and an id-less import, so a wiped/new character never inherits device-local notes (D1, H2 — see the decision record).
+function _lsNotesCleared(){
+  var cur=foldBuild(null).appearance||{}, add={}, n=0;
+  Object.keys(PACT_SHEET_LOG_FIELDS).forEach(function(mf){var k=PACT_SHEET_LOG_FIELDS[mf];if(!Object.prototype.hasOwnProperty.call(cur,k)){add[k]='';n++;}});
+  if(!n)return;
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,Object.assign({},cur,add),{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
+}
 var _lsCopyInPending=false;
 function _lsScheduleCopyIn(){ if(_lsCopyInPending||VIEW_ONLY||viewAt!=null)return; _lsCopyInPending=true; setTimeout(_lsNotesCopyIn,0); }
 function _lsNotesCopyIn(){
