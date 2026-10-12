@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-12-chargen-campaign-stuck-states — CharGen trusts a campaign binding only once the server confirms it
+- DM-only creation-AP controls are hidden only when the server confirms the campaign binding (`refreshServerBinding()`); an unconfirmed
+  binding leaves them usable with a note. Async binding resolves carry a generation and drop stale results. No migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-chargen-campaign-stuck-states.md`.
 ## D-GH-2026-10-12-livesheet-center-panel — skill totals come from the engine; the drawback-count advice is a DM switch
 - Owner choices B1/C1/D (DM Console)/E1. New engine export `skillMods()`; campaign rule `drawbackCountAdvice` (DM Console checkbox) reaches
   `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring

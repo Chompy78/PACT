@@ -1462,23 +1462,6 @@ Audit 2026-10-12. Line numbers approximate.
 ```
 **Done when:** e2e shows a campaign player has no Award AP / AP code in Live Sheet and no editable DM boons in CharGen; lowering gold after the lock is refused; turning off "Bound" removes both Bound grants from compute(); the server-freeze task's exempt list is corrected (or this task's migration lands with advisors run); `engine-parity.html` 0 failed.
 
-## fix/chargen-campaign-stuck-states — CharGen offers edits the server rejects, then autosave dead-ends — TODO
-Branch fix/chargen-campaign-stuck-states. **Effort:** low · **Risk:** medium — small client fixes, but they decide what a campaign character can edit (damage likelihood: players are stuck today).
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Building level (_cgApplyBuildLevelInner ~CG:3140) and "Confirm or change" creation AP (setCreationAp ~CG:3173; link ~CG:6777)
-     emit creationLockConfig on campaign characters; the server refuses it (2026-10-04-creation-lock-guard.sql ~18-21, 80-92), the push
-     is classed as a seal rejection and autosave stops with a misleading "history is locked" alert — reload is the only exit and loses
-     work. Disable/hide when campaign-bound.
-  2. loadFile native branch (~CG:4446-4458) never calls _cgAdoptEnvelopeBinding(d) (handoff and autosave restore do) — a loaded campaign
-     character shows 0 DM AP, everything over budget, floors wrong. One-liner.
-  3. Undo across New Character / file load (restoreFrame ~CG:2806; frames hold {log,seq,id} only) restores the old character without
-     _cgCampaignId/_dmAp/_dmApStatus — re-adopt the binding when the restored id differs.
-  4. A refused budget edit (_cgSyncSingletonEvent ~CG:3727) leaves the typed value in #budget and the build-level hint — repaint on refusal.
-```
-**Done when:** e2e: a campaign character shows no build-level/creation-AP controls; Local Load of a saved campaign character shows its DM AP; New Character → Undo shows the campaign AP again; a refused budget edit snaps back; `engine-parity.html` 0 failed.
-
 ## fix/livesheet-state-glitches — Live Sheet: time-travel, read-only DM view and Reset leave wrong state — TODO
 Branch fix/livesheet-state-glitches. **Effort:** low · **Risk:** low — local guards and resets; item 1 costs AP today, the rest are display or DM-local.
 
