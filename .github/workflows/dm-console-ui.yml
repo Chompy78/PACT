@@ -27,6 +27,7 @@ on:
       - "testing/scripts/wounds-ui-e2e.mjs"
       - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/scripts/ledger-xss-e2e.mjs"
+      - "testing/scripts/dm-console-notes-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -95,3 +96,8 @@ jobs:
       # text in every ledger-shaped view of all three tools, incl. the Live Sheet ?viewChar= DM view. Same cost profile.
       - name: Ledger renders — a stored-XSS payload in the LOG renders as text in all three tools
         run: node testing/scripts/ledger-xss-e2e.mjs
+
+      # feat/dm-console-character-notes: the read-only Appearance & backstory block on DM Console cards and the table-view
+      # detail shows the player's own text escaped (an <img onerror> backstory renders as text). Same cost profile.
+      - name: DM Console — Appearance & backstory renders player text safely
+        run: node testing/scripts/dm-console-notes-e2e.mjs
