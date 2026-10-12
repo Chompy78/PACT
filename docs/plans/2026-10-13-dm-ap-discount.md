@@ -117,7 +117,7 @@ Wizard scribing (`feat/wizard-scribe`). Moving the existing boon grant onto disc
 1. **Creation ceiling — DECIDED (owner F1, 2026-10-13).** A discount raises the creation ceiling by its amount, the same
    way drawback refunds do (`creationCeiling()` gains the discount alongside `drawbackBonus`), so a gift never uses up the
    player's own creation budget. The creation lock still fires on full value (AP value), per B1. The lock itself is manual (see Verified), so a gift cannot end creation early.
-2. **Database sum without cancellation.** The SQL sum doesn't drop cancelled purchases, so it may still count a
+2. **Database sum without cancellation — ACCEPTED as a known gap (owner I1, see Review outcome).** The SQL sum doesn't drop cancelled purchases, so it may still count a
    discount whose target was bought off. That can only make the server *more* generous than the engine. Is that
    acceptable, or must the SQL check the target is still active?
 3. **Forged discounts — RESOLVED in the approach** (step 3, anti-forgery). Both reviewers flagged it; the code confirms
@@ -156,6 +156,7 @@ OpenRouter Nemotron (`nvidia/nemotron-3-ultra-550b-a55b:free`; self-identified w
 - **Rejected:** "a free gift can lock creation early" (Gemini). The automatic lock was retired; creation ends only by an
   explicit lock. But it exposed a wrong Verified fact in this plan, now corrected.
 - **Rejected:** "the ledger object type is unclear" (Nemotron). It is a SQL function; context the reviewer could not see.
-- **Open → owner:** Risk 2, the server sum not dropping cancelled purchases (reviewers split: Gemini OK-as-is, Nemotron
-  "decide before merge").
+- **Decided (owner I1, 2026-10-13):** Risk 2, the server sum not dropping cancelled purchases, is ACCEPTED as a known gap
+  and stated in the decision record. It only helps a tampered client, by at most a discount on a purchase it has given up;
+  making SQL resolve buy-offs would put a second copy of the engine's rules in the database.
 - **Deferred to the build:** confirm no live log already contains a `dmDiscount` (a one-line SQL count).
