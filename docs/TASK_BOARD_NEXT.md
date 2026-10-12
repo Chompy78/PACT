@@ -1533,3 +1533,15 @@ come from it.
 **Done when:** with the gate on, a locked character with an unnamed language or spell slot cannot buy anything in either tool and is told which choice is missing; naming it in ✎ Name spells & languages lets the purchase through; Finish creating refuses while a slot is blank; DM awards are unaffected; a new e2e covers both tools; `engine-parity.html` 0 failed.
 
 ---
+
+## feat/dm-console-character-notes — DM Console shows a character's appearance, description and backstory — TODO
+Branch feat/dm-console-character-notes. **Effort:** low · **Risk:** low — read-only display of LOG data already synced; the only hazard is escaping (esc() rule).
+
+```text
+Follow-up from fix/livesheet-name-description-notes (owner decision A2, H2 Q5, 2026-10-12): Player Name, Alignment, Background,
+Allies and Backstory now live in the LOG as sub-keys of appearance (foldBuild(LOG).appearance), alongside CharGen's description
+fields. DM Console's roster card / character view doesn't show any of it, so a DM still can't read a player's backstory.
+Add a collapsible read-only "Appearance & backstory" block to the DM Console character card, read from foldBuild(LOG).appearance,
+every value through DM Console's esc(). Skip empty keys. No editing from the DM side.
+```
+**Done when:** dm-console-ui-e2e.mjs (or a new script) loads a character with appearance.backstory containing `<img src=x onerror=window.__xss=1>` and a normal backstory, and shows both as text on the card with `window.__xss` unset; `engine-parity-ci` 0 failed.
