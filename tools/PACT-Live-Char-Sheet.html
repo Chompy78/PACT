@@ -945,6 +945,9 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 function _lsSelfAwardBlocked(){ return !!window._lsCampaignId; }
 function _lsSyncDmAwardUi(){ var off=_lsSelfAwardBlocked(); ['lsAwardBtn','lsDiscountBtn','lsGrantBtn'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=off?'none':''; }); }
 function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console, or to send you an AP code to \u2380 Redeem.'); return true; }
+// fix/server-player-award-after-lock: mirrors pact_enforce_player_ap_ceiling() — on a campaign character that is creation-locked (last creationLocked after
+// the last creationUnlocked) or sealed, the database refuses any rise in the LOG's award total from anyone but the DM, a redeemed AP code included (H2).
+function _lsAwardsFrozen(){ if(!window._lsCampaignId) return false; var lk=-1,ul=-1,sl=false; LOG.forEach(function(e,i){ if(!e)return; if(e.type==='creationLocked')lk=i; else if(e.type==='creationUnlocked')ul=i; else if(e.type==='sessionSeal')sl=true; }); return sl||lk>ul; }
 function award(amount,note,disc){ if(_lsRefuseSelfAward())return; if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
@@ -2909,7 +2912,9 @@ function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','
   if(!o){flash('That is not a valid AP grant code.');return;}
   if(o.bad){flash('This grant code looks altered — ask your DM for a fresh one.');return;}
   if(!(+o.a)){flash('Invalid grant code.');return;}
-  if(o.id&&LOG.some(function(e){return e.grantId===o.id;})){flash('This grant code was already redeemed on this sheet.');return;}var _nt=(o.n||'AP grant')+(o.d?' [granted '+o.d+']':'');emit({type:'award',amount:+o.a,note:o.n||'',label:_nt,grantId:o.id||''});flash('Redeemed '+(+o.a)+' AP.');}
+  if(o.id&&LOG.some(function(e){return e.grantId===o.id;})){flash('This grant code was already redeemed on this sheet.');return;}
+  if(_lsAwardsFrozen()){flash('\uD83D\uDD12 This campaign character\u2019s creation is finished \u2014 an AP code can no longer be redeemed on it. Ask your DM to award the AP in the DM Console.');return;}
+  var _nt=(o.n||'AP grant')+(o.d?' [granted '+o.d+']':'');emit({type:'award',amount:+o.a,note:o.n||'',label:_nt,grantId:o.id||''});flash('Redeemed '+(+o.a)+' AP.');}
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
 function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});document.addEventListener('click',function(e){var m=document.getElementById('moremenu');if(m&&m.classList.contains('open')&&m.parentNode&&!m.parentNode.contains(e.target))m.classList.remove('open');});

@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
+- H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign
+  character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
+  `dmEdit` flag). Sum-shaped so CharGen's Budget singleton relocation keeps working. A redeemed AP code counts as a player award
+  there (Live Sheet refuses Redeem first). Migration NOT APPLIED — owner applies + runs get_advisors.
+  Full record: `decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md`.
 ## D-GH-2026-10-12-player-free-ap — players can't grant themselves AP or get AP back after the lock
 - H2 (owner away), provisional. Live Sheet hides/refuses + Award AP, + Discount and ⎘ AP code on a campaign character (⎀ Redeem
   stays); solo self-awards unchanged (not made `noLock`). CharGen's DM house rules are read-only on a confirmed campaign character

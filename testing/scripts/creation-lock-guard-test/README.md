@@ -41,3 +41,13 @@ re-running the baseline file can never revert the freeze; (3) run the Supabase a
 `sql/migrations/2026-10-11-server-freeze-stage2.sql` (+ `-rollback.sql`) empties the stage-1 TEMPORARY exempt list, so spellcasting, innate spells, martial binding, dabbler cantrips, origin classes, size and lineage become protected like every other priced patch field (only appearance, houseRules and gold stay editable). `run-freeze.sh` now rehearses it after stage 1: `freeze-cases.sql` takes `-v tmpexp=refused` (the default `allowed` is the stage-1 expectation), all 61 cases must pass at stage 2, and the stage-2 rollback must restore the stage-1 list exactly.
 
 Before applying to live, re-run both audits against a FRESH read-only export with the new flag: `backup-replay-audit.mjs <export.json> --stage2` lists every real saved pair that stage 2 would refuse but stage 1 (live today) allows — each must be a rewrite the current tools no longer make — and `roundtrip-audit.mjs <export.json> --stage2 --campaign-all` loads every live character in both tools and checks nothing in the stage-2-protected part of the history moves. Apply only after both come back clean.
+
+## Player award after the lock — added 2026-10-12 (NOT applied to the live database)
+
+`sql/migrations/2026-10-12-server-player-award-after-lock.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-12-server-player-award-after-lock`. Amends `pact_enforce_player_ap_ceiling()` so nobody but the campaign's DM can raise a locked or sealed campaign character's LOG award total.
+
+| File | What |
+|---|---|
+| `award-shims.sql` | Supabase stand-ins (auth schema, roles, `auth.users`, `auth.uid()` from `request.jwt.claims`, pgcrypto) |
+| `award-cases.sql` | 31 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus `2026-09-03-dm-zero-player-ap.sql`, so `dm_edit_character_log`, `award_ap`, `award_ap_and_seal`, `dm_zero_player_ap`, the budget check and the history lock all run beside the rule: player-award attacks, the CharGen Budget singleton moves (incl. the live 77-AP-after-the-lock shape), DM paths, solo, reopened, and `ignore_player_ap` campaigns |
+| `run-award.sh` | `BEFORE` (11 attacks allowed today) → apply → `AFTER` (all 31 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |

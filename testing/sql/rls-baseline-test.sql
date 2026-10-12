@@ -153,6 +153,8 @@ end $$;
 \echo ''
 \echo 'EXECUTE grants match production — the half that used to be silently reverted'
 do $$ begin
+  perform pg_temp.ok('a trigger function is NOT callable by authenticated (pact_enforce_player_ap_ceiling)',
+    not has_function_privilege('authenticated', 'public.pact_enforce_player_ap_ceiling()', 'EXECUTE'));
   perform pg_temp.ok('a trigger function is NOT callable by authenticated (pact_enforce_locked_history)',
     not has_function_privilege('authenticated', 'public.pact_enforce_locked_history()', 'EXECUTE'));
   perform pg_temp.ok('...nor pact_ap_ledger_protected',
@@ -693,7 +695,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player',
                   'pact_refuse_blank_solo_character','pact_purge_blank_characters',
                   'redeem_player_invite','redeem_character_claim',
-                  'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind');
+                  'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind',
+                  'pact_enforce_player_ap_ceiling');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -701,14 +704,15 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 18 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 18);
+  perform pg_temp.ok('all 19 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 19);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
 \ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
+\ir ../../sql/migrations/2026-09-03-dm-zero-player-ap.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
@@ -720,6 +724,8 @@ end $$;
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 \ir ../../sql/migrations/2026-10-11-campaign-npcs.sql
+-- fix/server-player-award-after-lock (NOT yet applied to production): amends 2026-09-03's pact_enforce_player_ap_ceiling.
+\ir ../../sql/migrations/2026-10-12-server-player-award-after-lock.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -739,8 +745,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 18 functions (saw ' || v_n || ')',
-    v_n = 18);
+  perform pg_temp.ok('the drift comparison actually covered all 19 functions (saw ' || v_n || ')',
+    v_n = 19);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

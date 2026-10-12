@@ -195,20 +195,20 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
-## fix/server-player-award-after-lock — the server accepts a player-appended AP award after the creation lock — TODO
-Branch fix/server-player-award-after-lock. **Effort:** medium · **Risk:** high — a trigger change on every campaign character save (damage scale); needs owner approval to apply to live.
+## Apply the player-award-after-lock migration to live — TODO (owner)
+**Effort:** small · **Risk:** high — a trigger change on every campaign character save; owner approval needed.
 
 ```text
-Found 2026-10-12 while fixing fix/player-free-ap (#638), by reading the SQL: pact_enforce_locked_history only blocks changes
-to EXISTING history, and pact_enforce_ap_budget_consistency counts a newly appended `award` event as player-earned AP unless
-the campaign has ignore_player_ap. So a player on a locked campaign character can append their own award with a modified
-client and get spendable AP. #638 closed it in both tools' UIs; the server gap remains.
-DO: write a migration that refuses a player-appended `award` (not disc, not a DM RPC, not a redeemed DM grant code — check how
-redeemGrant's events are shaped and keep them working) on a campaign-bound character; test it in the Docker harness
-(testing/scripts/creation-lock-guard-test/) including legit DM awards, award_ap_and_seal, grant-code redemption, solo
-characters; MEASURE live first: how many campaign characters already carry a player-appended award. Owner applies + get_advisors.
+The SQL and the tool changes merged with fix/server-player-award-after-lock (D-GH-2026-10-12-server-player-award-after-lock);
+the migration is NOT applied. Owner, with the Supabase MCP:
+1. Confirm live pact_enforce_player_ap_ceiling() still matches sql/migrations/2026-09-03-dm-zero-player-ap.sql
+   (select pg_get_functiondef('public.pact_enforce_player_ap_ceiling()'::regprocedure)) — so the rollback file is exact.
+2. Re-measure: campaign characters whose stored LOG is creation-locked or sealed (none had a rising award total on 2026-10-12;
+   the only bound awards are CharGen Budget singletons in an ignore_player_ap campaign).
+3. Apply sql/migrations/2026-10-12-server-player-award-after-lock.sql, then run get_advisors and skim get_logs.
+4. Update the migration header, decision Status and CHANGELOG line from "NOT APPLIED" to the apply date.
 ```
-**Done when:** the harness refuses a player-appended award on a campaign character and accepts every legitimate award path; the live measurement is shown to the owner; applied with owner approval and advisors clean.
+**Done when:** the migration is applied to live with owner approval and the advisors are clean.
 
 ---
 
