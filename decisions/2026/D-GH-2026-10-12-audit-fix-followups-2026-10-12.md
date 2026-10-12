@@ -1,7 +1,7 @@
-# D-GH-2026-10-12-audit-fix-followups-2026-10-12 — three choices in the audit-fix follow-ups
+# D-GH-2026-10-12-audit-fix-followups-2026-10-12 — four choices in the audit-fix follow-ups
 
 **Context.** The adversarial reviews of the 2026-10-12 audit fixes (PRs #633–#638) left eight small follow-ups on the board
-(`chore/audit-fix-followups-2026-10-12`). Three of them hid a choice the owner would normally make. The owner was away; each
+(`chore/audit-fix-followups-2026-10-12`). Four of them hid a choice the owner would normally make. The owner was away; each
 was taken under standing instruction **H2** (pick the most conservative option: the one that refuses, locks or hides rather
 than grants AP or opens an edit).
 
@@ -23,6 +23,14 @@ than grants AP or opens an edit).
     `creationLocked` and `creationUnlocked` — back in its original order, dropping the rebuild's fresh auto-arm when one was
     carried. Carrying only threshold/lock events had turned an invite-seeded `[threshold, auto]` into `[auto, threshold]`;
     a throwaway Postgres with the live guard and freeze stack refused that save and accepts the fixed one.
+- **Item 3 — which id an untagged Live Sheet file opens under (review of #643).** CharGen's branch for untagged files
+  rebuilds the LOG from the folded build, dropping lock events, awards, seals and purchase lines. Keeping the file's id lets
+  the binding be confirmed, but the next save then UPDATEs the real row with that rebuilt history: refused for good on a
+  campaign row with lock events ("a creation-lock entry cannot be removed"), silently replaced on a solo row.
+  - A. Always keep the id. B. Never keep it (the old behaviour: a separate copy, no binding). C. Keep the id and binding only
+    when the LOG has no lock-family event, award or session seal; otherwise B, with a flash saying it opened as a copy.
+  - **Decision: C.** It fixes the case the task named (a plain export of a character in a campaign) without letting a rebuild
+    overwrite protected history.
 - **Item 2 — when CharGen's creation-AP controls are refused.** Before: hidden only on a server-CONFIRMED campaign binding.
   While a binding was still being confirmed (or on a finished character whose binding could not be confirmed) a choice wrote
   a `creationLockConfig` threshold the server's guard refuses for a campaign character — the "history is locked" stuck state.

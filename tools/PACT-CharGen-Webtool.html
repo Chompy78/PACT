@@ -4719,16 +4719,29 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       if(!b.species)b.species='Human';
       if(!b.hd)b.hd=1;
       b.version=d.rules||DATA.version;
+      // chore/audit-fix-followups-2026-10-12 (item 3, review of #643): this branch REBUILDS the LOG from the folded
+      // build (applyBuild -> replaceWholeLogFromBuild), which drops every lock event, award, seal and purchase line.
+      // Keeping the file's id would make the next save UPDATE the real row with that rebuilt history: a campaign row
+      // with lock events is refused for good ("a creation-lock entry cannot be removed"), and a solo row's history is
+      // silently replaced. So the file's id -- and with it its campaign binding -- is kept ONLY when its LOG carries
+      // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
+      // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
+      const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal');});
+      const _keepId=!!d.id&&!_protected;
       // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
       // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
-      if(d.id)b.id=d.id;
+      if(_keepId)b.id=d.id;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
-      // chore/audit-fix-followups-2026-10-12 (item 3): adopt the file's campaign binding here too, as branch 1 does
-      // (#634) -- otherwise a campaign character opens at 0 DM AP with every purchase over budget. Keyed on the id
-      // this load just gave the character, so the server is asked about the character actually open.
-      if(d.campaignId) _cgAdoptEnvelopeBinding({id:__charId,campaignId:d.campaignId});
-      flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
+      // Adopt the file's campaign binding too, as branch 1 does (#634) -- otherwise a campaign character opens at
+      // 0 DM AP with every purchase over budget. Keyed on the id this load just gave the character. Not for a copy:
+      // a fresh id has no row, and binding a copy would make it a second character in the campaign.
+      if(d.campaignId&&(_keepId||!d.id)&&!_protected) _cgAdoptEnvelopeBinding({id:__charId,campaignId:d.campaignId});
+      if(_protected&&(d.id||d.campaignId))
+        flash('Opened this Live Sheet file as a separate copy — its history (creation lock, awards or seals) can’t be rebuilt here without the server refusing it. Open the character in the Live Sheet, or from the cloud, to keep working on the original.');
+      else
+        flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
       return;
     }
     // Branch 3: legacy CharGen flat build format (every file saved before Step 4 still opens)

@@ -156,7 +156,9 @@ section('3. an untagged Live Sheet file adopts its campaign binding');
 {
   await cgFresh();
   const FID = '11111111-2222-4333-8444-555555555555';
-  const raw = await p.evaluate(([C1,FID])=>{ const e=_cgEnvelope(false); return JSON.stringify({name:'Untagged Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, id:FID, campaignId:C1}); }, [C1,FID]);
+  const PROT = ['creationLockConfig','creationLocked','creationUnlocked','award','sessionSeal'];
+  // (a) nothing the rebuild would lose that the server protects: the file's id and binding are kept.
+  const raw = await p.evaluate(([C1,FID,PROT])=>{ const e=_cgEnvelope(false); return JSON.stringify({name:'Untagged Probe', rules:e.rules, LOG:e.LOG.filter(x=>!PROT.includes(x.type)), SEQ:e.SEQ, id:FID, campaignId:C1}); }, [C1,FID,PROT]);
   await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
   await p.evaluate((FID)=>{ window.__srvId = FID; }, FID);   // the server has a row for the FILE's id only
   await p.evaluate((txt)=>loadFile(new File([txt],'ls.json',{type:'application/json'})), raw);
@@ -165,6 +167,21 @@ section('3. an untagged Live Sheet file adopts its campaign binding');
   check('the untagged file keeps its own character id', st.cid===FID, JSON.stringify(st));
   check('the untagged file\'s character is bound to its campaign', st.id===C1, JSON.stringify(st));
   check('...confirmed by the server for that id, with its DM AP (42)', st.confirmed && st.ap===42 && st.status==='active', JSON.stringify(st));
+
+  // (b) a LOG with an award / lock events: the rebuild would drop them, so the row must not be overwritten —
+  // it opens as a separate copy (fresh id, no binding) and says so.
+  await cgFresh();
+  const raw2 = await p.evaluate(([C1,FID])=>{ cgFinishCreating(true); const e=_cgEnvelope(false);
+    return JSON.stringify({name:'Protected Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, id:FID, campaignId:C1}); }, [C1,FID]);
+  check('(precondition) the protected file carries lock events and an award', await p.evaluate((t)=>{ const L=JSON.parse(t).LOG; return L.some(e=>e.type==='creationLocked') && L.some(e=>e.type==='award'); }, raw2));
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate((FID)=>{ window.__srvId = FID; window.__flashes=[]; const f=window.flash; window.flash=function(m){ window.__flashes.push(String(m)); return f&&f.apply(this,arguments); }; }, FID);
+  await p.evaluate((txt)=>loadFile(new File([txt],'ls2.json',{type:'application/json'})), raw2);
+  await p.waitForTimeout(1500);
+  const st2 = await p.evaluate(()=>({cid:currentCharId(), id:window._cgCampaignId, pend:(typeof _cgPendingCampaignId!=='undefined')?_cgPendingCampaignId:null, fl:window.__flashes}));
+  check('protected history: opens with a FRESH id, not the file\'s', st2.cid && st2.cid!==FID, JSON.stringify(st2));
+  check('...and is not bound to the campaign', !st2.id && !st2.pend, JSON.stringify(st2));
+  check('...and says it opened as a copy', st2.fl.some(m=>/separate copy/.test(m)), JSON.stringify(st2.fl));
 }
 
 // -------------------------------------------------------------------------------------------------
