@@ -12,8 +12,8 @@
 
 ## D-GH-2026-10-12-dm-house-rules-editor — a DM sets one campaign character's house rules through the DM edit path
 - H2 (owner away), provisional. Per character, not campaign-wide: one APPENDED houseRules-only patch through
-  `dm_edit_character_log` (migration written, NOT applied), ledger cost forced to 0; DM Console refuses a change that would
-  leave the character below 0 AP left and deleting a custom rule the character holds. #638's H2 decisions stay provisional.
+  `dm_edit_character_log` (migration written, NOT applied), ledger cost forced to 0, only after creation is finished; refuses
+  changing a drawback the character holds and deleting a custom rule they hold. #638's H2 decisions stay provisional.
   Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
 ## D-GH-2026-10-12-player-free-ap — players can't grant themselves AP or get AP back after the lock
 - H2 (owner away), provisional. Live Sheet hides/refuses + Award AP, + Discount and ⎘ AP code on a campaign character (⎀ Redeem

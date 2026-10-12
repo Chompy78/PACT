@@ -7,9 +7,10 @@
  *   1. The "house rules for this character" block shows the character's CURRENT rules (the engine's fold of the LOG).
  *   2. Save calls / Add or reprice / Remove each send exactly ONE appended buy/patch event whose payload is ONLY
  *      patch.houseRules (the whole next object, everything else carried over), at cost 0.
- *   3. compute(foldBuild(LOG + that event)) reflects it: the DM call, a repriced boon's price, a held drawback's grant.
- *   4. It refuses a change that would leave the character below 0 AP left, a no-op, a bad AP, and deleting a custom
- *      rule the character still holds — sending nothing. The archived-campaign peek blocks it. A server without the
+ *   3. compute(foldBuild(LOG + that event)) reflects it: the DM call and a repriced boon's price; AP left does not move.
+ *   4. It refuses (sending nothing): a character still in creation (or reopened), changing a drawback the character
+ *      holds, a no-op, a bad AP, an existing rule outside the server's limits (named), and deleting a custom rule the
+ *      character still holds. The archived-campaign peek blocks it. A server without the
  *      migration gets a plain-language message. Player/DM text renders escaped.
  *   CharGen
  *   5. The player opening that character (a confirmed campaign character) sees the DM's rules and still cannot change them.
@@ -23,7 +24,6 @@ import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7998;   // distinct from every other e2e port (dm-console-unlock 7994, player-free-ap 7991, …)
 const MIME = { '.html':'text/html','.js':'text/javascript','.json':'application/json',
                '.css':'text/css','.webp':'image/webp','.png':'image/png','.svg':'image/svg+xml' };
 const server = http.createServer((q, r) => {
@@ -34,7 +34,9 @@ const server = http.createServer((q, r) => {
     r.end(d);
   });
 });
-await new Promise(r => server.listen(PORT, r));
+// An ephemeral port, not a fixed one: parallel agent runs collided on hard-coded ports (see the audit follow-ups board item).
+await new Promise(r => server.listen(0, r));
+const PORT = server.address().port;
 
 let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
@@ -140,27 +142,55 @@ const e3 = await engine(LOG3);
 check('compute() prices the boon at the DM\'s figure: total is 2 AP lower', e3.total === e2.total - 2, `${e2.total} -> ${e3.total}`);
 check('...but AP left is unchanged — what they paid stays paid, nothing is refunded', e3.left === e2.left, `${e2.left} -> ${e3.left}`);
 
-console.log('4. Add / reprice — the HELD drawback, worth 1 more (a grant the DM sees before saving)');
+console.log('4. Drawbacks — one the character HOLDS keeps its value; a new custom one is fine');
 await render([row('c1', LOG3)]);
 await reset();
 await setForm('draw', pick.draw, '', String(pick.drawAp + 1), 'house version');
 await click('.dm-hr-btn[data-act="add"]'); await settle();
+check('repricing a drawback the character HOLDS is refused, nothing sent (the server ledger keeps its frozen value)',
+  await page.evaluate(() => window.__calls.length === 0 && window.__alerts.some(m => /holds the drawback/.test(m))));
+await reset();
+await setForm('draw', 'Sworn Rival', '', '3', 'a house drawback');
+await click('.dm-hr-btn[data-act="add"]'); await settle();
 call = await lastCall(); ev = call && call.events[0];
-check('one event, the drawback at its new value', ev && ev.payload.patch.houseRules.draws[pick.draw] && ev.payload.patch.houseRules.draws[pick.draw].ap === pick.drawAp + 1);
+check('a custom drawback nobody holds is sent', ev && ev.payload.patch.houseRules.draws['Sworn Rival'] && ev.payload.patch.houseRules.draws['Sworn Rival'].ap === 3);
 const e4 = await engine(LOG3.concat([asStored(ev, 9)]));
-check('compute() grants the new value: AP left +1', e4.left === e3.left + 1, `${e3.left} -> ${e4.left}`);
-check('...and the confirm told the DM the AP-left change', await page.evaluate(([a, b]) => window.__confirms.some(m => m.includes(a + ' → ' + b)), [e3.left, e4.left]));
+check('...and moves no AP', e4.left === e3.left && e4.total === e3.total, `${e3.left} -> ${e4.left}`);
 
 console.log('5. Refusals — nothing is sent');
-const tight = mkLog(79);
-const left79 = (await engine(tight)).left;
-const TIGHT = mkLog(79 - (left79 - 1));   // exactly 1 AP left
-check('(precondition) the tight character has 1 AP left', (await engine(TIGHT)).left === 1, String((await engine(TIGHT)).left));
-await render([row('c2', TIGHT)]);
+// Review finding 1: a character still in creation. repriceDraft() would re-stamp the DM event's cost on the player's
+// next save (award 79, Bulwark 6, DM reprices to 1 -> the event became -5), so the DM Console refuses.
+const DRAFT = LOG.filter(e => e.type !== 'creationLocked');
+check('(precondition) the engine calls the draft log a creation draft, the locked one not',
+  await page.evaluate(([d, l]) => window.isCreationDraft(d) && !window.isCreationDraft(l), [DRAFT, LOG]));
+await render([row('c4', DRAFT)]);
+check('a character still in creation shows a "once they finish creating" note', await page.evaluate(() => !!document.querySelector('#campRoster .dm-hr-draft')));
 await reset();
-await setForm('draw', pick.draw, '', '0', '');
+await setForm('boon', pick.boon, '', '1', '');
 await click('.dm-hr-btn[data-act="add"]'); await settle();
-check('a drawback reprice that would leave them below 0 AP left is refused, with the numbers', await page.evaluate(() => window.__calls.length === 0 && window.__alerts.some(m => /Not saved/.test(m) && /AP left/.test(m))));
+check('...and a house-rules edit on it is refused, nothing sent', await page.evaluate(() => window.__calls.length === 0 && window.__alerts.some(m => /still in character creation/.test(m))));
+const REOPENED = LOG.concat([{ seq: 7, ts: 7, type: 'creationUnlocked', label: 'DM reopened creation' }]);
+await render([row('c5', REOPENED)]);
+await reset();
+await page.evaluate(() => { document.querySelector('#campRoster .dm-hr-call[data-key="bound"]').checked = false; });
+await click('.dm-hr-btn[data-act="calls"]'); await settle();
+check('a character whose creation the DM reopened is refused too', await page.evaluate(() => window.__calls.length === 0 && window.__alerts.some(m => /still in character creation/.test(m))));
+// Review finding 4: an EXISTING rule outside the server's limits (CharGen accepts a negative/fractional AP) used to ride
+// along on every save and come back as a raw database error. It is named, and removing it clears the way.
+const BAD = LOG.map(e => e.seq === 3 ? JSON.parse(JSON.stringify(e)) : e);
+BAD[2].payload.patch.houseRules.boons['Old Gift'] = { hd: 1, ap: -4, fx: '' };
+await render([row('c6', BAD)]);
+await reset();
+await page.evaluate(() => { document.querySelector('#campRoster .dm-hr-call[data-key="tasha"]').checked = false; });
+await click('.dm-hr-btn[data-act="calls"]'); await settle();
+check('an existing out-of-limits rule is NAMED in a plain message, and nothing is sent', await page.evaluate(() => window.__calls.length === 0
+  && window.__alerts.some(m => /Old Gift/.test(m) && /whole number from 0 to 1000/.test(m) && !/dm_edit_character_log/.test(m))));
+await reset();
+await page.evaluate(() => { const b = [...document.querySelectorAll('#campRoster .dm-hr-btn[data-act="remove"]')].find(x => x.getAttribute('data-name') === 'Old Gift'); b.click(); });
+await settle();
+call = await lastCall();
+check('...removing that rule is allowed and sends the rules without it', call && call.events[0] && !('Old Gift' in call.events[0].payload.patch.houseRules.boons));
+await render([row('c1', LOG)]);
 await reset();
 await click('.dm-hr-btn[data-act="calls"]'); await settle();
 check('saving the calls unchanged sends nothing ("Nothing to change")', await page.evaluate(() => window.__calls.length === 0 && window.__alerts.some(m => /Nothing to change/.test(m))));
@@ -191,6 +221,14 @@ await click('.dm-hr-btn[data-act="calls"]');
 await page.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
 const oldMsg = await page.evaluate(() => window.__alerts[window.__alerts.length - 1]);
 check('a server without the migration: a plain-language message, not the raw database error', /has not been updated/.test(oldMsg) && !/dm_edit_character_log/.test(oldMsg), oldMsg.slice(0, 100));
+await render([row('c1', LOG)]);
+await reset();
+await page.evaluate(() => { window._campBridge.dmEditCharacterLog = () => Promise.reject(new Error('dm_edit_character_log: house rules can be changed only after the character has finished creation')); });
+await page.evaluate(() => { document.querySelector('#campRoster .dm-hr-call[data-key="tasha"]').checked = false; });
+await click('.dm-hr-btn[data-act="calls"]');
+await page.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
+const draftMsg = await page.evaluate(() => window.__alerts[window.__alerts.length - 1]);
+check('the server\'s "finish creation first" refusal is shown in plain words', /Finish creating/.test(draftMsg) && !/dm_edit_character_log/.test(draftMsg), draftMsg.slice(0, 100));
 await page.evaluate(() => { window._campBridge.dmEditCharacterLog = (id, events) => { window.__calls.push({ id, events }); return Promise.resolve(events); }; });
 await render([row('c1', LOG)]);
 await reset();

@@ -89,6 +89,25 @@ begin
       jsonb_build_object('seq',4,'ts',4,'type','buy','cat','boon','cost',3,'payload',jsonb_build_object('v','Lucky')),
       jsonb_build_object('seq',5,'ts',5,'type','creationLocked','label','Finished creating'))));
   perform pg_temp.ok('the probe character is bound to the DM''s campaign', (select campaign_id from public.characters where id = c) = v_c);
+
+  -- Two more players' characters in the same campaign: one still in creation (no creationLocked), one whose DM
+  -- reopened creation (creationUnlocked after the lock). Both are creation drafts to js/engine.js.
+  insert into auth.users (email) values ('hr-p2@x.test') returning id into v; insert into pg_temp.ids values ('p2', v);
+  insert into auth.users (email) values ('hr-p3@x.test') returning id into v; insert into pg_temp.ids values ('p3', v);
+  insert into public.characters (owner_id, name, campaign_id, stats) values (pg_temp.id('p2'), 'Draft probe', v_c,
+    jsonb_build_object('SEQ',3,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','cost',6,'payload',jsonb_build_object('v','Bulwark')))))
+    returning id into v;
+  insert into pg_temp.ids values ('draft', v);
+  insert into public.characters (owner_id, name, campaign_id, stats) values (pg_temp.id('p3'), 'Reopened probe', v_c,
+    jsonb_build_object('SEQ',5,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','award','amount',79),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','boon','cost',6,'payload',jsonb_build_object('v','Bulwark')),
+      jsonb_build_object('seq',3,'ts',3,'type','creationLocked'),
+      jsonb_build_object('seq',4,'ts',4,'type','creationUnlocked'))))
+    returning id into v;
+  insert into pg_temp.ids values ('reopened', v);
 end $$;
 
 \echo ''
@@ -148,6 +167,27 @@ begin
   perform pg_temp.rejects('a custom boon at hd 25 is refused',
     format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"boons":{"X":{"hd":25,"ap":3}}}}},"cost":0}]'),
     'dm_edit_character_log: each houseRules boon%');
+  perform pg_temp.rejects('a NEGATIVE boon AP (a hidden grant) is refused',
+    format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"boons":{"X":{"hd":1,"ap":-3}}}}},"cost":0}]'),
+    'dm_edit_character_log: each houseRules boon%');
+  perform pg_temp.rejects('a FRACTIONAL boon AP is refused',
+    format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"boons":{"X":{"hd":1,"ap":2.5}}}}},"cost":0}]'),
+    'dm_edit_character_log: each houseRules boon%');
+  perform pg_temp.rejects('a FRACTIONAL boon hd is refused',
+    format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"boons":{"X":{"hd":1.5,"ap":2}}}}},"cost":0}]'),
+    'dm_edit_character_log: each houseRules boon%');
+  perform pg_temp.rejects('a NEGATIVE drawback AP is refused',
+    format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"draws":{"D":{"ap":-2}}}}},"cost":0}]'),
+    'dm_edit_character_log: each houseRules drawback%');
+  perform pg_temp.rejects('a FRACTIONAL drawback AP is refused',
+    format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"draws":{"D":{"ap":1.5}}}}},"cost":0}]'),
+    'dm_edit_character_log: each houseRules drawback%');
+  perform pg_temp.rejects('a character still IN CREATION (no creationLocked) is refused — repriceDraft would re-stamp the cost',
+    format(q, pg_temp.id('draft'), '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":' || ok_hr || '}},"cost":0}]'),
+    'dm_edit_character_log: house rules can be changed only after the character has finished creation');
+  perform pg_temp.rejects('a character whose creation the DM REOPENED (creationUnlocked after the lock) is refused too',
+    format(q, pg_temp.id('reopened'), '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":' || ok_hr || '}},"cost":0}]'),
+    'dm_edit_character_log: house rules can be changed only after the character has finished creation');
   perform pg_temp.rejects('a custom drawback worth 5000 AP is refused',
     format(q, c, '[{"type":"buy","cat":"patch","payload":{"patch":{"houseRules":{"draws":{"Rich":{"ap":5000}}}}},"cost":0}]'),
     'dm_edit_character_log: each houseRules drawback%');

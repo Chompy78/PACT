@@ -15,16 +15,19 @@
 --
 -- WHAT THIS CHANGES — one function, nothing else:
 --   dm_edit_character_log(): accepts buy/cat:'patch' when, and only when, payload.patch has exactly one key,
---   houseRules, of the shape CharGen writes ({boons:{name:{hd,ap,fx}}, draws:{name:{ap,fx}},
+--   houseRules, of the shape CharGen writes ({boons:{name:{hd,ap,fx}}, draws:{name:{ap,fx}}, whole numbers, ap 0-1000,
 --   disabled:{boons:[],draws:[]}, dmAllows:{bound,boons,drawbacks,tasha}}). The event is rebuilt from a
 --   whitelist (type, cat, payload, label, level, and cost FORCED to 0) and stamped seq/ts/dmEdit/dmId like
 --   every other DM edit. Every other behaviour is unchanged (see the [HOUSE] comments).
 --
+--   ...and only for a character that has FINISHED creation (its last creationLocked after its last
+--   creationUnlocked): a draft's costs are re-stamped by js/engine.js repriceDraft() on the player's next save.
+--
 -- WHAT IT DELIBERATELY LEAVES ALONE
 --   * pact_ap_ledger_spend(): patch costs are outside the server budget sum by design, and this one is 0 anyway.
---     A change to a HELD drawback's AP does change compute()'s spendable (the grant is derived from the
---     drawback's current value); DM Console shows the AP-left change before sending and refuses one that would
---     leave the character below 0 AP left.
+--     A change to a HELD drawback's AP would change compute()'s spendable but not this server ledger (which
+--     counts the drawback's frozen cost), so DM Console refuses any change to a drawback the character holds.
+--     The server does not re-check that (it would need the engine's fold); it is a client rule.
 --   * pact_ap_ledger_protected() / pact_patch_exempt_keys(): houseRules stays in the exempt list, so a
 --     houseRules-only patch has no protected projection and pact_enforce_locked_history() lets it be appended
 --     after a lock, seal or award. Dropping houseRules from the exempt list (so the PLAYER can no longer
@@ -86,6 +89,8 @@ declare
   -- feat/dm-house-rules-editor (D-GH-2026-10-12-dm-house-rules-editor): scratch for validating a house-rules patch.
   v_patch      jsonb;
   v_hr         jsonb;
+  v_last_lock  integer;
+  v_last_unlk  integer;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -190,13 +195,25 @@ begin
     -- order, so the last houseRules wins). Its frozen ledger `cost` is ALWAYS 0, whatever the client sent: a rules
     -- change is not a purchase, so it neither refunds what a boon cost when it was bought nor charges for one
     -- already owned (D-GH30: what was paid is what was paid). That keeps the dm-edit invariant that a DM edit
-    -- line never moves the player's frozen ledger. (compute() still prices FUTURE purchases, and a held drawback,
-    -- at the new numbers.) A houseRules-only patch has no protected projection, so no trigger needs a change.
+    -- line never moves the player's frozen ledger. (compute() prices FUTURE purchases at the new
+    -- numbers; DM Console refuses changing a drawback the character holds.) A houseRules-only patch has no protected projection, so no trigger needs a change.
     -- The numeric checks below use CASE, not OR, and every jsonb_each/_object_keys gets an object: SQL does not
     -- promise left-to-right evaluation, and a cast or type error would abort with a raw error instead of a clean
     -- refusal (the same reasoning as the [UNLOCK] block's jsonb equality).
     -- The shape is checked strictly and the event is REBUILT from a whitelist: nothing else may ride along.
     if v_type = 'buy' and v_cat = 'patch' then
+      -- Only once creation is FINISHED: the stored log's last creationLocked is after its last creationUnlocked —
+      -- the same "currently locked" test pact_enforce_locked_history() uses for D2. While a character is still a
+      -- creation draft, js/engine.js repriceDraft() re-stamps every purchase at today's prices on the player's
+      -- next save, which would turn this event's cost 0 into a refund or a charge. A log that js/engine.js
+      -- considers locked by some other route (none today) is refused here too: the safe direction.
+      select max(ord) into v_last_lock from jsonb_array_elements(v_log) with ordinality as t(e, ord)
+       where e->>'type' = 'creationLocked';
+      select max(ord) into v_last_unlk from jsonb_array_elements(v_log) with ordinality as t(e, ord)
+       where e->>'type' = 'creationUnlocked';
+      if v_last_lock is null or coalesce(v_last_unlk, 0) > v_last_lock then
+        raise exception 'dm_edit_character_log: house rules can be changed only after the character has finished creation';
+      end if;
       v_patch := v_ev->'payload'->'patch';
       if jsonb_typeof(v_patch) is distinct from 'object'
          or (select array_agg(k order by k) from jsonb_object_keys(case when jsonb_typeof(v_patch) = 'object' then v_patch else '{}'::jsonb end) as k) is distinct from array['houseRules'] then
@@ -220,19 +237,19 @@ begin
       if v_hr ? 'boons' and (jsonb_typeof(v_hr->'boons') is distinct from 'object'
          or exists (select 1 from jsonb_each(case when jsonb_typeof(v_hr->'boons') = 'object' then v_hr->'boons' else '{}'::jsonb end) as d
                      where btrim(d.key) = '' or char_length(d.key) > 80 or jsonb_typeof(d.value) <> 'object'
-                        or (case when jsonb_typeof(d.value->'ap') = 'number' then abs((d.value->>'ap')::numeric) > 1000 else true end)
-                        or (case when jsonb_typeof(d.value->'hd') = 'number' then (d.value->>'hd')::numeric not between 1 and 20 else true end)
+                        or (case when jsonb_typeof(d.value->'ap') = 'number' then (d.value->>'ap')::numeric not between 0 and 1000 or (d.value->>'ap')::numeric <> trunc((d.value->>'ap')::numeric) else true end)
+                        or (case when jsonb_typeof(d.value->'hd') = 'number' then (d.value->>'hd')::numeric not between 1 and 20 or (d.value->>'hd')::numeric <> trunc((d.value->>'hd')::numeric) else true end)
                         or (d.value ? 'fx' and (jsonb_typeof(d.value->'fx') <> 'string' or char_length(d.value->>'fx') > 500))
                         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(d.value) = 'object' then d.value else '{}'::jsonb end) as f where f not in ('hd', 'ap', 'fx')))) then
-        raise exception 'dm_edit_character_log: each houseRules boon needs a name, hd 1-20, ap within 1000 and an optional short fx';
+        raise exception 'dm_edit_character_log: each houseRules boon needs a name, whole-number hd 1-20, whole-number ap 0-1000 and an optional short fx';
       end if;
       if v_hr ? 'draws' and (jsonb_typeof(v_hr->'draws') is distinct from 'object'
          or exists (select 1 from jsonb_each(case when jsonb_typeof(v_hr->'draws') = 'object' then v_hr->'draws' else '{}'::jsonb end) as d
                      where btrim(d.key) = '' or char_length(d.key) > 80 or jsonb_typeof(d.value) <> 'object'
-                        or (case when jsonb_typeof(d.value->'ap') = 'number' then abs((d.value->>'ap')::numeric) > 1000 else true end)
+                        or (case when jsonb_typeof(d.value->'ap') = 'number' then (d.value->>'ap')::numeric not between 0 and 1000 or (d.value->>'ap')::numeric <> trunc((d.value->>'ap')::numeric) else true end)
                         or (d.value ? 'fx' and (jsonb_typeof(d.value->'fx') <> 'string' or char_length(d.value->>'fx') > 500))
                         or exists (select 1 from jsonb_object_keys(case when jsonb_typeof(d.value) = 'object' then d.value else '{}'::jsonb end) as f where f not in ('ap', 'fx')))) then
-        raise exception 'dm_edit_character_log: each houseRules drawback needs a name, ap within 1000 and an optional short fx';
+        raise exception 'dm_edit_character_log: each houseRules drawback needs a name, whole-number ap 0-1000 and an optional short fx';
       end if;
       if v_hr ? 'disabled' and (jsonb_typeof(v_hr->'disabled') is distinct from 'object'
          or exists (select 1 from jsonb_each(case when jsonb_typeof(v_hr->'disabled') = 'object' then v_hr->'disabled' else '{}'::jsonb end) as d

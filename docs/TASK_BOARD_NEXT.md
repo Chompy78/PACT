@@ -1513,8 +1513,10 @@ houseRules-only patch through dm_edit_character_log, ledger cost forced to 0. Wh
      sql/rls-policies.sql and add the file to the \ir lists in testing/sql/session-seal-test.sql and
      rls-baseline-test.sql; then merge the PR.
   2. Confirm or reverse the H2 choices: per-character (not campaign-wide); cost 0 (no refund/charge for a repriced boon
-     already owned); refusing a change that leaves a character below 0 AP left; refusing to delete a custom rule the
-     character still holds.
+     already owned); only after creation is finished; refusing to change a drawback the character holds; refusing to
+     delete a custom rule the character still holds.
+  4. Follow-ups (not built): the player can still rewrite houseRules in their own row server-side (exempt list, see
+     feat/server-freeze-at-lock); a DM's house-rules event stays in the log after the character leaves the campaign.
   3. Revisit the #638 H2 decisions still provisional under I1 (decisions/2026/D-GH-2026-10-12-player-free-ap.md): solo
      self-award not noLock; solo characters lose DM Calls after their own lock; starting gold refused both ways after
      the lock.
