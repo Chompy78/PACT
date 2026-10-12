@@ -176,31 +176,6 @@ runs only on Live Sheet's Rename — not on save, import or load — and CharGen
 ```
 **Done when:** a test reproduces a blank-row insert on the old code and passes on the new; `engine-parity.html` reports 0 failed; a live re-check after the fix reaches `main` shows no blank rows created after that date.
 
-## fix/chargen-livesheet-data-loss — saved work silently lost or written to the wrong character — TODO
-Branch fix/chargen-livesheet-data-loss. **Effort:** medium · **Risk:** medium — several independent small fixes in both tools' load/save paths; damage likelihood is high today (live data loss), fixes are local.
-
-```text
-Audit 2026-10-12. Grep the symbol; line numbers approximate.
-  1. CharGen "Name spells & languages": saveNames() (~CG:4631) only sets the global CG_NAMES — no LOG event, no commitHistory. Names
-     are lost on save/reload/handoff, and CG_NAMES is never reset, so _buildEventBurst writes the PREVIOUS character's names into New
-     Character / file load / #b= link / Randomize. Fix: write a 'names' event via the LOG, seed the dialog from foldBuild(LOG) only,
-     delete the global. Fix the flash/button text that still promises "export with your Live Sheet file" (path deleted in D-GH40).
-     Same bleed: replaceWholeLogFromBuild (~CG:3678) carries epicBoonAbil from the old LOG into the new build.
-  2. CharGen Local Save overwrites another character's file: _fileHandle (~CG:4402) isn't cleared on cloud load, handoff, DM viewChar
-     copy, invite redemption, undo of a load, or a refused/failed load (loadViaPicker sets it BEFORE validating, ~CG:4438). Clear on
-     every character switch; adopt only after a successful load.
-  3. CharGen: opening a Live Sheet character runs _cgSyncAward() on load (_cgApplyEnvelope ~CG:5178), merging every award into one
-     noLock "Budget" award — loses notes/dates and Live Sheet's undo lock on them. Don't merge on load (or only for a genuine
-     single-budget LOG).
-  4. CharGen: after the lock, ✕ on a feature/subclass/spell-bundle row deletes the row but the refused retract keeps the charge; a
-     retyped row charges twice (~CG:2524, 3983-3994, 3225-3233). Call _cgRepaint() on refusal.
-  5. CharGen: annotate() clears a 2nd species/class/lineage that matches the first by direct .value (~CG:5988/5992/6034) after the
-     IDENTITY patch is built, so the LOG keeps and charges it (Elf+Elf 17 AP vs 7). Re-sync IDENTITY after the correction.
-  6. CharGen: DM custom/repriced/disabled boons & drawbacks (dmAdd/dmDisableBuiltin/dmRemove/dmToggleDisable ~CG:2244-2273) change
-     global HOUSE only — lost on save/undo, and compute() sees no houseRules. Sync PATCH_SLOTS.HOUSE_RULES. (Who may edit it: see
-     fix/player-free-ap.)
-```
-**Done when:** an e2e test per item reproduces the loss on old code and passes on new (names survive reload and don't leak into New Character; Save after a cloud load doesn't touch the earlier file; awards keep their notes after a Live Sheet→CharGen handoff; a refused ✕ restores the row; Elf+Elf clears to (none) in the LOG; a custom boon survives reload and prices in compute()); `engine-parity.html` 0 failed.
 
 ## feat/livesheet-buy-fullpage — Live Sheet: let the Buy / progress panel expand to the whole page — TODO
 Branch `feat/livesheet-buy-fullpage`. **Effort:** small · **Risk:** low — UI-only CSS/JS in one tool; driven by ambiguity (what

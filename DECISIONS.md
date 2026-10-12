@@ -20,6 +20,11 @@
   both tools (rewrite the last appearance event in place, else insert at LOG index 0 — proved accepted for locked/sealed characters in the
   Docker freeze harness); one-time copy-in keeps both devices' values. Fixes a live CharGen wipe of the Live Sheet's `playerSheet`.
   Full record: `decisions/2026/D-GH-2026-10-12-livesheet-name-description-notes.md`.
+## D-GH-2026-10-12-chargen-livesheet-data-loss — CharGen keeps names, house rules and awards in the LOG; refuses rather than merges
+- H2 (owner away), provisional. Names → `names` LOG events; DM house rules → `HOUSE_RULES` slot; Local Save bound to the
+  character id it was opened for. A multi-award character's awards are never merged: not on load, and the Budget field
+  refuses edits. After the lock CharGen may only fill blank name slots.
+  Full record: `decisions/2026/D-GH-2026-10-12-chargen-livesheet-data-loss.md`.
 ## D-GH-2026-10-12-livesheet-center-panel — skill totals come from the engine; the drawback-count advice is a DM switch
 - Owner choices B1/C1/D (DM Console)/E1. New engine export `skillMods()`; campaign rule `drawbackCountAdvice` (DM Console checkbox) reaches
   `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring
