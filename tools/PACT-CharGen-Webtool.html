@@ -817,7 +817,7 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
       window._cgEnforceApBudget = !(camp.rules && camp.rules.enforceApBudget === false);
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
-      await _cgRefreshWalletInputs(campaignId);   // DM-held gold + the party downtime window (non-fatal; see its comment)
+      await _cgRefreshWalletInputs(campaignId, _gen);   // DM-held gold + the party downtime window (non-fatal; see its comment)
       if(_stale()) return null;
       // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
       // header status line — none of which the old `selEl.value = camp.id` here could do from outside
@@ -3452,20 +3452,28 @@ function _cgPatchIsNoop(patch){
 // The DM-held gold and the party downtime window — the two server-side halves of the wallet (the engine's walletCheck composes them with the character's own log, and only when the
 // campaign is confirmed 'active'). Same sources as the Live Sheet: the `gold` column (the owner can read their own row; written only by award_gold()) and the get_downtime_window RPC.
 // NON-FATAL and never silently zero: on failure the previous/cached figure stays and _cgWalletConfirmed stays false, so the prompt says the figures are unconfirmed instead of inventing a shortfall.
-async function _cgRefreshWalletInputs(campaignId){
+// gen (chore/audit-fix-followups-2026-10-12): the _cgBindGen of the resolve that asked. Every write below
+// happens after an await, so a character/campaign switch while the fetch is out (A -> B) would otherwise
+// paint A's gold and window onto B. A stale result is dropped; the newer resolve fetches its own.
+async function _cgRefreshWalletInputs(campaignId, gen){
   var S=window._syncBridge, D=window._dmBridge, id=(typeof __charId!=='undefined')?__charId:null, gOk=false, wOk=false;
+  var stale=function(){ return gen!=null && gen!==window._cgBindGen; };
   try{
     var g=(S&&S.refreshServerGold)?await S.refreshServerGold(id):null;
+    if(stale()) return;
     if(g==null&&S&&S.cachedServerGold) g=S.cachedServerGold(id);
     else gOk=g!=null;
     if(g!=null) window._cgDmGold=g;
   }catch(e){ /* keep the previous value */ }
+  if(stale()) return;
   try{
     if(D&&D.getDowntimeWindow&&campaignId){
       var w=await D.getDowntimeWindow(campaignId,id);
+      if(stale()) return;
       window._cgDmWindow=w?{days:w.days,startTs:new Date(w.declaredAt).getTime()}:null; wOk=true;
     }
   }catch(e){ /* keep the previous value */ }
+  if(stale()) return;
   window._cgWalletConfirmed=gOk&&wOk;
 }
 // What the engine's wallet functions read, from this tool's own state (the Live Sheet's _lsWalletOpts): the economy rules, whether the campaign is CONFIRMED active, the party window and the DM-held gold.
