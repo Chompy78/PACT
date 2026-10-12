@@ -249,6 +249,30 @@ for (const [first, second, label] of [['ap_hair', 'ap_eyes', 'appearance'], ['ap
   }
 }
 
+section('7c. CharGen Sheet: pending text is never lost');
+{
+  const { ctx, page, errs } = await cgSheet();
+  // Blur the Backstory and start typing in Alignment in the SAME tick, before the deferred blur commit runs.
+  await page.evaluate(() => {
+    const n = document.querySelector('#sheetbody [data-mf="notes"]'), a = document.querySelector('#sheetbody [data-mf="alignment"]');
+    n.value = 'owes the Guild'; n.dispatchEvent(new Event('input')); n.dispatchEvent(new Event('change'));
+    a.value = 'CN'; a.dispatchEvent(new Event('input'));
+  });
+  await page.waitForTimeout(300);
+  check('a blur followed at once by typing elsewhere still commits the Backstory', await cgAp(page, 'backstory') === 'owes the Guild', await cgAp(page, 'backstory'));
+  const env = await page.evaluate(() => { const e = _cgEnvelope(false); return (foldBuild(e.LOG).appearance || {}).alignment || ''; });
+  check('typed-but-unblurred text is in the envelope Save / Switch / autosave / cloud use', env === 'CN', env);
+  await page.click('#sheetbody [data-mf="ap_hair"]'); await page.keyboard.type('grey', { delay: 10 });
+  await page.evaluate(() => switchToLiveSheet());
+  await page.waitForURL(/Live-Char-Sheet/, { timeout: 15000 });
+  await page.waitForFunction(() => window.compute && document.querySelector('#sheet .shname'), { timeout: 25000 });
+  await page.waitForTimeout(400);
+  const ls = await page.evaluate(() => foldBuild(null).appearance || {});
+  check('Switch to Live Sheet without leaving the field carries the typed text', ls.hair === 'grey' && ls.backstory === 'owes the Guild' && ls.alignment === 'CN', JSON.stringify({ h: ls.hair, b: ls.backstory, a: ls.alignment }));
+  check('no page errors', !errs.length, errs.join(' | '));
+  await ctx.close();
+}
+
 section('3b. DM read-only view: pickBond writes nothing');
 {
   const { ctx, page, errs } = await lsPage(seqd([...BASE]));

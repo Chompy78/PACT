@@ -5060,7 +5060,8 @@ var CG_AUTOSAVE_KEY='pactCharGenAutosaveV2';
 var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build autosave — migrated then deleted
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
-function _cgEnvelope(sign){return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
+function _cgEnvelope(sign){if(!_histSuspended)_cgFlushSheetField();   // typed-but-unblurred Sheet text rides along (fix/livesheet-state-glitches)
+  return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
 // ---- cloud autosave — universal as of B3 (D-GH-2026-08-08-universal-autosave-toggle) --------
 // Originally scoped to campaign-bound characters only (CharGen used to write to the cloud only on an
 // explicit action otherwise — Save to cloud, Join campaign, invite redemption — so a player who
@@ -7129,18 +7130,28 @@ function onSheetField(el,ev){var f=el.getAttribute('data-mf');if(!f)return;var v
   // on every keystroke made each key its own undo step (a 17-letter word took 17 Undos to clear).
   var _apF=SHEET_APPEARANCE_FIELDS.indexOf(f)>=0;
   if(_apF||Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){   // fix/livesheet-name-description-notes
-    if(ev&&ev.type==='input'){_cgSheetDirty=el;return;}
+    if(ev&&ev.type==='input'){_cgSheetDirty=el;_cgSheetPending[f]=el;return;}
     var _k=_apF?f.slice(3):PACT_SHEET_LOG_FIELDS[f];
     // A real blur `change` commits on the next tick: the commit re-renders the Sheet, and by then the focus has moved to
     // whatever the player clicked next, so the rebuild can put it back there. The pagehide flush and direct calls commit now.
     // Committed only if still pending then: an Undo/Redo button click arrives between this blur and the timeout, and
     // undo()/redo() flush the pending text first (fix/livesheet-state-glitches) — committing it again here would put back
     // the text the player just undid and clear Redo.
-    if(typeof Event!=='undefined'&&ev instanceof Event){_cgSheetDirty=el;setTimeout(function(){var d=_cgSheetDirty;if(!d||d.getAttribute('data-mf')!==f)return;_cgSheetDirty=null;_shCommitAppearanceField(_k,d.value);},0);return;}
-    _cgSheetDirty=null;_shCommitAppearanceField(_k,v);return;}
+    // Pending is tracked PER FIELD (_cgSheetPending), not by the single _cgSheetDirty pointer: the player may already be typing
+    // in the next field when this timeout fires, and that must not cancel this field's commit (it did — a Backstory was lost).
+    if(typeof Event!=='undefined'&&ev instanceof Event){_cgSheetPending[f]=el;setTimeout(function(){var d=_cgSheetPending[f];if(!d)return;delete _cgSheetPending[f];if(_cgSheetDirty===d)_cgSheetDirty=null;_shCommitAppearanceField(_k,d.value);},0);return;}
+    delete _cgSheetPending[f];if(_cgSheetDirty===el)_cgSheetDirty=null;_shCommitAppearanceField(_k,v);return;}
   csSave(_csId,f,v);}
-var _cgSheetDirty=null;   // a LOG-backed Sheet field typed in but not yet committed (no blur yet)
-function _cgFlushSheetField(){var el=_cgSheetDirty;if(!el)return;_cgSheetDirty=null;try{onSheetField(el);}catch(e){}}
+var _cgSheetDirty=null;   // the LOG-backed Sheet field being typed in, not yet committed (no blur yet) — Ctrl+Z there is native text undo
+var _cgSheetPending={};   // data-mf -> element: every LOG-backed Sheet field with text not yet in the LOG (typing, or blurred but not yet committed)
+// Commits every pending Sheet field NOW. Called by undo()/redo(), pagehide/visibilitychange and _cgEnvelope() (so Save, Switch to
+// Live Sheet, autosave and every cloud push carry typed-but-unblurred text). Each pending entry is removed before its commit, so
+// the deferred blur commit of the same field finds nothing and cannot commit it twice.
+function _cgFlushSheetField(){
+  if(_cgSheetDirty){var _df=_cgSheetDirty.getAttribute('data-mf');if(_df&&!_cgSheetPending[_df])_cgSheetPending[_df]=_cgSheetDirty;}
+  _cgSheetDirty=null;
+  Object.keys(_cgSheetPending).forEach(function(f){var el=_cgSheetPending[f];if(!el)return;delete _cgSheetPending[f];try{onSheetField(el);}catch(e){}});
+}
 window.addEventListener('pagehide',_cgFlushSheetField,{capture:true});   // capture: runs before the cloud-flush pagehide handler below
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')_cgFlushSheetField();});
 // after innerHTML is set, fill manual fields from store (seeded with build defaults baked into data-seed) and wire save
@@ -7155,7 +7166,7 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
     // A render() while a LOG-backed field was being typed in rebuilds it from the LOG — carry the uncommitted text across.
-    if(_logF&&_cgSheetDirty&&_cgSheetDirty!==el&&_cgSheetDirty.getAttribute('data-mf')===id){el.value=_cgSheetDirty.value;_cgSheetDirty=el;}
+    if(_logF&&_cgSheetPending[id]&&_cgSheetPending[id]!==el){var _old=_cgSheetPending[id];el.value=_old.value;_cgSheetPending[id]=el;if(_cgSheetDirty===_old)_cgSheetDirty=el;}
     if(el.addEventListener){el.addEventListener('input',function(e){onSheetField(el,e);});el.addEventListener('change',function(e){onSheetField(el,e);});}
   });}
 // Merge the edited key into the FULL current appearance object (so fields the Sheet doesn't show — nose,
