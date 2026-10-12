@@ -6097,13 +6097,15 @@ function randomizeRoll(themeKey,lvlWanted){
   // character inherit another's ceiling and lock. A roll is the same character by definition (the
   // button keeps species, class and name), so carrying is only correct in this scope.
   //
-  // Both config and lock/unlock events are taken, in log order, so last-write-wins still resolves the
-  // way it did before the roll.
-  const _rollCarry = (LOG||[]).filter(function(e){
-    return e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' ||
-      (e.type === 'creationLockConfig' && e.payload &&
-       Object.prototype.hasOwnProperty.call(e.payload, 'threshold')));
-  }).map(function(e){ return JSON.parse(JSON.stringify(e)); });
+  // The WHOLE lock family is taken -- every creationLockConfig (threshold AND auto-arm), creationLocked and
+  // creationUnlocked -- in log order (chore/audit-fix-followups-2026-10-12, review of #643). The server's
+  // creation-lock guard (pact_enforce_creation_lock, sql/migrations/2026-10-04-creation-lock-guard.sql)
+  // compares the OLD lock family to the new one position by position: the old list must be an exact prefix
+  // of the new one. Carrying only the threshold/lock events let the rebuild's fresh {auto} arm land first,
+  // turning [threshold, auto] into [auto, threshold] -- refused on every later save now that a roll keeps
+  // the id and so updates the real row.
+  const _isLockFam = function(e){ return !!e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' || e.type === 'creationLockConfig'); };
+  const _rollCarry = (LOG||[]).filter(_isLockFam).map(function(e){ return JSON.parse(JSON.stringify(e)); });
   // fix/livesheet-name-description-notes: the rebuild below re-reads appearance from the 32 Setup controls only, which would
   // drop the player's notes and Live Sheet sheet (same character — keep them). Re-applied after the rebuild.
   const _rollApKeep=(function(){var a={},cur=(foldBuild(LOG).appearance)||{},dk=(_domReadBuild().appearance)||{};
@@ -6134,18 +6136,20 @@ function randomizeRoll(themeKey,lvlWanted){
     // Restore the creation state the rebuild above dropped. Appended AFTER the burst and after
     // _cgRepriceDraft() has priced it as a draft — the same ordering D-GH34 established for the lock,
     // and it means a locked character's carried lock does not suppress the fresh burst's pricing.
-    // Skipped when an equivalent event survived, so a re-roll cannot stack duplicates.
+    // Every lock-family event the rebuild produced is lifted out first and the carried family goes back in
+    // its original order, so the old family is an exact prefix of the new one (see _rollCarry). A fresh
+    // event the rebuild made is kept only AFTER the carried ones, and a fresh auto-arm is dropped when the
+    // carried family already armed the lock -- so a re-roll can neither reorder nor stack duplicates.
     if(_rollCarry.length){
-      const _have = function(pred){ return (LOG||[]).some(pred); };
-      _rollCarry.forEach(function(e){
-        const dupe = (e.type === 'creationLockConfig')
-          ? _have(function(x){ return x && x.type === 'creationLockConfig' && x.payload &&
-              x.payload.threshold === e.payload.threshold; })
-          : _have(function(x){ return x && x.type === e.type; });
-        if(dupe) return;
-        e.seq = SEQ++; e.ts = Date.now();
-        LOG.push(e);
+      const _carriedAuto = _rollCarry.some(function(e){ return e.type === 'creationLockConfig' && e.payload &&
+        Object.prototype.hasOwnProperty.call(e.payload, 'auto'); });
+      const _fresh = (LOG||[]).filter(_isLockFam).filter(function(e){
+        return !(_carriedAuto && e.type === 'creationLockConfig' && e.payload &&
+          Object.prototype.hasOwnProperty.call(e.payload, 'auto') && !Object.prototype.hasOwnProperty.call(e.payload, 'threshold'));
       });
+      LOG = (LOG||[]).filter(function(e){ return !_isLockFam(e); });
+      _rollCarry.forEach(function(e){ e.seq = SEQ++; e.ts = Date.now(); LOG.push(e); });
+      _fresh.forEach(function(e){ LOG.push(e); });
     }
     if(Object.keys(_rollApKeep).length){
       var _apN=pactAppearanceIndex(LOG)<0;
