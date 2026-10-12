@@ -25,7 +25,7 @@ import { launchChromium } from './lib/launch-chromium.mjs';
 // playwright without needing node_modules/ in the repo — same idiom as random-manual-e2e.mjs.
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 7962;
+const PORT = Number(process.env.PACT_E2E_PORT) || 7962;
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javascript',
                '.json':'application/json', '.css':'text/css', '.png':'image/png', '.webp':'image/webp' };
 

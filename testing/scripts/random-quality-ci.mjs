@@ -38,7 +38,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 8733, CDP_PORT = 9335;          // distinct from tool-pricing-ci's 8731/9333 so both can run at once
+const PORT = Number(process.env.PACT_E2E_PORT) || 8733, CDP_PORT = Number(process.env.PACT_E2E_CDP_PORT) || 9335;          // distinct from tool-pricing-ci's 8731/9333 so both can run at once
 const ROLLS = Math.max(3, +(process.env.ROLLS || 8));
 
 function findChrome() {

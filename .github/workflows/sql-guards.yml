@@ -96,4 +96,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Server freeze stage 1 — migration, attacks, legitimate cases, rollback
         run: testing/scripts/creation-lock-guard-test/run-freeze.sh
+      # fix/server-player-award-after-lock: a player cannot raise a locked/sealed campaign character's award total (NOT applied to live by merging).
+      - name: Player award after the lock — migration, attacks, legitimate paths, rollback
+        run: testing/scripts/creation-lock-guard-test/run-award.sh
 

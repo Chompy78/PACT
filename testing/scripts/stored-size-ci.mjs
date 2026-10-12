@@ -35,7 +35,7 @@ for (const [sp, sp2, stored, want, ch] of cases) {
 
 console.log('\n[stored-size] == CharGen stores the real size ==');
 const { launchChromium } = await import('./lib/launch-chromium.mjs');
-const PORT = 7982;
+const PORT = Number(process.env.PACT_E2E_PORT) || 7982;
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png', '.svg': 'image/svg+xml' };
 const server = http.createServer((q, r) => {
   const rel = decodeURIComponent(q.url.split('?')[0]).replace(/^\/PACT\/?/, '') || 'index.html';

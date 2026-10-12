@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.641.html**-->
+<!--**PACT-CharGen-Webtool v1.647.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.641 · Rules v0.376</title><style>
+<title>PACT Character Generator — Web Tool v1.647 · Rules v0.376</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.641</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.647</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -775,6 +775,11 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
   // window._cgBindGen; this one bails after each await once it is no longer current. _cgAdoptEnvelopeBinding
   // passes the generation it already holds (opts.gen) instead of starting a new one.
   var _gen = (opts && opts.gen != null) ? opts.gen : (window._cgBindGen = (window._cgBindGen||0) + 1);
+  // A NEW generation takes over from any adopt still in flight (review of #643): that adopt's finally only
+  // clears its pending state while its own generation is current, so without this a cloud load / join / claim
+  // started mid-adopt left _cgBindingPending true for good -- creation-AP controls refused on a solo character
+  // -- and a stale _cgPendingCampaignId counting as a campaign binding. This resolve sets its own binding below.
+  if(!(opts && opts.gen != null)){ window._cgBindingPending = false; try{ _cgPendingCampaignId = null; }catch(e){} }
   var _stale = function(){ return _gen !== window._cgBindGen; };
   // fix/chargen-dm-copy-ap-stale (2026-08-22): a "Copy to CharGen" sandbox's frozen AP snapshot
   // (window._cgCopySourceAp) is now budget-relevant (_cgDmOpts()), not just display text, so it MUST be
@@ -817,7 +822,7 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
       window._cgEnforceApBudget = !(camp.rules && camp.rules.enforceApBudget === false);
       window._dmApStatus = 'active';
       window._cloudCampaign = camp;   // activates rule-filtering (cloudRuleBarred), same as the campaign-rules picker above
-      await _cgRefreshWalletInputs(campaignId);   // DM-held gold + the party downtime window (non-fatal; see its comment)
+      await _cgRefreshWalletInputs(campaignId, _gen);   // DM-held gold + the party downtime window (non-fatal; see its comment)
       if(_stale()) return null;
       // Adds the campaign to the picker if the list predates the join, selects it, AND re-renders the
       // header status line — none of which the old `selEl.value = camp.id` here could do from outside
@@ -1719,7 +1724,7 @@ function _cgOverApBudget(){
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
+function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1740,6 +1745,18 @@ async function _cgAdoptEnvelopeBinding(d){
   _cgResetCloudApState();
   var campId = d && d.campaignId; if(!campId) return;
   _cgPendingCampaignId = campId;
+  // chore/audit-fix-followups-2026-10-12 (item 2): TRUE while the server is being asked about this binding.
+  // The creation-AP controls are refused meanwhile (_cgCreationApRefused) -- a choice made in this window on a
+  // character the server then confirms as a campaign one writes a threshold the server refuses, the original
+  // stuck state. Cleared when this adopt finishes (confirmed, solo, or unconfirmed/offline -- the offline case
+  // keeps its controls and note) or by _cgResetCloudApState.
+  window._cgBindingPending = true;
+  try{ _cgSyncBuildLevelDisplay(); }catch(e){}   // hide the row now: the load that called us has already rendered
+  var _genP = window._cgBindGen;
+  try{ await _cgAdoptEnvelopeBindingInner(d, campId); }
+  finally{ if(_genP === window._cgBindGen){ window._cgBindingPending = false; try{ render(); }catch(e){} } }
+}
+async function _cgAdoptEnvelopeBindingInner(d, campId){
   // The generation this adopt owns (see _cgResolveDmApStatus). Re-checked after EVERY await below: the
   // player can switch character (New Character, Undo/Redo, another load) while we wait, and a late
   // result must not bind THAT character to this one's campaign — the binding would then ride into its
@@ -3221,7 +3238,7 @@ function _cgApplyBuildLevel(){
   // player-appended creationLockConfig that carries a `threshold`, so emitting one here made every later
   // cloud save fail with a "locked history" error and autosave dead-ended. The row is hidden for these
   // characters (_cgSyncBuildLevelDisplay); this guard is the belt to that brace.
-  if(_cgCreationApIsDms()){ _cgSyncBuildLevelDisplay(); return; }
+  if(_cgCreationApRefused()){ _cgSyncBuildLevelDisplay(); return; }
   // Several awards: the budget is their sum and is changed in the Live Sheet (see _cgSyncAward), so a level
   // pick could only write a creation-AP threshold that no longer matches the budget. The controls are
   // disabled (_cgSyncBuildLevelDisplay); this is the belt to that brace.
@@ -3261,7 +3278,7 @@ function _cgApplyBuildLevelInner(){
 function _cgSyncBuildLevelDisplay(){
   // Hidden on a campaign character: picking a level writes a creation-AP threshold, which only the DM may
   // set (see _cgApplyBuildLevel). Re-evaluated every render, so it follows a binding that resolves late.
-  {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApIsDms()?'none':'';}
+  {const row=$('buildLevelRow'); if(row) row.style.display=_cgCreationApRefused()?'none':'';}
   const _multi=_cgAwardCount()>1;
   ['buildLevel','buildCurve'].forEach(function(id){const e=$(id);if(e){e.disabled=_multi;e.title=_multi?_CG_MULTI_AWARD_NOTE:'';}});
   const bi=$('budget'), hint=$('buildLevel_hint');
@@ -3283,11 +3300,26 @@ function _cgIsCampaignBound(){
 // _cgResolveDmApStatus). A binding asserted only by a file/autosave/baton may be stale — the DM can unbind
 // a character — so it does not hide the controls; the server refuses the write if it is still bound.
 function _cgCreationApIsDms(){ return !!window._cgCampaignId && !!window._cgBindingConfirmed; }
+// chore/audit-fix-followups-2026-10-12 (item 2): every reason the player may NOT write a creation-AP
+// threshold right now ('' = they may). 'campaign': the server confirmed the binding (the DM owns it).
+// 'pending': a binding is still being confirmed -- wait, rather than write one the server may refuse.
+// 'locked': a finished character with any campaign binding, confirmed or not -- the server refuses a
+// player threshold on a campaign character, and past the lock it changes nothing a player needs anyway.
+// An UNCONFIRMED binding on an unfinished character (offline) stays open, with _CG_UNCONFIRMED_NOTE.
+function _cgCreationApRefused(){
+  if(_cgCreationApIsDms()) return 'campaign';
+  if(window._cgBindingPending && _cgIsCampaignBound()) return 'pending';
+  if(_cgIsCampaignBound() && _cgIsLocked()) return 'locked';
+  return '';
+}
 var _CG_UNCONFIRMED_NOTE='could not confirm with the server whether this character is still in a campaign; if it is, only your DM can change its creation AP and the save will be refused';
 function setCreationAp(){
   // Campaign characters: the creation limit is the DM's (DM Console sets it); the server refuses a
   // player-written threshold, so offering the prompt would only strand autosave. See _cgApplyBuildLevel.
-  if(_cgCreationApIsDms()){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
+  {const why=_cgCreationApRefused();
+   if(why==='campaign'){alert('Your DM sets the creation AP for campaign characters.\n\nAsk them to change it in DM Console if it looks wrong.');return;}
+   if(why==='pending'){alert('Still checking this character\u2019s campaign with the server \u2014 try again in a moment.');return;}
+   if(why==='locked'){alert('This campaign character has finished creation, so its creation AP is fixed.\n\nAsk your DM if it looks wrong.');return;}}
   const st=_creationLockState(),curves=(DATA.levelBudgetCurves||{}),names=Object.keys(curves);
   const raw=prompt(_creationApPromptText(curves,names),String(st.threshold));
   if(raw===null)return;
@@ -3452,20 +3484,28 @@ function _cgPatchIsNoop(patch){
 // The DM-held gold and the party downtime window — the two server-side halves of the wallet (the engine's walletCheck composes them with the character's own log, and only when the
 // campaign is confirmed 'active'). Same sources as the Live Sheet: the `gold` column (the owner can read their own row; written only by award_gold()) and the get_downtime_window RPC.
 // NON-FATAL and never silently zero: on failure the previous/cached figure stays and _cgWalletConfirmed stays false, so the prompt says the figures are unconfirmed instead of inventing a shortfall.
-async function _cgRefreshWalletInputs(campaignId){
+// gen (chore/audit-fix-followups-2026-10-12): the _cgBindGen of the resolve that asked. Every write below
+// happens after an await, so a character/campaign switch while the fetch is out (A -> B) would otherwise
+// paint A's gold and window onto B. A stale result is dropped; the newer resolve fetches its own.
+async function _cgRefreshWalletInputs(campaignId, gen){
   var S=window._syncBridge, D=window._dmBridge, id=(typeof __charId!=='undefined')?__charId:null, gOk=false, wOk=false;
+  var stale=function(){ return gen!=null && gen!==window._cgBindGen; };
   try{
     var g=(S&&S.refreshServerGold)?await S.refreshServerGold(id):null;
+    if(stale()) return;
     if(g==null&&S&&S.cachedServerGold) g=S.cachedServerGold(id);
     else gOk=g!=null;
     if(g!=null) window._cgDmGold=g;
   }catch(e){ /* keep the previous value */ }
+  if(stale()) return;
   try{
     if(D&&D.getDowntimeWindow&&campaignId){
       var w=await D.getDowntimeWindow(campaignId,id);
+      if(stale()) return;
       window._cgDmWindow=w?{days:w.days,startTs:new Date(w.declaredAt).getTime()}:null; wOk=true;
     }
   }catch(e){ /* keep the previous value */ }
+  if(stale()) return;
   window._cgWalletConfirmed=gOk&&wOk;
 }
 // What the engine's wallet functions read, from this tool's own state (the Live Sheet's _lsWalletOpts): the economy rules, whether the campaign is CONFIRMED active, the party window and the DM-held gold.
@@ -3905,6 +3945,9 @@ function _cgSyncName(){const nm=val('cname')||'';
 //
 // The invariant to hold on to: b.budget, val('budget') and this award's amount are ALL the raw award
 // now. No conversion belongs anywhere on this path.
+// fix/server-player-award-after-lock: a campaign character that is locked OR sealed (a DM can seal before creation is locked). The database refuses a rise
+// in its award total from anyone but the DM there (pact_enforce_player_ap_ceiling), so offering the budget edit would only strand the save.
+function _cgAwardsFrozen(){return _cgIsCampaignBound()&&(_cgIsLocked()||LOG.some(function(e){return e&&e.type==='sessionSeal';}));}
 function _cgAwardCount(){return LOG.filter(function(e){return e&&e.type==='award';}).length;}
 function _cgSyncAward(){
   // A character whose AP came as SEVERAL awards (the Live Sheet records each with its own note and date)
@@ -3936,7 +3979,7 @@ function _cgSyncAward(){
   // DM pool) the singleton guard below has no event to protect, so typing a figure appended a fresh award after the lock, and the server
   // accepts it (pact_enforce_ap_budget_consistency counts it as player-earned AP unless ignore_player_ap). Refuse any change here.
   // Any-route binding, same as _cgLockFloor(): an unconfirmed binding is still a campaign character until the server says otherwise.
-  if(_cgIsCampaignBound()&&_cgIsLocked()){
+  if(_cgAwardsFrozen()){
     const _have=(foldBuild(LOG).budget)||0;
     if(amt!==_have){const bi=$('budget');if(bi)bi.value=_have;try{_cgSyncBuildLevelDisplay();}catch(e){}   // the hint too, not only the field
       if(!_histSuspended)flash('\uD83D\uDD12 Creation is finished \u2014 a campaign character\u2019s AP comes from your DM. Ask them to award it in the DM Console.','error');}
@@ -4676,9 +4719,29 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       if(!b.species)b.species='Human';
       if(!b.hd)b.hd=1;
       b.version=d.rules||DATA.version;
+      // chore/audit-fix-followups-2026-10-12 (item 3, review of #643): this branch REBUILDS the LOG from the folded
+      // build (applyBuild -> replaceWholeLogFromBuild), which drops every lock event, award, seal and purchase line.
+      // Keeping the file's id would make the next save UPDATE the real row with that rebuilt history: a campaign row
+      // with lock events is refused for good ("a creation-lock entry cannot be removed"), and a solo row's history is
+      // silently replaced. So the file's id -- and with it its campaign binding -- is kept ONLY when its LOG carries
+      // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
+      // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
+      const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal');});
+      const _keepId=!!d.id&&!_protected;
+      // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
+      // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
+      if(_keepId)b.id=d.id;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
-      flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
+      // Adopt the file's campaign binding too, as branch 1 does (#634) -- otherwise a campaign character opens at
+      // 0 DM AP with every purchase over budget. Keyed on the id this load just gave the character. Not for a copy:
+      // a fresh id has no row, and binding a copy would make it a second character in the campaign.
+      if(d.campaignId&&(_keepId||!d.id)&&!_protected) _cgAdoptEnvelopeBinding({id:__charId,campaignId:d.campaignId});
+      if(_protected&&(d.id||d.campaignId))
+        flash('Opened this Live Sheet file as a separate copy — its history (creation lock, awards or seals) can’t be rebuilt here without the server refusing it. Open the character in the Live Sheet, or from the cloud, to keep working on the original.');
+      else
+        flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
       return;
     }
     // Branch 3: legacy CharGen flat build format (every file saved before Step 4 still opens)
@@ -6055,13 +6118,15 @@ function randomizeRoll(themeKey,lvlWanted){
   // character inherit another's ceiling and lock. A roll is the same character by definition (the
   // button keeps species, class and name), so carrying is only correct in this scope.
   //
-  // Both config and lock/unlock events are taken, in log order, so last-write-wins still resolves the
-  // way it did before the roll.
-  const _rollCarry = (LOG||[]).filter(function(e){
-    return e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' ||
-      (e.type === 'creationLockConfig' && e.payload &&
-       Object.prototype.hasOwnProperty.call(e.payload, 'threshold')));
-  }).map(function(e){ return JSON.parse(JSON.stringify(e)); });
+  // The WHOLE lock family is taken -- every creationLockConfig (threshold AND auto-arm), creationLocked and
+  // creationUnlocked -- in log order (chore/audit-fix-followups-2026-10-12, review of #643). The server's
+  // creation-lock guard (pact_enforce_creation_lock, sql/migrations/2026-10-04-creation-lock-guard.sql)
+  // compares the OLD lock family to the new one position by position: the old list must be an exact prefix
+  // of the new one. Carrying only the threshold/lock events let the rebuild's fresh {auto} arm land first,
+  // turning [threshold, auto] into [auto, threshold] -- refused on every later save now that a roll keeps
+  // the id and so updates the real row.
+  const _isLockFam = function(e){ return !!e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' || e.type === 'creationLockConfig'); };
+  const _rollCarry = (LOG||[]).filter(_isLockFam).map(function(e){ return JSON.parse(JSON.stringify(e)); });
   // fix/livesheet-name-description-notes: the rebuild below re-reads appearance from the 32 Setup controls only, which would
   // drop the player's notes and Live Sheet sheet (same character — keep them). Re-applied after the rebuild.
   const _rollApKeep=(function(){var a={},cur=(foldBuild(LOG).appearance)||{},dk=(_domReadBuild().appearance)||{};
@@ -6074,6 +6139,11 @@ function randomizeRoll(themeKey,lvlWanted){
   // name style and demeanour match the build instead of being rolled independently of it. Always cleared
   // in the finally, so a later manual 🎲 on a field is unaffected by whatever was last rolled.
   window._rollThemeActive=TH;
+  // chore/audit-fix-followups-2026-10-12 (item 5, D-GH-2026-10-12-audit-fix-followups-2026-10-12): a roll is the same
+  // character, so it keeps its id. readBuild() carries no b.id, and applyBuild() mints a fresh one for an id-less
+  // build -- which made every re-roll of a saved character a NEW cloud row (and, on a campaign character, a second
+  // row carrying the same binding) while the original was left behind.
+  b.id=currentCharId();
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
@@ -6087,18 +6157,20 @@ function randomizeRoll(themeKey,lvlWanted){
     // Restore the creation state the rebuild above dropped. Appended AFTER the burst and after
     // _cgRepriceDraft() has priced it as a draft — the same ordering D-GH34 established for the lock,
     // and it means a locked character's carried lock does not suppress the fresh burst's pricing.
-    // Skipped when an equivalent event survived, so a re-roll cannot stack duplicates.
+    // Every lock-family event the rebuild produced is lifted out first and the carried family goes back in
+    // its original order, so the old family is an exact prefix of the new one (see _rollCarry). A fresh
+    // event the rebuild made is kept only AFTER the carried ones, and a fresh auto-arm is dropped when the
+    // carried family already armed the lock -- so a re-roll can neither reorder nor stack duplicates.
     if(_rollCarry.length){
-      const _have = function(pred){ return (LOG||[]).some(pred); };
-      _rollCarry.forEach(function(e){
-        const dupe = (e.type === 'creationLockConfig')
-          ? _have(function(x){ return x && x.type === 'creationLockConfig' && x.payload &&
-              x.payload.threshold === e.payload.threshold; })
-          : _have(function(x){ return x && x.type === e.type; });
-        if(dupe) return;
-        e.seq = SEQ++; e.ts = Date.now();
-        LOG.push(e);
+      const _carriedAuto = _rollCarry.some(function(e){ return e.type === 'creationLockConfig' && e.payload &&
+        Object.prototype.hasOwnProperty.call(e.payload, 'auto'); });
+      const _fresh = (LOG||[]).filter(_isLockFam).filter(function(e){
+        return !(_carriedAuto && e.type === 'creationLockConfig' && e.payload &&
+          Object.prototype.hasOwnProperty.call(e.payload, 'auto') && !Object.prototype.hasOwnProperty.call(e.payload, 'threshold'));
       });
+      LOG = (LOG||[]).filter(function(e){ return !_isLockFam(e); });
+      _rollCarry.forEach(function(e){ e.seq = SEQ++; e.ts = Date.now(); LOG.push(e); });
+      _fresh.forEach(function(e){ LOG.push(e); });
     }
     if(Object.keys(_rollApKeep).length){
       var _apN=pactAppearanceIndex(LOG)<0;
@@ -7015,7 +7087,7 @@ function _cgRenderInner(){
   // the Live Sheet, so the two tools show the identical spendable total for the same character. Never
   // written back into b.budget/the LOG/an export — see the anti-double-count invariant on compute().
   const _dmO=_cgDmOpts();const r=compute(b,_dmO);annotate(b,r);
-  {const _lkc=!_dmO.ignorePlayerAp&&_cgIsCampaignBound()&&_cgIsLocked();   // fix/player-free-ap item 5
+  {const _lkc=!_dmO.ignorePlayerAp&&_cgAwardsFrozen();   // fix/player-free-ap item 5
    const bi=$('budget');if(bi)bi.disabled=_dmO.ignorePlayerAp||_lkc;const bw=$('budget_w');if(bw)bw.textContent=_dmO.ignorePlayerAp?'🔒 locked — your DM has switched off player AP this campaign':(_lkc?'🔒 creation is finished — your DM awards AP from here':'');}
   {const al=$('apSourceLine');if(al)al.innerHTML=_apSourceHTML(r);}
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): non-blocking
@@ -7055,7 +7127,7 @@ function _cgRenderInner(){
    {var _cl=_creationLockState();
     if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){var _tn=_apTrackName(_cl.defaultThr);
       _apNoticeShown=true;   // read by the top banner below — var, so it is function-scoped, not block
-      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgCreationApIsDms()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>'+(_cgIsCampaignBound()?' <i>(Note: '+_CG_UNCONFIRMED_NOTE+'.)</i>':''))+'</li>');}}
+      _wr.unshift('<li class="adv" title="Informational note">ⓘ Creation AP not confirmed — using <b>'+(_tn?_tn+' ':'')+_cl.defaultThr+' AP</b>, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. '+(_cgCreationApRefused()?'Your DM sets this for campaign characters.':'Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>'+(_cgIsCampaignBound()?' <i>(Note: '+_CG_UNCONFIRMED_NOTE+'.)</i>':''))+'</li>');}}
    $('warns').innerHTML=_wr.join('');
    {var _wh=$('warnsHead'); if(_wh)_wh.style.display=_wr.length?'':'none';}}
   // Top banner. HARD issues (rules violations) stay red and keep their own count; advisories get an

@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.641.html**-->
+<!--**PACT-Live-Char-Sheet v1.647.html**-->
 
 <!doctype html>
 <!--
@@ -944,7 +944,10 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 // spendable AP and a permanent undo/server-freeze boundary, so they are hidden and refused for a campaign character. Solo is unchanged.
 function _lsSelfAwardBlocked(){ return !!window._lsCampaignId; }
 function _lsSyncDmAwardUi(){ var off=_lsSelfAwardBlocked(); ['lsAwardBtn','lsDiscountBtn','lsGrantBtn'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=off?'none':''; }); }
-function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console, or to send you an AP code to \u2380 Redeem.'); return true; }
+function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console'+(_lsAwardsFrozen()?'.':', or to send you an AP code to \u2380 Redeem.')); return true; }
+// fix/server-player-award-after-lock: mirrors pact_enforce_player_ap_ceiling() — on a campaign character that is creation-locked (last creationLocked after
+// the last creationUnlocked) or sealed, the database refuses any rise in the LOG's award total from anyone but the DM, a redeemed AP code included (H2).
+function _lsAwardsFrozen(){ if(!window._lsCampaignId) return false; var lk=-1,ul=-1,sl=false; LOG.forEach(function(e,i){ if(!e)return; if(e.type==='creationLocked')lk=i; else if(e.type==='creationUnlocked')ul=i; else if(e.type==='sessionSeal')sl=true; }); return sl||lk>ul; }
 function award(amount,note,disc){ if(_lsRefuseSelfAward())return; if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
@@ -1980,7 +1983,12 @@ function _catOf(lab){
 function refreshBuy(){const b=foldBuild(null),eco=economy(null);const r=compute(b,_dmOpts());const avail=_apRemaining(r.spendable,eco.spent);buildBuyPanel(b,r,Object.assign({},eco,{available:avail}),viewAt==null);}
 // AP a character gains advancing one level (benchmark anchors, interpolated)
 function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.levelAP[hd]||0);}
-function toggleTasha(){var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
+// chore/audit-fix-followups-2026-10-12 (item 4): the non-core switch is a DM call. CharGen locks it on a campaign character and once
+// creation is finished (fix/player-free-ap, _cgDmCustomReadOnly); this sheet still let a player flip it. Same two cases here, using this
+// sheet's own campaign test (_lsSelfAwardBlocked) and the engine's lock state. '' = the player may change it.
+function _lsTashaReadOnly(){ if(_lsSelfAwardBlocked()) return 'campaign'; try{ if(window._engineCreationLockState&&window._engineCreationLockState(LOG).locked) return 'locked'; }catch(e){} return ''; }
+function _lsTashaRoText(why){ return why==='campaign'?'\uD83D\uDD12 Your DM sets this for campaign characters.':(why==='locked'?'\uD83D\uDD12 Fixed once creation is finished \u2014 ask your DM.':''); }
+function toggleTasha(){var _ro=_lsTashaReadOnly();if(_ro){if(typeof flash==='function')flash(_lsTashaRoText(_ro));return;}var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
@@ -2077,7 +2085,7 @@ function buildBuyPanel(b,r,eco,head){
      return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+_dis+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(_reasons.length?' ⛔':'')+'</option>';}).join('')+'</select></div>'],
    ..._originClasses(b).map(oc=>[oc+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===oc&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{const f=DATA.features[l];const need=requiredHD(f);if(ownsAbility(b,l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')]),
    ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier,_inertNote(f,l));var need=requiredHD(f);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
-   ['DM house rules',()=>'<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>'],
+   ['DM house rules',()=>{var _ro=_lsTashaReadOnly();return _ro?('<span class="hint" id="lsTashaRo">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — '+_lsTashaRoText(_ro)+'</span>'):('<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>');}],
    ['Arts \u0026 Techniques',()=>{
     const BAND_S={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
     const CATORD=['Combat','Fighting Style','Magic','Utility','Social','Origin'];
@@ -2909,7 +2917,9 @@ function redeemGrant(){var code=prompt('Paste the AP grant code from your DM:','
   if(!o){flash('That is not a valid AP grant code.');return;}
   if(o.bad){flash('This grant code looks altered — ask your DM for a fresh one.');return;}
   if(!(+o.a)){flash('Invalid grant code.');return;}
-  if(o.id&&LOG.some(function(e){return e.grantId===o.id;})){flash('This grant code was already redeemed on this sheet.');return;}var _nt=(o.n||'AP grant')+(o.d?' [granted '+o.d+']':'');emit({type:'award',amount:+o.a,note:o.n||'',label:_nt,grantId:o.id||''});flash('Redeemed '+(+o.a)+' AP.');}
+  if(o.id&&LOG.some(function(e){return e.grantId===o.id;})){flash('This grant code was already redeemed on this sheet.');return;}
+  if(_lsAwardsFrozen()){flash('\uD83D\uDD12 This campaign character\u2019s creation is finished \u2014 an AP code can no longer be redeemed on it. Ask your DM to award the AP in the DM Console.');return;}
+  var _nt=(o.n||'AP grant')+(o.d?' [granted '+o.d+']':'');emit({type:'award',amount:+o.a,note:o.n||'',label:_nt,grantId:o.id||''});flash('Redeemed '+(+o.a)+' AP.');}
 function showInfo(){document.getElementById('infoModal').classList.add('open');}
 function closeInfo(){document.getElementById('infoModal').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();});document.addEventListener('click',function(e){var m=document.getElementById('moremenu');if(m&&m.classList.contains('open')&&m.parentNode&&!m.parentNode.contains(e.target))m.classList.remove('open');});

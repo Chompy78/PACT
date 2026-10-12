@@ -72,46 +72,23 @@ DO (owner, 2026-10-04):
 ```
 **Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
 
-## feat/server-freeze-at-lock — server freezes history before the lock and priced patch events after a lock/award — TODO
-Branch feat/server-freeze-at-lock. **Effort:** high · **Risk:** high — a new trigger rule on every campaign character save; a wrong rule refuses legitimate saves. Staged WITH `fix/chargen-post-lock-purchases` and AFTER the Amble repair (`docs/plans/2026-10-04-amble-lock-repair.md`). Spec: `docs/plans/2026-10-04-chargen-post-lock-purchases.md` §7.
+## feat/server-freeze-houserules-gold — the server freeze still treats houseRules and gold as no-AP — TODO
+Branch feat/server-freeze-houserules-gold. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves. Remainder of `feat/server-freeze-at-lock` / `feat/server-freeze-apply`, whose main work is done (stage 1 applied 2026-10-10, stage 2 applied 2026-10-11 — see CHANGELOG and `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`).
 
 ```text
-Owner decisions D2 + E1 (2026-10-04). Extend pact_enforce_locked_history()/pact_ap_ledger_protected() (sql/migrations/,
-mirrored in sql/rls-policies.sql):
-  D2  For a campaign character that has a creationLocked event, every event BEFORE the last creationLocked is frozen:
-      no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
-  E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
-      innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
-      content, stamped cost, position and existence frozen. No-AP slots (appearance, names) stay editable.
-      CORRECTION (fix/player-free-ap, 2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
-      boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The
-      applied stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(); a follow-up migration should
-      drop both from that list (protected after a lock/seal/award). CharGen already refuses both after the lock, so measure
-      first how many live locked characters' saves still rewrite them, then rehearse in creation-lock-guard-test.
-Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
-change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
-STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
-testing/scripts/creation-lock-guard-test/guard-cases.sql. Apply to live only after the Amble repair, with the owner's approval.
+CORRECTION found by fix/player-free-ap (2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
+boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The applied
+stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(). Write a migration (+ rollback) that drops both
+from that list, so they are protected after a lock/seal/award. CharGen already refuses both after the lock; measure first (read-only,
+on the live characters table) how many locked characters' saves still rewrite them, then rehearse in
+testing/scripts/creation-lock-guard-test (run-freeze.sh) and add the cases. Apply only with the owner's approval; then get_advisors.
+Coordinate with feat/dm-house-rules-editor (if house rules move to a DM RPC, the DM route must still be able to write them).
+ALSO NOT YET RECORDED in the repo for the original entry's "Done when" (needs a live look, not a code change): the six Amble
+characters re-checked as still locked after the stage 1/2 applies, and a real player's save of a campaign character observed
+succeeding afterwards (the decision record says none had been observed yet on 2026-10-10). The log/advisor checks are already
+their own task, check/server-freeze-stage2-after-apply.
 ```
-**Done when:** the Docker harness shows each rule refusing the attack and allowing every legitimate save (a normal in-play purchase, a DM edit, an admin session, a solo character); the six Amble characters re-checked locked after applying; advisors/logs run; CHANGELOG + decision addendum written.
-
-## feat/server-freeze-apply — apply the server-freeze migration to the LIVE database, then remove its temporary exemptions — TODO
-**Supersedes the remaining scope of `feat/server-freeze-at-lock` above** (the migration, rollback, Docker rehearsal and both audits are BUILT and merged — #580; only applying it is left). No code branch for the apply itself (a live migration); the baseline fold is a small `docs/server-freeze-baseline` PR. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves (ambiguity low, damage scale high, likelihood low given the rehearsal and audits; driver: damage scale).
-
-```text
-Owner decision needed (NOT done). Evidence it is safe: sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (+ -rollback.sql); Docker rehearsal
-testing/scripts/creation-lock-guard-test/run-freeze.sh (36 attacks work today -> 61/61 pass after, rollback byte-identical; CI job `freeze-rehearsal`);
-backup-replay audit (457 real saves; every one of the 24 new refusals is a history rewrite after a lock); round-trip audit (0 differences in both real tools).
-Plan docs/plans/2026-10-04-server-freeze-d2-e1.md (cold-reviewed), decision decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md.
-STEPS: (1) owner confirms. (2) Promote preview -> main FIRST, so the shipped clients include #579 (opening a locked campaign character no longer rewrites its
-budget award) and the phase 2a/2b-1 refusals. (3) Re-read the live pact_ap_ledger_protected()/pact_enforce_locked_history() with pg_get_functiondef and confirm they
-still match testing/scripts/creation-lock-guard-test/freeze-live-defs.sql (md5) before applying. (4) Apply stage 1 in one transaction. (5) Verify the functions, then a no-op
-save of each live campaign character in the real tools. (6) Supabase get_advisors (security + performance) and skim get_logs. (7) Add the migration to the \ir lists in
-testing/sql/session-seal-test.sql and testing/sql/rls-baseline-test.sql and fold the changed functions + the three helpers into sql/rls-policies.sql (the harness README says
-how). (8) STAGE 2, once 2b-1 is live in the shipped clients: a second migration that drops pact_patch_temp_exempt_keys() (spellcasting, innate, martial binding, dabbler
-cantrips, species, origin classes, size, lineage), with the same rehearsal. (9) CHANGELOG + decision record status.
-```
-**Done when:** the live functions equal the migration's (checked by `pg_get_functiondef`), advisors are clean, the baseline files are updated and `sql-guards` CI is green, a real campaign character saves normally afterwards, and stage 2 is applied the same way (or consciously deferred and written down).
+**Done when:** the migration is applied with the owner's approval and the Docker harness shows houseRules/gold edits refused after a lock and allowed before it; the Amble lock re-check and an observed honest campaign save are written down in the decision record.
 
 ## feat/chargen-2b2-traditions-diff — OPTIONAL: let CharGen buy spellcasting after the lock instead of refusing it — TODO
 Branch feat/chargen-2b2-traditions-diff. **Effort:** high · **Risk:** high — a nested-array diff turned into indexed purchases in a ~600 KB file; a wrong mapping silently buys or prices the wrong thing (driver: damage likelihood). Plan: `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md` (cold-reviewed; the reviewers' staging is why this is separate and optional).
@@ -1476,31 +1453,6 @@ come from it.
 
 ---
 
-## chore/audit-fix-followups-2026-10-12 — small follow-ups from the reviews of PRs #633–#638 — TODO
-Branch per item or one small batch. **Effort:** low · **Risk:** low–medium per item (noted).
-
-```text
-Found by the adversarial reviews of the 2026-10-12 audit fixes. Each is small; none was blocking.
-  1. CharGen _cgRefreshWalletInputs writes _cgDmGold/_cgDmWindow/_cgWalletConfirmed after awaits with no _cgBindGen check —
-     switching campaign A→B mid-fetch shows A's gold (advisory display only). Pass the generation in. (low)
-  2. CharGen: while campaign binding confirmation is in flight (or offline), a campaign character shows the build-level /
-     creation-AP controls; choosing writes a threshold the server refuses (the original stuck state). Refuse while
-     _cgPendingCampaignId is set and unconfirmed-but-in-flight; keep the offline case open with its note. Also a LOCKED
-     character with an unconfirmed binding can still emit creationLockConfig via _cgApplyBuildLevelInner. (medium)
-  3. CharGen loadFile branch 2 (untagged Live Sheet files) doesn't adopt a campaign binding (branch 1 does since #634). (low)
-  4. Live Sheet toggleTasha() still writes dmAllows.tasha on campaign/locked characters; CharGen locks the same switch
-     since #638. Make them agree. (low)
-  5. CharGen Randomise mints a new character id (applyBuild(clone(readBuild())) carries no b.id), so a re-roll becomes a new
-     cloud row. Confirm intended; if not, keep the id. (medium — affects cloud rows)
-  6. No test covers a CharGen Setup appearance edit on a LOG that already has duplicate appearance events. Add one. (low)
-  7. testing/scripts/cost-customization-ci.mjs reported "DM Console never became ready" locally on preview while passing in
-     CI — likely a port/timing clash with parallel runs; make its port configurable like the others. Several e2e scripts
-     hardcode ports (chargen-flows 7979, chargen-campaign-stuck 7983) and random-manual-e2e resolves the app via a `PACT`
-     symlink one folder up — both broke parallel agent runs on 2026-10-12. (low)
-  8. feat/server-freeze-at-lock and feat/server-freeze-apply board entries look stale (stages reported applied 2026-10-10/11)
-     — verify against live and graduate them. (low)
-```
-**Done when:** each item is fixed with a test or explicitly closed as intended, and the board entries in item 8 are verified.
 
 ## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
 Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
@@ -1515,3 +1467,15 @@ decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; so
 lock; starting gold refused both ways after the lock).
 ```
 **Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
+
+## fix/chargen-join-generation-guard — CharGen's join-campaign flow can bind the wrong character if the player switches mid-join — TODO
+Branch fix/chargen-join-generation-guard. **Effort:** low · **Risk:** medium — damage likelihood is low (narrow race), but the damage is a character attached to the wrong campaign.
+
+```text
+Found 2026-10-12 by the re-review of #643. CharGen's join flow (~CG 1100-1126: save → bindCharacterToCampaign → refreshServerAp →
+_cgResolveDmApStatus without opts.gen) has no generation guard across its awaits. If the player loads a different character
+while those awaits run, the join's final resolve writes the joined campaign onto the newly loaded character (and, since #643,
+also clears that character's pending binding adopt). Capture window._cgBindGen (or the character id) at the start of the join
+and drop the post-await writes when it has moved, like _cgAdoptEnvelopeBinding does. Check invite (~1408) and claim (~1483) the same way.
+```
+**Done when:** an e2e that switches character during a stubbed slow join shows the newly loaded character unbound and the joined character bound; `engine-parity-ci` 0 failed.

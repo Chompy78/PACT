@@ -17,7 +17,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 8732, CDP_PORT = 9334; // distinct ports from tool-pricing-ci.mjs so both can run concurrently
+const PORT = Number(process.env.PACT_E2E_PORT) || 8732, CDP_PORT = Number(process.env.PACT_E2E_CDP_PORT) || 9334; // distinct ports from tool-pricing-ci.mjs so both can run concurrently
 
 function findChrome() {
   if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) return process.env.CHROME_BIN;

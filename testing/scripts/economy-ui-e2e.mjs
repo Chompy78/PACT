@@ -47,7 +47,7 @@ import { DATA, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDownt
          chargesGoldAndTime } from '../../js/engine.js';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7974;   // not cloud-e2e's 7970, the seed stack's 7971, or dm-console-ui's 7973
+const PORT = Number(process.env.PACT_E2E_PORT) || 7974;   // not cloud-e2e's 7970, the seed stack's 7971, or dm-console-ui's 7973
 
 let pass = 0, fail = 0;
 

@@ -709,6 +709,9 @@ end $$;
 \ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
+-- Applied to production 2026-09-03 but never folded into rls-policies.sql (dm_zero_player_ap, pact_enforce_player_ap_ceiling):
+-- loaded here so the migration path is at least built and exercised. Not in the drift comparison until it is folded in.
+\ir ../../sql/migrations/2026-09-03-dm-zero-player-ap.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode-index-setter-fk.sql
