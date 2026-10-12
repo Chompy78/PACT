@@ -105,6 +105,19 @@ select t('a SOLO sealed character is frozen by its seal (E1 applies to the seal 
 select t('a SEALED campaign character: lowering Hit Dice in a patch event (the original hole)', 'refused', $b$ select owner_upd('sealed-camp', $e$ jsonb_set(stats,'{LOG,1,payload,patch,hd}','2') $e$) $b$);
 select t('a SEALED campaign character: deleting a flat purchase after the seal is a post-seal undo (allowed)', 'allowed', $b$ select owner_upd('sealed-camp', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') - 4) $e$) $b$);
 
+-- ===== fix/livesheet-name-description-notes (2026-10-12): the shared appearance writer pactWithAppearance() (js/ui-helpers.js) =====
+-- It either rewrites ONLY payload.patch.appearance of the LAST appearance-carrying event in place, or — when there is none — INSERTS a
+-- new appearance-only event at LOG INDEX 0, shifting every existing event's index by one. These prove both shapes are accepted for a
+-- LOCKED, a SEALED, and a locked+sealed+awarded campaign character (the trigger compares filtered protected lists, not absolute indices).
+insert into characters(id, owner_id, campaign_id, name, stats) values
+ ('aaaaaaaa-0000-0000-0000-0000000000d1','a0000000-0000-0000-0000-000000000001','c1000000-0000-0000-0000-000000000001','locked-sealed-awarded',
+  '{"SEQ":8,"LOG":[{"seq":1,"type":"creationLockConfig","payload":{"threshold":80}},{"seq":2,"type":"buy","cat":"patch","cost":5,"payload":{"patch":{"hd":3}}},{"seq":3,"type":"buy","cat":"skill","cost":1,"payload":{"v":"Stealth"}},{"seq":4,"type":"creationLocked"},{"seq":5,"type":"award","amount":6,"dmEdit":true},{"seq":6,"type":"sessionSeal","dmEdit":true},{"seq":7,"type":"buy","cat":"skill","cost":1,"payload":{"v":"Arcana"}}]}');
+select t('notes: LOCKED — insert an appearance-only event at LOG index 0 (every index shifts by one)', 'allowed', $b$ select owner_upd('relocked', $e$ jsonb_set(stats,'{LOG}', '[{"seq":9,"type":"buy","cat":"patch","cost":0,"_slot":"appearance","payload":{"patch":{"appearance":{"backstory":"x","playerName":"p"}}}}]'::jsonb || (stats->'LOG')) $e$) $b$);
+select t('notes: SEALED — insert an appearance-only event at LOG index 0', 'allowed', $b$ select owner_upd('sealed-camp', $e$ jsonb_set(stats,'{LOG}', '[{"seq":9,"type":"buy","cat":"patch","cost":0,"_slot":"appearance","payload":{"patch":{"appearance":{"backstory":"x"}}}}]'::jsonb || (stats->'LOG')) $e$) $b$);
+select t('notes: LOCKED+SEALED+AWARDED — insert an appearance-only event at LOG index 0', 'allowed', $b$ select owner_upd('locked-sealed-awarded', $e$ jsonb_set(stats,'{LOG}', '[{"seq":9,"type":"buy","cat":"patch","cost":0,"_slot":"appearance","payload":{"patch":{"appearance":{"backstory":"x","alignment":"NG"}}}}]'::jsonb || (stats->'LOG')) $e$) $b$);
+select t('notes: LOCKED — add new sub-keys to the appearance of a pre-lock MIXED event (hd + appearance)', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,7,payload,patch,appearance}','{"eyes":"green","backstory":"long text","allies":"Guild","playerName":"Sam","alignment":"CG","background":"Sage"}') $e$) $b$);
+select t('notes: LOCKED — a NEW top-level patch key (patch.notes) is still refused when inserted before the lock (fail-closed; why the notes are appearance sub-keys)', 'refused', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG}', '[{"seq":50,"type":"buy","cat":"patch","cost":0,"payload":{"patch":{"notes":"x"}}}]'::jsonb || (stats->'LOG')) $e$) $b$);
+
 -- ===== one case per patch key =====
 -- a locked character with one single-key patch event per key (the key's value is the string "v0"), then a lock; each case rewrites that one value.
 create temp table keys(k text, cls text, expect text, i int);

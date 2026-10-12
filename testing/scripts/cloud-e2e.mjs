@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -488,6 +489,71 @@ async function run() {
     check('and the character is bound anyway', hugeRow && hugeRow.bound === true);
     check('and grants nothing rather than overflowing', hugeRow && hugeRow.ap === 0,
           `ap=${hugeRow && hugeRow.ap}`);
+
+    // fix/livesheet-name-description-notes: Player Name/Alignment/Background/Allies/Backstory used to be device-local scratch.
+    // They now live in the LOG (appearance sub-keys), so a character saved on one browser shows them on a CLEAN browser after a
+    // cloud load, and a Live Sheet edit of them reaches the cloud row.
+    section('Sheet notes travel through the cloud');
+    {
+      const email = `player-notes+${stamp}@pact.test`;
+      await createUser(cfg, email, PW);
+      const ctxA = await browser.newContext();
+      const pA = await ctxA.newPage();
+      await signIn(pA, base, email, PW);
+      // The LOG is built by the tools' real writer, js/ui-helpers.js pactWithAppearance(), run here in a vm: login.html (where
+      // this page is signed in) does not load ui-helpers.js, so calling it inside pA.evaluate threw and nothing was saved.
+      const helpers = {};
+      vm.runInNewContext(fs.readFileSync(path.join(REPO, 'js/ui-helpers.js'), 'utf8'), helpers);
+      const notesLog = JSON.parse(JSON.stringify(helpers.pactWithAppearance(
+        [{ seq: 1, type: 'award', amount: 20, label: 'Award' }, { seq: 2, type: 'name', name: 'Notes Carrier' }],
+        { hair: 'Auburn', backstory: 'Typed on browser A', alignment: 'NG' }, { seq: 3, ts: Date.now() })));
+      const id = await pA.evaluate(async (LOG) => {
+        const s = await import('/PACT/js/sync.js');
+        const id = s.newCharacterId();
+        await s.saveCharacter({ id, name: 'Notes Carrier', kind: 'livesheet', stats: { schema: 'pact-character/1', name: 'Notes Carrier', LOG, SEQ: 4, id } });
+        return id;
+      }, notesLog).catch(e => 'ERR ' + e.message);
+      await ctxA.close();
+      const saved = sql(cfg, `select stats->'LOG' as log from characters where id::text = '${String(id).replace(/'/g, '')}'`)[0];
+      check('browser A saved the character with its notes in the LOG', !!saved && /Typed on browser A/.test(JSON.stringify(saved.log)), String(id));
+      const ctxB = await browser.newContext();          // a clean browser: no localStorage from A
+      const pB = await ctxB.newPage();
+      pB.on('dialog', d => d.type() === 'prompt' ? d.accept('Notes Carrier Renamed') : d.accept());
+      await signIn(pB, base, email, PW);
+      await pB.goto(`${base}/tools/PACT-Live-Char-Sheet.html?cloudChar=${id}`, { waitUntil: 'load' });
+      await pB.waitForFunction(() => window.foldBuild && foldBuild(null).name === 'Notes Carrier', null, { timeout: 30000 }).catch(() => {});
+      await pB.waitForTimeout(800);
+      const desc = await pB.textContent('#sheet .lsdesc').catch(() => '');
+      check('a clean browser shows the cloud character\'s Backstory and Alignment on the Character panel',
+            /Typed on browser A/.test(desc) && /NG/.test(desc), (desc || '').slice(0, 160));
+      await pB.evaluate(() => toggleSheet());
+      check('…and in the Sheet\'s Backstory field', await pB.inputValue('#sheetbody [data-mf="notes"]').catch(() => '') === 'Typed on browser A');
+      await pB.fill('#sheetbody [data-mf="notes"]', 'Edited on browser B');
+      await pB.dispatchEvent('#sheetbody [data-mf="notes"]', 'input');
+      await pB.evaluate(() => toggleSheet());              // close the Sheet, then save explicitly (autosave may be off)
+      await pB.click('#sheet .shname .shrename').catch(() => {});   // rename from the character card
+      await pB.waitForTimeout(800);
+      await pB.click('#cloudBtn').catch(() => {});
+      await pB.click('#cloudSaveBtn').catch(() => {});
+      let row = null;
+      for (let i = 0; i < 20 && !(row && /Edited on browser B/.test(row)); i++) {
+        await pB.waitForTimeout(1000);
+        row = (sql(cfg, `select stats->'LOG' as log from characters where id = '${id}'`)[0] || {}).log;
+        row = JSON.stringify(row || '');
+      }
+      check('a Live Sheet edit of the Backstory reaches the cloud row', /Edited on browser B/.test(row || ''), (row || '').slice(0, 160));
+      const ctxC = await browser.newContext();
+      const pC = await ctxC.newPage();
+      await signIn(pC, base, email, PW);
+      await pC.goto(`${base}/tools/PACT-Live-Char-Sheet.html?cloudChar=${id}`, { waitUntil: 'load' });
+      await pC.waitForFunction(() => window.foldBuild && /Notes Carrier/.test(foldBuild(null).name || ''), null, { timeout: 30000 }).catch(() => {});
+      await pC.waitForTimeout(800);
+      const got = await pC.evaluate(() => ({ n: foldBuild(null).name, b: (foldBuild(null).appearance || {}).backstory })).catch(() => ({}));
+      check('a rename from the card survives a cloud load on another clean browser, with the edited Backstory',
+            got.n === 'Notes Carrier Renamed' && got.b === 'Edited on browser B', JSON.stringify(got));
+      await ctxC.close();
+      await ctxB.close();
+    }
 
   } finally {
     await browser.close();

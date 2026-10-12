@@ -14,6 +14,12 @@
 - DM-only creation-AP controls are hidden only when the server confirms the campaign binding (`refreshServerBinding()`); an unconfirmed
   binding leaves them usable with a note. Async binding resolves carry a generation and drop stale results. No migration.
   Full record: `decisions/2026/D-GH-2026-10-12-chargen-campaign-stuck-states.md`.
+## D-GH-2026-10-12-livesheet-name-description-notes — the Sheet's notes live in the LOG as appearance sub-keys; one shared appearance writer
+- Owner choice A2; sub-decisions Q1–Q7 **provisional (H2, owner away)**. Player Name/Alignment/Background/Allies/Backstory move from per-device
+  scratch into `b.appearance` (exempt from the server freeze — no migration); `pactWithAppearance()` (js/ui-helpers.js) is the one writer for
+  both tools (rewrite the last appearance event in place, else insert at LOG index 0 — proved accepted for locked/sealed characters in the
+  Docker freeze harness); one-time copy-in keeps both devices' values. Fixes a live CharGen wipe of the Live Sheet's `playerSheet`.
+  Full record: `decisions/2026/D-GH-2026-10-12-livesheet-name-description-notes.md`.
 ## D-GH-2026-10-12-livesheet-center-panel — skill totals come from the engine; the drawback-count advice is a DM switch
 - Owner choices B1/C1/D (DM Console)/E1. New engine export `skillMods()`; campaign rule `drawbackCountAdvice` (DM Console checkbox) reaches
   `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring

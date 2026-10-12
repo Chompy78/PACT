@@ -176,32 +176,6 @@ runs only on Live Sheet's Rename — not on save, import or load — and CharGen
 ```
 **Done when:** a test reproduces a blank-row insert on the old code and passes on the new; `engine-parity.html` reports 0 failed; a live re-check after the fix reaches `main` shows no blank rows created after that date.
 
-## fix/livesheet-name-description-notes — Live Sheet: player can't rename, can't see the description, notes don't travel — TODO
-Branch fix/livesheet-name-description-notes. **Effort:** medium · **Risk:** medium — moving free-text Sheet fields into the LOG touches save/sync and needs a one-time copy-in of existing local notes (damage scale drives it).
-
-```text
-Owner report 2026-10-12: "I cannot change the name and see the description when I should be able to." Audit (2026-10-12) found the
-server and every lock/seal/campaign state ALLOW both — the bug is UI placement and per-device storage. Owner chose the deep fix (A2).
-Line refs are approximate (file was moving) — grep the symbol.
-
-  1. Rename: the only ✎ Rename is inside the "🛠 DM tools" strip (#dmcontent, ~LS:444; off-screen on phones). Add a player-facing ✎ on
-     the card name (.shname in render(), ~LS:1690) and make the 📋 Sheet "Character Name" (~LS:2303) editable — both call the existing
-     _lsRenameGuard -> emit({type:'name'}). Trim the name; refuse blank. Inert when VIEW_ONLY. Align _lsRenameGuard's exemptions with the
-     server's unique index (sql/schema.sql ~218-222: 'new character', 'character', '… (dm copy)') — today it only exempts 'new character'.
-  2. Description: render() never reads b.appearance. Add a read-only "Appearance & description" block to the Character panel, read from
-     foldBuild(idx).appearance (so time-travel stays honest), every value through esc(), with an ✎ that opens the Sheet. Show ALL the
-     appearance keys CharGen writes (readBuild ~CG:4319-4327: nose, demeanour, quirk, likes, dislikes, father, mother, profession,
-     familyfor, famevent, secret, drink, custom1/2 …), not just the 7 the Sheet shows today.
-  3. Notes: Backstory & Notes, Allies & Organisations, Player Name, Alignment, Background/Other go through csSave() into
-     localStorage 'pactCharSheetManual:<tool>' — per tool AND per device, never in the LOG or cloud (LS ~2235-2259, CG ~6811-6831).
-     Move them into the LOG as appearance-style exempt patch keys (same path as _shCommitAppearanceField), in BOTH tools. On load, copy
-     any existing local value into the LOG once if the LOG has none. Confirm the server's exempt-key list accepts the new keys
-     (sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql ~line 24) — extend it via a migration if not, then run get_advisors.
-  4. While there: _shCommitAppearanceField drops CharGen's _slot tag (~LS:2284) so CharGen appends a second appearance event — keep it.
-  Out of scope: Current HP / Temp HP / Hit Dice left (separate LATER task).
-```
-**Done when:** an e2e test renames from the card (not DM tools) and the name survives reload and cloud load; the Character panel shows every appearance field set in CharGen; a Backstory typed in CharGen appears in Live Sheet after Switch to Live Sheet AND after a cloud load on a clean browser; existing local-only notes are copied in once; `engine-parity.html` 0 failed.
-
 ## fix/chargen-livesheet-data-loss — saved work silently lost or written to the wrong character — TODO
 Branch fix/chargen-livesheet-data-loss. **Effort:** medium · **Risk:** medium — several independent small fixes in both tools' load/save paths; damage likelihood is high today (live data loss), fixes are local.
 

@@ -132,3 +132,91 @@ function creationLimitRefusalText(c, amount, noun) {
     + '    spend at in-play prices and this limit no longer applies.\n'
     + '  \u2022 If you are still building and need more budget, ask your DM to raise your limit.';
 }
+
+/* ---- fix/livesheet-name-description-notes (D-GH-2026-10-12-livesheet-name-description-notes) ----
+   The five free-text Sheet fields that used to be device-only scratch (csSave() into
+   localStorage 'pactCharSheetManual:<tool>') now live in the character's LOG as sub-keys of
+   b.appearance, so they travel with Save/Load, Switch tool and the cloud. data-mf id -> appearance key.
+   They MUST be sub-keys of `appearance`: the server freeze exempts the whole top-level `appearance`
+   field (pact_patch_exempt_keys()), whereas a new top-level patch key would be protected and refused
+   after a lock. `backstory`, not `notes`, so it can't be confused with appearance.playerSheet.notes.
+   The old device-local copies are KEPT in localStorage (rollback / manual recovery) but no longer read
+   by these fields — after the one-time copy-in below they are inert. */
+var PACT_SHEET_LOG_FIELDS = { playerName: 'playerName', alignment: 'alignment', bg: 'background', allies: 'allies', notes: 'backstory' };
+var PACT_SHEET_LOG_LONG = { allies: 1, backstory: 1 };   // textareas: a two-device merge gets a paragraph separator, not " / "
+
+/* The LAST buy/patch event whose patch carries an `appearance` key — the one foldBuild() reads (MUT.patch
+   replaces `appearance` wholesale, last writer wins). -1 when there is none. */
+function pactAppearanceIndex(log) {
+  for (var i = (log || []).length - 1; i >= 0; i--) {
+    var e = log[i];
+    if (e && e.type === 'buy' && e.cat === 'patch' && e.payload && e.payload.patch && typeof e.payload.patch === 'object'
+        && Object.prototype.hasOwnProperty.call(e.payload.patch, 'appearance')) return i;
+  }
+  return -1;
+}
+
+/* The ONE writer of the character's appearance object, shared by both tools. Returns a NEW log; never mutates `log`.
+   - An appearance event exists: rewrite ONLY payload.patch.appearance of the last one, in place. seq, cost, label,
+     _slot and every other patch key are kept, so a legacy multi-field bundle keeps its server-protected projection
+     byte-identical (accepted even inside sealed/locked history) and the event never moves.
+   - None exists: INSERT a new appearance-only event at index 0, tagged _slot:'appearance' (CharGen's slot finder).
+     Index 0 rather than the tail so it is never Live Sheet's undo target while anything else exists (an appended
+     cost-0 event would be popped by the next Undo, wiping every appearance field). Server-neutral: an
+     appearance-only event has no protected projection, and the locked-history / creation-lock triggers compare
+     FILTERED lists, not absolute indices — proved in testing/scripts/creation-lock-guard-test/freeze-cases.sql.
+   opts: { seq (only used for a new event), ts, rules }. */
+function pactWithAppearance(log, merged, opts) {
+  opts = opts || {};
+  var src = log || [];
+  var app = JSON.parse(JSON.stringify(merged || {}));
+  var at = pactAppearanceIndex(src);
+  var out = src.slice();
+  if (at >= 0) {
+    var e = src[at];
+    var patch = Object.assign({}, e.payload.patch, { appearance: app });
+    var ev = Object.assign({}, e, { payload: Object.assign({}, e.payload, { patch: patch }) });
+    if (opts.ts != null) ev.ts = opts.ts;
+    out[at] = ev;
+  } else {
+    var nev = { type: 'buy', cat: 'patch', payload: { patch: { appearance: app } }, cost: 0,
+                label: 'Appearance & description (0 AP)', _slot: 'appearance', seq: opts.seq, ts: opts.ts };
+    if (opts.rules != null) nev.rules = opts.rules;
+    out.unshift(nev);
+  }
+  return out;
+}
+
+/* One tool's device-local scratch record for a character id (the pre-fix store), or null. Read-only. */
+function pactSheetScratch(tool, id) {
+  try {
+    var all = JSON.parse(localStorage.getItem('pactCharSheetManual:' + tool) || '{}');
+    var k = (id && String(id).trim()) || '(none)';
+    return (all && typeof all[k] === 'object' && all[k]) || null;
+  } catch (e) { return null; }
+}
+
+/* One-time copy-in plan: which of the five keys to add to `appearance` from the device-local scratch of the two tools.
+   A key already present in `appearance` — even '' (the player cleared it) — is never touched, so this is idempotent by
+   construction and needs no "migrated" marker. Two different non-empty local values are BOTH kept (never pick one):
+   current tool's value first. The joined value is display text — nothing ever splits it again.
+   Returns {key: value} or null when there is nothing to copy. */
+function pactNotesCopyInPlan(appearance, localCurrent, localOther, otherToolName) {
+  var ap = appearance || {}, out = {}, n = 0;
+  Object.keys(PACT_SHEET_LOG_FIELDS).forEach(function (mf) {
+    var key = PACT_SHEET_LOG_FIELDS[mf];
+    if (Object.prototype.hasOwnProperty.call(ap, key)) return;
+    var vals = [localCurrent, localOther].map(function (o) {
+      var v = o && o[mf];
+      return (typeof v === 'string' && v.trim()) ? v.trim() : '';
+    });
+    var a = vals[0], b = vals[1], v;
+    if (a && b && a !== b) {
+      v = PACT_SHEET_LOG_LONG[key]
+        ? a + '\n\n— also saved in the ' + (otherToolName || 'other tool') + ' on this device —\n' + b
+        : a + ' / ' + b;
+    } else v = a || b;
+    if (v) { out[key] = v; n++; }
+  });
+  return n ? out : null;
+}
