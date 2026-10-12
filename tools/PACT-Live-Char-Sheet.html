@@ -1402,7 +1402,7 @@ function _showVersionBanner(){
   let vb=$('versionBanner');if(vb)return;  // already shown
   vb=document.createElement('div');vb.id='versionBanner';
   vb.style.cssText='position:sticky;top:0;z-index:50;background:#7a4f00;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center';
-  vb.innerHTML='⚠ Loaded <b>'+loadedRules+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
+  vb.innerHTML='⚠ Loaded <b>'+esc(loadedRules)+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
   document.body.insertBefore(vb,document.body.firstChild);
 }
 // Low-spend nudge: Live Sheet has no character-creation discounts (race/origin bonuses etc.),
@@ -1551,7 +1551,7 @@ function validate(){
   {const _cl=_creationLockState();
    if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){const _tn=_apTrackName(_cl.defaultThr);
      issues.push('Creation AP not confirmed — using '+(_tn?_tn+' ':'')+_cl.defaultThr+' AP, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}}
-  if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
+  if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+esc(loadedRules)+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
     if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+esc(e.payload.v));
@@ -1869,7 +1869,7 @@ function render(){
     // history here either. Absent on creation purchases and on every character whose table plays with
     // the economy off, which is exactly when nothing should be shown.
     const _gtN=(e.gp||e.days)?(' <small class="gtnote" title="Gold and downtime paid for this purchase (Players Guide §16)">· '+(e.gp?Number(e.gp).toLocaleString()+' gp':'')+(e.gp&&e.days?' · ':'')+(e.days&&window._engineEcon?window._engineEcon.formatDowntime(e.days):'')+'</small>'):'';
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    led+='<tr class="'+cls+'"><td>'+esc(String(e.seq))+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+esc(e.rules)+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+esc(ap)+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
@@ -2457,7 +2457,7 @@ function renderCharSheet(b,r,ctx){
      [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
   H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies','','people and factions…',54)+'</div>');
   H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes','','backstory, session notes, treasure…',80)+'</div>');
-  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
+  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
   return H.join('');
 }
 
