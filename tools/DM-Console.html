@@ -279,6 +279,9 @@
   .sec .chev{transition:transform .15s; color:var(--blue); font-size:11px}
   .sec.open .chev{transform:rotate(90deg)}
   .secbody{display:none; padding:2px 14px 12px}
+  /* feat/dm-console-character-notes: read-only Appearance & backstory lines (card section + table-view detail) */
+  .appline{font-size:13px; margin:3px 0; overflow-wrap:anywhere}
+  .appline.long{margin-top:7px}
   .sec.open .secbody{display:block}
   /* Compact cards (feat/dm-card-compact-mode): a global DM display preference that hides every
      collapsible .sec row entirely (header AND body) on every card, in every view (local grid, cloud
@@ -922,6 +925,18 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     </div>
                   </div>
                 </div>
+                <!-- Campaign language list (feat/campaign-language-list) — saved as rules.languages {list, strict}. -->
+                <div class="ruleblock">
+                  <div class="lbl">🗣 Languages <button type="button" class="infobtn" title="The language names your players pick from when they name their languages (✎ Name spells & languages). Leave the box empty to use the standard Players Handbook list. Buying languages still costs the same AP — this only changes which names are on offer.">&#9432;</button></div>
+                  <textarea class="field" id="ruleLanguages" rows="5" style="width:100%;resize:vertical;font-family:inherit" placeholder="One language per line — leave empty for the standard list"></textarea>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
+                    <button type="button" class="btn sm ghost" id="ruleLanguagesStandard">Fill with standard list</button>
+                    <span id="ruleLanguagesCount" style="font-size:11px;color:var(--muted)"></span>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0 0;cursor:pointer">
+                    <input type="checkbox" id="ruleLanguagesStrict"> Only allow languages on this list <button type="button" class="infobtn" title="Off: your list is offered as suggestions, players can still type their own, and anything off-list is marked “Not on this campaign’s language list”. On: a player can’t save a NEW language that isn’t on your list. A language a character already has stays — languages can’t be unlearned — and is just marked.">&#9432;</button>
+                  </label>
+                </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
                   <div id="ruleHouseRules"></div>
@@ -1306,7 +1321,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.631';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.641';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -1404,6 +1419,9 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       a.languages=(b.languages||0);
       a.weaponProf=b.weaponProf||{}; a.armour=b.armour||{};
       a.toolExpertise=(b.toolExpertise||[]).slice();
+      // feat/dm-console-character-notes: the player's description/backstory (foldBuild(LOG).appearance) for the
+      // read-only Appearance & backstory block. A copy, never written back — DM Console has no edit path for it.
+      a.appearance=(b.appearance&&typeof b.appearance==='object')?JSON.parse(JSON.stringify(b.appearance)):{};
       // enrich each casting entry with per-level slot/known data from the raw build
       var _flat=[];
       (b.traditions||[]).forEach(function(t){ if(!t||!t.name||t.name==='(none)') return;
@@ -1574,6 +1592,33 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     return '<div class="sec"><div class="secrow"><span class="sectitle">'+esc(title)+'</span><span class="chev">▸</span></div>'
          + '<div class="secbody">'+body+'</div></div>';
   }
+  // feat/dm-console-character-notes: read-only "Appearance & backstory" — the player's own words from
+  // foldBuild(LOG).appearance (CharGen's description fields + the Player name / Alignment / Background /
+  // Allies / Backstory keys both player tools write there). Same keys, labels and order as Live Sheet's
+  // LS_DESC_FIELDS ("Appearance & description" block) so the DM reads what the player wrote, labelled the
+  // same way. Player-controlled text from another user's account: EVERY value goes through esc() first and
+  // only then are newlines turned into <br> — never the other way round. Empty keys are skipped; returns ''
+  // when nothing is filled, so secBlock() hides the whole section. Display only — nothing here edits.
+  var DM_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['build','Build'],['hair','Hair'],['eyes','Eyes'],['nose','Nose'],
+    ['skin','Skin'],['marks','Marks'],['voice','Voice'],['demeanour','Demeanour'],['quirk','Quirk'],['likes','Likes'],['dislikes','Dislikes'],
+    ['father','Father'],['mother','Mother'],['hometown','Home town'],['profession','Former trade'],['familyfor','Family known for'],
+    ['famevent','Notable past event'],['secret','Family secret'],['drink','Favourite drink'],['ambition','Ambition'],['fear','Greatest fear'],
+    ['prized','Prized possession'],['faith','Faith'],['companion','Companion'],['custom1','',1],['custom2','',1],
+    ['playerName','Player name'],['alignment','Alignment'],['background','Background'],['allies','Allies & organisations']];
+  function _descTxt(v){ return esc(String(v)).replace(/\r\n?|\n/g,'<br>'); }
+  function appearanceBody(ap){
+    ap = (ap && typeof ap==='object') ? ap : {};
+    var filled=function(v){ return typeof v==='string' && v.trim()!==''; }, rows=[];
+    DM_DESC_FIELDS.forEach(function(f){
+      if(f[2]){ var lab=ap[f[0]+'Label'], txt=ap[f[0]+'Text'];
+        if(filled(txt)||filled(lab)) rows.push('<div class="appline"><b>'+(filled(lab)?esc(lab):'Note')+':</b> '+(filled(txt)?_descTxt(txt):'')+'</div>');
+        return; }
+      if(filled(ap[f[0]])) rows.push('<div class="appline"><b>'+esc(f[1])+':</b> '+_descTxt(ap[f[0]])+'</div>');
+    });
+    var over=filled(ap.overall)?'<div class="appline">'+_descTxt(ap.overall)+'</div>':'';
+    var back=filled(ap.backstory)?'<div class="appline long"><b>Backstory &amp; notes:</b><br>'+_descTxt(ap.backstory)+'</div>':'';
+    return (over||rows.length||back) ? '<div class="appdesc">'+over+rows.join('')+back+'</div>' : '';
+  }
   function kvRows(rows){
     if(!rows.length) return '';
     return '<div class="kvs">'+rows.map(function(r){
@@ -1636,7 +1681,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     h += '<div class="cglabel" style="margin-top:8px">AP awards / grants ('+aw.length+')</div>';
     if(!aw.length){ h += '<div class="awnone">No AP awards recorded yet.</div>'; }
     else { h += aw.map(function(a){ var dt=fmtDate(a.ts);
-      return '<div class="awrow'+(a.disc?' disc':'')+'"><span class="amt">'+(a.amount>=0?'+':'')+a.amount+'</span>'
+      return '<div class="awrow'+(a.disc?' disc':'')+'"><span class="amt">'+(a.amount>=0?'+':'')+esc(a.amount)+'</span>'
            + '<span class="lab">'+esc(a.label||'(unlabelled award)')+(a.disc?' <span class="disctag">discount</span>':'')+'</span>'
            + (dt?'<span class="dt">'+esc(dt)+'</span>':'')+'</div>'; }).join(''); }
     return h;
@@ -1932,6 +1977,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function buildSections(s, id, dm){
     var h = '';
     if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks));
+    h += secBlock('Appearance & backstory', appearanceBody(s.appearance));   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2132,7 +2178,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function lineageSection(a){ var hasLin=a.lineage&&a.lineage!==''; var rs=a.racialSpells||[]; if(!hasLin&&!rs.length) return ''; var h='<div class="detail-col"><h3>Lineage</h3>'; if(hasLin) h+='<div class="meta">'+esc(a.lineage)+'</div>'; if(rs.length){ h+='<ul class="flaglist">'; rs.forEach(function(x){ h+='<li>'+esc(x)+'</li>'; }); h+='</ul>'; } return h+'</div>'; }
   function resourcesSection(a){ var rows=[]; if(a.vigor>0) rows.push(['Vigor', a.vigor+(a.vigorCap!=null?(' / '+a.vigorCap+' cap'):'')]); if(a.grit>0) rows.push(['Grit',a.grit]); if(a.ki>0) rows.push(['Ki / Focus',a.ki]); if(a.sorcery>0) rows.push(['Sorcery (extra)',a.sorcery]); if(a.attune>0) rows.push(['Attunement',a.attune]); if(a.martiallyBound) rows.push(['Martially Bound',a.martiallyBound]); if(!rows.length) return ''; var h='<div class="detail-col"><h3>Resources</h3><table class="awards"><tbody>'; rows.forEach(function(r){ h+='<tr><td>'+esc(r[0])+'</td><td style="text-align:right;font-weight:700;color:var(--navy);white-space:nowrap;">'+esc(r[1])+'</td></tr>'; }); return h+'</tbody></table></div>'; }
   function weaponArmourSection(a){ var wp=weaponProfList(a.weaponProf), ar=armourProfList(a.armour); var h='<div class="detail-col"><h3>Weapons &amp; Armour</h3><ul class="flaglist">'; h+='<li><b>Weapons:</b> '+(wp.length?wp.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; h+='<li><b>Armour:</b> '+(ar.length?ar.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; return h+'</ul></div>'; }
-  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earnedTotal!=null?a.earnedTotal:(a.earned||0))+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.artsDisplay||a.arts); h+=listSection('Boons',a.boonsDisplay||a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+=pairSection('Subclass abilities',((a.itemize||{})['Subclass abilities'])||[]); h+=pairSection('Subclass spell lists',(a.lines||[]).filter(function(l){return /^Spell list — /.test(l[0]);}).map(function(l){return [l[0].replace(/^Spell list — /,''),l[1]];})); h+='</div></div>'; return h; }
+  // feat/dm-console-character-notes: table-view counterpart of the card's Appearance & backstory section — a
+  // native <details>, collapsed by default, omitted entirely when nothing is filled.
+  function appearanceSection(a){ var body=appearanceBody(a.appearance); if(!body) return ''; return '<div class="detail-col"><details class="appdetails"><summary><h3 style="display:inline">Appearance &amp; backstory</h3></summary>'+body+'</details></div>'; }
+  function detailHTML(a){ var id=_idOf(a); var h='<div class="detail-inner"><div class="detail-actions"><button type="button" class="skbtn" data-sk="'+esc(id)+'">🎯 All skills &amp; bonuses</button> <button type="button" class="skbtn" data-tools="'+esc(id)+'">🛠 Tools</button></div><div class="detail-grid">'; h+='<div class="detail-col"><h3>Award history</h3>'; var aw=(a.awards||[]).slice(); if(!aw.length){ h+='<div class="meta">No AP awards recorded in this character’s log.</div>'; } else { aw.sort(function(x,y){ return (y.ts||0)-(x.ts||0); }); h+='<table class="awards"><thead><tr><th>Amount</th><th>Label</th><th>Date</th></tr></thead><tbody>'; aw.forEach(function(w){ h+='<tr><td class="amt">+'+esc(w.amount||0)+'</td><td>'+esc(w.label||'—')+(w.disc?'<span class="badge">disc</span>':'')+'</td><td>'+fmtDate(w.ts)+'</td></tr>'; }); h+='</tbody></table>'; } h+='<div class="meta">'+(a.purchases||0)+' purchase'+((a.purchases===1)?'':'s')+' logged · '+(a.earnedTotal!=null?a.earnedTotal:(a.earned||0))+' earned · '+(a.spent||0)+' spent · '+(a.available||0)+' available</div></div>'; h+='<div class="detail-col"><h3>Flags &amp; notes</h3><ul class="flaglist">'; var any=false; if(a.warnings>0){ any=true; h+='<li class="warn">⚠ '+a.warnings+' build warning'+(a.warnings>1?'s':'')+' raised by the rules engine:</li>'; (a.warningList||[]).forEach(function(w){ h+='<li class="warn" style="margin-left:6px;list-style:none;">• '+esc(w)+'</li>'; }); } if(a.unnamed>0){ any=true; h+='<li class="warn">⚠ '+a.unnamed+' unnamed spell/feat entr'+(a.unnamed>1?'ies':'y')+' — player has slots bought but not labelled.</li>'; } if(isTampered(a)){ any=true; h+='<li class="warn">⚠ Tamper-evidence: this file was edited outside PACT — its signature no longer matches. Its numbers may not reflect a legal build; ask the player to re-export from the Live Sheet.</li>'; } if(!any){ h+='<li class="none">No flags — build is clean.</li>'; } h+='</ul><div class="meta">Rules '+esc(a.rules||'?')+' · AP-level '+(a.apLevel==null?'—':a.apLevel)+' · Speed '+(a.speed||'—')+' ft · Pass. Perc '+passivePerc(a)+' · Prof +'+(a.prof||0)+(a.__file?(' · '+esc(a.__file)):'')+'</div></div>'; h+=appearanceSection(a); h+=castingSection(a); h+=resourcesSection(a); h+=lineageSection(a); h+=listSection('Skills',a.skills); h+=listSection('Tools & instruments',(a.tools||[]).concat(a.instruments||[])); h+=listSection('Expertise',a.expertise); h+=listSection('Saving throws',a.saves); h+=listSection('Weapon masteries',a.masteries); h+=weaponArmourSection(a); h+=listSection('Arts & Techniques',a.artsDisplay||a.arts); h+=listSection('Boons',a.boonsDisplay||a.boons); h+=listSection('Drawbacks',a.drawbacks); h+=listSection('Class features',a.features); h+=pairSection('Subclass abilities',((a.itemize||{})['Subclass abilities'])||[]); h+=pairSection('Subclass spell lists',(a.lines||[]).filter(function(l){return /^Spell list — /.test(l[0]);}).map(function(l){return [l[0].replace(/^Spell list — /,''),l[1]];})); h+='</div></div>'; return h; }
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(isSel?'true':'false')+'" aria-label="'+esc(a.name||'New Character')+' — press Enter for full detail">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ function toggle(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } tr.addEventListener('click',toggle); tr.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
@@ -3455,7 +3504,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // failed esm.sh import (js/supabase-client.js pulls @supabase/supabase-js from a CDN) aborted the whole
   // module: engine-ready never fired, boot never ran, and the console rendered as a bare shell. Now the
   // engine half cannot be taken down by the cloud half.
-  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules } from '../js/engine.js';
+  import { DATA, compute, requiredHD, FEAT_ALIAS, baseBuild, packTraitsFor, MUT, creationLockState, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules, campaignLanguages, STANDARD_LANGUAGES } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // exactly as the AP-ledger helpers above are.
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
@@ -3468,6 +3517,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // activeEvents/economy come from js/engine.js — the single source of truth. Boot waits on engine-ready.
   DATA.racialFx={"Goliath: Powerful Build":"Count as Large for carrying capacity and for grappling.","Goliath: Giant Ancestry":"Choose one giant boon (Cloud, Fire, Frost, Hill, Stone or Storm) with the Lineage / Ancestry picker; use it Proficiency Bonus times per long rest.","Goliath: Large Form":"Once per long rest, become Large (T4+).","Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger Breath Dice":"Your breath weapon's damage die climbs the chain.","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (DM Console); never read by compute()
   window.DATA = DATA; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.creationLockState = creationLockState;
+  window.campaignLanguages = campaignLanguages; window.STANDARD_LANGUAGES = STANDARD_LANGUAGES;   // feat/campaign-language-list
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script type="module">
@@ -3767,6 +3817,30 @@ document.addEventListener('campaign-ready', function () {
       btn.addEventListener('click', function(){ delete currentHouseRules[btn.dataset.hrdel]; renderHouseRules(); });
     });
   }
+  // Campaign language list (feat/campaign-language-list). The textarea holds the DM's own names, one
+  // per line; campaignLanguages() (js/engine.js) is the one place they're cleaned, so the count shown
+  // here and the list the players get can't disagree.
+  function _collectLanguages(){
+    var raw = document.getElementById('ruleLanguages').value.split(/\r?\n/);
+    // This classic script parses before the engine module bridge runs; every caller is post-boot, but
+    // fall back to plain trimming rather than throw if one ever isn't.
+    var list = window.campaignLanguages
+      ? (function(c){ return c.custom ? c.list : []; })(window.campaignLanguages({ languages: { list: raw } }))
+      : raw.map(function(n){ return n.trim(); }).filter(Boolean);
+    return { list: list, strict: document.getElementById('ruleLanguagesStrict').checked };
+  }
+  function _updateLanguagesCount(){
+    var c = _collectLanguages(), el = document.getElementById('ruleLanguagesCount');
+    el.textContent = c.list.length ? (c.list.length + ' language' + (c.list.length === 1 ? '' : 's') + ' on this campaign\u2019s list')
+                                   : 'Empty \u2014 players get the standard list';
+  }
+  document.getElementById('ruleLanguages').addEventListener('input', _updateLanguagesCount);
+  document.getElementById('ruleLanguagesStandard').addEventListener('click', function(){
+    var ta = document.getElementById('ruleLanguages');
+    if(ta.value.trim() && !confirm('Replace what is in the box with the standard list?')) return;
+    ta.value = window.STANDARD_LANGUAGES.join('\n');
+    _updateLanguagesCount();
+  });
   function loadRulesIntoPanel(rules){
     var r = rules || {};
     renderRuleGrids();
@@ -3780,6 +3854,12 @@ document.addEventListener('campaign-ready', function () {
     setRuleGridChecked('ruleBannedArts', r.bannedArts);
     setRuleGridChecked('ruleBannedArmours', r.bannedArmours);   // feat/armour-campaign-banlist
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
+    // Campaign language list (feat/campaign-language-list). Shows the DM's own list only — an untouched
+    // campaign shows an empty box (= the standard list), not the standard list pretending to be chosen.
+    var _lg = r.languages || {};
+    document.getElementById('ruleLanguages').value = (Array.isArray(_lg.list) ? _lg.list : []).join('\n');
+    document.getElementById('ruleLanguagesStrict').checked = _lg.strict === true;
+    _updateLanguagesCount();
     rulePostLockDrawbacks.checked = r.postLockDrawbacks === true;   // absent = refused: only an explicit true allows it (js/engine.js postLockAllowance)
     rulePostLockBindings.checked = r.postLockBindings === true;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
@@ -4329,6 +4409,10 @@ document.addEventListener('campaign-ready', function () {
       bannedArts: getRuleGridChecked('ruleBannedArts'),
       bannedArmours: getRuleGridChecked('ruleBannedArmours'),   // feat/armour-campaign-banlist
       multiDisciplineAllowed: ruleMultiDisc.checked,
+      // {list, strict} — feat/campaign-language-list. An empty list means "the standard list"; it goes
+      // through the engine's campaignLanguages() so the stored names are the same cleaned, de-duplicated
+      // names every player tool will read back.
+      languages: _collectLanguages(),
       postLockDrawbacks: rulePostLockDrawbacks.checked,
       postLockBindings: rulePostLockBindings.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.

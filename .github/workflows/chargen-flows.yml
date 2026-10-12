@@ -15,6 +15,8 @@ on:
       - "js/engine.js"
       - "js/engine-data.js"
       - "testing/scripts/chargen-flows-e2e.mjs"
+      - "testing/scripts/chargen-campaign-stuck-e2e.mjs"
+      - "testing/scripts/player-free-ap-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/chargen-flows.yml"
@@ -50,3 +52,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: CharGen flow checks
         run: node testing/scripts/chargen-flows-e2e.mjs
+      - name: CharGen campaign-character stuck states
+        run: node testing/scripts/chargen-campaign-stuck-e2e.mjs
+      - name: Players cannot grant themselves AP
+        run: node testing/scripts/player-free-ap-e2e.mjs

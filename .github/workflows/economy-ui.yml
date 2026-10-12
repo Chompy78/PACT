@@ -28,6 +28,7 @@ on:
       - "testing/scripts/creation-lock-enforcement-e2e.mjs"
       - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
+      - "testing/scripts/campaign-language-list-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/economy-ui.yml"
@@ -77,3 +78,6 @@ jobs:
 
       - name: Live Sheet center panel (skills list, effect icons, unnamed notice)
         run: node testing/scripts/livesheet-center-panel-e2e.mjs
+
+      - name: Campaign language list (all three tools)
+        run: node testing/scripts/campaign-language-list-e2e.mjs

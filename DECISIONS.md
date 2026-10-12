@@ -10,11 +10,42 @@
 
 ## Index
 
+## D-GH-2026-10-12-player-free-ap — players can't grant themselves AP or get AP back after the lock
+- H2 (owner away), provisional. Live Sheet hides/refuses + Award AP, + Discount and ⎘ AP code on a campaign character (⎀ Redeem
+  stays); solo self-awards unchanged (not made `noLock`). CharGen's DM house rules are read-only on a confirmed campaign character
+  and after the lock; starting gold and a locked campaign character's budget are refused after the lock. The server's exempt list
+  is corrected on the board, not by an unapplied migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-player-free-ap.md`.
+## D-GH-2026-10-12-chargen-livesheet-data-loss — CharGen keeps names, house rules and awards in the LOG; refuses rather than merges
+- H2 (owner away), provisional. Names → `names` LOG events; DM house rules → `HOUSE_RULES` slot; Local Save bound to the
+  character id it was opened for. A multi-award character's awards are never merged: not on load, and the Budget field
+  refuses edits. After the lock CharGen may only fill blank name slots.
+  Full record: `decisions/2026/D-GH-2026-10-12-chargen-livesheet-data-loss.md`.
+## D-GH-2026-10-12-livesheet-state-glitches — Live Sheet Undo steps over appearance-only events; past view shows no actions/present-day review
+- **Provisional (H2, owner away).** Undo targets the last event that is not a `rulesSnapshot` or a cost-0 appearance-only patch (legacy
+  tail appearance events no longer get popped); Redo puts it back in the same slot; `undoFloor()` still decides. The Needs-review tray
+  is hidden while time-travelling rather than re-validated against the past. No migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-livesheet-state-glitches.md`.
+## D-GH-2026-10-12-chargen-campaign-stuck-states — CharGen trusts a campaign binding only once the server confirms it
+- DM-only creation-AP controls are hidden only when the server confirms the campaign binding (`refreshServerBinding()`); an unconfirmed
+  binding leaves them usable with a note. Async binding resolves carry a generation and drop stale results. No migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-chargen-campaign-stuck-states.md`.
+## D-GH-2026-10-12-livesheet-name-description-notes — the Sheet's notes live in the LOG as appearance sub-keys; one shared appearance writer
+- Owner choice A2; sub-decisions Q1–Q7 **provisional (H2, owner away)**. Player Name/Alignment/Background/Allies/Backstory move from per-device
+  scratch into `b.appearance` (exempt from the server freeze — no migration); `pactWithAppearance()` (js/ui-helpers.js) is the one writer for
+  both tools (rewrite the last appearance event in place, else insert at LOG index 0 — proved accepted for locked/sealed characters in the
+  Docker freeze harness); one-time copy-in keeps both devices' values. Fixes a live CharGen wipe of the Live Sheet's `playerSheet`.
+  Full record: `decisions/2026/D-GH-2026-10-12-livesheet-name-description-notes.md`.
 ## D-GH-2026-10-12-livesheet-center-panel — skill totals come from the engine; the drawback-count advice is a DM switch
 - Owner choices B1/C1/D (DM Console)/E1. New engine export `skillMods()`; campaign rule `drawbackCountAdvice` (DM Console checkbox) reaches
   `compute()` through `drawbackCountAdviceFromRules()` in all three tools. Found on the way: blank drawback hover text, Needs review ignoring
   campaign settings, and the DM Console roster never applying the drawback cap. No rules-version bump.
   Full record: `decisions/2026/D-GH-2026-10-12-livesheet-center-panel.md`.
+## D-GH-2026-10-12-campaign-language-list — a campaign can set its own language list
+- Owner choice A1 plus A3 as a DM switch. `rules.languages = {list, strict}`; engine `campaignLanguages()` + `STANDARD_LANGUAGES` replace
+  the two tools' copies of `LANGS_2024`. Off-list names are marked; strict refuses only a newly named off-list language, never one
+  already locked in. No `DATA.version` bump, no schema change.
+  Full record: `decisions/2026/D-GH-2026-10-12-campaign-language-list.md`.
 ## D-GH-2026-10-11-creation-lock-enforcement — the creation lock is visible, refuses other species' traits, and freezes creation Vigor
 - Owner choices A2/B1/C1/D1. `_replay()` stamps unstamped (CharGen-patch) Vigor ranks at the lock so later Hit Dice don't re-price them; `compute()` hard-warns
   a cross-species trait bought while locked, which `purchaseLegality()` refuses in both tools; CharGen greys those boxes; both tools show "🔒 Creation finished".

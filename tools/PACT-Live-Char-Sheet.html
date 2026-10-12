@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.631.html**-->
+<!--**PACT-Live-Char-Sheet v1.641.html**-->
 
 <!doctype html>
 <!--
@@ -68,7 +68,9 @@
      non-functional — not merely degraded. This line used to claim file:// worked; it had not since
      D-GH26. Restoring it is a LATER consideration (docs/TASK_BOARD_LATER.md), not a live constraint.
    • Prices freeze at purchase; rules-version changes never retro-change paid costs (grandfathered).
-   • State persists to localStorage (KEY='pactLiveSheet'; manual fields under 'pactCharSheetManual:livesheet').
+   • State persists to localStorage (KEY='pactLiveSheet'; device-only manual fields — spell trackers etc. — under
+     'pactCharSheetManual:livesheet'; Player Name/Alignment/Background/Allies/Backstory are in the LOG since
+     fix/livesheet-name-description-notes).
      Keep the event-LOG / saved-JSON schema backward-compatible.
    • compute() must match the Players-Guide ladders (HD ladder; Ability Increase = 4 + |mod before|;
      Vigor cap = CON mod; Tiers T1–T7 Hit-Dice gates; origin discount vs cross-class surcharge;
@@ -300,6 +302,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
  .shtop{position:static}
 }
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
+.lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
 .shcol{display:flex;flex-direction:column;gap:10px}
 .shbox{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card)}
@@ -437,11 +440,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <div class="eco" id="eco"></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="genPortraitFor(foldBuild(null))">📷 AI Portrait</button><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn g" onclick="toggleSheet()">✕ Close</button></div><div id="sheetbody"></div></div>
 <div class="bar"><button onclick="toggleDM()" id="dmtoggle" class="dmtog">🛠 DM tools ▾</button><span id="dmcontent" style="display:inline">
-  <button class="btn" style="padding:3px 8px" onclick="(function(){var a=prompt('Award how many AP?','6');if(a==null||a==='')return;if(+a<0){alert('Award amount cannot be negative.');return;}var dt=new Date();var ds=String(dt.getFullYear()%100).padStart(2,'0')+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var n=prompt('What for? (logged with today\'s date)',ds);award(a,n||'');})()">+ Award AP</button>
-  <button class="btn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
-  <button class="btn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
+  <button class="btn" id="lsAwardBtn" style="padding:3px 8px" onclick="(function(){var a=prompt('Award how many AP?','6');if(a==null||a==='')return;if(+a<0){alert('Award amount cannot be negative.');return;}var dt=new Date();var ds=String(dt.getFullYear()%100).padStart(2,'0')+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');var n=prompt('What for? (logged with today\'s date)',ds);award(a,n||'');})()">+ Award AP</button>
+  <button class="btn" id="lsDiscountBtn" style="padding:3px 8px" title="Grant bonus AP as an in-play discount/reward" onclick="(function(){var a=prompt('Discount — bonus AP to grant?','2');if(a==null||a==='')return;var n=prompt('Why? (e.g. found a mentor)','');award(a,'Discount: '+(n||'in-play'),true);})()">+ Discount</button>
+  <button class="btn" id="lsGrantBtn" style="padding:3px 8px" title="Generate an AP grant code to send to a player" onclick="makeGrant()">⎘ AP code</button>
   <button class="btn" style="padding:3px 8px" title="Redeem an AP grant code from your DM" onclick="redeemGrant()">⎀ Redeem</button>
-  <button class="btn" style="padding:3px 8px" onclick="(async function(){var n=prompt('Character name?');if(n==null)return;if(!(await _lsRenameGuard(n,currentCharId())))return;emit({type:'name',name:n,label:'Named: '+n});})()">✎ Rename</button>
+  <button class="btn" style="padding:3px 8px" onclick="lsRename()">✎ Rename</button>
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
@@ -588,6 +591,8 @@ function _ceilOpts(b){
 // species traits re-price upward, and purchases begin costing gold and downtime where a campaign has
 // that economy switched on.
 function finishCreating(){
+  if(_viewOnlyBlock()) return;
+  if(viewAt!=null){ flash('Return to the present to finish creating.'); return; }
   var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _ceilOpts(null)) : null;
   if(st && st.locked){ flash('This character has already finished creation.'); return; }
   var msg = 'Finish creating this character?\n\n';
@@ -598,9 +603,10 @@ function finishCreating(){
       +  '  \u2022 your creation limit no longer applies \u2014 you spend whatever AP you have\n\n'
       +  'Undo cannot go back past this point. Only your DM can reopen creation afterwards.';
   if(!confirm(msg)) return;
-  LOG.push({ seq:SEQ++, ts:Date.now(), type:'creationLocked', rules:RULES,
-             label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
-  save(); render();
+  // Through emit() (fix/livesheet-state-glitches), not a bare LOG.push: emit() is the choke point that refuses in the DM
+  // read-only view, clears REDO (else undo -> Finish -> Redo put a pre-lock purchase AFTER the lock) and returns to the present.
+  emit({ type:'creationLocked', rules:RULES,
+         label:'Creation finished' + (st ? (' \u2014 ' + st.spent + ' of ' + st.ceiling + ' AP spent') : '') });
   flash('\u2714 Creation finished \u2014 you now spend at in-play prices.');
 }
 window.finishCreating = finishCreating;
@@ -800,7 +806,8 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmWindow=null;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};}
+function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmWindow=null;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};
+  window._lsCampaignName=null;window._cloudCampaignRules=null;}   // fix/livesheet-state-glitches: Reset/Import left the old campaign's name in the header (every cloud loader re-sets both after this)
 // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): this
 // character's DM-set custom field VALUES the campaign currently marks visible to players — the read-
 // only counterpart to DM Console's custom-fields feature. Field LABELS come from
@@ -900,7 +907,8 @@ function _viewOnlyBlock(){ if(!VIEW_ONLY) return false; if(typeof flash==='funct
 // check against, so nothing to enforce.
 async function _lsRenameGuard(newName, currentId){
   const trimmed = String(newName||'').trim();
-  if(!trimmed || trimmed.toLowerCase()==='new character') return true;
+  // Exempt exactly what the server's unique-name index exempts (sql/migrations/2026-10-11-unique-character-names.sql).
+  if(!trimmed || /^(new character|character)$/i.test(trimmed) || / \(dm copy\)$/i.test(trimmed)) return true;
   if(!window._lsSignedIn || !window._syncBridge || !window._syncBridge.listMyCharacters) return true;
   try{
     const mine = await window._syncBridge.listMyCharacters();
@@ -912,8 +920,32 @@ async function _lsRenameGuard(newName, currentId){
   }catch(e){ /* offline or lookup failed — don't block a rename on a check that couldn't run */ }
   return true;
 }
+// fix/livesheet-name-description-notes: the ONE rename path — the card's ✎, the Sheet's ✎ and the DM-tools ✎ all call it.
+// Trimmed; blank refused; a name ending " (DM copy)" refused (H2: reserved for DM snapshots — CharGen shows its DM-copy
+// banner for it, and the server's unique-name index exempts it). `name` events are not server-protected, so a rename is
+// allowed in every lock/seal/campaign state.
+async function lsRename(){
+  if(_viewOnlyBlock())return;
+  if(viewAt!=null){flash('Return to the present to rename.');return;}
+  var cur=foldBuild(null).name||'';
+  var n=prompt('Character name?',cur);if(n==null)return;
+  var t=String(n).trim();
+  if(!t){alert('A character needs a name — nothing was changed.');return;}
+  if(t===cur.trim())return;
+  if(/ \(dm copy\)$/i.test(t)){alert('Names ending in "(DM copy)" are reserved for a DM’s snapshot of a character. Pick a different name.');return;}
+  if(!(await _lsRenameGuard(t,currentCharId())))return;
+  emit({type:'name',name:t,label:'Named: '+t});
+  var ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}   // the open Sheet shows the new name too
+}
+function _lsRenameBtn(){return (VIEW_ONLY||viewAt!=null)?'':' <button type="button" class="btn shrename" onclick="lsRename()" aria-label="Rename character" title="Rename character" style="padding:1px 7px;font-size:13px;vertical-align:middle">✎</button>';}
 function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); ev.rules=ev.rules||RULES; LOG.push(ev); REDO=[]; viewAt=null; save(); render(); }
-function award(amount,note,disc){ if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
+// fix/player-free-ap (H2, D-GH-2026-10-12-player-free-ap): a campaign character's AP comes from its DM (DM Console, or an AP code the DM
+// hands out, which ⎀ Redeem still accepts). The sheet's own + Award AP / + Discount / ⎘ AP code would let a player grant themselves
+// spendable AP and a permanent undo/server-freeze boundary, so they are hidden and refused for a campaign character. Solo is unchanged.
+function _lsSelfAwardBlocked(){ return !!window._lsCampaignId; }
+function _lsSyncDmAwardUi(){ var off=_lsSelfAwardBlocked(); ['lsAwardBtn','lsDiscountBtn','lsGrantBtn'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=off?'none':''; }); }
+function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console, or to send you an AP code to \u2380 Redeem.'); return true; }
+function award(amount,note,disc){ if(_lsRefuseSelfAward())return; if(amount===null||amount===undefined||String(amount).trim()==='')return; const a=Math.round(+amount); if(!isFinite(a)||a===0){ if(typeof alert==='function')alert('Enter a whole number of AP to award (e.g. 5 or -3).'); return; } emit({type:'award',amount:a,note:note||'',label:(note&&note.trim())?note.trim():'AP award',disc:!!disc}); }
 // SOFT warnings = the rules permit the action but flag it (intended paid overage / DM-discretion advisories);
 // these stay confirm-through. Everything else a purchase raises is a hard rules violation → blocked with a popup.
 // "caps them at" (code-review catch on fix/livesheet-drawback-legalcheck): the drawback-cap warning
@@ -1022,9 +1054,14 @@ function _unlockOf(ae,e){
   return i<0?null:(ae.unlockedBy.get(i)||null);
 }
 function buyoffDrawback(v){
+  // fix/livesheet-state-glitches: never from the time-travel view (the button was drawn from the PAST ledger
+  // but priced and emitted against the present), and never without an open purchase to remove — that charged
+  // 3x the refund and appended an orphan buyoff that cancelled nothing.
+  if(viewAt!=null){flash('Return to the present to buy off a drawback.');return;}
   const refund=DATA.drawbacks[v]||0;
   const _ae=activeEvents(null);   // folded ONCE per click; the open-purchase lookup and the unlock lookup share it
   const src=_openDrawbackEvent(v,_ae);
+  if(!src){flash('There is no open "'+v+'" drawback to buy off.');return;}
   // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
   let cost, rateNote;
@@ -1077,6 +1114,22 @@ function _lsBlockedBySeal(what, alternative){
       + 'has locked (by a session seal, or by an AP award), and it will be refused.\n\n' + alternative);
   return true;
 }
+// fix/livesheet-state-glitches: events Undo steps OVER rather than removing — they are not actions the player took.
+//   * rulesSnapshot — sync-written campaign-rules metadata (trailing ones are also dropped, below).
+//   * an appearance-only, cost-0 buy/patch — the description/sheet holder pactWithAppearance() (js/ui-helpers.js) rewrites in
+//     place. New ones are inserted at LOG index 0, but characters an older Live Sheet edited carry it at the TAIL, where Undo
+//     used to pop it: hair, Backstory and the playerSheet coins vanished until Redo, and any new action made that permanent.
+// A dmEdit event is never skipped (it is a barrier — see isUndoBarrier in js/engine.js); a patch carrying anything besides
+// `appearance` (a legacy CharGen bundle) is a real change and still undoes.
+function _lsUndoSkips(e){
+  if(!e||e.dmEdit)return false;
+  if(e.type==='rulesSnapshot')return true;
+  var p=(e.type==='buy'&&e.cat==='patch'&&!e.cost&&e.payload)?e.payload.patch:null;
+  return !!(p&&typeof p==='object'&&Object.keys(p).length===1&&Object.prototype.hasOwnProperty.call(p,'appearance'));
+}
+// Redo puts an event back where Undo took it from: before the same number of skipped tail events (so a legacy tail
+// appearance event stays last, exactly as it was). Kept beside REDO, not on the event, so nothing extra is ever saved.
+var _lsRedoTail=new WeakMap();
 function undo(){
   if(_viewOnlyBlock())return;
   // rulesSnapshot events are sync-written metadata, not user actions — never the undo target (they
@@ -1091,12 +1144,21 @@ function undo(){
   // beside it — UI boot is gated on engine-ready, and a fail-open guard here would silently unlock
   // history the moment the engine were slow, which is the one failure this must not have.
   var _floor=undoFloor(LOG);
-  if(LOG.length<=_floor){ if(_dropped){save();render();} flash(_undoBarrierMsg(LOG[_floor-1])); return; }
-  REDO.push(LOG.pop()); viewAt=null; save(); render(); }
+  // The target is the last event that is not skipped. Skipped events are never barriers, so the floor still decides: a
+  // target below it is refused exactly as before (a tail appearance event above a barrier no longer slips through).
+  var _at=LOG.length-1; while(_at>=_floor && _lsUndoSkips(LOG[_at])) _at--;
+  if(_at<_floor){ if(_dropped){save();render();} if(_floor>0) flash(_undoBarrierMsg(LOG[_floor-1])); else flash('Nothing to undo.'); return; }
+  var _ev=LOG.splice(_at,1)[0]; _lsRedoTail.set(_ev,LOG.length-_at); REDO.push(_ev); viewAt=null; save(); render(); }
 // _undoBarrierMsg() now lives in js/ui-helpers.js — one copy, loaded by both tools. See it there.
-// redo() below needs no barrier guard, unlike CharGen's: this tool's redo APPENDS (LOG.push) rather than
-// restoring a whole snapshot, so it cannot shrink the log past a barrier by construction.
-function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return; LOG.push(REDO.pop()); viewAt=null; save(); render(); }
+// redo() below needs no barrier guard, unlike CharGen's: this tool's redo INSERTS one event (at the tail, or just before the
+// skippable tail events undo() stepped over — never below them) rather than restoring a whole snapshot, so it cannot shrink
+// the log past a barrier by construction.
+function redo(){ if(_viewOnlyBlock())return; if(!REDO.length)return;
+  var _ev=REDO.pop(), _k=_lsRedoTail.get(_ev)||0, _at=LOG.length-_k;
+  // Only back in front of events that are still all skippable; otherwise (nothing to step over, or the tail changed) append.
+  for(var i=_at;i<LOG.length;i++){ if(!_lsUndoSkips(LOG[i])){ _at=LOG.length; break; } }
+  if(_at<0)_at=LOG.length;
+  LOG.splice(_at,0,_ev); viewAt=null; save(); render(); }
 
 // ---------------- persistence ----------------
 const KEY='pactLiveSheet';
@@ -1402,7 +1464,7 @@ function _showVersionBanner(){
   let vb=$('versionBanner');if(vb)return;  // already shown
   vb=document.createElement('div');vb.id='versionBanner';
   vb.style.cssText='position:sticky;top:0;z-index:50;background:#7a4f00;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center';
-  vb.innerHTML='⚠ Loaded <b>'+loadedRules+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
+  vb.innerHTML='⚠ Loaded <b>'+esc(loadedRules)+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
   document.body.insertBefore(vb,document.body.firstChild);
 }
 // Low-spend nudge: Live Sheet has no character-creation discounts (race/origin bonuses etc.),
@@ -1436,7 +1498,12 @@ function importJSON(file){ const fr=new FileReader(); fr.onload=e=>{try{const d=
   // that distinction and this copy had dropped it.
   if(d.LOG&&((d.id&&String(d.id)!==String(currentCharId()))||!_lsBlockedBySeal('Importing over this character',
       'Import a file that carries its own character id instead, or open the other character from \u2601 Cloud \u2192 Load.'))
-    &&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;REDO=[];viewAt=null;save();render();
+    &&confirm('Import will replace your current character and its history. Continue?')){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;
+    // fix/livesheet-name-description-notes (D1): a file with no id is a DIFFERENT character, not this one — mint a fresh id, as
+    // CharGen's applyBuild() already does. Keeping the previous id made the next cloud push overwrite the previous character's
+    // row, and the notes copy-in import the previous character's device-local notes into it.
+    if(d.id)__charId=d.id; else {__charId=null;currentCharId();_lsNotesCleared();}
+    REDO=[];viewAt=null;save();render();
   // Compose the load notice so a file that is BOTH tampered AND a different rules version shows both.
   var _msgs=[];
   if(_tampered){_msgs.push('⚠ This file was edited outside PACT — its signature no longer matches. It has still been loaded; double-check the numbers before playing.');}
@@ -1494,6 +1561,7 @@ function resetAll(){ if(confirm('Wipe this character and its whole history? This
   const _vb=$('versionBanner');if(_vb)_vb.remove();   // clear any stale version-mismatch banner
   window._apNudgeDismissedFor=null;   // a freshly wiped character should see the low-spend nudge again
   seedNew();   // re-seed a fresh level-1 character so the budget isn't empty (no false "over budget")
+  _lsNotesCleared();   // a reset keeps the id: mark the five notes as cleared so the copy-in can't bring back stale device-local values
   save();render();} }
 
 // ---------------- validation tray ----------------
@@ -1551,7 +1619,7 @@ function validate(){
   {const _cl=_creationLockState();
    if(_cl.armed&&!_cl.confirmed&&_cl.spent<=_cl.defaultThr){const _tn=_apTrackName(_cl.defaultThr);
      issues.push('Creation AP not confirmed — using '+(_tn?_tn+' ':'')+_cl.defaultThr+' AP, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}}
-  if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+loadedRules+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
+  if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+esc(loadedRules)+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
   LOG.filter(e=>e.type==='buy').forEach(e=>{
     if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+esc(e.payload.v));
@@ -1690,6 +1758,7 @@ function render(){
   if(!LOG.length){ /* still render empty */ }
   {const vl=$('verline');if(vl)vl.textContent='rules '+RULES+(loadedRules&&loadedRules!==RULES?' · loaded from '+loadedRules:'')+' · prices freeze at purchase';}
   try{_showVersionBanner();}catch(e){}   // self-correcting: raises OR clears the banner to match loadedRules
+  _lsSyncDmAwardUi();   // fix/player-free-ap: follows a binding that loads late
   const head = viewAt==null;
   const idx = viewAt;
   const b=foldBuild(idx); const eco=economy(idx); const _dmO=_dmOpts(),_dmAp=_dmO.dmAp,_ignPlr=_dmO.ignorePlayerAp; const r=compute(b,_dmO); const m=r.mods;
@@ -1701,7 +1770,7 @@ function render(){
     var _fcb = $('finishCreatingBtn');
     if(_fcb && typeof creationCeiling === 'function'){
       var _cs = creationCeiling(LOG, _ceilOpts(b));
-      var _show = _cs.enforced && !_cs.locked;
+      var _show = _cs.enforced && !_cs.locked && !VIEW_ONLY;
       _fcb.style.display = _show ? '' : 'none';
       // fix/no-creation-limit-note: a campaign character with no limit (joining a campaign clears it
       // server-side) gets a note instead of a silently missing button. Solo characters keep showing nothing.
@@ -1746,7 +1815,7 @@ function render(){
   // b.name/LOG, purely rendered here so two characters that legitimately share a name (e.g. a stray
   // unbound draft and the real campaign one, exactly the confusion that prompted this) are visually
   // distinguishable the moment the sheet is open, without having to check My Characters first.
-  let sh='<div class="shname">'+esc(b.name||'New Character')+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
+  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
@@ -1797,10 +1866,12 @@ function render(){
   const _cfVals=window._lsVisibleCustomFields||{};
   const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
   if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
+  sh+=_lsDescBlock(b);
   sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
   sh+='</div></div>';   // .shmain, .shgrid
   $('sheet').innerHTML=sh;
+  _lsScheduleCopyIn();
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
   // fix/history-shows-derived-lines: Heritage pack / 2nd origin species pack are DERIVED costs —
@@ -1835,7 +1906,7 @@ function render(){
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
     else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
-      if(!dead && e.cat==='drawback'){
+      if(!dead && e.cat==='drawback' && idx==null){   // no buy-off controls in the time-travel view (fix/livesheet-state-glitches)
         // feat/dm-unlock-drawback: a locked imposed drawback the DM has since unlocked shows its buy-off
         // button again, with the DM's recorded story beat as a tooltip. The note is player/DM-controlled
         // free text rendered into an attribute in ANOTHER user's browser, so it goes through esc().
@@ -1869,11 +1940,14 @@ function render(){
     // history here either. Absent on creation purchases and on every character whose table plays with
     // the economy off, which is exactly when nothing should be shown.
     const _gtN=(e.gp||e.days)?(' <small class="gtnote" title="Gold and downtime paid for this purchase (Players Guide §16)">· '+(e.gp?Number(e.gp).toLocaleString()+' gp':'')+(e.gp&&e.days?' · ':'')+(e.days&&window._engineEcon?window._engineEcon.formatDowntime(e.days):'')+'</small>'):'';
-    led+='<tr class="'+cls+'"><td>'+e.seq+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+e.rules+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+ap+'</td><td>'+act+'</td></tr>';
+    led+='<tr class="'+cls+'"><td>'+esc(String(e.seq))+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+esc(e.rules)+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+esc(ap)+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
-  {const iss=validate(); const _hard=iss.filter(w=>!_lsIsAdvisory(w)), _adv=iss.filter(_lsIsAdvisory);
+  // fix/livesheet-state-glitches: validate() checks the PRESENT character, so while the slider shows the past it would list
+  // present-day issues under a past sheet. Say so instead of mixing the two.
+  if(idx!=null){$('tray').innerHTML='<span style="color:var(--grey)">⏪ Viewing the past — return to the present (live) to see what needs review.</span>';}
+  else {const iss=validate(); const _hard=iss.filter(w=>!_lsIsAdvisory(w)), _adv=iss.filter(_lsIsAdvisory);
    let _tray=_hard.length?('<b>⚠ Needs review ('+_hard.length+')</b><ul>'+_hard.map(i=>'<li>'+i+'</li>').join('')+'</ul>'):'<span class="ok">✓ No issues — everything legal & grandfathered.</span>';
    if(_adv.length)_tray+='<ul style="list-style:none;padding-left:0;margin:6px 0 0;color:var(--grey);font-size:12px">'+_adv.map(i=>'<li class="adv">ⓘ '+i+'</li>').join('')+'</ul>';
    $('tray').innerHTML=_tray;}
@@ -2163,7 +2237,7 @@ function buildBuyPanel(b,r,eco,head){
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
   const avail=_apRemaining(r.spendable,eco.spent);
-  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell});}
+  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell,nameEdit:_lsRenameBtn()});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
@@ -2244,7 +2318,8 @@ function _bondLadder(src,hd){
        '<div style="font-size:11px;opacity:.92">'+esc(r.d)+'</div></div>';});
   return h+'</div>';
 }
-function pickBond(kind,name){var o=_bondGet();o[kind]=name||'';_bondSet(o);
+function pickBond(kind,name){if(VIEW_ONLY)return;   // DM read-only view writes nothing (fix/livesheet-state-glitches)
+  var o=_bondGet();o[kind]=name||'';_bondSet(o);
   try{var both=[o.mag,o.mar].filter(Boolean).join(' · ');csSave(currentCharId(),'bondSource',both);}catch(e){}
   _bondRender();}
 // Starting AP and the creation-lock threshold are the SAME figure by construction: both are
@@ -2305,8 +2380,9 @@ function csLoad(id){var all=_csStore();return all[_csKey(id)]||{};}
 function csSave(id,fieldId,val){try{var all=_csStore();var k=_csKey(id);(all[k]=all[k]||{})[fieldId]=val;localStorage.setItem(_sheetStoreKey(),JSON.stringify(all));}catch(e){}}
 var _csId='(none)';
 // fix/sheet-tab-appearance-not-persisted: these `data-mf` ids are real character data (b.appearance),
-// unlike Player Name/Alignment/Background-Other/Allies/Backstory-Notes/spell trackers, which have no LOG
-// concept and are genuinely device-local scratch notes. Before this fix ALL of them — appearance included
+// unlike the spell trackers, which are genuinely device-local scratch notes. (Player Name/Alignment/
+// Background-Other/Allies/Backstory-Notes were device-local too until fix/livesheet-name-description-notes
+// moved them into b.appearance — see PACT_SHEET_LOG_FIELDS in js/ui-helpers.js.) Before this fix ALL of them — appearance included
 // — went through csSave()/csLoad() only: a local, per-tool, per-character-id scratchpad that never
 // touched the LOG, so an edit made here never reached a cloud save, and looked like it "disappeared" the
 // moment the character was opened in the other tool (a different tool = a different scratchpad
@@ -2314,8 +2390,10 @@ var _csId='(none)';
 // view is the ONLY place these fields are edited here — so _shCommitAppearanceField below writes the LOG
 // directly rather than routing through a coalescing-patch-slot helper CharGen has and this file doesn't.
 var SHEET_APPEARANCE_FIELDS=['ap_gender','ap_age','ap_height','ap_build','ap_hair','ap_eyes','ap_skin','ap_marks','ap_voice','ap_hometown','ap_faith','ap_ambition','ap_fear','ap_prized','ap_companion','ap_overall'];
-function onSheetField(el){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
+// fix/livesheet-state-glitches: nothing at all in the DM read-only view — not even the device-local scratch (csSave below).
+function onSheetField(el){if(VIEW_ONLY)return;var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
   if(SHEET_APPEARANCE_FIELDS.indexOf(f)>=0){_shCommitAppearanceField(f.slice(3),v);return;}
+  if(Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){_shCommitAppearanceField(PACT_SHEET_LOG_FIELDS[f],v);return;}   // fix/livesheet-name-description-notes
   csSave(_csId,f,v);}
 // after innerHTML is set, fill manual fields from store (seeded with build defaults baked into data-seed) and wire save
 function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
@@ -2324,27 +2402,76 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
     // Appearance fields always show the LIVE LOG value (data-seed, freshly computed on every render) —
     // never a stored scratch override, so this view can no longer silently diverge from what Save/cloud
     // sync actually persists. Everything else keeps the original stored-or-seed behaviour.
-    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0)?null:data[id];
+    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0||Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,id))?null:data[id];
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
+    if(VIEW_ONLY){if(el.type==='checkbox')el.disabled=true;else el.readOnly=true;return;}   // fix/livesheet-state-glitches: the DM read-only view looks read-only
     if(el.addEventListener){el.addEventListener('input',function(){onSheetField(el);});el.addEventListener('change',function(){onSheetField(el);});}
   });}
 // Merge the edited key into the FULL current appearance object (so fields the Sheet doesn't show — nose,
-// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
-// survive untouched, matching CharGen's own _shCommitAppearanceField) and replace the LATEST existing
-// appearance-patch event in place (append one if none exists yet) — position-stability mirrors
-// replacePatchSlot()'s own rule (a re-append would move the ledger's Appearance line and, worse, put a
-// cost:0 event at the END of the LOG where undo() could pop it on the player's next click, undoing the
-// edit instead of their last real purchase).
+// demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink, the
+// center panel's playerSheet — survive untouched) and write it through pactWithAppearance() (js/ui-helpers.js,
+// shared with CharGen): it rewrites ONLY the appearance of the LAST appearance event in place (keeping its seq,
+// cost, label, CharGen's _slot tag and any other patch field), or inserts a new one at LOG index 0 — never at the
+// tail, where undo() would pop it on the player's next click and wipe every appearance field
+// (fix/livesheet-name-description-notes; before it, this function dropped _slot and replaced the whole event).
 function _shCommitAppearanceField(key,v){
   if(_viewOnlyBlock())return;
   var merged=Object.assign({},(foldBuild(null).appearance)||{});merged[key]=v;
-  var at=-1;
-  for(var i=LOG.length-1;i>=0;i--){var e=LOG[i];if(e&&e.type==='buy'&&e.cat==='patch'&&e.payload&&e.payload.patch&&Object.prototype.hasOwnProperty.call(e.payload.patch,'appearance')){at=i;break;}}
-  var ev={type:'buy',cat:'patch',payload:{patch:{appearance:merged}},cost:0,label:'Appearance & description (0 AP)',
-    seq:(at===-1?SEQ++:LOG[at].seq),ts:Date.now(),rules:RULES};
-  if(at===-1){LOG=LOG.concat([ev]);}else{LOG=LOG.slice();LOG[at]=ev;}
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,merged,{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
   save();render();
+}
+// One-time copy-in (fix/livesheet-name-description-notes): Player Name, Alignment, Background, Allies and Backstory used to
+// live only in this device's localStorage scratch (csSave, one bucket per tool). On the first render of a character whose
+// LOG lacks one of those keys, any local value from EITHER tool's bucket is written into the LOG once (pactNotesCopyInPlan).
+// Not an undo step (no REDO change, no viewAt change), never in the DM read-only view or while time-travelling. Idempotent:
+// afterwards the key is present (even '' once the player clears it), so it never runs again. The local scratch is NOT
+// deleted — kept for rollback/manual recovery; these fields simply stop reading it.
+// The five note keys present but empty = "cleared": pactNotesCopyInPlan() never copies over a present key. Used by Reset (same id)
+// and an id-less import, so a wiped/new character never inherits device-local notes (D1, H2 — see the decision record).
+function _lsNotesCleared(){
+  var cur=foldBuild(null).appearance||{}, add={}, n=0;
+  Object.keys(PACT_SHEET_LOG_FIELDS).forEach(function(mf){var k=PACT_SHEET_LOG_FIELDS[mf];if(!Object.prototype.hasOwnProperty.call(cur,k)){add[k]='';n++;}});
+  if(!n)return;
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,Object.assign({},cur,add),{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
+}
+var _lsCopyInPending=false;
+function _lsScheduleCopyIn(){ if(_lsCopyInPending||VIEW_ONLY||viewAt!=null)return; _lsCopyInPending=true; setTimeout(_lsNotesCopyIn,0); }
+function _lsNotesCopyIn(){
+  _lsCopyInPending=false;
+  if(VIEW_ONLY||viewAt!=null||typeof pactNotesCopyInPlan!=='function')return;
+  var id=currentCharId(); if(!id||id==='(none)')return;
+  var mine=pactSheetScratch('livesheet',id), other=pactSheetScratch('chargen',id);
+  if(!mine&&!other)return;
+  var cur=foldBuild(null).appearance||{};
+  var plan=pactNotesCopyInPlan(cur,mine,other,'Character Creator'); if(!plan)return;
+  var isNew=pactAppearanceIndex(LOG)<0;
+  LOG=pactWithAppearance(LOG,Object.assign({},cur,plan),{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
+  save();render();
+}
+// Read-only "Appearance & description" block on the Character panel (fix/livesheet-name-description-notes). Reads the build
+// render() already folded (foldBuild(idx)), so time-travel stays honest. Every value through esc().
+var LS_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['build','Build'],['hair','Hair'],['eyes','Eyes'],['nose','Nose'],
+  ['skin','Skin'],['marks','Marks'],['voice','Voice'],['demeanour','Demeanour'],['quirk','Quirk'],['likes','Likes'],['dislikes','Dislikes'],
+  ['father','Father'],['mother','Mother'],['hometown','Home town'],['profession','Former trade'],['familyfor','Family known for'],
+  ['famevent','Notable past event'],['secret','Family secret'],['drink','Favourite drink'],['ambition','Ambition'],['fear','Greatest fear'],
+  ['prized','Prized possession'],['faith','Faith'],['companion','Companion'],['custom1','',1],['custom2','',1],
+  ['playerName','Player name'],['alignment','Alignment'],['background','Background'],['allies','Allies & organisations']];
+function _lsDescTxt(v){return esc(String(v)).replace(/\n/g,'<br>');}
+function _lsDescBlock(b){
+  var ap=(b&&b.appearance)||{}, rows=[], filled=function(v){return typeof v==='string'&&v.trim()!=='';};
+  LS_DESC_FIELDS.forEach(function(f){
+    if(f[2]){var lab=ap[f[0]+'Label'],txt=ap[f[0]+'Text'];if(filled(txt)||filled(lab))rows.push('<div class="seg"><b>'+(filled(lab)?esc(lab):'Note')+':</b> '+(filled(txt)?_lsDescTxt(txt):'')+'</div>');return;}
+    if(filled(ap[f[0]]))rows.push('<div class="seg"><b>'+esc(f[1])+':</b> '+_lsDescTxt(ap[f[0]])+'</div>');
+  });
+  var over=filled(ap.overall)?'<div class="seg">'+_lsDescTxt(ap.overall)+'</div>':'';
+  var back=filled(ap.backstory)?'<div class="seg"><b>Backstory &amp; notes:</b><br>'+_lsDescTxt(ap.backstory)+'</div>':'';
+  var any=!!(over||back||rows.length);
+  var edit=VIEW_ONLY?'':' <button type="button" class="btn" style="padding:1px 7px;font-size:12px" onclick="event.preventDefault();toggleSheet()" title="Edit these on the Sheet">✎ Edit on the Sheet</button>';
+  return '<details class="lsdesc"'+(any?' open':'')+'><summary><b>Appearance &amp; description</b>'+edit+'</summary>'
+    +(any?over+rows.join('')+back:'<div class="seg" style="color:var(--grey)">Nothing written yet — add a description on the 📋 Sheet or in the Character Creator.</div>')+'</details>';
 }
 var _CSABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
 function _csEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -2360,12 +2487,12 @@ function renderCharSheet(b,r,ctx){
   var lvl=b.hd, tier=r.tier;
   // ----- header -----
   H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+'</div></div>'+
+    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+(ctx.nameEdit||'')+'</div></div>'+
     '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
-    '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName','','','your name')+'</div>'+
+    '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName',(b.appearance||{}).playerName||'','','your name')+'</div>'+
     '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
-    '<div class="cs-fld"><label>Alignment</label>'+_mfIn('alignment','','','e.g. NG')+'</div>'+
-    '<div class="cs-fld"><label>Background / Other</label>'+_mfIn('bg','','','background')+'</div>'+
+    '<div class="cs-fld"><label>Alignment</label>'+_mfIn('alignment',(b.appearance||{}).alignment||'','','e.g. NG')+'</div>'+
+    '<div class="cs-fld"><label>Background / Other</label>'+_mfIn('bg',(b.appearance||{}).background||'','','background')+'</div>'+
   '</div>');
   H.push('<div class="shsub" style="margin:-4px 0 8px">'+_csEsc(ctx.apText||'')+'</div>');
   {var ap=b.appearance||{};
@@ -2455,9 +2582,9 @@ function renderCharSheet(b,r,ctx){
   {var ap=b.appearance||{};
    H.push('<div class="shbox"><h5>Background &amp; Personality</h5><div class="cs-grid2">'+
      [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
-  H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies','','people and factions…',54)+'</div>');
-  H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes','','backstory, session notes, treasure…',80)+'</div>');
-  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+l[0]+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
+  H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies',(b.appearance||{}).allies||'','people and factions…',54)+'</div>');
+  H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes',(b.appearance||{}).backstory||'','backstory, session notes, treasure…',80)+'</div>');
+  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
   return H.join('');
 }
 
@@ -2581,7 +2708,13 @@ function _swapTally(){var SW=_nameSwapAvail();var freeCap=SW.avail||0;var rows=[
 function _swapDupes(){var by={},out=[];[].slice.call(document.querySelectorAll('#namesBox .nmf')).forEach(function(e){var p=String(e.dataset.k||'').split('::');if(p[0]!=='tr'||['c','k','a'].indexOf(p[3])<0)return;var v=String(e.value||'').trim();if(!v)return;var disc=p[1]+'::'+p[2],key=v.toLowerCase();by[disc]=by[disc]||{};if(by[disc][key]){if(out.indexOf(v)<0)out.push(v);}else by[disc][key]=1;});return out;}
 function _swapRecount(){var box=document.getElementById('swapCostBox');if(!box)return;var dup=_swapDupes();if(dup.length){box.innerHTML='<span style="color:var(--bad)">\u26D4 \u201C'+String(dup[0]).replace(/</g,'&lt;')+'\u201D is already in that spell list \u2014 pick a different spell (no duplicates within a discipline).</span>';return;}var t=_swapTally();var changed=t.nonKnown+t.knownN;if(t.illegal){box.innerHTML='<span style="color:var(--bad)">\u26D4 Cantrips, arcanum &amp; styles swap only with free Hit-Die swaps (you have '+t.freeCap+'), but you\u2019ve changed '+t.nonKnown+'. Undo one.</span>';return;}if(changed===0){box.innerHTML='';return;}var parts=[];if(t.freeUsed>0)parts.push('<b>'+t.freeUsed+'</b> free swap'+(t.freeUsed>1?'s':'')+' used');var freeRemain=Math.max(0,t.freeCap-t.freeUsed);if(freeRemain>0)parts.push(freeRemain+' free left');if(t.paid>0){var afford=t.avail>=t.paid;parts.push('<b style="color:'+(afford?'var(--ink)':'var(--bad)')+'">'+t.n+' paid = '+t.paid+' AP</b>'+(afford?'':' \u2014 not enough ('+t.avail+' available)'));}var allFree=(t.paid<=0);box.innerHTML='<span style="color:'+(allFree?'var(--good)':'var(--ink)')+'">'+(allFree?'\u2713 ':'')+parts.join(' \u00B7 ')+(t.paid>0?'. Normal learning cost; no refund on the ones replaced.':'.')+'</span>';}
 function _nmRow(key,label,val,listId,lock,swapAvail){var has=String(val||'').trim()!=='';var _kp=String(key).split('::');var _isKnown=(_kp[0]==='tr'&&_kp[3]==='k');var _kL=_isKnown?(+_kp[4]||0):0;var locked=has&&(lock==='lang'||lock==='swap');var ev=String(val||'').replace(/"/g,'&quot;');var base='flex:1;min-width:0;font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:5px';var inp='<input class="nmf" data-k="'+key+'" oninput="_swapRecount()"'+((locked&&lock==='swap')?(' data-swap="1" data-orig="'+ev+'"'+(_isKnown?(' data-kind="known" data-level="'+_kL+'"'):'')):'')+(listId?' list="'+listId+'" autocomplete="off"':'')+' value="'+ev+'"'+(locked?' readonly':'')+' style="'+base+(locked?';background:var(--lt);color:var(--grey)':'')+'">';var extra='';if(locked&&lock==='lang')extra='<span title="A language can\u2019t be unlearned." style="flex:0 0 auto;font-size:12px">\uD83D\uDD12</span>';else if(locked&&lock==='swap')extra='<span title="Locked \u2014 saved in your log" style="flex:0 0 auto;font-size:12px">\uD83D\uDD12</span>'+(swapAvail?'<button type="button" class="nmswap" title="Swap. Your 2 free Hit-Die swaps per level can change any cantrip, Mystic Arcanum, fighting style, Metamagic option, maneuver, or choice-grant spell. Known spells: swap free at the same level, or pay only the level difference to move up a level." onclick="_nameSwapUnlock(this)" style="flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:5px;font-size:12px;padding:2px 7px;cursor:pointer">\uD83D\uDD04</button>':'');return '<div class="nmrow" style="display:flex;gap:6px;align-items:center;margin:2px 0"><span style="flex:0 0 118px;font-size:11px;color:var(--grey)">'+label+'</span>'+inp+extra+'</div>';}
-const LANGS_2024=["Common","Common Sign Language","Draconic","Dwarvish","Elvish","Giant","Gnomish","Goblin","Halfling","Orc","Abyssal","Celestial","Deep Speech","Druidic","Infernal","Primordial","Sylvan","Thieves' Cant","Undercommon"];
+// The language names this character's campaign offers (feat/campaign-language-list) — the DM's own list
+// when the campaign set one, else the engine's STANDARD_LANGUAGES. resolveRules() so an offline sheet
+// still follows the campaign's last-known list from the LOG snapshot.
+function _lsLangCfg(){return window.campaignLanguages(resolveRules());}
+// The note under a language row whose name isn't on the campaign's list. Pure display: never blocks a
+// name already locked into the log (a language can't be unlearned) — see saveNames for the strict refusal.
+function _langOffNote(cfg,v){return (cfg.checked&&!cfg.isListed(v))?'<div style="margin:-2px 0 4px 124px;font-size:10.5px;color:var(--warn,#b45309)">\u26A0 Not on this campaign\u2019s language list</div>':'';}
 // owned choice-grant triggers (off-list free spells: Magical Secrets / Eldritch Knight / Arcane Trickster). Wizard Spellbook excluded — same as the normal Wizard list.
 function _ownedGrants(b){var cg=(DATA.spellGrants&&DATA.spellGrants.choiceGrants)||{};var CLS=["Artificer","Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard"];var out=[];
   Object.keys(cg).forEach(function(key){if(key==="Wizard: Spellbook")return;var g=cg[key],owned=false,parts=key.split(": "),kcls=parts[0],ksub=parts[1];
@@ -2598,7 +2731,7 @@ function openNames(){var b=foldBuild(null);var H='',DLS='';var SW=_nameSwapAvail
   // every known-spell slot in the discipline loop (perf/livesheet-apavailable-fold-reuse). Identical value:
   // apAvailable(null) === _apRemaining(compute(foldBuild(null),_dmOpts()).spendable, economy(null).spent).
   var _apAv=_apRemaining(compute(b,_dmOpts()).spendable,economy(null).spent);
-  var _nl=b.languages||1;if(_nl>0){_dl('dl_lang',LANGS_2024);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>';for(var i=0;i<_nl;i++)H+=_nmRow('lang::'+i,'Language '+(i+1),(b.languageNames||[])[i]||'','dl_lang','lang',false);}
+  var _nl=b.languages||1;if(_nl>0){var _lc=_lsLangCfg();_dl('dl_lang',_lc.list);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>'+(_lc.custom?'<div style="font-size:10.5px;color:var(--grey);margin:0 0 3px">Your campaign\u2019s languages: '+_lc.list.map(function(n){return String(n).replace(/</g,'&lt;');}).join(', ')+(_lc.strict?' \u2014 only these are allowed.':'')+'</div>':'');for(var i=0;i<_nl;i++){var _lv=(b.languageNames||[])[i]||'';H+=_nmRow('lang::'+i,'Language '+(i+1),_lv,'dl_lang','lang',false)+_langOffNote(_lc,_lv);}}
   var dc=b.dabblerCantrips||0;if(dc){_dl('dl_dab',(DATA.spells||[]).filter(function(s){return s.l===0&&s.c.indexOf('Wizard')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Out-of-Tradition cantrips</h3>';for(var i=0;i<dc;i++)H+=_nmRow('dab::'+i,'Cantrip '+(i+1),(b.dabblerCantripNames||[])[i]||'','dl_dab','swap',false);}
   for(var L=1;L<=9;L++){var ic=(b.innate||[])[L-1]||0;if(ic){_dl('dl_inn_'+L,(DATA.spells||[]).filter(function(s){return s.l===L;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Innate L'+L+'</h3>';for(var i=0;i<ic;i++)H+=_nmRow('inn::'+L+'::'+i,'L'+L+' spell '+(i+1),(((b.innateNames||[])[L-1])||[])[i]||'','dl_inn_'+L,'swap',false);}}
   (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=Math.max(0,elig.maxLv|0);Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var _allKn=[];for(var La=1;La<=9;La++)(elig.byLevel[La]||[]).forEach(function(x){if(_allKn.indexOf(x.name)<0)_allKn.push(x.name);});_allKn.sort();_dl('dl_'+ti+'_'+di+'_all',_allKn);var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';var cn=d.cantrips||0;for(var i=0;i<cn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::c::'+i,'Cantrip '+(i+1),(d.cantripNames||[])[i]||'','dl_'+ti+'_'+di+'_0','swap',SW.ok);for(var L=1;L<=9;L++){var kn=(d.known||[])[L-1]||0;var hint=(L>elig.maxLv)?' ⚠R'+L:'';for(var i=0;i<kn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::k::'+L+'::'+i,'L'+L+' spell '+(i+1)+hint,(((d.knownNames||[])[L-1])||[])[i]||'','dl_'+ti+'_'+di+'_'+L,'swap',(SW.ok||_apAv>=_swapCost(L)));}for(var ai=0;ai<4;ai++){var aL=6+ai;var ac=(d.arcanum||[])[ai]||0;if(ac){_dl('dl_arc_'+ti+'_'+di+'_'+aL,(DATA.spells||[]).filter(function(s){return s.l===aL&&s.c.indexOf('Warlock')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Mystic Arcanum L'+aL+'</h3>';for(var aj=0;aj<ac;aj++)H+=_nmRow('tr::'+ti+'::'+di+'::a::'+ai+'::'+aj,'L'+aL+' arcanum '+(aj+1),(((d.arcanumNames||[])[ai])||[])[aj]||'','dl_arc_'+ti+'_'+di+'_'+aL,'swap',SW.ok);}}});});
@@ -2752,6 +2885,9 @@ function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={
     if(p[0]==='grant'){var _gk=GR[+p[1]]&&GR[+p[1]].key;if(_gk){(grants[_gk]=grants[_gk]||[])[+p[2]]=v;}}
     else if(p[0]==='lang')lang[+p[1]]=v;else if(p[0]==='feat')feat[p[1]]=v;else if(p[0]==='dab')dab[+p[1]]=v;else if(p[0]==='fs')fs[+p[1]]=v;else if(p[0]==='fsc'){(fsc[p[1]]=fsc[p[1]]||[])[+p[2]]=v;}else if(p[0]==='mm')mm[+p[1]]=v;else if(p[0]==='mv')mv[+p[1]]=v;else if(p[0]==='eb'){if(v)eb[p[1]]=v;}else if(p[0]==='inn')inn[+p[1]-1][+p[2]]=v;
     else if(p[0]==='tr'){var ti=+p[1],di=+p[2],kk=ti+'_'+di;trMap[kk]=trMap[kk]||{ti:ti,di:di,cn:[],an:[[],[],[],[]],kn:[[],[],[],[],[],[],[],[],[]]};if(p[3]==='c')trMap[kk].cn[+p[4]]=v;else if(p[3]==='a')trMap[kk].an[+p[4]][+p[5]]=v;else{var _sL=+p[4],_nL=_spellLevel(v)||_sL;if(v&&String(v).trim()&&_nL!==_sL){(trMap[kk].kn[_nL-1]=trMap[kk].kn[_nL-1]||[]).push(v);trMap[kk]._cv=trMap[kk]._cv||{};trMap[kk]._cv[_sL]=(trMap[kk]._cv[_sL]||0)-1;trMap[kk]._cv[_nL]=(trMap[kk]._cv[_nL]||0)+1;}else trMap[kk].kn[_sL-1][+p[5]]=v;}}});
+  // Strict campaign language list (feat/campaign-language-list): refuse a NEWLY named off-list language.
+  // Locked rows are readonly and skipped, so a language already in the log never strands the character.
+  var _lc=_lsLangCfg();if(_lc.strict){var _bad=[].slice.call(document.querySelectorAll('#namesBox .nmf[data-k^="lang::"]:not([readonly])')).map(function(e){return String(e.value||'').trim();}).filter(function(v){return !_lc.isListed(v);});if(_bad.length){flash('\u26D4 \u201C'+_bad[0]+'\u201D isn\u2019t on your campaign\u2019s language list. Pick one of: '+_lc.list.join(', ')+'.','error');return;}}
   var _dup=_swapDupes();if(_dup.length){flash('\u26D4 \u201C'+_dup[0]+'\u201D is already in that spell list \u2014 no duplicates within a discipline. Pick a different spell.');return;}
   var _st=_swapTally();if(_st.illegal){flash('\u26D4 Too many free-only swaps (cantrip/arcanum/style) for your free Hit-Die swaps this level.');return;}if(_st.paid>0&&_st.paid>_st.avail){flash('\u26D4 These swaps cost '+_st.paid+' AP but you have '+_st.avail+' available.');return;}var _curB=foldBuild(null);Object.keys(trMap).forEach(function(kk){var tm=trMap[kk];if(!tm._cv)return;Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;tm.kn[L-1]=(tm.kn[L-1]||[]).filter(function(x){return x!==undefined;});});var _dd=(((_curB.traditions||[])[tm.ti]||{}).disciplines||[])[tm.di];var _kc=(_dd&&_dd.known)||[];Object.keys(tm._cv).forEach(function(Lk){var L=+Lk;emit({type:'known',ti:tm.ti,di:tm.di,L:L,to:Math.max(0,(_kc[L-1]||0)+tm._cv[Lk])});});delete tm._cv;});var _shd=(foldBuild(null).hd)||0;emit({type:'names',dab:dab,inn:inn,feat:feat,lang:lang,grants:grants,tr:Object.keys(trMap).map(function(k){return trMap[k];}),label:'Named spells & languages'+(_st.paid>0?(' \u2014 '+_st.n+' paid swap'+(_st.n>1?'s':'')+' ('+_st.paid+' AP, no refund)'):''),swapHD:(_st.freeUsed>0?_shd:0),fs:fs,fsc:fsc,mm:mm,mv:mv,eb:eb,swapN:_st.freeUsed,cost:_st.paid});closeNames();flash('Spell & language names locked into the log.');}
 // apEncodeGrant/apDecodeGrant/makeGrantId are bridged from js/ap-grant-code.js (engine-ready module) —
@@ -2761,7 +2897,7 @@ function saveNames(){var dab=[],inn=[[],[],[],[],[],[],[],[],[]],feat={},trMap={
 // otherwise throw an uncaught TypeError on window.apEncodeGrant/apDecodeGrant being undefined and fail
 // silently (the pre-refactor plain-function versions had no such dependency) — same guard shape
 // DM Console's dmMakeGrant() call site already has (/code-review ultra, 2026-09-10).
-function makeGrant(){var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
+function makeGrant(){if(_lsRefuseSelfAward())return;var a=prompt('AP to grant?','5');if(a==null||a==='')return;if(isNaN(+a)){flash('Enter a number.');return;}var n=prompt('Note (what for?)','')||'';
   var code;
   try{code=window.apEncodeGrant({a:+a,n:n,d:new Date().toISOString().slice(0,10),id:window.makeGrantId()});}
   catch(e){flash('Could not generate a code — the sheet is still loading, try again in a moment.');return;}
@@ -2831,7 +2967,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, skillMods, weaponAttack, lineageSpellHD, lineageSpellLabel, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible } from '../js/engine.js';
+  import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, skillMods, weaponAttack, lineageSpellHD, lineageSpellLabel, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -2842,6 +2978,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
+  window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
   window.postLockAllowance = postLockAllowance; window._engineCreationLockState = _engineCreationLockState;
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime };
   // Engine module bridge (D-GH26, extended D-GH37): DATA/compute/baseBuild/MUT/foldBuild/
@@ -3111,6 +3248,7 @@ document.addEventListener('sync-ready', function () {
     hide('[onclick^="document.getElementById(\'imp\')"]');
     hide('[onclick="switchToCharGen()"]');
     hide('[onclick="closeMore();resetAll()"]');
+    hide('#finishCreatingBtn');
     var dmToggle=document.getElementById('dmtoggle'), dmContent=document.getElementById('dmcontent');
     if(dmToggle) dmToggle.style.display='none';
     if(dmContent) dmContent.style.display='none';
@@ -3148,6 +3286,7 @@ document.addEventListener('sync-ready', function () {
       S.peekCharacter(vid).then(function(rec){
         if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return; }
         VIEW_ONLY = true;
+        window._lsCampaignId = rec.campaign_id || null;   // the VIEWED character's binding, not the DM's own (fix/livesheet-state-glitches)
         window._dmAp = rec.ap || 0;
         window._dmGold = rec.gold || 0; window._dmWindow = null;
         window._ignorePlayerAp = false;

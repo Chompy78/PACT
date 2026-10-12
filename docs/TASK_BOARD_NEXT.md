@@ -82,7 +82,12 @@ mirrored in sql/rls-policies.sql):
       no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
   E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
       innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
-      content, stamped cost, position and existence frozen. No-AP slots (appearance, names, houseRules, misc) stay editable.
+      content, stamped cost, position and existence frozen. No-AP slots (appearance, names) stay editable.
+      CORRECTION (fix/player-free-ap, 2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
+      boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The
+      applied stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(); a follow-up migration should
+      drop both from that list (protected after a lock/seal/award). CharGen already refuses both after the lock, so measure
+      first how many live locked characters' saves still rewrite them, then rehearse in creation-lock-guard-test.
 Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
 change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
 STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
@@ -1108,7 +1113,6 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
-
 ## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
 Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
 migrations by name (the `2026-09-01`/`2026-09-02` set) and checks exactly five function names.
@@ -1356,7 +1360,6 @@ B. Two guide rows the price checker cannot compare look like real disagreements 
 ```
 **Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
 
-
 ## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
 **Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
 
@@ -1441,67 +1444,6 @@ Owner decides one of:
 ```
 **Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
 
-## fix/player-free-ap — players can grant themselves AP or get AP back after the lock — TODO
-Branch fix/player-free-ap. **Effort:** medium · **Risk:** high — changes who may award AP and what's editable post-lock on live characters; coordinate with feat/server-freeze-at-lock and fix/chargen-post-lock-purchases (ambiguity + damage scale).
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Live Sheet "+ Award AP" / "AP code" (DM tools strip ~LS:440) are live for a player on their own campaign character. The award has
-     no noLock, so it (a) gives spendable AP unless the DM set ignore_player_ap (also bypasses _lsOverApBudget), and (b) is a permanent
-     undo barrier and a server freeze boundary (engine sealedFloor/isUndoBarrier; stage1 migration v_award_idx). Hide/disable for
-     campaign-bound characters (match CharGen's model); decide with owner whether a solo self-award should be noLock.
-  2. CharGen DM boons/drawbacks section is player-editable on campaign-bound and locked characters (not in _CG_POSTLOCK_SLOTS ~CG:3313);
-     a custom drawback at 60 AP grants 60 AP (node-checked). Make it read-only when campaign-bound and after the lock.
-  3. CharGen starting gold (ECONOMY slot) can be lowered after Finish creating for an AP refund (1 AP/gold, engine ~1043). Refuse.
-  4. Server: the stage1 migration (~line 25) exempts houseRules and gold as "no-AP" — both are priced. Feed this into
-     feat/server-freeze-at-lock's E1 list (it currently names houseRules as no-AP) rather than a separate migration.
-  5. CharGen locked campaign character with budget 0 can type a budget and append a fresh award after the lock (~CG:3727-3733) —
-     verify whether the server accepts it; refuse client-side.
-  6. CharGen updateDmToggles (~CG:6344): turning off the DM "Bound" option clears #martiallyBound by .value only (grant stays in the
-     MISC slot, still −2 AP); [id^="mbound_"] matches nothing (boxes are .disc-bound) so Magically Bound is never cleared.
-```
-**Done when:** e2e shows a campaign player has no Award AP / AP code in Live Sheet and no editable DM boons in CharGen; lowering gold after the lock is refused; turning off "Bound" removes both Bound grants from compute(); the server-freeze task's exempt list is corrected (or this task's migration lands with advisors run); `engine-parity.html` 0 failed.
-
-## fix/chargen-campaign-stuck-states — CharGen offers edits the server rejects, then autosave dead-ends — TODO
-Branch fix/chargen-campaign-stuck-states. **Effort:** low · **Risk:** medium — small client fixes, but they decide what a campaign character can edit (damage likelihood: players are stuck today).
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Building level (_cgApplyBuildLevelInner ~CG:3140) and "Confirm or change" creation AP (setCreationAp ~CG:3173; link ~CG:6777)
-     emit creationLockConfig on campaign characters; the server refuses it (2026-10-04-creation-lock-guard.sql ~18-21, 80-92), the push
-     is classed as a seal rejection and autosave stops with a misleading "history is locked" alert — reload is the only exit and loses
-     work. Disable/hide when campaign-bound.
-  2. loadFile native branch (~CG:4446-4458) never calls _cgAdoptEnvelopeBinding(d) (handoff and autosave restore do) — a loaded campaign
-     character shows 0 DM AP, everything over budget, floors wrong. One-liner.
-  3. Undo across New Character / file load (restoreFrame ~CG:2806; frames hold {log,seq,id} only) restores the old character without
-     _cgCampaignId/_dmAp/_dmApStatus — re-adopt the binding when the restored id differs.
-  4. A refused budget edit (_cgSyncSingletonEvent ~CG:3727) leaves the typed value in #budget and the build-level hint — repaint on refusal.
-```
-**Done when:** e2e: a campaign character shows no build-level/creation-AP controls; Local Load of a saved campaign character shows its DM AP; New Character → Undo shows the campaign AP again; a refused budget edit snaps back; `engine-parity.html` 0 failed.
-
-## fix/livesheet-state-glitches — Live Sheet: time-travel, read-only DM view and Reset leave wrong state — TODO
-Branch fix/livesheet-state-glitches. **Effort:** low · **Risk:** low — local guards and resets; item 1 costs AP today, the rest are display or DM-local.
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Buy-off from the time-travel view: the ledger draws "buy off 3×" from the past view; buyoffDrawback (~LS:1009) checks current
-     state, _openDrawbackEvent returns null, but it still charges refund×3 and emits an orphan buyoff (node: 6 AP for nothing).
-     Refuse when !src; don't draw action buttons when idx!=null.
-  2. Finish creating (~LS:575-590) pushes to LOG directly, bypassing emit(): no _viewOnlyBlock, REDO not cleared (undo→finish→redo
-     puts a pre-lock purchase after the lock), viewAt not reset; button not hidden in _lsApplyViewOnlyUi. Route through emit().
-  3. DM read-only view (?viewChar): onSheetField (~LS:2257) still csSave()s into the DM's browser; appearance inputs look editable.
-     Make Sheet inputs readOnly when VIEW_ONLY. The loader (~LS:3092-3100) also keeps the DM's own window._lsCampaignId — set it from
-     rec.campaign_id.
-  4. Reset / Import (_lsResetCloudApState ~LS:788) doesn't clear window._lsCampaignName / _cloudCampaignRules — old campaign name stays
-     in the header.
-  5. Needs-review tray (~LS:1815) validates the current state while the page shows a scrubbed past — use the scrubbed build or hide.
-  6. First description edit appends a cost-0 event (_shCommitAppearanceField ~LS:2279) that the next Undo removes instead of the last
-     purchase — exclude cost-0 appearance patches from undo, or coalesce.
-  7. CharGen Sheet tab: each keystroke in an appearance field re-renders #sheetbody and drops focus, one undo step per key
-     (onSheetField ~CG:6831) — commit on change/blur.
-```
-**Done when:** e2e: buy-off is not offered while scrubbed and an orphan buyoff can't be emitted; Finish creating in a DM read-only view does nothing; DM Sheet inputs are read-only; Reset clears the campaign name; typing a sentence into a CharGen appearance field keeps focus; `engine-parity.html` 0 failed.
-
 ## feat/names-before-spending — AP can't be spent until languages and spells are chosen — TODO
 Branch feat/names-before-spending. **Effort:** high · **Risk:** high — damage scale drives it: every Amble character (10 of 10, checked live 2026-10-12) owns at least one unnamed language slot, so a naive gate would block all of them from spending the moment it ships.
 
@@ -1533,3 +1475,43 @@ come from it.
 **Done when:** with the gate on, a locked character with an unnamed language or spell slot cannot buy anything in either tool and is told which choice is missing; naming it in ✎ Name spells & languages lets the purchase through; Finish creating refuses while a slot is blank; DM awards are unaffected; a new e2e covers both tools; `engine-parity.html` 0 failed.
 
 ---
+
+## chore/audit-fix-followups-2026-10-12 — small follow-ups from the reviews of PRs #633–#638 — TODO
+Branch per item or one small batch. **Effort:** low · **Risk:** low–medium per item (noted).
+
+```text
+Found by the adversarial reviews of the 2026-10-12 audit fixes. Each is small; none was blocking.
+  1. CharGen _cgRefreshWalletInputs writes _cgDmGold/_cgDmWindow/_cgWalletConfirmed after awaits with no _cgBindGen check —
+     switching campaign A→B mid-fetch shows A's gold (advisory display only). Pass the generation in. (low)
+  2. CharGen: while campaign binding confirmation is in flight (or offline), a campaign character shows the build-level /
+     creation-AP controls; choosing writes a threshold the server refuses (the original stuck state). Refuse while
+     _cgPendingCampaignId is set and unconfirmed-but-in-flight; keep the offline case open with its note. Also a LOCKED
+     character with an unconfirmed binding can still emit creationLockConfig via _cgApplyBuildLevelInner. (medium)
+  3. CharGen loadFile branch 2 (untagged Live Sheet files) doesn't adopt a campaign binding (branch 1 does since #634). (low)
+  4. Live Sheet toggleTasha() still writes dmAllows.tasha on campaign/locked characters; CharGen locks the same switch
+     since #638. Make them agree. (low)
+  5. CharGen Randomise mints a new character id (applyBuild(clone(readBuild())) carries no b.id), so a re-roll becomes a new
+     cloud row. Confirm intended; if not, keep the id. (medium — affects cloud rows)
+  6. No test covers a CharGen Setup appearance edit on a LOG that already has duplicate appearance events. Add one. (low)
+  7. testing/scripts/cost-customization-ci.mjs reported "DM Console never became ready" locally on preview while passing in
+     CI — likely a port/timing clash with parallel runs; make its port configurable like the others. Several e2e scripts
+     hardcode ports (chargen-flows 7979, chargen-campaign-stuck 7983) and random-manual-e2e resolves the app via a `PACT`
+     symlink one folder up — both broke parallel agent runs on 2026-10-12. (low)
+  8. feat/server-freeze-at-lock and feat/server-freeze-apply board entries look stale (stages reported applied 2026-10-10/11)
+     — verify against live and graduate them. (low)
+```
+**Done when:** each item is fixed with a test or explicitly closed as intended, and the board entries in item 8 are verified.
+
+## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
+Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
+
+```text
+Since fix/player-free-ap (#638, 2026-10-12) a player can't edit a server-confirmed campaign character's houseRules (DM Calls:
+Bound/Boons/Drawbacks/Non-core; custom and repriced boons/drawbacks), because they are priced. But nobody else can either:
+DM Console's currentHouseRules is campaign free-text labels and never reaches a character's houseRules. Decide with the owner
+whether house rules belong on the CAMPAIGN (all characters inherit — engine reads campaign rules) or per character via a DM
+RPC (dm_edit_character_log allowlist), then build it. Also revisit the #638 H2 decisions recorded in
+decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; solo characters lose DM Calls after their own
+lock; starting gold refused both ways after the lock).
+```
+**Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
