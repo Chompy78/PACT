@@ -1934,7 +1934,7 @@ function render(){
     // player can see exactly what their DM changed. A dmEdit event never moves economy().available
     // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
     if(e.dmEdit) cls+=' dmedit';
-    const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
+    const dmTag=e.dmEdit?' <span class="dmtag" title="'+(e.type==='buy'&&e.cat==='patch'?'Your DM changed your house rules — this line costs nothing, but a drawback you hold is now worth its new value':'This was a DM edit — it never changed your spendable AP')+'">🛡 DM</span>':'';   // feat/dm-house-rules-editor
     // What this purchase actually cost in coin and calendar, read from the event's own frozen gp/days
     // — never re-derived from today's band, so a DM waiver or a mid-campaign band change can't rewrite
     // history here either. Absent on creation purchases and on every character whose table plays with

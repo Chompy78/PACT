@@ -1502,16 +1502,21 @@ Found by the adversarial reviews of the 2026-10-12 audit fixes. Each is small; n
 ```
 **Done when:** each item is fixed with a test or explicitly closed as intended, and the board entries in item 8 are verified.
 
-## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
-Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
+## feat/dm-house-rules-editor — owner: apply the house-rules migration, then confirm or reverse the H2 choices — TODO
+Branch feat/dm-house-rules-editor (PR open, NOT to be merged before the migration is applied). **Effort:** low · **Risk:** medium — a live SQL change to the DM write path.
 
 ```text
-Since fix/player-free-ap (#638, 2026-10-12) a player can't edit a server-confirmed campaign character's houseRules (DM Calls:
-Bound/Boons/Drawbacks/Non-core; custom and repriced boons/drawbacks), because they are priced. But nobody else can either:
-DM Console's currentHouseRules is campaign free-text labels and never reaches a character's houseRules. Decide with the owner
-whether house rules belong on the CAMPAIGN (all characters inherit — engine reads campaign rules) or per character via a DM
-RPC (dm_edit_character_log allowlist), then build it. Also revisit the #638 H2 decisions recorded in
-decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; solo characters lose DM Calls after their own
-lock; starting gold refused both ways after the lock).
+BUILT under H2 (D-GH-2026-10-12-dm-house-rules-editor): per-character house rules from DM Console, one appended
+houseRules-only patch through dm_edit_character_log, ledger cost forced to 0. What is left is the owner's:
+  1. Apply sql/migrations/2026-10-12-dm-house-rules-edit.sql to live (re-verify the live function against
+     sql/rls-policies.sql first, per sql/migrations/README.md), run get_advisors + get_logs, fold the definition into
+     sql/rls-policies.sql and add the file to the \ir lists in testing/sql/session-seal-test.sql and
+     rls-baseline-test.sql; then merge the PR.
+  2. Confirm or reverse the H2 choices: per-character (not campaign-wide); cost 0 (no refund/charge for a repriced boon
+     already owned); refusing a change that leaves a character below 0 AP left; refusing to delete a custom rule the
+     character still holds.
+  3. Revisit the #638 H2 decisions still provisional under I1 (decisions/2026/D-GH-2026-10-12-player-free-ap.md): solo
+     self-award not noLock; solo characters lose DM Calls after their own lock; starting gold refused both ways after
+     the lock.
 ```
-**Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
+**Done when:** the migration is applied and the PR merged; the owner has confirmed or reversed the H2 choices of both decision records.

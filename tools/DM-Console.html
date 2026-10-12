@@ -1749,6 +1749,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
     h += dmEditBody(id, curBoons, lockedDraws, heldDraws);
+    h += dmHouseRulesBody(id, dm);   // feat/dm-house-rules-editor
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -1957,6 +1958,106 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="unlock-draw" style="font-size:11px;color:var(--muted)"></span></div>';
     }
     return h;
+  }
+  // feat/dm-house-rules-editor (D-GH-2026-10-12-dm-house-rules-editor): THIS character's house rules — the DM Calls
+  // and the custom/repriced boons and drawbacks that CharGen's "DM customisations" panel writes, and that the player
+  // can no longer change on a confirmed campaign character (fix/player-free-ap, #638). Read from the engine's own fold
+  // of the stored LOG (the last houseRules patch wins); written as ONE APPENDED patch event through
+  // dm_edit_character_log, which accepts a houseRules-only patch and stamps its ledger cost 0 (a rules change is not
+  // a purchase). Needs sql/migrations/2026-10-12-dm-house-rules-edit.sql; without it the server refuses and the
+  // handler says so in plain words. Every name here is player/DM text and is esc()'d.
+  var _DM_HR_CALLS = [
+    ['bound',     '⚔✦ Bound (martial & magical)', 'Martially Bound and Magically Bound options'],
+    ['boons',     '✦ Boons',                            'Boons (extra abilities costing AP)'],
+    ['drawbacks', '✗ Drawbacks',                        'Drawbacks (accept a hindrance, gain AP back)'],
+    ['tasha',     '🜂 Non-core (XGtE/TCoE)',       'non-core (DM-gated) content — XGtE / TCoE items']];
+  // The exact shape the server accepts (see the migration's [HOUSE] block): unknown keys dropped, numbers clamped.
+  function _dmHrNormalise(hr){
+    hr = (hr && typeof hr === 'object') ? hr : {};
+    var out = { boons:{}, draws:{}, disabled:{ boons:[], draws:[] }, dmAllows:{} };
+    Object.keys(hr.boons || {}).forEach(function(k){ var b = hr.boons[k] || {};
+      out.boons[k] = { hd: Math.min(20, Math.max(1, Math.round(Number(b.hd) || 1))), ap: Number(b.ap) || 0, fx: String(b.fx || '').slice(0, 500) }; });
+    Object.keys(hr.draws || {}).forEach(function(k){ var d = hr.draws[k] || {};
+      out.draws[k] = { ap: Number(d.ap) || 0, fx: String(d.fx || '').slice(0, 500) }; });
+    ['boons','draws'].forEach(function(k){
+      out.disabled[k] = ((hr.disabled && hr.disabled[k]) || []).filter(function(x){ return typeof x === 'string'; }); });
+    var da = hr.dmAllows || {};
+    _DM_HR_CALLS.forEach(function(c){ out.dmAllows[c[0]] = da[c[0]] !== false; });   // CharGen's rule: only an explicit false turns a call off
+    return out;
+  }
+  function _dmHouseRulesOf(log){
+    var F = window._engineFold, hr = {};
+    try { hr = (F && Array.isArray(log)) ? (F.foldBuild(log).houseRules || {}) : {}; } catch(e){ hr = {}; }
+    return _dmHrNormalise(hr);
+  }
+  function dmHouseRulesBody(id, dm){
+    if(!dm || !Array.isArray(dm.log)) return '';
+    var hr = _dmHouseRulesOf(dm.log), cid = esc(id);
+    var calls = _DM_HR_CALLS.map(function(c){
+      return '<label style="font-size:12px;display:flex;align-items:center;gap:4px" title="Allow '+esc(c[2])+'">' +
+        '<input type="checkbox" class="dm-hr-call" data-cid="'+cid+'" data-key="'+c[0]+'"'+(hr.dmAllows[c[0]] ? ' checked' : '')+'> '+esc(c[1])+'</label>';
+    }).join('');
+    var rows = [];
+    Object.keys(hr.boons).forEach(function(k){ var b = hr.boons[k];
+      rows.push(['boon', k, (DATA.boons[k] ? 'repriced boon' : 'custom boon')+' · HD '+b.hd+'+ · '+b.ap+' AP', b.fx]); });
+    Object.keys(hr.draws).forEach(function(k){ var d = hr.draws[k];
+      rows.push(['draw', k, (DATA.drawbacks[k] !== undefined ? 'repriced drawback' : 'custom drawback')+' · +'+d.ap+' AP', d.fx]); });
+    hr.disabled.boons.forEach(function(k){ if(!hr.boons[k]) rows.push(['offboon', k, 'built-in boon (disabled)', '']); });
+    hr.disabled.draws.forEach(function(k){ if(!hr.draws[k]) rows.push(['offdraw', k, 'built-in drawback (disabled)', '']); });
+    var list = rows.length ? rows.map(function(r){
+      return '<div style="display:flex;gap:8px;align-items:center;font-size:12px;margin:2px 0">' +
+        '<span style="flex:1 1 auto" title="'+esc(r[3]||'')+'"><b>'+esc(r[1])+'</b> <span style="color:var(--muted)">'+esc(r[2])+'</span></span>' +
+        '<button type="button" class="btn sm ghost dm-hr-btn" data-act="remove" data-cid="'+cid+'" data-kind="'+r[0]+'" data-name="'+esc(r[1])+'">' +
+        (r[0].indexOf('off') === 0 ? 'Re-enable' : 'Remove') + '</button></div>';
+    }).join('') : '<div style="font-size:11px;color:var(--muted)">No custom or repriced boons or drawbacks.</div>';
+    return '<div class="ruleblock"><div class="lbl">DM edit — house rules for this character <button type="button" class="infobtn" title="What CharGen calls DM Calls and DM customisations. Players cannot change these on a campaign character, so they are set here. Each change is ADDED to the character\'s log as a DM edit (their history is never rewritten) and costs or refunds nothing on its own: what they already paid stays paid, and later purchases use the new numbers. A drawback the character HOLDS is worth its new value at once, so repricing one changes their AP left — you see the change before it is saved. Turning a call off stops new picks in CharGen; it does not take away anything they already own (use remove a boon for that).">&#9432;</button></div>' +
+      '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">'+calls +
+      '<button type="button" class="btn sm dm-hr-btn" data-act="calls" data-cid="'+cid+'">Save calls</button></div>' +
+      '<div style="margin:6px 0 4px">'+list+'</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+      '<select class="field dm-hr-kind" data-cid="'+cid+'" style="flex:0 0 auto"><option value="boon">Boon</option><option value="draw">Drawback</option></select>' +
+      '<input type="text" class="field dm-hr-name" data-cid="'+cid+'" maxlength="80" placeholder="Name (a built-in name reprices it)" style="flex:2 1 180px">' +
+      '<input type="number" class="field dm-hr-hd" data-cid="'+cid+'" min="1" max="20" step="1" placeholder="HD" title="Hit Dice needed (boons only; blank = the built-in\'s, or 1)" style="flex:0 1 64px">' +
+      '<input type="number" class="field dm-hr-ap" data-cid="'+cid+'" min="0" max="1000" step="1" placeholder="AP" title="AP it costs (boon) or grants (drawback)" style="flex:0 1 70px">' +
+      '<input type="text" class="field dm-hr-fx" data-cid="'+cid+'" maxlength="500" placeholder="What it does (optional)" style="flex:3 1 200px">' +
+      '<button type="button" class="btn sm dm-hr-btn" data-act="add" data-cid="'+cid+'">Add / reprice</button>' +
+      '</div><span class="dm-status" data-cid="'+cid+'" data-kind="house-rules" style="font-size:11px;color:var(--muted)"></span></div>';
+  }
+  // The same compute() options cloudAnalyze() passes for this row, so "AP left" here is the figure on the card.
+  function _dmHrApOpts(entry){
+    var _apr = window._dmCampaignApRules || {}, B = window._campBridge;
+    return { dmAp: Number(entry && entry.dm && entry.dm.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp,
+             drawbackCap: B ? B.drawbackCapFromRules(_apr.rules) : undefined,
+             drawbackCountAdvice: B ? B.drawbackCountAdviceFromRules(_apr.rules) : undefined };
+  }
+  // Prices the change against the character's real log, refuses one that would leave them below 0 AP left (the
+  // frozen-ledger figure the card and the player's Live Sheet show), confirms, then sends ONE event.
+  function _dmSubmitHouseRules(btn, card, cid, entry, cur, next, what){
+    var st = card.querySelector('.dm-status[data-cid="'+cid+'"][data-kind="house-rules"]');
+    if(JSON.stringify(cur) === JSON.stringify(next)){ alert('Nothing to change — these are already this character\'s house rules.'); return; }
+    var F = window._engineFold, log = entry.dm.log, opts = _dmHrApOpts(entry), b0, r0, r1, left0, left1;
+    var ev = { type:'buy', cat:'patch', payload:{ patch:{ houseRules: next } }, cost:0, label:('DM house rules — '+what).slice(0, 120) };
+    try {
+      b0 = F.foldBuild(log); ev.level = b0.hd || 1;
+      r0 = compute(b0, opts); r1 = compute(F.foldBuild(log.concat([ev])), opts);
+      left0 = r0.spendable - F.economy(log).spent; left1 = r1.spendable - F.economy(log.concat([ev])).spent;
+    } catch(e){ alert('Could not price this change: '+((e && e.message) || e)); return; }
+    var nm = _rosterDisplayName(entry);
+    if(left1 < 0 && left1 < left0){
+      alert('Not saved — this would leave '+nm+' with '+left1+' AP left (they have '+left0+' now). Award AP first, or make a smaller change.');
+      return;
+    }
+    if(!confirm('Change the house rules for '+nm+'?\n\n'+what+'\n\nAP left: '+left0+(left1 !== left0 ? ' → '+left1 : ' (unchanged)') +
+                '\n\nThis is added to their log as a DM edit — their history is not rewritten.')) return;
+    btn.disabled = true; if(st) st.textContent = 'Saving…';
+    window._campBridge.dmEditCharacterLog(cid, [ev]).then(function(){
+      if(window._dmReloadRoster) window._dmReloadRoster();
+    }).catch(function(err){
+      btn.disabled = false; if(st) st.textContent = '';
+      var m = String((err && err.message) || err);
+      if(/unsupported buy category/i.test(m)) m = 'The server has not been updated to support house-rule edits yet. Ask the app owner to apply the latest database update (dm-house-rules-edit), then try again.';
+      alert('House rules not saved: '+m);
+    });
   }
   // Heritage-pack traits are owned by virtue of species and are NOT in s.racialTraits (they are derived,
   // never stored — see D-GH-2026-08-19-heritage-pack-visibility). Without this the DM Console showed a
@@ -3181,6 +3282,57 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
           alert('Unlock failed: '+udMsg);
         });
+        return;
+      }
+
+      // feat/dm-house-rules-editor: Save calls / Add or reprice / Remove (or Re-enable). Each builds the WHOLE next
+      // houseRules from the character's current fold and sends it as one appended event (_dmSubmitHouseRules).
+      // Its own archived-campaign guard, so the shared selector list above stays untouched.
+      var hrBtn = t.closest ? t.closest('.dm-hr-btn') : null;
+      if(hrBtn && card){
+        if(window._dmPeekActive){ if(window._dmPeekBlocks) window._dmPeekBlocks(); return; }
+        var hcid = hrBtn.getAttribute('data-cid'), hEntry = _cloudEntry(hcid);
+        if(!hEntry || !Array.isArray(hEntry.dm && hEntry.dm.log)){ alert('Reload the roster first — this character\'s log is not loaded.'); return; }
+        var hCur = _dmHouseRulesOf(hEntry.dm.log), hNext = JSON.parse(JSON.stringify(hCur)), hAct = hrBtn.getAttribute('data-act'), hWhat = '';
+        var hq = function(cls){ return card.querySelector('.'+cls+'[data-cid="'+hcid+'"]'); };
+        if(hAct === 'calls'){
+          card.querySelectorAll('.dm-hr-call[data-cid="'+hcid+'"]').forEach(function(cb){ hNext.dmAllows[cb.getAttribute('data-key')] = !!cb.checked; });
+          hWhat = 'DM calls: ' + _DM_HR_CALLS.map(function(c){ return c[0]+' '+(hNext.dmAllows[c[0]] ? 'on' : 'OFF'); }).join(', ');
+        } else if(hAct === 'add'){
+          var hKind = (hq('dm-hr-kind') || {}).value === 'draw' ? 'draw' : 'boon';
+          var hName = ((hq('dm-hr-name') || {}).value || '').replace(/\s+/g, ' ').trim();
+          var hApRaw = ((hq('dm-hr-ap') || {}).value || '').trim(), hAp = Number(hApRaw);
+          var hHdRaw = ((hq('dm-hr-hd') || {}).value || '').trim();
+          var hFx = ((hq('dm-hr-fx') || {}).value || '').trim().slice(0, 500);
+          if(!hName || hName.length > 80){ alert('Enter a name (up to 80 characters).'); return; }
+          // 0 to 1000 whole AP: a negative boon would be a hidden AP grant, so it is not offered (H2, see the decision record).
+          if(hApRaw === '' || !Number.isInteger(hAp) || hAp < 0 || hAp > 1000){ alert('Enter the AP as a whole number from 0 to 1000.'); return; }
+          if(hKind === 'boon'){
+            var hBuilt = DATA.boons[hName], hHd = hHdRaw === '' ? Number((hBuilt && hBuilt.hd) || 1) : Number(hHdRaw);
+            if(!Number.isInteger(hHd) || hHd < 1 || hHd > 20){ alert('Hit Dice must be a whole number from 1 to 20.'); return; }
+            hNext.boons[hName] = { hd: hHd, ap: hAp, fx: hFx || String((hBuilt && hBuilt.fx) || '').slice(0, 500) };
+            hWhat = (hBuilt ? 'Reprice boon ' : 'Custom boon ') + hName + ' — HD ' + hHd + '+, ' + hAp + ' AP';
+          } else {
+            hNext.draws[hName] = { ap: hAp, fx: hFx || String((DATA.drawbackFx && DATA.drawbackFx[hName]) || '').slice(0, 500) };
+            hWhat = (DATA.drawbacks[hName] !== undefined ? 'Reprice drawback ' : 'Custom drawback ') + hName + ' — +' + hAp + ' AP';
+          }
+        } else if(hAct === 'remove'){
+          var rKind = hrBtn.getAttribute('data-kind'), rName = hrBtn.getAttribute('data-name') || '';
+          var hb = window._engineFold.foldBuild(hEntry.dm.log);
+          // Deleting a CUSTOM entry the character holds would orphan it ("no longer in the rules data"), silently
+          // refunding a boon or dropping a drawback's grant. Refused (H2): take it off the character first.
+          if(rKind === 'boon' && !DATA.boons[rName] && (hb.boons || []).indexOf(rName) >= 0){
+            alert('“'+rName+'” is on this character. Remove the boon from them first (DM edit — remove a boon), then delete the rule.'); return; }
+          if(rKind === 'draw' && DATA.drawbacks[rName] === undefined && (hb.drawbacks || []).indexOf(rName) >= 0){
+            alert('“'+rName+'” is a drawback this character holds, so its rule cannot be deleted while they have it.'); return; }
+          if(rKind === 'boon') delete hNext.boons[rName];
+          else if(rKind === 'draw') delete hNext.draws[rName];
+          else if(rKind === 'offboon') hNext.disabled.boons = hNext.disabled.boons.filter(function(x){ return x !== rName; });
+          else if(rKind === 'offdraw') hNext.disabled.draws = hNext.disabled.draws.filter(function(x){ return x !== rName; });
+          else return;
+          hWhat = (rKind.indexOf('off') === 0 ? 'Re-enable ' : (DATA.boons[rName] || DATA.drawbacks[rName] !== undefined ? 'Back to the printed price: ' : 'Delete rule ')) + rName;
+        } else return;
+        _dmSubmitHouseRules(hrBtn, card, hcid, hEntry, hCur, hNext, hWhat);
         return;
       }
 
