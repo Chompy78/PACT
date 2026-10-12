@@ -1831,7 +1831,11 @@ function _apEsc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').r
 // not add up to its own headline (observed live: "80 AP — 0 player + 76 DM", a 4 AP contradiction, on a
 // campaign character whose drawbacks grant 4). compute() didn't expose the grant at all until this fix,
 // so the labels COULDN'T have been right. One helper, three call sites, so they cannot drift apart again.
-function _apDrawPart(r){ return (r&&r.drawbackAp) ? (' + '+r.drawbackAp+' drawbacks') : ''; }
+function _apDrawPart(r){ return ((r&&r.drawbackAp) ? (' + '+r.drawbackAp+' drawbacks') : '') + ((r&&r.dmDiscountAp) ? (' + '+r.dmDiscountAp+' DM discount') : ''); }
+// feat/dm-ap-discount: AP a DM has taken off this character's purchases (economy().discounted, from the engine).
+// Its own pool in compute(), like the drawback grant, so a DM discount counts even when the campaign ignores
+// player AP. 0 before the engine is ready or with no log.
+function _cgDmDiscount(){ try{ return (typeof economy==='function' && Array.isArray(LOG)) ? (economy(LOG).discounted||0) : 0; }catch(e){ return 0; } }
 function _apSourceHTML(r){
   var st=window._dmApStatus||'none', ignPlr=!!window._ignorePlayerAp, dmAp=window._dmAp||0;
   var label,tip;
@@ -1839,7 +1843,7 @@ function _apSourceHTML(r){
     label='⚠ DM AP unavailable — showing '+r.playerAp+' player AP only';
     tip="This character is bound to a cloud campaign, but its DM-granted AP couldn't be read right now (offline, or the campaign is still loading). This is NOT the same as having no DM AP — your real spendable total may be higher once it reconnects.";
   } else if(st==='active' && ignPlr){
-    label='🛡 '+r.spendable+' AP — DM'+(r.drawbackAp?(' + '+r.drawbackAp+' drawbacks'):'')+' only';
+    label='🛡 '+r.spendable+' AP — DM'+_apDrawPart(r)+' only';
     tip='Your DM has switched off player-entered AP for this campaign. Only DM-granted AP ('+dmAp+')'+(r.drawbackAp?(' plus the '+r.drawbackAp+' AP your drawbacks grant (a drawback is a trade you made, not an award, so it survives the toggle)'):'')+' counts toward your budget, so the Player AP field is locked. Purchases already made with player AP are kept (grandfathered), not deleted or refunded.';
   } else if(st==='active'){
     label='☁ '+r.spendable+' AP — '+r.playerAp+' player'+_apDrawPart(r)+' + '+dmAp+' DM';
@@ -4498,7 +4502,7 @@ function _domReadBuild(){
     }));
     return {name:card.querySelector('.trad-name').value,rank:+card.querySelector('.trad-rank').value,disciplines:discs};
   });
-  (trads||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});}); return {name:val('cname'),budget:+val('budget'),originClass:val('oclass'),originClass2:val('oclass2'),
+  (trads||[]).forEach(function(t){(t.disciplines||[]).forEach(function(d){if(d&&(DATA.noCantrip||[]).indexOf(d.name)>=0){d.cantrips=0;d.cantripNames=[];}});}); return {name:val('cname'),budget:+val('budget'),dmDiscount:_cgDmDiscount(),originClass:val('oclass'),originClass2:val('oclass2'),
     species:val('spec'),species2:val('spec2'),racialTraits:_cgStripPackTraits(ckVals('racck'),val('spec'),val('spec2')),lineage:val('lineage'),racialSpells:ckVals('linspellck'),stats,
     hd:+val('hd'),profBonus:+(val('profBonus')||2),hardy:+val('hardy'),tough:+val('tough'),
     saves:ckVals('saveck'),skills:ckVals('skillck'),expertise:ckVals('expck'),languages:+(val('languages')||0),

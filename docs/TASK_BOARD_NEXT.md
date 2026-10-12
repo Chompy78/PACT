@@ -1480,43 +1480,8 @@ and drop the post-await writes when it has moved, like _cgAdoptEnvelopeBinding d
 ```
 **Done when:** an e2e that switches character during a stubbed slow join shows the newly loaded character unbound and the joined character bound; `engine-parity-ci` 0 failed.
 
-## feat/dm-ap-discount — a DM can discount any purchase's AP, and the total discounted is recorded — TODO
-Branch feat/dm-ap-discount. **Effort:** high · **Risk:** high — damage scale: it changes the AP economy that `economy()` freezes and every "AP left" reads, on a live table with real characters. Build this first: feat/dm-grant-purchase and feat/wizard-scribe both use it.
-
-```text
-Owner request 2026-10-13: "the DM can somehow assign a discount to any purchase for a player. and also for the total
-discounts for AP to be recorded." Today the only tool is Award AP with a note — the AP isn't tied to the purchase, so the
-player can spend it on anything, and nothing adds up how much a DM has given away. (The boon grant in DM Console ~line 3084
-writes a buy plus a matching `award`; that's the same untied AP.)
-
-SCOPE: AP only. docs/TASK_BOARD_LATER.md "Investigate a DM-side per-purchase discount or waiver" (feat/economy-purchase-discount)
-covers GOLD/DOWNTIME and keeps its own decision; read its design notes first — its rules apply here too:
-  - Do NOT edit the purchase event (the LOG is append-only). Add a LATER event that points at the earlier purchase, the way
-    buyoff / dmRemoveBoon / dmUnlockDrawback already do, resolved in activeEvents()/economy().
-  - dm_edit_character_log is deliberately not a general editor: add exactly one new allowlisted type (e.g. `dmDiscount`
-    {targetSeq, refVal, amount, note}), validated server-side (the target must exist, be a priced buy, and the total discounted
-    can't exceed what it cost). dmEdit is stamped server-side, so a player can't forge one.
-
-DO:
-  1. Engine: economy() treats a dmDiscount as AP returned FOR THAT PURCHASE — if the target is undone, bought off or removed,
-     the discount goes with it (this is the difference from a plain award). Expose a running total (e.g. economy().dmDiscounted,
-     plus per-purchase entries). Public API additive only.
-  2. OWNER DECISION B1 (2026-10-13): a discounted purchase counts its FULL price toward equivalent level (track level) and the
-     creation lock. So carry TWO totals with clear names, e.g. "AP value" (full list price of everything owned — drives track
-     level, creation-lock threshold) and "AP paid" (what the player actually spent — drives AP left). Their difference is the
-     DM-discount total. Check every reader of "AP spent" (track level, creation lock, drawback/creation ceilings, DM Console
-     roster, Live Sheet header) and point each at the right one; record the mapping in the D-GH decision.
-  3. Migration extending the allowlist; run get_advisors + get_logs afterwards (AGENTS.md checklist step 4).
-  4. DM Console: on the character card, "DM edit — discount a purchase": pick a purchase from that character's log, enter AP
-     or a %, note required; show the campaign/character total discounted. All player text through esc().
-  5. Live Sheet + CharGen ledgers: show "paid X AP (list Y, DM discount Z)" on the line, and the total somewhere visible.
-  6. MEASURE the live characters table first (AGENTS.md: no longer pre-launch) — this should not move any existing character's
-     AP; prove it with a before/after over every live character.
-```
-**Done when:** engine-parity fixtures cover a discount, a discount on an undone purchase (gone), and an over-discount (refused); `expected-results.csv` updated if compute() output moved (bump `DATA.version` only then); an e2e drives the DM Console discount and the Live Sheet shows the line and the total; the before/after over the live characters shows no unintended change; the AP value / AP paid split is recorded in a D-GH decision with every reader mapped.
-
 ## feat/dm-grant-purchase — DM Console "grant a spell / skill" (any purchase, free to the player) — TODO
-Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low once feat/dm-ap-discount exists; damage scale is a priced write to a live character. Depends on feat/dm-ap-discount.
+Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low now feat/dm-ap-discount exists (D-GH-2026-10-13-dm-ap-discount; its RPC already accepts a discount whose target is in the same call); damage scale is a priced write to a live character.
 
 ```text
 Owner request 2026-10-13 (a wizard learns a spell in the story, without paying AP): the DM can give a character a spell

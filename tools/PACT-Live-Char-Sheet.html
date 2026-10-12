@@ -1696,7 +1696,7 @@ function validate(){
   // ignore_player_ap is on and the frozen ledger shows more spent than DM AP alone could have funded,
   // some of that spend came from player AP that no longer counts. Non-blocking — purchases are kept
   // (never deleted/refunded/rewritten); this only informs, it never gates anything.
-  if(window._ignorePlayerAp){const _spent=economy(null).spent,_dm=window._dmAp||0;if(_spent>_dm)issues.push('Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.');}
+  if(window._ignorePlayerAp){const _eco0=economy(null),_spent=_eco0.spent-(_eco0.discounted||0),_dm=window._dmAp||0;if(_spent>_dm)issues.push('Your DM has switched off player-entered AP for this campaign — purchases already made with player AP are kept, but no longer count toward new spending. Only '+_dm+' DM AP is available for anything new.');}
   // feat/livesheet-center-panel: name WHICH spells and languages are still blank, not just how many.
   {var _un=[],_lv=function(L){return 'level-'+L+' spell';};
    for(var i=0;i<(b.dabblerCantrips||0);i++){if(!((b.dabblerCantripNames||[])[i]||'').trim())_un.push('Dabbler cantrip '+(i+1));}
@@ -1924,9 +1924,10 @@ function render(){
       +(_ignPlr?_pt('<s>'+_pl+'</s>','player','Your own AP awards ('+_pl+') — NOT counted: this campaign\'s DM supplies all AP','off'):_pt(_pl,'player','AP awarded on this sheet (+ Award AP, redeemed codes)'))
       +((_dmSt!=='none'||_dmAp)?(' + '+_pt(_dmAp,'DM','AP granted by your DM in the campaign (server-authoritative)')):'')   // no campaign → no DM term
       +' + '+_pt(_dbA,'drawbacks','AP received for taking drawbacks'+(_dbRaw>_dbA?(' — capped by the campaign at '+_dbA+' of '+_dbRaw):''))
-      +' − '+_pt(eco.spent,'spent','AP spent on purchases');
+      +((r.dmDiscountAp||0)>0?(' + '+_pt(r.dmDiscountAp,'DM discount','AP your DM took off your purchases and gave back (feat/dm-ap-discount)')):'')
+      +' − '+_pt(eco.spent,'spent','AP spent on purchases'+((eco.discounted||0)>0?(' at full price (AP value); you actually paid '+eco.apPaid):''));
     var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):'';return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · '+_apSum+_dmchip+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>'+_lsWalletLine(idx);})();
-  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent of '+r.spendable;}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
+  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+(eco.discounted?(eco.spent+' AP value · '+eco.apPaid+' paid · '+eco.discounted+' DM discount'):(eco.spent+' spent'))+' of '+r.spendable;}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
   // Display-only campaign-name suffix (fix/duplicate-name-and-campaign-suffix) — never written into
@@ -2052,12 +2053,21 @@ function render(){
       if((e.warns||[]).length) cls+=' warnrow'; }
     else if(e.type==='buyoff'){ap='−'+e.cost;cls='rfnd';}
     else if(e.type==='dmRemoveBoon'){ap='';cls='dead';}
+    // feat/dm-ap-discount: the DM took AP off an earlier purchase — AP given back (a negative amount is a correction).
+    else if(e.type==='dmDiscount'){const _a=Number(e.amount)||0;ap=_a>0?'+'+_a:'−'+(-_a);cls='aw';}
     else if(e.type==='name'){ap='';}
     // feat/dm-edit-events: every DM-marked event renders distinctly — the whole point is that the
     // player can see exactly what their DM changed. A dmEdit event never moves economy().available
     // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
     if(e.dmEdit) cls+=' dmedit';
-    const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
+    // A discount is the one DM edit that moves AP, so it gets its own tooltip (with the DM's note — free text from
+    // another user, hence esc()) instead of the "never changed your spendable AP" promise the others carry.
+    const dmTag=e.dmEdit?(e.type==='dmDiscount'
+      ?' <span class="dmtag" title="Your DM took AP off a purchase and gave it back to you'+(e.note?' — '+esc(e.note):'')+'">🛡 DM</span>'
+      :' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>'):'';
+    // ...and the purchase it was taken off says so: full price still counts toward your level (owner decision B1).
+    const _dsc=(_ae.discounts&&_ae.discounts.get(_li))||0;
+    if(_dsc) packNote+=' <small class="gtnote" title="Your DM took this much off the price. It still counts at its full price toward your level.">· DM discount −'+_dsc+' AP (you paid '+((Number(e.cost)||0)-_dsc)+')</small>';
     // What this purchase actually cost in coin and calendar, read from the event's own frozen gp/days
     // — never re-derived from today's band, so a DM waiver or a mid-campaign band change can't rewrite
     // history here either. Absent on creation purchases and on every character whose table plays with

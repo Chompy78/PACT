@@ -1,0 +1,58 @@
+{
+ "description": "DM AP discount (feat/dm-ap-discount): a saving-throw purchase leaves the character 2 AP short; a DM-stamped dmDiscount of 3 AP against that purchase (by seq + category) makes it affordable. total (AP value) keeps the full price (owner decision B1); the discount reaches spendable through b.dmDiscount.",
+ "baseSnapshot": {
+  "name": "Mira Quickfingers",
+  "budget": 48,
+  "originClass": "Rogue",
+  "species": "Human",
+  "stats": {
+   "STR": 10,
+   "DEX": 16,
+   "CON": 12,
+   "INT": 10,
+   "WIS": 12,
+   "CHA": 14
+  },
+  "hd": 1,
+  "profBonus": 2,
+  "saves": [
+   "DEX"
+  ],
+  "skills": [
+   "Stealth",
+   "Acrobatics"
+  ],
+  "tools": [
+   "Thieves' tools"
+  ],
+  "weaponProf": {
+   "simple": true
+  },
+  "armour": {
+   "light": true
+  },
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "buy",
+   "cat": "save",
+   "payload": {
+    "v": "CON"
+   },
+   "cost": 8,
+   "seq": 1,
+   "label": "Saving throw — CON"
+  },
+  {
+   "type": "dmDiscount",
+   "targetSeq": 1,
+   "targetCat": "save",
+   "amount": 3,
+   "note": "Taught by the guild",
+   "seq": 2,
+   "dmEdit": true,
+   "label": "DM discount — 3 AP"
+  }
+ ]
+}

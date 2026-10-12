@@ -10,6 +10,13 @@
 
 ## Index
 
+## D-GH-2026-10-13-dm-ap-discount — a DM can take AP off any purchase, and the total given is recorded
+- A `dmDiscount` event {targetSeq, targetCat, amount, note}, DM-only through `dm_edit_character_log`, tied to one purchase
+  by seq + category. The purchase keeps its full price as "AP value" (`spent` — equivalent level, creation threshold;
+  owner B1); the discount is earned AP, so "AP left" reflects "AP paid". Ceiling raised by the discount (F1). A negative
+  amount corrects; nothing is deleted. Database refuses any non-DM change to discounts (by identity, not the forgeable
+  flag). Server sum does not check the purchase is still owned (I1, accepted). Migration NOT APPLIED; no `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-13-dm-ap-discount.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
