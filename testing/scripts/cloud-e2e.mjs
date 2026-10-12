@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -499,15 +500,22 @@ async function run() {
       const ctxA = await browser.newContext();
       const pA = await ctxA.newPage();
       await signIn(pA, base, email, PW);
-      const id = await pA.evaluate(async () => {
+      // The LOG is built by the tools' real writer, js/ui-helpers.js pactWithAppearance(), run here in a vm: login.html (where
+      // this page is signed in) does not load ui-helpers.js, so calling it inside pA.evaluate threw and nothing was saved.
+      const helpers = {};
+      vm.runInNewContext(fs.readFileSync(path.join(REPO, 'js/ui-helpers.js'), 'utf8'), helpers);
+      const notesLog = JSON.parse(JSON.stringify(helpers.pactWithAppearance(
+        [{ seq: 1, type: 'award', amount: 20, label: 'Award' }, { seq: 2, type: 'name', name: 'Notes Carrier' }],
+        { hair: 'Auburn', backstory: 'Typed on browser A', alignment: 'NG' }, { seq: 3, ts: Date.now() })));
+      const id = await pA.evaluate(async (LOG) => {
         const s = await import('/PACT/js/sync.js');
         const id = s.newCharacterId();
-        const LOG = [{ seq: 1, type: 'award', amount: 20, label: 'Award' }, { seq: 2, type: 'name', name: 'Notes Carrier' }];
-        const withAp = pactWithAppearance(LOG, { hair: 'Auburn', backstory: 'Typed on browser A', alignment: 'NG' }, { seq: 3, ts: Date.now() });
-        await s.saveCharacter({ id, name: 'Notes Carrier', kind: 'livesheet', stats: { schema: 'pact-character/1', name: 'Notes Carrier', LOG: withAp, SEQ: 4, id } });
+        await s.saveCharacter({ id, name: 'Notes Carrier', kind: 'livesheet', stats: { schema: 'pact-character/1', name: 'Notes Carrier', LOG, SEQ: 4, id } });
         return id;
-      }).catch(e => 'ERR ' + e.message);
+      }, notesLog).catch(e => 'ERR ' + e.message);
       await ctxA.close();
+      const saved = sql(cfg, `select stats->'LOG' as log from characters where id::text = '${String(id).replace(/'/g, '')}'`)[0];
+      check('browser A saved the character with its notes in the LOG', !!saved && /Typed on browser A/.test(JSON.stringify(saved.log)), String(id));
       const ctxB = await browser.newContext();          // a clean browser: no localStorage from A
       const pB = await ctxB.newPage();
       pB.on('dialog', d => d.type() === 'prompt' ? d.accept('Notes Carrier Renamed') : d.accept());
