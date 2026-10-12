@@ -944,7 +944,7 @@ function emit(ev){ if(_viewOnlyBlock())return; ev.seq=SEQ++; ev.ts=Date.now(); e
 // spendable AP and a permanent undo/server-freeze boundary, so they are hidden and refused for a campaign character. Solo is unchanged.
 function _lsSelfAwardBlocked(){ return !!window._lsCampaignId; }
 function _lsSyncDmAwardUi(){ var off=_lsSelfAwardBlocked(); ['lsAwardBtn','lsDiscountBtn','lsGrantBtn'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display=off?'none':''; }); }
-function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console, or to send you an AP code to \u2380 Redeem.'); return true; }
+function _lsRefuseSelfAward(){ if(!_lsSelfAwardBlocked()) return false; if(typeof flash==='function') flash('\uD83D\uDD12 This is a campaign character \u2014 its AP comes from your DM. Ask them to award it in the DM Console'+(_lsAwardsFrozen()?'.':', or to send you an AP code to \u2380 Redeem.')); return true; }
 // fix/server-player-award-after-lock: mirrors pact_enforce_player_ap_ceiling() — on a campaign character that is creation-locked (last creationLocked after
 // the last creationUnlocked) or sealed, the database refuses any rise in the LOG's award total from anyone but the DM, a redeemed AP code included (H2).
 function _lsAwardsFrozen(){ if(!window._lsCampaignId) return false; var lk=-1,ul=-1,sl=false; LOG.forEach(function(e,i){ if(!e)return; if(e.type==='creationLocked')lk=i; else if(e.type==='creationUnlocked')ul=i; else if(e.type==='sessionSeal')sl=true; }); return sl||lk>ul; }

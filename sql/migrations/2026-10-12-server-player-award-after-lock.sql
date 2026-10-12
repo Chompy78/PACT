@@ -6,7 +6,7 @@
 -- after the lock/seal boundary. pact_enforce_ap_budget_consistency() then counts every `award` in the LOG as
 -- spendable player AP unless the campaign has ignore_player_ap on. So on a locked campaign character in a
 -- campaign WITHOUT ignore_player_ap, a modified client could append {type:'award', amount:500} and spend it.
--- The tools stopped offering this in #638 (D-GH-2026-10-12-player-free-ap); this closes it in the database.
+-- The tools stopped offering this in #638 (D-GH-2026-10-12-player-free-ap); this closes the award route in the database.
 --
 -- THE CHANGE. It amends the existing pact_enforce_player_ap_ceiling() (2026-09-03-dm-zero-player-ap.sql,
 -- the trigger that already refuses a rising player award total once a campaign ignores player AP) instead of
@@ -39,6 +39,23 @@
 -- writer sets, so for everyone else ALL awards count. No legitimate player save changes a DM-stamped award:
 -- every dmEdit award has no noLock/disc and so is itself a pact_enforce_locked_history() boundary, frozen
 -- in place; it contributes the same amount to OLD and NEW.
+--
+-- AWARD AMOUNTS MUST BE JSON NUMBERS (review hardening). On a campaign character any `award` whose amount is not a
+-- JSON number is refused — for every writer, locked or not. A string amount casts to numeric, and "NaN" turns every
+-- sum NaN, which disables both this rule and pact_enforce_ap_budget_consistency(); planted before the lock, it would
+-- disarm both after it. Every client writes a number (CharGen Budget/seed/import, Live Sheet award/redeem/seed/clone,
+-- DM Console boon grant, dm_zero_player_ap), verified in the source 2026-10-12. A MISSING amount is still allowed (it
+-- counts 0). The live measurement did not record the JSON type of the 12 amounts: re-check before applying
+-- (select count(*) ... where e->>'type'='award' and jsonb_typeof(e->'amount') <> 'number' on campaign characters must be 0),
+-- or that character's every save is refused.
+--
+-- SCOPE: this closes the AWARD route only. A locked character can still gain AP through a client-stamped negative cost
+-- (a drawback refund, or a non-drawback buy with cost < 0) — those predate this change and are a separate board task.
+--
+-- ADMIN SESSIONS ARE NOT EXEMPT. With no JWT (SQL editor, service role) auth.uid() is null, is_campaign_dm() is false,
+-- and the rule applies. pact_enforce_creation_lock() exempts admin sessions; this one, like the 2026-09-03 version,
+-- does not. An owner repairing a row by hand in a way that raises its award total must disable trg_pact_player_ap_ceiling
+-- for that one transaction, as was done for other guarded repairs.
 --
 -- GRANT CODES (H2, provisional). A Live Sheet "Redeem" appends an `award` with a grantId. The code is
 -- tamper-evident, not secret (js/ap-grant-code.js): the database cannot tell a DM-issued code from one the
@@ -79,6 +96,14 @@ begin
   select * into v_campaign from public.campaigns where id = NEW.campaign_id;
   if not found then
     return NEW;  -- fail open, matching pact_enforce_ap_budget_consistency's own dangling-campaign case
+  end if;
+
+  -- Every award amount must be a JSON number. A string such as "NaN", "Infinity" or "500" casts to numeric, and a NaN
+  -- makes every sum NaN, so the budget check and this ceiling both stop comparing anything. Checked for every writer and
+  -- whether or not the character is locked: a value planted before the lock would otherwise disarm both checks after it.
+  if exists (select 1 from jsonb_array_elements(coalesce(NEW.stats->'LOG', '[]'::jsonb)) e
+              where e->>'type' = 'award' and jsonb_typeof(e->'amount') <> 'number') then
+    raise exception 'PACT: an AP award amount must be a number';
   end if;
 
   -- A DM of this campaign is the one person allowed to give AP through the log (boon grants, zeroing).

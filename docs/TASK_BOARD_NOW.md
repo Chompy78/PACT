@@ -203,12 +203,37 @@ The SQL and the tool changes merged with fix/server-player-award-after-lock (D-G
 the migration is NOT applied. Owner, with the Supabase MCP:
 1. Confirm live pact_enforce_player_ap_ceiling() still matches sql/migrations/2026-09-03-dm-zero-player-ap.sql
    (select pg_get_functiondef('public.pact_enforce_player_ap_ceiling()'::regprocedure)) — so the rollback file is exact.
-2. Re-measure: campaign characters whose stored LOG is creation-locked or sealed (none had a rising award total on 2026-10-12;
-   the only bound awards are CharGen Budget singletons in an ignore_player_ap campaign).
+2. Re-measure on campaign characters: (a) none whose stored LOG is creation-locked or sealed would have a rising award total
+   (none on 2026-10-12); (b) NO award whose jsonb_typeof(amount) <> 'number' — the migration refuses every save of such a
+   character, and the 2026-10-12 measurement did not record the JSON type.
 3. Apply sql/migrations/2026-10-12-server-player-award-after-lock.sql, then run get_advisors and skim get_logs.
-4. Update the migration header, decision Status and CHANGELOG line from "NOT APPLIED" to the apply date.
+4. Then, in a follow-up "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
+   - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
+     2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
+   - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (18 → 19 functions), \ir the 2026-10-12
+     migration there, and assert the trigger function is NOT callable by authenticated;
+   - change "NOT APPLIED" to the apply date in the migration header, the decision record's Status and the CHANGELOG line.
 ```
-**Done when:** the migration is applied to live with owner approval and the advisors are clean.
+**Done when:** the migration is applied to live with owner approval, the advisors are clean, and the applied PR has folded it
+into rls-policies.sql with the drift guard covering it.
+
+## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
+**Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
+
+```text
+Found in review of #644 (fix/server-player-award-after-lock), which closed the AWARD route only. Costs are stamped by the
+client, and pact_ap_ledger_spend() trusts them: a `buy` with cat:'drawback' counts -cost as earned AP, and any other buy/buyoff/
+names cost is summed as spent. So on a creation-locked or sealed campaign character a modified client can still append
+(1) a drawback buy with a large negative cost (a refund bigger than the drawback is worth), or (2) a non-drawback buy with a
+negative cost, and get spendable AP. Both predate #644.
+DO: MEASURE live first — campaign characters with a negative cost on any non-drawback buy/buyoff/names, and the range of drawback
+costs. Then decide (H2 if the owner is away) a server rule that stays SQL-only arithmetic (never re-price in SQL — engine.js
+is the only pricing source): e.g. refuse cost < 0 on non-drawback events for campaign characters, and on a locked/sealed one
+refuse a rise in drawback earnings by anyone but the DM (mirroring pact_enforce_player_ap_ceiling). Rehearse in the Docker
+harness (testing/scripts/creation-lock-guard-test/, run-award.sh pattern) incl. legitimate post-lock drawbacks the tools allow.
+```
+**Done when:** the harness refuses both negative-cost routes on a locked campaign character and accepts every legitimate save the
+tools make; the live measurement is recorded; the owner has applied it and the advisors are clean.
 
 ---
 

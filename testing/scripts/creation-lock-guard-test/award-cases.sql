@@ -13,7 +13,8 @@ begin
     raise exception 'ROLLBACK_OK';
   exception when others then
     if sqlerrm = 'ROLLBACK_OK' then g := 'allowed';
-    elsif sqlerrm like 'PACT: this character''s creation is finished%' or sqlerrm like 'PACT: this campaign''s DM has switched off%' then g := 'refused';
+    elsif sqlerrm like 'PACT: this character''s creation is finished%' or sqlerrm like 'PACT: this campaign''s DM has switched off%'
+       or sqlerrm like 'PACT: an AP award amount must be a number%' then g := 'refused';
     else g := 'ERROR: ' || sqlerrm; end if;
   end;
   insert into res(name, expect, got, verdict) values (p_name, p_expect, g, case when g = p_expect then 'PASS' else 'FAIL' end);
@@ -74,7 +75,11 @@ insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
  ('a0000000-0000-0000-0000-000000000007','c1000000-0000-0000-0000-000000000002','ign_locked','chargen',50,
   '{"SEQ":4,"LOG":[{"seq":1,"type":"buy","cat":"boon","cost":6,"payload":{"v":"Alertness"},"noLock":true},{"seq":2,"type":"creationLocked"},{"seq":3,"type":"award","amount":0,"note":"Budget","noLock":true}]}'),
  ('a0000000-0000-0000-0000-000000000008','c1000000-0000-0000-0000-000000000002','ign_prelock','chargen',50,
-  '{"SEQ":2,"LOG":[{"seq":1,"type":"award","amount":10,"note":"Budget","noLock":true}]}');
+  '{"SEQ":2,"LOG":[{"seq":1,"type":"award","amount":10,"note":"Budget","noLock":true}]}'),
+-- PLANTED: a locked campaign character whose stored LOG already carries a string "NaN" award from before the lock (inserted
+-- directly; only UPDATEs are guarded). NaN makes every award sum NaN, disarming the budget check and the ceiling.
+ ('a0000000-0000-0000-0000-000000000009','c1000000-0000-0000-0000-000000000001','nanplant','chargen',0,
+  '{"SEQ":4,"LOG":[{"seq":1,"type":"award","amount":"NaN","note":"Budget","noLock":true},{"seq":2,"type":"creationLocked"},{"seq":3,"type":"buy","cat":"skill","cost":1,"payload":{"v":"Stealth"}}]}');
 
 -- ===== ATTACKS: a player adds AP to a finished campaign character (refused after; allowed today) =====
 select t('player appends a plain award after the lock', 'refused', $b$ select owner_append('locked', '{"seq":6,"type":"award","amount":500,"note":"mine"}') $b$);
@@ -87,6 +92,16 @@ select t('player raises the after-lock Budget singleton 77 -> 177', 'refused', $
 select t('player relocates the after-lock Budget past a new buy AND raises it 77 -> 99', 'refused', $b$ select owner_upd('tail77', $e$ jsonb_set(stats,'{LOG}', (select jsonb_agg(e order by o) from jsonb_array_elements(stats->'LOG') with ordinality x(e,o) where e->>'type'<>'award') || '[{"seq":5,"type":"buy","cat":"skill","cost":1,"payload":{"v":"Arcana"}},{"seq":6,"type":"award","amount":99,"note":"Budget","noLock":true}]'::jsonb) $e$) $b$);
 select t('player appends an award on a SEALED (not locked) character', 'refused', $b$ select owner_append('sealed', '{"seq":3,"type":"award","amount":20}') $b$);
 select t('player swaps a 79 award for two that sum higher', 'refused', $b$ select owner_upd('locked', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":6,"type":"award","amount":-79,"noLock":true},{"seq":7,"type":"award","amount":100,"noLock":true}]'::jsonb) $e$) $b$);
+
+-- ===== award amounts that are not JSON numbers (review hardening) =====
+select t('pre-lock: player appends an award with amount "NaN" (string)', 'refused', $b$ select owner_append('prelock', '{"seq":3,"type":"award","amount":"NaN"}') $b$);
+select t('pre-lock: player appends an award with amount "500" (string)', 'refused', $b$ select owner_append('prelock', '{"seq":3,"type":"award","amount":"500"}') $b$);
+select t('pre-lock: player appends an award with amount "Infinity" (string)', 'refused', $b$ select owner_append('prelock', '{"seq":3,"type":"award","amount":"Infinity"}') $b$);
+select t('planted NaN, locked: player appends a 500 award', 'refused', $b$ select owner_append('nanplant', '{"seq":4,"type":"award","amount":500}') $b$);
+select t('planted NaN, locked: player spends 1000 AP it never had', 'refused', $b$ select owner_append('nanplant', '{"seq":4,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$);
+select t('DM boon grant whose award amount is a string', 'refused', $b$ select as_dm(); select dm_edit_character_log((select id from characters where name='locked'), '[{"type":"buy","cat":"boon","payload":{"v":"Lucky"},"cost":12},{"type":"award","amount":"12","note":"DM boon grant"}]'::jsonb) $b$);
+select t('solo character: a string amount is not this rule''s business', 'allowed', $b$ select owner_append('solo', '{"seq":4,"type":"award","amount":"5"}') $b$);
+select t('locked: an award with NO amount (counts 0) is allowed', 'allowed', $b$ select owner_append('locked', '{"seq":6,"type":"award","note":"empty"}') $b$);
 
 -- ===== LEGITIMATE: must stay allowed =====
 -- (Relocating a Budget singleton that sits BEFORE the lock is refused by pact_enforce_locked_history's D2 freeze, not by this rule; CharGen does not attempt it.)

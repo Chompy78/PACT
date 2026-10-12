@@ -5,7 +5,8 @@
 // campaign character's LOG award total from anyone but its DM once the character is creation-locked or sealed. The tools must not offer
 // a write the server refuses (it would strand every later autosave), so:
 //   1. Live Sheet ⎀ Redeem of an AP code refuses on a locked or sealed campaign character (H2: a code is tamper-evident, not secret),
-//      and still works on a solo character, an unlocked campaign character, and one whose creation the DM reopened.
+//      and still works on a solo character, an unlocked campaign character, and one whose creation the DM reopened. The
+//      self-award refusal message stops suggesting Redeem where Redeem is refused.
 //   2. CharGen's Budget field refuses a change on a SEALED campaign character that was never creation-locked (locked was already
 //      covered by fix/player-free-ap item 5), and stays the player's own on a solo sealed character.
 //
@@ -63,6 +64,10 @@ section('1. Live Sheet — Redeem on a finished campaign character');
 {
   await lsFresh(); await lsState(C1, ['creationLocked']);
   check('campaign, creation-locked: redeeming an AP code adds no AP', (await redeem())===0);
+  const selfMsg = () => p.evaluate(()=>{ let m=''; const f=window.flash; window.flash=x=>{m=String(x);}; award(5,'self'); window.flash=f; return m; });
+  check('campaign, locked: the self-award refusal does not suggest Redeem', !/Redeem/.test(await selfMsg()));
+  await lsFresh(); await lsState(C1, []);
+  check('campaign, not locked: the self-award refusal still suggests Redeem', /Redeem/.test(await selfMsg()));
   await lsFresh(); await lsState(C1, ['sessionSeal']);
   check('campaign, sealed (not locked): redeeming adds no AP', (await redeem())===0);
   await lsFresh(); await lsState(C1, ['creationLocked','creationUnlocked']);

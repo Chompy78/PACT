@@ -4,7 +4,7 @@
 history that already exists but lets anything be appended after it. `pact_enforce_ap_budget_consistency()` then counts every
 `award` in the LOG as spendable player AP unless the campaign has `ignore_player_ap`. So a modified client could append
 `{type:'award', amount:500}` to a locked campaign character and spend it. #638 closed every path in the tools' UIs; the
-database still accepted the write.
+database still accepted the write. This decision covers that award route only (see Scope).
 
 **Live measurement** (owner-approved read, 2026-10-12, before any SQL was written): 12 `award` events on 10 campaign-bound
 characters, all in one campaign, which has `ignore_player_ap = true`. All are CharGen's `noLock` "Budget" singleton except two
@@ -56,17 +56,41 @@ campaign with `ignore_player_ap = false` has a bound character with an award. So
 - **Q6 — `ignore_player_ap` campaigns:** unchanged scope (refused before and after the lock, as since 2026-09-03), except that
   a forged `dmEdit:true` award now counts (Q3).
 
+- **Q7 — award amounts that are not numbers** (added after review).
+  - A. Leave them: they cast to numeric. B. Refuse any `award` whose `jsonb_typeof(amount)` is not `number`, on every campaign
+    character, for every writer, locked or not.
+  - **Decision: B.** A string `"NaN"` casts to numeric NaN, which turns every award sum NaN: the budget check and this
+    ceiling then compare nothing. Planted before the lock, it would disarm both checks after it. `"500"` and `"Infinity"`
+    are refused for the same reason. Every client writes a number (checked in the source 2026-10-12: CharGen Budget,
+    invite seed and import; Live Sheet award, redeem, seed and DM-history clone; DM Console boon grant; `dm_zero_player_ap`).
+    A missing amount still counts 0 and is allowed. The live measurement did not record the JSON type of the stored amounts,
+    so the owner re-checks that before applying: a stored string amount would make that character's every save refused.
+
+**Scope — what this does NOT close.** This closes the AWARD route on a finished campaign character. Costs are still stamped by
+the client, so a locked character can still gain AP through a drawback bought with a larger negative cost (a refund) or a
+non-drawback buy with a negative cost. Both predate this change and are a separate board task
+(`fix/server-negative-cost-after-lock`).
+
+**Admin sessions are not exempt** (minor). With no JWT (SQL editor, service role) `auth.uid()` is null, so
+`is_campaign_dm()` is false and the rule applies. `pact_enforce_creation_lock()` exempts admin sessions; this rule, like its
+2026-09-03 version, does not. A hand repair that raises an award total disables `trg_pact_player_ap_ceiling` for that one
+transaction.
+
+**Baseline.** Per `sql/migrations/README.md` and the precedents (#580→#598, #600→#608), an unapplied migration merges as
+migration + rollback + rehearsal only. `rls-policies.sql` is folded in a later PR, after the owner applies it. That PR also
+folds the 2026-09-03 functions, which were applied but never folded in.
+
 **Client side** (so a write the server refuses is never offered): Live Sheet `redeemGrant()` refuses via `_lsAwardsFrozen()`;
 CharGen's Budget field also locks on a SEALED campaign character that was never creation-locked (`_cgAwardsFrozen()`; the
 locked case was #638 item 5).
 
 **Why.** The server, not the client, has to be the boundary for AP: the tools' checks are only UX. The sum-shaped rule closes the
-gap without refusing any save the live data contains, and moving the DM exemption from a writer-set flag to the writer's identity
+award route without refusing any save the live data contains, and moving the DM exemption from a writer-set flag to the writer's identity
 makes the existing rule honest too.
 
 **Status.** Provisional — owner away, taken under standing instruction H2, reversible. The migration
 (`sql/migrations/2026-10-12-server-player-award-after-lock.sql`, rollback beside it) is **NOT APPLIED**: the owner applies it
 and runs `get_advisors`. Before applying, confirm the live `pact_enforce_player_ap_ceiling()` still matches
 `2026-09-03-dm-zero-player-ap.sql`, so the rollback is exact. Rehearsed by
-`testing/scripts/creation-lock-guard-test/run-award.sh` (31 cases; 11 attacks allowed today, all 31 pass after, rollback
+`testing/scripts/creation-lock-guard-test/run-award.sh` (39 cases; 17 attacks allowed today, all 39 pass after, rollback
 byte-identical).

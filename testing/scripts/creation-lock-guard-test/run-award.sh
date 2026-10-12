@@ -14,7 +14,7 @@ for i in $(seq 1 30); do docker exec "$C" pg_isready -U postgres -q && break; sl
 sleep 2
 M=../../../sql/migrations
 { cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql "$M/2026-09-03-dm-zero-player-ap.sql"; } | psqlc >/dev/null
-psqlc -c "insert into auth.users(id) select ('a0000000-0000-0000-0000-00000000000' || g)::uuid from generate_series(1,8) g union all select 'd0000000-0000-0000-0000-000000000001'"
+psqlc -c "insert into auth.users(id) select ('a0000000-0000-0000-0000-00000000000' || g)::uuid from generate_series(1,9) g union all select 'd0000000-0000-0000-0000-000000000001'"
 def() { psqlc -At -c "select md5(pg_get_functiondef('public.pact_enforce_player_ap_ceiling()'::regprocedure))"; }
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 fails() { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-220; }
