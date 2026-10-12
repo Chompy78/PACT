@@ -1113,7 +1113,6 @@ is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
 online" message, and the clear-on-load; the recorded error body is checked in with a note saying it was
 captured from the live trigger rather than written by hand; and the suite runs in CI without credentials.
 
-
 ## The SQL drift guard's migration list is hardcoded, so it falls behind by design — TODO
 Branch `test/sql-drift-guard-auto-discovery`. `testing/sql/rls-baseline-test.sql` loads exactly four
 migrations by name (the `2026-09-01`/`2026-09-02` set) and checks exactly five function names.
@@ -1361,7 +1360,6 @@ B. Two guide rows the price checker cannot compare look like real disagreements 
 ```
 **Done when:** `guide-table-diff.mjs` reports a clean diff between the master and the served copy (or each remaining difference is a documented, deliberate presentation difference); the two open questions are decided and their ALLOW entries removed; `verify-guide.mjs` passes 11 of 11.
 
-
 ## fix/improved-combat-superiority-decision — the guide says it is included in Premium, the engine sells it for 14 (10) — TODO
 **Effort:** low · **Risk:** low — ambiguity is the only driver: the owner decides which side is right. No live character is affected (measured 2026-10-11: 31 active characters, 0 own Improved Combat Superiority or any Combat Superiority; positive control Sneak Attack = 3).
 
@@ -1445,29 +1443,6 @@ Owner decides one of:
   B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
 ```
 **Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
-
-## fix/livesheet-state-glitches — Live Sheet: time-travel, read-only DM view and Reset leave wrong state — TODO
-Branch fix/livesheet-state-glitches. **Effort:** low · **Risk:** low — local guards and resets; item 1 costs AP today, the rest are display or DM-local.
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Buy-off from the time-travel view: the ledger draws "buy off 3×" from the past view; buyoffDrawback (~LS:1009) checks current
-     state, _openDrawbackEvent returns null, but it still charges refund×3 and emits an orphan buyoff (node: 6 AP for nothing).
-     Refuse when !src; don't draw action buttons when idx!=null.
-  2. Finish creating (~LS:575-590) pushes to LOG directly, bypassing emit(): no _viewOnlyBlock, REDO not cleared (undo→finish→redo
-     puts a pre-lock purchase after the lock), viewAt not reset; button not hidden in _lsApplyViewOnlyUi. Route through emit().
-  3. DM read-only view (?viewChar): onSheetField (~LS:2257) still csSave()s into the DM's browser; appearance inputs look editable.
-     Make Sheet inputs readOnly when VIEW_ONLY. The loader (~LS:3092-3100) also keeps the DM's own window._lsCampaignId — set it from
-     rec.campaign_id.
-  4. Reset / Import (_lsResetCloudApState ~LS:788) doesn't clear window._lsCampaignName / _cloudCampaignRules — old campaign name stays
-     in the header.
-  5. Needs-review tray (~LS:1815) validates the current state while the page shows a scrubbed past — use the scrubbed build or hide.
-  6. First description edit appends a cost-0 event (_shCommitAppearanceField ~LS:2279) that the next Undo removes instead of the last
-     purchase — exclude cost-0 appearance patches from undo, or coalesce.
-  7. CharGen Sheet tab: each keystroke in an appearance field re-renders #sheetbody and drops focus, one undo step per key
-     (onSheetField ~CG:6831) — commit on change/blur.
-```
-**Done when:** e2e: buy-off is not offered while scrubbed and an orphan buyoff can't be emitted; Finish creating in a DM read-only view does nothing; DM Sheet inputs are read-only; Reset clears the campaign name; typing a sentence into a CharGen appearance field keeps focus; `engine-parity.html` 0 failed.
 
 ## feat/names-before-spending — AP can't be spent until languages and spells are chosen — TODO
 Branch feat/names-before-spending. **Effort:** high · **Risk:** high — damage scale drives it: every Amble character (10 of 10, checked live 2026-10-12) owns at least one unnamed language slot, so a naive gate would block all of them from spending the moment it ships.
