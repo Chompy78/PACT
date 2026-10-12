@@ -21,6 +21,11 @@
   character id it was opened for. A multi-award character's awards are never merged: not on load, and the Budget field
   refuses edits. After the lock CharGen may only fill blank name slots.
   Full record: `decisions/2026/D-GH-2026-10-12-chargen-livesheet-data-loss.md`.
+## D-GH-2026-10-12-livesheet-state-glitches — Live Sheet Undo steps over appearance-only events; past view shows no actions/present-day review
+- **Provisional (H2, owner away).** Undo targets the last event that is not a `rulesSnapshot` or a cost-0 appearance-only patch (legacy
+  tail appearance events no longer get popped); Redo puts it back in the same slot; `undoFloor()` still decides. The Needs-review tray
+  is hidden while time-travelling rather than re-validated against the past. No migration.
+  Full record: `decisions/2026/D-GH-2026-10-12-livesheet-state-glitches.md`.
 ## D-GH-2026-10-12-chargen-campaign-stuck-states — CharGen trusts a campaign binding only once the server confirms it
 - DM-only creation-AP controls are hidden only when the server confirms the campaign binding (`refreshServerBinding()`); an unconfirmed
   binding leaves them usable with a note. Async binding resolves carry a generation and drop stale results. No migration.

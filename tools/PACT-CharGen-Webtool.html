@@ -7120,10 +7120,12 @@ var _csId='(none)';
 // the LOG directly) is what makes these fields real now.
 var SHEET_APPEARANCE_FIELDS=['ap_gender','ap_age','ap_height','ap_build','ap_hair','ap_eyes','ap_skin','ap_marks','ap_voice','ap_hometown','ap_faith','ap_ambition','ap_fear','ap_prized','ap_companion','ap_overall'];
 function onSheetField(el,ev){var f=el.getAttribute('data-mf');if(!f)return;var v=(el.type==='checkbox')?(el.checked?'1':''):el.value;
-  if(SHEET_APPEARANCE_FIELDS.indexOf(f)>=0){_shCommitAppearanceField(f.slice(3),v);return;}
-  if(Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){   // fix/livesheet-name-description-notes
+  // fix/livesheet-state-glitches: the appearance fields commit on blur too, like the five notes fields below — committing
+  // on every keystroke made each key its own undo step (a 17-letter word took 17 Undos to clear).
+  var _apF=SHEET_APPEARANCE_FIELDS.indexOf(f)>=0;
+  if(_apF||Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){   // fix/livesheet-name-description-notes
     if(ev&&ev.type==='input'){_cgSheetDirty=el;return;}
-    var _k=PACT_SHEET_LOG_FIELDS[f];
+    var _k=_apF?f.slice(3):PACT_SHEET_LOG_FIELDS[f];
     // A real blur `change` commits on the next tick: the commit re-renders the Sheet, and by then the focus has moved to
     // whatever the player clicked next, so the rebuild can put it back there. The pagehide flush and direct calls commit now.
     if(typeof Event!=='undefined'&&ev instanceof Event){setTimeout(function(){if(_cgSheetDirty===el)_cgSheetDirty=null;_shCommitAppearanceField(_k,el.value);},0);return;}
@@ -7140,8 +7142,8 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
     // Appearance fields always show the LIVE LOG value (data-seed, freshly computed on every render) —
     // never a stored scratch override, so this view can no longer silently diverge from what Save/cloud
     // sync actually persists. Everything else keeps the original stored-or-seed behaviour.
-    var _logF=Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,id);
-    var stored=(SHEET_APPEARANCE_FIELDS.indexOf(id)>=0||_logF)?null:data[id];
+    var _logF=Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,id)||SHEET_APPEARANCE_FIELDS.indexOf(id)>=0;
+    var stored=_logF?null:data[id];
     if(el.type==='checkbox'){el.checked=(stored!=null)?(stored==='1'):(el.getAttribute('data-seed')==='1');}
     else{el.value=(stored!=null)?stored:(el.getAttribute('data-seed')||'');}
     // A render() while a LOG-backed field was being typed in rebuilds it from the LOG — carry the uncommitted text across.
