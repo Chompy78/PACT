@@ -134,6 +134,19 @@ section('2. no creation-AP threshold while the binding is confirming, or on a fi
   check('finished + unconfirmed binding: setCreationAp() writes no threshold', (await thresholdConfigs())===n2);
 }
 
+// -------------------------------------------------------------------------------------------------
+section('3. an untagged Live Sheet file adopts its campaign binding');
+{
+  await cgFresh();
+  const raw = await p.evaluate((C1)=>{ const e=_cgEnvelope(false); return JSON.stringify({name:'Untagged Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, campaignId:C1}); }, C1);
+  await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
+  await p.evaluate((txt)=>loadFile(new File([txt],'ls.json',{type:'application/json'})), raw);
+  await p.waitForTimeout(1500);
+  const st = await p.evaluate(()=>({id:window._cgCampaignId, ap:window._dmAp, status:window._dmApStatus}));
+  check('the untagged file\'s character is bound to its campaign', st.id===C1, JSON.stringify(st));
+  check('...with its DM AP (42)', st.ap===42 && st.status==='active', JSON.stringify(st));
+}
+
 check('no page errors', errs.length===0, errs.join(' | ').slice(0,400));
 console.log(`\n[audit-followups] ${pass} passed, ${fail} failed`);
 await browser.close(); server.close();

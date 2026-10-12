@@ -4716,6 +4716,10 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       b.version=d.rules||DATA.version;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
+      // chore/audit-fix-followups-2026-10-12 (item 3): adopt the file's campaign binding here too, as branch 1 does
+      // (#634) -- otherwise a campaign character opens at 0 DM AP with every purchase over budget. Keyed on the id
+      // this load just gave the character, so the server is asked about the character actually open.
+      if(d.campaignId) _cgAdoptEnvelopeBinding({id:__charId,campaignId:d.campaignId});
       flash('Loaded Live Sheet export (rules '+d.rules+') into CharGen. Some fields may use defaults — check Species and Origin Class.');
       return;
     }
