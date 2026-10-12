@@ -82,7 +82,12 @@ mirrored in sql/rls-policies.sql):
       no change, removal or reordering (events after it may be appended; the existing seal/award rules still apply).
   E1  Priced `cat='patch'` buys (stats, hdProf, languages, armour, weaponProf, vigor, traditions, ki, sorcery, attunement,
       innate, customProfs, freeSub) join the protected projection once the character is locked OR has an award/seal:
-      content, stamped cost, position and existence frozen. No-AP slots (appearance, names, houseRules, misc) stay editable.
+      content, stamped cost, position and existence frozen. No-AP slots (appearance, names) stay editable.
+      CORRECTION (fix/player-free-ap, 2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
+      boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The
+      applied stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(); a follow-up migration should
+      drop both from that list (protected after a lock/seal/award). CharGen already refuses both after the lock, so measure
+      first how many live locked characters' saves still rewrite them, then rehearse in creation-lock-guard-test.
 Evidence (Docker copy of the live rules): after an award a player can lower Hit Dice 5 -> 2, strip armour proficiency,
 change a stamped patch cost 12 -> 0, or delete the Hit Dice patch event outright (all ALLOWED); removing a boon is refused.
 STAGE per slot with fix/chargen-post-lock-purchases phases (hdProf + stats first). Add the cases to
@@ -1440,27 +1445,6 @@ Owner decides one of:
   B. Keep 12 and reword the guide's rule so it says the lineage's last spell costs 12 (guide-only, no DATA.version bump).
 ```
 **Done when:** the guide's stated rule and the five prices agree; `verify-guide.mjs` passes; `lineage-spell-gates-ci.mjs` passes; for A, the live owner count is recorded in the PR.
-
-## fix/player-free-ap — players can grant themselves AP or get AP back after the lock — TODO
-Branch fix/player-free-ap. **Effort:** medium · **Risk:** high — changes who may award AP and what's editable post-lock on live characters; coordinate with feat/server-freeze-at-lock and fix/chargen-post-lock-purchases (ambiguity + damage scale).
-
-```text
-Audit 2026-10-12. Line numbers approximate.
-  1. Live Sheet "+ Award AP" / "AP code" (DM tools strip ~LS:440) are live for a player on their own campaign character. The award has
-     no noLock, so it (a) gives spendable AP unless the DM set ignore_player_ap (also bypasses _lsOverApBudget), and (b) is a permanent
-     undo barrier and a server freeze boundary (engine sealedFloor/isUndoBarrier; stage1 migration v_award_idx). Hide/disable for
-     campaign-bound characters (match CharGen's model); decide with owner whether a solo self-award should be noLock.
-  2. CharGen DM boons/drawbacks section is player-editable on campaign-bound and locked characters (not in _CG_POSTLOCK_SLOTS ~CG:3313);
-     a custom drawback at 60 AP grants 60 AP (node-checked). Make it read-only when campaign-bound and after the lock.
-  3. CharGen starting gold (ECONOMY slot) can be lowered after Finish creating for an AP refund (1 AP/gold, engine ~1043). Refuse.
-  4. Server: the stage1 migration (~line 25) exempts houseRules and gold as "no-AP" — both are priced. Feed this into
-     feat/server-freeze-at-lock's E1 list (it currently names houseRules as no-AP) rather than a separate migration.
-  5. CharGen locked campaign character with budget 0 can type a budget and append a fresh award after the lock (~CG:3727-3733) —
-     verify whether the server accepts it; refuse client-side.
-  6. CharGen updateDmToggles (~CG:6344): turning off the DM "Bound" option clears #martiallyBound by .value only (grant stays in the
-     MISC slot, still −2 AP); [id^="mbound_"] matches nothing (boxes are .disc-bound) so Magically Bound is never cleared.
-```
-**Done when:** e2e shows a campaign player has no Award AP / AP code in Live Sheet and no editable DM boons in CharGen; lowering gold after the lock is refused; turning off "Bound" removes both Bound grants from compute(); the server-freeze task's exempt list is corrected (or this task's migration lands with advisors run); `engine-parity.html` 0 failed.
 
 ## fix/livesheet-state-glitches — Live Sheet: time-travel, read-only DM view and Reset leave wrong state — TODO
 Branch fix/livesheet-state-glitches. **Effort:** low · **Risk:** low — local guards and resets; item 1 costs AP today, the rest are display or DM-local.
