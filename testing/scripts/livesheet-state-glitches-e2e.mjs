@@ -9,7 +9,8 @@
  *      action is undone, hair/playerSheet survive — and Redo puts the action back in its original place. A barrier still holds.
  *   7. CharGen Sheet: typing a sentence into an appearance field keeps focus and is ONE undo step, not one per key; Ctrl+Z
  *      inside a field with uncommitted text is native text undo, and the Undo button undoes that pending text (appearance
- *      and notes fields). 3b: pickBond() writes nothing in the DM read-only view.
+ *      and notes fields); pending text is never lost (7c) and a signed-in cloud autosave carries it without committing (7d).
+ *      3b: pickBond() writes nothing in the DM read-only view.
  *
  *   node testing/scripts/livesheet-state-glitches-e2e.mjs        (expect 0 failed)
  *   PACT_REPO=<other checkout> node …                             runs the same cases against another checkout (old code)
@@ -269,6 +270,41 @@ section('7c. CharGen Sheet: pending text is never lost');
   await page.waitForTimeout(400);
   const ls = await page.evaluate(() => foldBuild(null).appearance || {});
   check('Switch to Live Sheet without leaving the field carries the typed text', ls.hair === 'grey' && ls.backstory === 'owes the Guild' && ls.alignment === 'CN', JSON.stringify({ h: ls.hair, b: ls.backstory, a: ls.alignment }));
+  check('no page errors', !errs.length, errs.join(' | '));
+  await ctx.close();
+}
+
+section('7d. CharGen Sheet: signed-in cloud autosave while typing neither commits nor rebuilds');
+{
+  const { ctx, page, errs } = await cgSheet();
+  await page.evaluate(() => {
+    window.__pushes = [];
+    window._cloudSignedIn = true;
+    window._syncBridge = Object.assign({}, window._syncBridge || {}, {
+      saveCharacter: o => { window.__pushes.push(JSON.parse(JSON.stringify(o.stats))); return Promise.resolve({ id: o.id }); },
+      getAutosaveEnabled: () => true, isSealBlocked: () => false,
+    });
+  });
+  const TXT = 'the colour of a stormy northern sea at dusk';
+  await page.click('#sheetbody [data-mf="ap_eyes"]');
+  await page.evaluate(() => { window.__el = document.querySelector('#sheetbody [data-mf="ap_eyes"]'); window.__h0 = HIST.length; _cgCloudAutosave(); });
+  await page.keyboard.type(TXT, { delay: 170 });   // ~7.3 s: more than two 3-second autosave ticks
+  await page.evaluate(() => _cgCloudAutosave());
+  await page.waitForTimeout(3400);
+  const mid = await page.evaluate(() => ({ dh: HIST.length - window.__h0, same: window.__el.isConnected && document.activeElement === window.__el,
+    n: window.__pushes.length, last: window.__pushes.length ? ((foldBuild(window.__pushes[window.__pushes.length - 1].LOG).appearance || {}).eyes || '') : null,
+    real: (foldBuild(LOG).appearance || {}).eyes || '' }));
+  check('at least one cloud push happened while typing', mid.n >= 1, 'pushes=' + mid.n);
+  check('the undo history did not grow while typing', mid.dh === 0, 'grew by ' + mid.dh);
+  check('the field was never rebuilt under the cursor (same element, still focused)', mid.same);
+  check('the pushed envelope carries the typed text', mid.last === TXT, JSON.stringify(mid.last));
+  check('…without committing it to the local LOG yet', mid.real === '', JSON.stringify(mid.real));
+  await page.click('#sheetbody [data-mf="ap_hair"]'); await page.waitForTimeout(400);
+  const after = await page.evaluate(() => ({ dh: HIST.length - window.__h0, eyes: (foldBuild(LOG).appearance || {}).eyes || '',
+    seqs: LOG.map(e => e.seq), SEQ }));
+  check('after blur: exactly one new undo step', after.dh === 1, 'grew by ' + after.dh);
+  check('…and the whole sentence is in the LOG', after.eyes === TXT, after.eyes);
+  check('…with no duplicate seq, all below SEQ', new Set(after.seqs).size === after.seqs.length && after.seqs.every(q => q < after.SEQ), JSON.stringify(after.seqs) + ' SEQ=' + after.SEQ);
   check('no page errors', !errs.length, errs.join(' | '));
   await ctx.close();
 }

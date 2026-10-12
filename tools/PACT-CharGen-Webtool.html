@@ -4619,6 +4619,7 @@ async function _pactShareOrSave(blob,filename,sharedMsg,savedMsg){
 async function saveBuild(){
   // Chunk C: save the event-log envelope, not a flat build (a character IS its LOG). name+budget ride
   // along as top-level shims (Step 5 folds them in). Legacy flat files still open (loadFile branch 3).
+  _cgFlushSheetField();   // commit typed-but-unblurred Sheet text first: the saved file is exactly the local LOG (fix/livesheet-state-glitches)
   const b=readBuild();const data=JSON.stringify(_cgEnvelope(),null,1);
   const nm=(b.name||'pact-character').replace(/[^a-z0-9_-]+/gi,'_')+'-'+DATA.version+'.json';
   // if a file is already open (loaded or saved this session) write straight back to it — no prompt
@@ -4962,6 +4963,7 @@ function buildToEventLog(b,opts){return _buildEventBurst(b,opts);}
 // handoff URL is never cached, so offline it falls back to the menu — the character stays safe in autosave).
 async function switchToLiveSheet(){
  try{
+  _cgFlushSheetField();   // commit typed-but-unblurred Sheet text first, so the handoff LOG is the local LOG (fix/livesheet-state-glitches)
   _cgAutosave();   // persist current state locally first; the handoff and the autosave both reflect it
   // Flush any pending/in-flight cloud push before navigating, instead of leaving it on a debounce timer
   // this page is about to abandon — that was a confirmed bug (a re-armed timer never got the chance to
@@ -5060,8 +5062,11 @@ var CG_AUTOSAVE_KEY='pactCharGenAutosaveV2';
 var CG_AUTOSAVE_KEY_LEGACY='pactCharGenAutosave';   // pre-Step-4 flat-build autosave — migrated then deleted
 // _cgEnvelope(true) → SIGNED file export (saveBuild); _cgEnvelope(false) → unsigned localStorage autosave
 // (never signature-checked on restore, so signing it every keystroke is wasted work — D-GH48).
-function _cgEnvelope(sign){if(!_histSuspended)_cgFlushSheetField();   // typed-but-unblurred Sheet text rides along (fix/livesheet-state-glitches)
-  return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:LOG,SEQ:SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
+// PURE: never commits, records history, renders or advances SEQ — it runs on the 3-second cloud-autosave timer, and committing
+// there split a sentence into one undo step per tick and rebuilt the Sheet under the player's fingers (mobile IME). Typed-but-
+// unblurred Sheet text is laid over a COPY of the LOG instead (_cgLogWithPending), so autosave and cloud pushes still carry it.
+function _cgEnvelope(sign){var _v=_cgLogWithPending();
+  return buildCharacterEnvelope({name:val('cname')||'',rules:DATA.version,LOG:_v.LOG,SEQ:_v.SEQ,id:currentCharId(),campaignId:window._cgCampaignId||null},{sign:sign!==false});}
 // ---- cloud autosave — universal as of B3 (D-GH-2026-08-08-universal-autosave-toggle) --------
 // Originally scoped to campaign-bound characters only (CharGen used to write to the cloud only on an
 // explicit action otherwise — Save to cloud, Join campaign, invite redemption — so a player who
@@ -7130,7 +7135,7 @@ function onSheetField(el,ev){var f=el.getAttribute('data-mf');if(!f)return;var v
   // on every keystroke made each key its own undo step (a 17-letter word took 17 Undos to clear).
   var _apF=SHEET_APPEARANCE_FIELDS.indexOf(f)>=0;
   if(_apF||Object.prototype.hasOwnProperty.call(PACT_SHEET_LOG_FIELDS,f)){   // fix/livesheet-name-description-notes
-    if(ev&&ev.type==='input'){_cgSheetDirty=el;_cgSheetPending[f]=el;return;}
+    if(ev&&ev.type==='input'){_cgSheetDirty=el;_cgSheetPending[f]=el;if(_cgSheetPendingTs==null)_cgSheetPendingTs=Date.now();return;}
     var _k=_apF?f.slice(3):PACT_SHEET_LOG_FIELDS[f];
     // A real blur `change` commits on the next tick: the commit re-renders the Sheet, and by then the focus has moved to
     // whatever the player clicked next, so the rebuild can put it back there. The pagehide flush and direct calls commit now.
@@ -7143,14 +7148,30 @@ function onSheetField(el,ev){var f=el.getAttribute('data-mf');if(!f)return;var v
     delete _cgSheetPending[f];if(_cgSheetDirty===el)_cgSheetDirty=null;_shCommitAppearanceField(_k,v);return;}
   csSave(_csId,f,v);}
 var _cgSheetDirty=null;   // the LOG-backed Sheet field being typed in, not yet committed (no blur yet) — Ctrl+Z there is native text undo
+var _cgSheetPendingTs=null;   // when the current pending text started — a stable ts for a not-yet-real appearance event
 var _cgSheetPending={};   // data-mf -> element: every LOG-backed Sheet field with text not yet in the LOG (typing, or blurred but not yet committed)
-// Commits every pending Sheet field NOW. Called by undo()/redo(), pagehide/visibilitychange and _cgEnvelope() (so Save, Switch to
-// Live Sheet, autosave and every cloud push carry typed-but-unblurred text). Each pending entry is removed before its commit, so
-// the deferred blur commit of the same field finds nothing and cannot commit it twice.
+// Commits every pending Sheet field NOW. Called by undo()/redo(), pagehide/visibilitychange, Save and Switch to Live Sheet (so the
+// handoff LOG IS the local LOG). Each pending entry is removed before its commit, so the deferred blur commit of the same field
+// finds nothing and cannot commit it twice. Autosave/cloud pushes do NOT call this — they read _cgLogWithPending() instead.
 function _cgFlushSheetField(){
+  _cgSheetPendingTs=null;
   if(_cgSheetDirty){var _df=_cgSheetDirty.getAttribute('data-mf');if(_df&&!_cgSheetPending[_df])_cgSheetPending[_df]=_cgSheetDirty;}
   _cgSheetDirty=null;
   Object.keys(_cgSheetPending).forEach(function(f){var el=_cgSheetPending[f];if(!el)return;delete _cgSheetPending[f];try{onSheetField(el);}catch(e){}});
+}
+// {LOG,SEQ} as they WILL be once the pending Sheet text commits — a copy; LOG/SEQ/HIST are untouched. A new appearance event
+// takes seq = SEQ (the value the real commit's SEQ++ will hand out, if nothing else is emitted first) and the copy's SEQ is SEQ+1,
+// so the copy has no duplicate seq. If something else IS emitted first, the real event gets a later seq; appearance-only events
+// have no server-protected projection, so a pushed copy and the later real LOG never conflict on the server.
+function _cgLogWithPending(){
+  var ks=_cgSheetPending?Object.keys(_cgSheetPending):[];if(!ks.length)return{LOG:LOG,SEQ:SEQ};   // (undefined during boot: var-hoisted)
+  var cur=(foldBuild(LOG).appearance)||{}, merged=Object.assign({},cur), changed=false;
+  ks.forEach(function(f){var el=_cgSheetPending[f];if(!el)return;
+    var k=SHEET_APPEARANCE_FIELDS.indexOf(f)>=0?f.slice(3):PACT_SHEET_LOG_FIELDS[f];if(!k)return;
+    if(merged[k]!==el.value){merged[k]=el.value;changed=true;}});
+  if(!changed)return{LOG:LOG,SEQ:SEQ};
+  var isNew=pactAppearanceIndex(LOG)<0;
+  return{LOG:pactWithAppearance(LOG.slice(),merged,{seq:isNew?SEQ:undefined,ts:isNew?(_cgSheetPendingTs||Date.now()):undefined,rules:DATA.version}),SEQ:isNew?SEQ+1:SEQ};
 }
 window.addEventListener('pagehide',_cgFlushSheetField,{capture:true});   // capture: runs before the cloud-flush pagehide handler below
 document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')_cgFlushSheetField();});
