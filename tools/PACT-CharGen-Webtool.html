@@ -2301,7 +2301,7 @@ function _cgDmCustomRoText(why){
 }
 function _cgDmCustomRefuse(){
   var why=_cgDmCustomReadOnly(); if(!why) return false;
-  flash(_cgDmCustomRoText(why)+(why==='campaign'?' Ask your DM to change them in the DM Console.':' Ask your DM if something needs to change.'),'error');
+  flash(_cgDmCustomRoText(why)+(why==='campaign'?' There is no DM editor for these yet \u2014 tell your DM if one needs to change.':''),'error');
   return true;
 }
 // Every render: disable (not hide) the controls, so the table's rules stay readable. Follows a binding that confirms late.
