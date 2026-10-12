@@ -1479,3 +1479,69 @@ also clears that character's pending binding adopt). Capture window._cgBindGen (
 and drop the post-await writes when it has moved, like _cgAdoptEnvelopeBinding does. Check invite (~1408) and claim (~1483) the same way.
 ```
 **Done when:** an e2e that switches character during a stubbed slow join shows the newly loaded character unbound and the joined character bound; `engine-parity-ci` 0 failed.
+
+## feat/dm-ap-discount — a DM can discount any purchase's AP, and the total discounted is recorded — TODO
+Branch feat/dm-ap-discount. **Effort:** high · **Risk:** high — damage scale: it changes the AP economy that `economy()` freezes and every "AP left" reads, on a live table with real characters. Build this first: feat/dm-grant-purchase and feat/wizard-scribe both use it.
+
+```text
+Owner request 2026-10-13: "the DM can somehow assign a discount to any purchase for a player. and also for the total
+discounts for AP to be recorded." Today the only tool is Award AP with a note — the AP isn't tied to the purchase, so the
+player can spend it on anything, and nothing adds up how much a DM has given away. (The boon grant in DM Console ~line 3084
+writes a buy plus a matching `award`; that's the same untied AP.)
+
+SCOPE: AP only. docs/TASK_BOARD_LATER.md "Investigate a DM-side per-purchase discount or waiver" (feat/economy-purchase-discount)
+covers GOLD/DOWNTIME and keeps its own decision; read its design notes first — its rules apply here too:
+  - Do NOT edit the purchase event (the LOG is append-only). Add a LATER event that points at the earlier purchase, the way
+    buyoff / dmRemoveBoon / dmUnlockDrawback already do, resolved in activeEvents()/economy().
+  - dm_edit_character_log is deliberately not a general editor: add exactly one new allowlisted type (e.g. `dmDiscount`
+    {targetSeq, refVal, amount, note}), validated server-side (the target must exist, be a priced buy, and the total discounted
+    can't exceed what it cost). dmEdit is stamped server-side, so a player can't forge one.
+
+DO:
+  1. Engine: economy() treats a dmDiscount as AP returned FOR THAT PURCHASE — if the target is undone, bought off or removed,
+     the discount goes with it (this is the difference from a plain award). Expose a running total (e.g. economy().dmDiscounted,
+     plus per-purchase entries). Public API additive only.
+  2. DECIDE WITH THE OWNER before coding: does a discounted purchase still count its FULL price toward "AP spent" (track level,
+     creation-lock threshold, drawback/creation ceilings) or only what the player paid? Record it in a D-GH decision.
+  3. Migration extending the allowlist; run get_advisors + get_logs afterwards (AGENTS.md checklist step 4).
+  4. DM Console: on the character card, "DM edit — discount a purchase": pick a purchase from that character's log, enter AP
+     or a %, note required; show the campaign/character total discounted. All player text through esc().
+  5. Live Sheet + CharGen ledgers: show "paid X AP (list Y, DM discount Z)" on the line, and the total somewhere visible.
+  6. MEASURE the live characters table first (AGENTS.md: no longer pre-launch) — this should not move any existing character's
+     AP; prove it with a before/after over every live character.
+```
+**Done when:** engine-parity fixtures cover a discount, a discount on an undone purchase (gone), and an over-discount (refused); `expected-results.csv` updated if compute() output moved (bump `DATA.version` only then); an e2e drives the DM Console discount and the Live Sheet shows the line and the total; the before/after over the live characters shows no unintended change; the AP-spent decision is recorded.
+
+## feat/dm-grant-purchase — DM Console "grant a spell / skill" (any purchase, free to the player) — TODO
+Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low once feat/dm-ap-discount exists; damage scale is a priced write to a live character. Depends on feat/dm-ap-discount.
+
+```text
+Owner request 2026-10-13 (a wizard learns a spell in the story, without paying AP): the DM can give a character a spell
+or a skill for free. Today only boons can be granted (DM Console dmEditBody(), ~line 1909; handler ~line 3084).
+
+DO: a "DM edit — grant a purchase" control (spell known at a level, skill, and anything else the owner wants on the list)
+that writes the buy event plus a 100% dmDiscount on it in ONE dm_edit_character_log call. Work out the price by running
+compute() on the build before and after the purchase — never a table lookup, because origin-class discounts and the
+price ladders make the true cost depend on what the character already owns. Extend the server allowlist for exactly the
+buy categories offered, and validate there. Consider moving the existing boon grant onto the same path, so its AP is tied
+to the boon instead of being a free-floating award.
+```
+**Done when:** an e2e grants a spell and a skill and the player's AP left is unchanged, and the ledger shows them as DM-granted; undoing/removing the grant removes the discount with it; get_advisors clean after the migration.
+
+## feat/wizard-scribe — the Players Guide's "scribe a found spell" rule exists in the tools (rules change) — TODO
+Branch feat/wizard-scribe. **Effort:** medium · **Risk:** high — a rules change; engine AND Players Guide must land together with `DATA.version` bumped once, and the size of the discount is still an open owner decision.
+
+```text
+The Players Guide ("Learning new spells") promises the wizard a second path: when the DM supplies a scroll, a captured
+spellbook or a teacher, the wizard copies a Wizard-list spell for gold + downtime + a REDUCED AP cost. No tool implements it,
+and the guide never says how much the AP cost is reduced.
+
+DO:
+  1. Owner decision first: the size of the reduction (e.g. half price rounded up, minimum 1), and the gold and downtime per
+     spell level. Record it as a D-GH decision.
+  2. Build it on feat/dm-ap-discount: the DM approves the scribe (the source is in the fiction), which writes the spell
+     purchase plus a dmDiscount at the rule's fixed rate, plus the gold/downtime cost. Wizard list only; refuse other casters.
+  3. Players Guide: state the numbers in the master and the served copy (run testing/scripts/verify-guide.mjs before and
+     after; testing/scripts/guide-price-check.mjs for the prices) and bump DATA.version once, in the engine.
+```
+**Done when:** the decision is recorded; fixtures cover a scribed spell at each relevant level and a non-wizard refused; the guide states the numbers and verify-guide.mjs passes; an e2e scribes a spell from the DM Console.
