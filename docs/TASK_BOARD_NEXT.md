@@ -1549,3 +1549,18 @@ DO:
      output changes — a DM-set discount alone should not.
 ```
 **Done when:** fixtures cover a scribed spell with a DM-set discount and a non-wizard refused; the guide wording matches and verify-guide.mjs passes; an e2e scribes a spell from the DM Console with two different discounts.
+
+## fix/chargen-drawback-cost-zero — CharGen stores drawbacks taken during creation at cost 0, so the server under-counts their AP — TODO
+Branch fix/chargen-drawback-cost-zero. **Effort:** medium · **Risk:** high — touches the stored cost of existing live characters' drawbacks (damage scale) and needs a backfill decision (ambiguity).
+
+```text
+Found 2026-10-13 while planning campaign-wide house rules (owner decision Y1: separate task). CharGen's pre-lock checklist prices a
+purchase as compute(cand).total − compute(cur).total; drawbacks are income and never move `total`, so a drawback taken in CharGen
+is stamped cost 0 (node check: delta 0, while priceOf(…,'drawback',{v:'Peg Leg'}) = −4). The browser grant comes from compute()
+(names × current value) so the player sees the AP, but the server's pact_ap_ledger_spend counts −cost = 0 — the server is stricter
+than the browser and can refuse a later save the client allowed. DO: (1) owner-approved live count of open drawback buys with
+cost 0 vs −value, per campaign; (2) stamp CharGen drawback events at −effective value (use engine priceOf, which after the
+campaign-house-rules engine PR reads the effective value); (3) decide with the owner whether to backfill existing cost-0 events
+(a DM-run correction RPC or a one-off migration) — measure first.
+```
+**Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
