@@ -127,6 +127,14 @@
   node scripts/random-manual-e2e.mjs [--iterations N] [--levels N] [--seed N] [--headed] [--keep-open]
   ```
   `testing/package.json` is dev/CI-only tooling — the app itself still needs no npm install.
+  It serves the repo it lives in (resolved from its own file, under `/PACT/`), so it runs from any
+  checkout or worktree with no `PACT` symlink beside it.
+
+- **Ports for parallel runs.** Every browser-driven script here listens on a fixed default port; set
+  `PACT_E2E_PORT` (and `PACT_E2E_CDP_PORT` for the CDP-driven ones such as `tool-pricing-ci.mjs`,
+  `cost-customization-ci.mjs`, `random-quality-ci.mjs`) to run two copies — or two scripts that share a
+  default — side by side. Note `cost-customization-ci.mjs` and `random-quality-ci.mjs` share their
+  defaults (8733/9335), so give one of them other ports when running both at once.
 
 - **`scripts/log-fuzz.mjs`** (Phase 2 of the D-GH-2026-07-13-random-e2e-real-oracle plan) — a
   pure-Node, LOG-direct fuzzer for `js/engine.js`. Unlike `random-manual-e2e.mjs` (which drives

@@ -31,7 +31,7 @@ import { DATA } from '../../js/engine.js';   // v0.352: expected unlock price is
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 8731, CDP_PORT = 9333;   // uncommon ports: don't collide with a dev server on 8000/9222
+const PORT = Number(process.env.PACT_E2E_PORT) || 8731, CDP_PORT = Number(process.env.PACT_E2E_CDP_PORT) || 9333;   // uncommon ports: don't collide with a dev server on 8000/9222
 
 // ---- locate a Chromium ------------------------------------------------------------------------
 // Honour CHROME_BIN, else probe the Playwright browser cache (PLAYWRIGHT_BROWSERS_PATH, default

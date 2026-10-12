@@ -21,7 +21,7 @@ import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const PORT = 7975;   // not 7970/7971/7973
+const PORT = Number(process.env.PACT_E2E_PORT) || 7975;   // not 7970/7971/7973
 const MIME = { '.html':'text/html','.js':'text/javascript','.json':'application/json',
                '.css':'text/css','.webp':'image/webp','.png':'image/png','.svg':'image/svg+xml' };
 const server = http.createServer((req,res)=>{

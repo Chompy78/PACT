@@ -47,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 7971;                 // deliberately NOT cloud-e2e's 7970, so both can run at once
+const PORT = Number(process.env.PACT_E2E_PORT) || 7971;                 // deliberately NOT cloud-e2e's 7970, so both can run at once
 const PW = 'pact-review-1234';     // every seeded account shares it — local throwaway stack only
 
 // ---------------------------------------------------------------------------------------------

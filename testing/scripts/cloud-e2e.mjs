@@ -30,7 +30,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const PORT = 7970;
+const PORT = Number(process.env.PACT_E2E_PORT) || 7970;
 
 // ---------------------------------------------------------------------------------------------
 // PRODUCTION GUARD — first, and unconditional.

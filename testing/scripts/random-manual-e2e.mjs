@@ -54,10 +54,9 @@
   Exit code is non-zero if any invariant fails across any iteration.
 */
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // CJS require honors NODE_PATH (unlike ESM's static `import`), so this resolves a
@@ -140,44 +139,27 @@ async function stubSupabaseCdn(page) {
 // ---------- static server ----------
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
-const PARENT_DIR = path.dirname(REPO_ROOT);
-const PACT_LINK = path.join(PARENT_DIR, 'PACT');
-
-async function ensurePactSymlink() {
-  if (path.basename(REPO_ROOT) === 'PACT') return REPO_ROOT;
-  try {
-    const st = await fs.lstat(PACT_LINK);
-    if (st.isSymbolicLink() || st.isDirectory()) return PACT_LINK;
-  } catch { /* doesn't exist yet */ }
-  await fs.symlink(REPO_ROOT, PACT_LINK, 'dir');
-  log(`created case-correct symlink ${PACT_LINK} -> ${REPO_ROOT}`);
-  return PACT_LINK;
-}
-
+// chore/audit-fix-followups-2026-10-12 (item 7): served in-process from REPO_ROOT, resolved from this file's own
+// location, with the app's /PACT/ prefix stripped. The old version ran `python3 -m http.server` on the PARENT
+// directory and created a case-correct `PACT` symlink beside the repo to make /PACT/ resolve -- which, in a
+// worktree or a second checkout, pointed every run at whichever tree the symlink happened to name (and two
+// parallel runs raced to create it). Same URLs as before, so the page-side code is unchanged.
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
+  '.css': 'text/css', '.webp': 'image/webp', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2' };
 async function startServer(port) {
-  const child = spawn('python3', ['-m', 'http.server', String(port), '--directory', PARENT_DIR], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let spawnError = null;
-  child.on('error', (e) => { spawnError = e; });
-
-  // Poll the port with a real request instead of scanning stdout for "Serving HTTP" —
-  // Python block-buffers stdout when it's piped (as it always is here), so on some
-  // hosts that line never arrives within a useful window even though the server is
-  // already accepting connections (bit us in CI, not locally, where buffering
-  // happened to flush promptly).
-  const deadline = Date.now() + 8000;
-  while (Date.now() < deadline) {
-    if (spawnError) { child.kill(); throw spawnError; }
+  const server = http.createServer(async (q, r) => {
+    const rel = decodeURIComponent(q.url.split('?')[0]).replace(/^\/PACT\/?/, '') || 'index.html';
+    const file = path.join(REPO_ROOT, rel);
+    if (!file.startsWith(REPO_ROOT)) { r.writeHead(403); return r.end('forbidden'); }
     try {
-      const res = await fetch(`http://localhost:${port}/`, { signal: AbortSignal.timeout(500) });
-      await res.body?.cancel();
-      return child;
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  child.kill(); // don't leak a bound port on startup failure
-  throw new Error('server did not start in time');
+      const d = await fs.readFile(file);
+      r.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+      r.end(d);
+    } catch { r.writeHead(404); r.end('not found'); }
+  });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, resolve); });
+  return server;
 }
 
 // ---------- dialog policy ----------
@@ -694,15 +676,14 @@ async function testDmConsole(context, baseUrl, exported) {
 
 // ---------- main ----------
 async function main() {
-  await ensurePactSymlink();
   // A completely separate module instantiation of the SAME js/engine.js source the browser
   // bridges onto window — this is what makes the Phase-1 oracle checks (see file header)
   // independent rather than self-referential.
   const ENGINE = await import(pathToFileURL(path.join(REPO_ROOT, 'js', 'engine.js')).href);
-  const port = 8000 + (SEED % 500);
+  const port = Number(process.env.PACT_E2E_PORT) || 8000 + (SEED % 500);   // PACT_E2E_PORT: pick a port for a parallel run
   const server = await startServer(port);
   const baseUrl = `http://localhost:${port}`;
-  log(`serving ${PARENT_DIR} on ${baseUrl} (seed=${SEED}, iterations=${ITERATIONS}, levels=${LEVELS_PER_CHAR})`);
+  log(`serving ${REPO_ROOT} as /PACT/ on ${baseUrl} (seed=${SEED}, iterations=${ITERATIONS}, levels=${LEVELS_PER_CHAR})`);
 
   const results = [];
   let browser;
@@ -759,8 +740,8 @@ async function main() {
     }
   } finally {
     if (browser && !KEEP_OPEN) await browser.close();
-    server.kill();
-    await once(server, 'exit').catch(() => {});
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(r));
   }
 
   log('\n=== summary ===');
