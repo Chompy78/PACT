@@ -1467,3 +1467,15 @@ decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; so
 lock; starting gold refused both ways after the lock).
 ```
 **Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
+
+## fix/chargen-join-generation-guard — CharGen's join-campaign flow can bind the wrong character if the player switches mid-join — TODO
+Branch fix/chargen-join-generation-guard. **Effort:** low · **Risk:** medium — damage likelihood is low (narrow race), but the damage is a character attached to the wrong campaign.
+
+```text
+Found 2026-10-12 by the re-review of #643. CharGen's join flow (~CG 1100-1126: save → bindCharacterToCampaign → refreshServerAp →
+_cgResolveDmApStatus without opts.gen) has no generation guard across its awaits. If the player loads a different character
+while those awaits run, the join's final resolve writes the joined campaign onto the newly loaded character (and, since #643,
+also clears that character's pending binding adopt). Capture window._cgBindGen (or the character id) at the start of the join
+and drop the post-await writes when it has moved, like _cgAdoptEnvelopeBinding does. Check invite (~1408) and claim (~1483) the same way.
+```
+**Done when:** an e2e that switches character during a stubbed slow join shows the newly loaded character unbound and the joined character bound; `engine-parity-ci` 0 failed.
