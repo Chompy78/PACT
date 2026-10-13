@@ -69,7 +69,9 @@
  *   drawbackValue(b, name, ctx?) — a drawback's current effective AP value.
  *   drawbackBuyoffQuote(b, name, srcEvent?, ctx?) — {base, rate, cost}: 3× (or the DM's rate) × effective value (W1).
  *   houseRulesImpact(rows, oldCtx, newCtx) — the DM Console's S2/T2 preview, per roster row.
- *   serverApLedger(events, opts?) — a model of the server AP ledger (plan §6.4 + X1), for previews and gates.
+ *   serverApLedger(events, opts?) — a model of the server AP ledger (plan §6.4 + X1/Z1/M4), for previews and gates.
+ *   A `buyoff` may carry `targetSeq` = the seq of the purchase it cancels (the oldest open one of that name, M4); the
+ *   server then nets that purchase's grant out of its ledger (a buyoff without it keeps the old approximation).
  *   New event types (all DM-stamped through the server; each counts ONLY when dmEdit === true):
  *     {type:'dmHouseRules', campaignId, overrides:{dmAllows?, boons?, draws?, disabled?, pins?:{draws}}} — snapshot
  *        override layer for that campaign; applies only while the character is in it.
@@ -1424,6 +1426,9 @@ export function activeEvents(events) {
   //     deterministic default for an edge case the task doesn't require a specific answer to.
   // Do not "fix" this into a seq lookup without checking the fixtures first — they'd all lack the field.
   const boughtOff = new Set();
+  // buyoffTarget (feat/campaign-house-rules-server, M4): buyoff index -> the purchase index that buyoff cancelled
+  // (the same FIFO match as boughtOff, kept as a map so the server-ledger model can net out exactly that purchase).
+  const buyoffTarget = new Map();
   const _openDraws = {};   // drawback value -> queue of still-open purchase indices, oldest first
   // boonRemoved (feat/dm-edit-events): a DM can remove a player-bought boon with NO refund — the
   // player already spent the AP, and _spendCost() must keep counting it (removal ≠ buyoff, which DOES
@@ -1534,7 +1539,7 @@ export function activeEvents(events) {
     } else if (e.type === 'buyoff') {
       if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
-      if (q && q.length) { boughtOff.add(q.shift()); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
+      if (q && q.length) { const _j = q.shift(); boughtOff.add(_j); buyoffTarget.set(i, _j); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
     } else if (e.type === 'buy' && e.cat === 'boon') {
       const v = e.payload && e.payload.v;
       if (v == null) return;
@@ -1546,7 +1551,7 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy,
+  return { evs, boughtOff, buyoffTarget, boonRemoved, lost, unlocked, unlockedBy,
            boonRefunded, refundedBy, drawRemoved, drawRepriced, dmMatched, dmAdjustments };
 }
 
@@ -2929,6 +2934,15 @@ export function sealedFloor(events, opts) {
   for (let i = log.length - 1; i >= 0; i--) {
     if (log[i] && log[i].type === 'sessionSeal') { floor = i + 1; break; }
   }
+  // An AP-moving DM house-rules event (dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback, DM-stamped) freezes
+  // everything before it, on the server too (pact_enforce_locked_history, campaign characters,
+  // D-GH-2026-10-13-campaign-house-rules). Counted for every character here, not only campaign-bound ones: it keeps
+  // repriceDraft() (which calls this without opts) from re-costing a purchase a DM has already refunded or
+  // repriced if creation is ever reopened — that would turn the refund into a second payout.
+  for (let i = log.length - 1; i >= floor; i--) {
+    const e = log[i];
+    if (e && e.dmEdit === true && (e.type === 'dmRefundBoon' || e.type === 'dmRemoveDrawback' || e.type === 'dmRepriceDrawback')) { floor = i + 1; break; }
+  }
   if (o.campaignBound) {
     for (let i = log.length - 1; i >= 0; i--) {
       const e = log[i];
@@ -3194,24 +3208,31 @@ export function repriceDraft(events, opts) {
   return log;
 }
 
-// serverApLedger(events, opts?) — a JS MODEL of the server's campaign AP ledger as the campaign-house-rules plan
-// (D-GH-2026-10-13-campaign-house-rules, PR3) will leave it: pact_ap_ledger_spend's sums plus the three AP-moving
-// DM events, and pact_enforce_ap_budget_consistency's spendable. It reads ONLY frozen numbers on the log — never a
-// price — exactly like the SQL, so it is the yardstick for "do browser and server agree on AP left?".
+// serverApLedger(events, opts?) — a JS MODEL of the server's campaign AP ledger as the campaign-house-rules migration
+// (D-GH-2026-10-13-campaign-house-rules, PR3: sql/migrations/2026-10-13-campaign-house-rules-server.sql) leaves it:
+// pact_ap_ledger_split()'s sums and pact_enforce_ap_budget_consistency()'s spendable. It reads ONLY frozen numbers on
+// the log — never a price — exactly like the SQL, so it is the yardstick for "do browser and server agree on AP left?".
 //   spent          buy (non-patch, non-drawback) + buyoff + names costs, + a DM-stamped dmRefundBoon's (negative) cost
 //   awardEarned    award amounts
-//   drawbackEarned −cost of every drawback buy (bought off or not — the SQL's accepted approximation),
-//                  + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack (DM-stamped only, owner/orchestrator M1)
-//   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when given, else DATA.drawbackCap (owner X1)
+//   drawbackEarned −cost of every drawback buy, + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack (DM-stamped
+//                  only, owner/orchestrator M1), − the grant of each purchase a buyoff provably cancelled (M4): a
+//                  buyoff carrying `targetSeq` equal to the seq of the purchase the FIFO match cancels (activeEvents()
+//                  .buyoffTarget) nets out that purchase's −cost + ΣΔ of the DM reprices aimed at it before the
+//                  buyoff. A buyoff WITHOUT a matching targetSeq keeps the old approximation (the grant stays) — more
+//                  lenient, never a mint: the buyoff itself cost 3× the value.
+//   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when it is a finite number (max 0), else NO cap
+//                  (owner decision Z1, 2026-10-13: the same rule js/campaign.js drawbackCapFromRules() gives compute())
 //   spendable      dmAp + (ignorePlayerAp ? 0 : awardEarned) + drawbackGranted   (X1: the grant survives the toggle)
 // opts: {dmAp?, ignorePlayerAp?, drawbackCap?} — the same opts compute() takes. Pure; a model, not the authority:
-// the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one.
+// the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one, and the
+// Docker harness (testing/scripts/creation-lock-guard-test/run-house-rules.sh) checks the SQL against fixed cases.
 export function serverApLedger(events, opts) {
   const o = opts || {};
   const n = _fin;
+  const ae = activeEvents(events);
+  const evs = ae.evs;
   let spent = 0, awardEarned = 0, drawbackEarned = 0;
-  for (const ev of (Array.isArray(events) ? events : [])) {
-    if (!ev) continue;
+  for (const ev of evs) {
     const t = ev.type, cat = ev.cat || '';
     if (t === 'award') awardEarned += n(ev.amount);
     else if (t === 'buy' && cat === 'drawback') drawbackEarned -= n(ev.cost);
@@ -3220,8 +3241,25 @@ export function serverApLedger(events, opts) {
     else if (ev.dmEdit === true && t === 'dmRemoveDrawback') drawbackEarned -= n(ev.grantBack);
     else if (ev.dmEdit === true && t === 'dmRepriceDrawback') drawbackEarned += n(ev.amount);
   }
-  const cap = Number.isFinite(o.drawbackCap) ? Math.max(0, o.drawbackCap) : DATA.drawbackCap;
-  const drawbackGranted = Math.min(cap, drawbackEarned);
+  // M4: net out the grant of a purchase a targeted buyoff cancelled.
+  evs.forEach((ev, i) => {
+    if (ev.type !== 'buyoff' || ev.targetSeq == null) return;
+    const j = ae.buyoffTarget.get(i);
+    if (j == null) return;
+    const p = evs[j];
+    if (p.seq == null || String(p.seq) !== String(ev.targetSeq)) return;
+    const name = String(p.payload && p.payload.v);
+    let d = 0;
+    for (let k = 0; k < i; k++) {
+      const r = evs[k];
+      if (r.type === 'dmRepriceDrawback' && r.dmEdit === true && r.targetSeq != null && r.refVal != null
+          && String(r.targetSeq) === String(p.seq) && String(r.refVal) === name) d += n(r.amount);
+    }
+    drawbackEarned -= (-n(p.cost) + d);
+  });
+  const capped = Number.isFinite(o.drawbackCap);
+  const cap = capped ? Math.max(0, o.drawbackCap) : null;
+  const drawbackGranted = capped ? Math.min(cap, drawbackEarned) : drawbackEarned;
   const spendable = n(o.dmAp) + (o.ignorePlayerAp ? 0 : awardEarned) + drawbackGranted;
   return { spent, awardEarned, drawbackEarned, drawbackGranted, cap, spendable, apLeft: spendable - spent };
 }

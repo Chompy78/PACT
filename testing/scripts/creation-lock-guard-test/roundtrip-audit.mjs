@@ -15,6 +15,8 @@
  * Input: a JSON export {live:[{id,campaign_id,name,stats}]} made with a read-only query. It holds real player data: keep it OUT of the repository.
  * Options: --campaign-all treat EVERY character as campaign-bound, so the lock boundary applies to each locked character, not just the six that are sealed today (a stress test:
  *                         a client that rewrites a locked character's history shows up even where the rule would not freeze it yet); --synthetic   add Live-Sheet-origin variants (an "Imported budget" award at index 0, the shape that exposed a real defect).
+ * Since 2026-10-13 (feat/campaign-house-rules-server) every comparison ALSO checks the DM family — the events trg_pact_dm_family_guard
+ * freezes for a player (a truthy dmEdit, or a DM-only type) — and characters that carry any are covered even when nothing else freezes them.
  * Run: node testing/scripts/creation-lock-guard-test/roundtrip-audit.mjs <export.json> [report.json] [--campaign-all] [--synthetic]
  */
 import http from 'node:http';
@@ -56,10 +58,16 @@ const boundary = (log, campaign) => {
   if (campaign && ll && lu < ll) lock = ll;
   return Math.max(seal, award, lock);
 };
+// The DM family trg_pact_dm_family_guard freezes for a campaign character's player (2026-10-13-campaign-house-rules-server.sql,
+// public.pact_dm_family): a truthy dmEdit, or a DM-only type. Reported for every character, frozen or not (--dm-family is implied).
+const DM_TYPES = new Set(['dmHouseRules', 'dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback', 'dmRemoveBoon', 'dmUnlockDrawback', 'sessionSeal']);
+const dmFamily = log => (log || []).filter(e => e && typeof e === 'object' && !Array.isArray(e)
+  && (!(e.dmEdit === undefined || e.dmEdit === null || e.dmEdit === false || e.dmEdit === 0 || e.dmEdit === '') || DM_TYPES.has(e.type)));
 // jsonb equality ignores object key order (arrays keep theirs): compare canonically, not as raw JSON text
 const canon = v => Array.isArray(v) ? v.map(canon) : (v && typeof v === 'object') ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const compare = (oldLog, newLog, campaign) => {
+  if (!same(dmFamily(oldLog), dmFamily(newLog))) return { covered: true, ok: false, why: `DM family changed (${dmFamily(oldLog).length} -> ${dmFamily(newLog).length} events) — trg_pact_dm_family_guard would refuse this save` };
   const idx = boundary(oldLog, campaign);
   if (!idx) return { covered: false };
   const po = protectedList((oldLog || []).slice(0, idx)), pn = protectedList(newLog);
@@ -94,7 +102,7 @@ try {
     const stats = c.stats; if (!stats || !Array.isArray(stats.LOG)) continue;
     const campaign = !!c.campaign_id || ALLC;
     const row = { name: c.name, campaign, events: stats.LOG.length, boundary: boundary(stats.LOG, campaign) };
-    if (!row.boundary) { row.skipped = 'not frozen by the new rule (no seal, no award, not a locked campaign character)'; results.push(row); continue; }
+    if (!row.boundary && !dmFamily(stats.LOG).length) { row.skipped = 'not frozen by the new rule (no seal, no award, not a locked campaign character, no DM entries)'; results.push(row); continue; }
     const env = JSON.stringify(stats);
     // Live Sheet
     try {

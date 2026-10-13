@@ -28,9 +28,11 @@ on:
       - "js/engine-data.js"
       - "js/character-store.js"
       - "tools/PACT-CharGen-Webtool.html"
+      - "tools/PACT-Live-Char-Sheet.html"
       - "sql/rls-policies.sql"
       - "sql/migrations/**"
       - "testing/scripts/protected-events-roundtrip-ci.mjs"
+      - "testing/scripts/dm-family-roundtrip-e2e.mjs"
       - ".github/workflows/protected-events-roundtrip.yml"
   workflow_dispatch:
 
@@ -70,5 +72,13 @@ jobs:
 
       - name: Run the protected-event round-trip gate
         run: node testing/scripts/protected-events-roundtrip-ci.mjs
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+
+      # feat/campaign-house-rules-server (M1): the same question for the DM family trg_pact_dm_family_guard freezes — an honest
+      # load + save (and a Live Sheet buy-off / a CharGen edit) of a character carrying every DM-only event type must leave
+      # those events byte-identical, or the guard would refuse the player's save.
+      - name: Run the DM-family round-trip gate (Live Sheet + CharGen)
+        run: node testing/scripts/dm-family-roundtrip-e2e.mjs
         env:
           PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers

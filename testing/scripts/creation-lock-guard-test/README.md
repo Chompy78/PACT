@@ -51,3 +51,15 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 | `award-shims.sql` | Supabase stand-ins (auth schema, roles, `auth.users`, `auth.uid()` from `request.jwt.claims`, pgcrypto) |
 | `award-cases.sql` | 39 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus `2026-09-03-dm-zero-player-ap.sql`, so `dm_edit_character_log`, `award_ap`, `award_ap_and_seal`, `dm_zero_player_ap`, the budget check and the history lock all run beside the rule: player-award attacks, the CharGen Budget singleton moves (incl. the live 77-AP-after-the-lock shape), DM paths, solo, reopened, `ignore_player_ap` campaigns, and award amounts that are not JSON numbers ("NaN", "500", "Infinity", a NaN planted before the lock) |
 | `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
+
+## Campaign house rules, the server half — added 2026-10-13 (NOT applied to the live database)
+
+`sql/migrations/2026-10-13-campaign-house-rules-server.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-13-campaign-house-rules` (its PR3 addendum), plan `docs/plans/2026-10-13-campaign-house-rules.md`. Adds `dm_apply_house_rules_change()`, the `campaigns.rules.charHouseRules` guard, `dmHouseRules` in `dm_edit_character_log()`, the split ledger with the owner's Z1 drawback cap and M4 targeted buy-off netting, the M1 DM-family forgery guard and the extended history lock. `rls-policies.sql` is NOT changed until the migration is applied.
+
+| File | What |
+|---|---|
+| `house-rules-cases.sql` | 137 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql` + `2026-09-03-dm-zero-player-ap.sql`), each with an AFTER expectation and a BEFORE prediction: the campaign-key guard, every RPC refusal the decision record lists (shape, who, draft, unknown/wrong/ambiguous/stale target, imposed, DM-granted, M3 from/to incl. pin > override > campaign and the printed-value fallback), what the RPC stamps, `dm_edit_character_log` + `dmHouseRules`, the ledger and budget (X1, Z1, M4, V1), every forgery the M1 guard refuses, the honest player saves and every DM path it must keep allowing, and the history lock |
+| `drawback-cap-shapes.json` | 45 `rules.drawbackCap` shapes with the cap the real `js/campaign.js` `drawbackCapFromRules()` gives (generated from it; `house-rules-ledger-ci.mjs` re-checks the JS side) |
+| `run-house-rules.sh` | `BEFORE` (every case lands as predicted: 104 gaps/new behaviours fail) → apply → `AFTER` (all pass; Z1 shapes agree; the real SQL ledger equals `house-rules-ledger-ci.mjs`'s port on the fuzz's random histories) → rollback (five definitions byte-identical, eleven functions and two triggers gone, cases back to BEFORE). In CI's `freeze-rehearsal` job |
+
+Also: `testing/scripts/dm-family-roundtrip-e2e.mjs` (real Live Sheet + CharGen: an honest save never touches the DM family) and `roundtrip-audit.mjs`, which now checks the DM family on a live export too.

@@ -406,3 +406,13 @@ charHouseRules: {
 - M3's `to` check accepts the printed-value fallback when a campaign deletes a custom/repriced entry.
 - M4 (decision): a buy-off records the exact purchase it cancels (`targetSeq`), so the server can net out its grant including ΣΔ.
 
+
+## Owner decision Z1 and PR3 notes (2026-10-13, feat/campaign-house-rules-server)
+- **Z1 (owner):** when a campaign's drawback cap is switched OFF (`rules.drawbackCap.enabled === false`) the server applies NO
+  cap to `drawback_earned`; when on, it caps at `rules.drawbackCap.ap`; when the setting is absent it uses the same default
+  `js/campaign.js` `drawbackCapFromRules()` uses — which is no cap. This replaces X1's fallback to `DATA.drawbackCap` (12) and
+  closes the open owner question; browser and server now apply one cap rule (`pact_hr_drawback_cap()`, checked against the
+  real JS function on 45 shapes).
+- **M4 as built:** a buy-off's `targetSeq` must equal the seq of the purchase the engine's FIFO match cancels; only then does the
+  server net that purchase's grant (−cost + ΣΔ). Untargeted buy-offs keep the old approximation. The Live Sheet stamps it in PR2.
+- PR3's migration, harness, apply order and residual risk: see the decision record's PR3 addendum.

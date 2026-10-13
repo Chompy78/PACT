@@ -22,6 +22,10 @@ on:
     paths:
       - "sql/**"
       - "testing/sql/**"
+      - "testing/scripts/creation-lock-guard-test/**"
+      - "testing/scripts/house-rules-ledger-ci.mjs"
+      - "js/engine.js"
+      - "js/campaign.js"
       - ".github/workflows/sql-guards.yml"
   workflow_dispatch:
 
@@ -99,4 +103,11 @@ jobs:
       # fix/server-player-award-after-lock: a player cannot raise a locked/sealed campaign character's award total (NOT applied to live by merging).
       - name: Player award after the lock — migration, attacks, legitimate paths, rollback
         run: testing/scripts/creation-lock-guard-test/run-award.sh
-
+      # feat/campaign-house-rules-server: the campaign house-rules server half (NOT applied to live by merging). Every case lands as
+      # predicted before the migration, all pass after, the SQL ledger agrees with house-rules-ledger-ci.mjs's port on the fuzz's
+      # random histories and the drawback cap with js/campaign.js on 45 shapes, and the rollback is byte-identical.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
+        run: testing/scripts/creation-lock-guard-test/run-house-rules.sh

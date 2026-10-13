@@ -402,7 +402,10 @@ function runChecks(ENGINE, LOG) {
     const hasPaidNames = rp.some(e => e.type === 'names' && (Number(e.cost) || 0) !== 0);
     // A DM refund carries the target's FROZEN cost while repriceDraft() re-costs the target itself. The server only
     // allows refunds on creation-locked characters, where nothing is re-costed; a draft with one is fuzz-only.
-    const hasRefund = rp.some(e => e.type === 'dmRefundBoon' && e.dmEdit === true);
+    // Since feat/campaign-house-rules-server every DM-stamped AP-moving event (refund / removal / reprice) is also a
+    // sealedFloor(), so repriceDraft() leaves everything under it frozen — the server freezes the same prefix — and such
+    // a draft (only reachable by a DM reopening creation afterwards) keeps its frozen costs by design.
+    const hasRefund = rp.some(e => (e.type === 'dmRefundBoon' || e.type === 'dmRemoveDrawback' || e.type === 'dmRepriceDrawback') && e.dmEdit === true);
     const staleDrawback = rp.some(e => e.type === 'buy' && e.cat === 'drawback'
       && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
     if (!hasBuyoff && !hasPaidNames && !staleDrawback && !hasRefund && ENGINE.isCreationDraft(rp)) {
