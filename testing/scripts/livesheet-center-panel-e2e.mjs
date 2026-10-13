@@ -127,8 +127,60 @@ await page.evaluate(() => { window.confirm = () => true; });
 await page.click('.pswpn .psdel');
 check('a weapon can be removed', await page.evaluate(() => foldBuild(null).appearance.playerSheet.weapons.length === 0));
 
+// feat/livesheet-centre-columns: name on top, then Stats · Skills · General side by side, then Spellcasting/notes below.
+check('Stats, Skills and General sit side by side under the name', await page.evaluate(() => {
+  const r = s => document.querySelector('#sheet ' + s).getBoundingClientRect();
+  const n = r('.shname'), st = r('.shstats'), sk = r('.shskills'), g = r('.shmain');
+  return n.bottom <= st.top + 1 && st.right <= sk.left + 1 && sk.right <= g.left + 1 && Math.abs(st.top - sk.top) < 2 && Math.abs(sk.top - g.top) < 2; }));
+check('the description block is inside General', await page.evaluate(() => !!document.querySelector('#sheet .shmain .lsdesc')));
+check('coins/weapons/notes come after the three columns', await page.evaluate(() => {
+  const c = document.querySelector('#sheet .shcols3').getBoundingClientRect(), p = document.querySelector('#sheet .pssec').getBoundingClientRect();
+  return p.top >= c.bottom - 1; }));
+// feat/livesheet-sheet-view-desc: the Character panel points at the full Sheet; the tip shows once, then goes for good.
+check('the Character panel has an "Open full sheet" button and a one-time tip', await page.evaluate(() => !!document.querySelector('#sheet .lssheetbtn') && !!document.getElementById('lsSheetTip')));
+await page.evaluate(() => { toggleSheet(); toggleSheet(); render(); });
+check('…opening the Sheet retires the tip (remembered)', await page.evaluate(() => !document.getElementById('lsSheetTip') && localStorage.getItem('pactLsSheetTipSeen') === '1'));
+check('the Sheet view uses the same collapsed Appearance & description block', await page.evaluate(() => { toggleSheet();
+  const d = document.querySelector('#sheetbody .lsdesc'); const ok = !!d && !d.open && !!d.querySelector('[data-lsd="overall"]') && !d.querySelector('[data-lsd="alignment"]')
+    && ![...document.querySelectorAll('#sheetbody h5')].some(h => /Personality|Backstory/.test(h.textContent)); toggleSheet(); return ok; }));
+check('the Sheet view gives features, boons and drawbacks an ⓘ', await page.evaluate(() => { toggleSheet();
+  const t = [...document.querySelectorAll('#sheetbody .fxi')].map(e => e.title); toggleSheet(); return t.some(x => /miss into a hit/.test(x)) && t.some(x => /Dash/.test(x)); }));
+check('the description is collapsed by default', await page.evaluate(() => !document.querySelector('#sheet .lsdesc').open));
+await page.click('#sheet .lsdesc summary');
+await page.fill('#sheet [data-lsd="hair"]', 'copper "braided" <b>x</b>');
+await page.press('#sheet [data-lsd="hair"]', 'Tab');
+await page.waitForTimeout(150);
+check('editing a description field saves it in the character', await page.evaluate(() => (foldBuild(null).appearance || {}).hair) === 'copper "braided" <b>x</b>');
+check('…the block stays open and focus moves on to the next field', await page.evaluate(() =>
+  document.querySelector('#sheet .lsdesc').open && document.activeElement && document.activeElement.getAttribute('data-lsd') === 'eyes'));
+check('…and the value is escaped (no element injected)', await page.evaluate(() => !document.querySelector('#sheet .lsdesc .lsdgrid b')));
+await page.fill('#sheet [data-lsd="eyes"]', 'grey');
+await page.press('#sheet [data-lsd="eyes"]', 'Tab');
+await page.waitForTimeout(150);
+const regen = await page.evaluate(() => { const before = LOG.length; lsRegenDesc(); const b = foldBuild(null);
+  return { para: b.appearance.overall, want: pactComposeDescription(b.appearance, { name: b.name, species: b.species, originClass: b.originClass }), shown: document.querySelector('#sheet [data-lsd="overall"]').value, grew: LOG.length - before }; });
+check('🪶 Regenerate paragraph writes the paragraph from the fields', /grey eyes/.test(regen.para) && regen.para === regen.want && regen.shown === regen.para, regen.para);
+check('…without adding a history entry', regen.grew === 0, String(regen.grew));
+const asked = await page.evaluate(() => { let n = 0; const c = window.confirm; window.confirm = () => { n++; return false; };   // the weapon test above stubbed it to true
+  _shCommitAppearanceField('overall', 'Hand-written.'); lsRegenDesc(); window.confirm = c; return n; });
+const kept = await page.evaluate(() => foldBuild(null).appearance.overall);
+check('…and asks before replacing a hand-written paragraph (cancel keeps it)', asked === 1 && kept === 'Hand-written.', kept);
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }
+// fix/livesheet-header-and-panel-width: drag Buy's inner edge to widen it; remembered after a reload; double-click resets.
+{
+  const buyW = () => page.evaluate(() => Math.round(document.querySelector('.layout>.card').getBoundingClientRect().width));
+  await page.evaluate(() => { const c = document.querySelector('.layout>.card'); c.classList.remove('clp'); });
+  const g = await page.locator('.layout>.card:nth-child(1)>.colgrip').boundingBox();
+  const w0 = await buyW();
+  await page.mouse.move(g.x + 5, g.y + g.height / 2); await page.mouse.down();
+  await page.mouse.move(g.x + 125, g.y + g.height / 2, { steps: 6 }); await page.mouse.up();
+  const w1 = await buyW();
+  check('dragging the Buy panel\'s edge widens it', w1 >= w0 + 110, w0 + ' -> ' + w1);
+  check('…and the width is remembered', await page.evaluate(() => (JSON.parse(localStorage.getItem('pactLsPanelWidth') || '{}').buy || 0)) === w1);
+  await page.locator('.layout>.card:nth-child(1)>.colgrip').dblclick();
+  check('double-clicking the edge resets it', await buyW() === 300, String(await buyW()));
+}
 const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
 check('no fatal page errors (desktop)', fatal.length === 0, fatal.slice(0, 2).join(' | '));
 await ctx.close();
@@ -138,6 +190,13 @@ check('on a phone the skills list stacks above the sheet', await ph.page.evaluat
   const a = document.querySelector('.shskills').getBoundingClientRect(), b = document.querySelector('.shmain').getBoundingClientRect();
   return a.bottom <= b.top + 1; }));
 check('no sideways scroll on a phone', await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+// fix/livesheet-header-and-panel-width: the pinned phone header is only the sheet name, the character name and the buttons.
+const hdr = await ph.page.evaluate(() => { const t = document.querySelector('.top'), r = t.getBoundingClientRect();
+  return { h: Math.round(r.height), over: t.scrollWidth > t.clientWidth + 1, name: getComputedStyle(document.getElementById('topCharName')).display !== 'none' && document.getElementById('topCharName').textContent,
+    eco: !t.contains(document.getElementById('eco')), cut: [...t.children].some(e => e.offsetParent && e.getBoundingClientRect().right > window.innerWidth + 1) }; });
+check('phone header: two short rows, nothing cut off or scrolling sideways', hdr.h <= 90 && !hdr.over && !hdr.cut, JSON.stringify(hdr));
+check('phone header: shows the character name', hdr.name === await ph.page.evaluate(() => foldBuild(null).name || 'New Character'), String(hdr.name));
+check('phone: the AP summary scrolls with the sheet, not pinned', await ph.page.evaluate(() => document.getElementById('lsScroll').contains(document.getElementById('eco'))));
 if (SHOT) await ph.page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-phone.png') });
 await ph.ctx.close();
 

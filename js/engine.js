@@ -13,7 +13,7 @@
  * Pricing / derivation:
  *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?, drawbackCap?,
  *                       drawbackCountAdvice?, houseRulesCtx?}. Returns
- *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, warnings,
+ *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, dmDiscountAp, warnings,
  *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
  *                       (b, opts). Reads b._lostPurchases (stamped by _replay/foldBuild — see below) to
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
@@ -38,7 +38,7 @@
  *   baseBuild()       — a fresh blank level-1 build object (the fold/replay starting point).
  *   MUT               — { cat: (build, payload) => void }; replay applies MUT[e.cat] per buy event.
  * Event-sourcing (append-only LOG):
- *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy}: live events + a bought-off-drawback
+ *   activeEvents(events) — {evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy, discounts}: live events + a bought-off-drawback
  *                          map + a DM-removed-boon map (feat/dm-edit-events) + the FIFO-matched lost-purchases
  *                          list ({kind,label,cost}[], feat/ledger-show-lost-purchases) compute() itemizes +
  *                          `unlocked`, a Set of indices of DM-imposed locked drawback purchases a later
@@ -50,11 +50,14 @@
  *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
  *   wouldExceedCeiling(events, cost, opts?) — may this purchase be made while still in creation?
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
+ *                       Also {discounted, apValue(=spent), apPaid(=spent−discounted), discounts[]}: DM discounts
+ *                       (feat/dm-ap-discount) — earned AP tied to one purchase; `spent` keeps the full price.
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
  *                       (feat/ap-model-reconcile). Pure; does not change economy() itself.
  *                          + (campaign house rules) boonRefunded/refundedBy, drawRemoved, drawRepriced (target index
- *                          -> ΣΔ), dmMatched and dmAdjustments for the DM events below.
+ *                          -> ΣΔ), dmMatched and dmAdjustments for the DM events below; refundDiscount (refunded boon index -> the
+ *                          #649 discount it no longer counts — a refund returns frozen cost minus that discount).
  *   foldBuild(events)    — replay a LOG from baseBuild() → a build (b.budget = awards only,
  *                          i.e. economy().earned − drawbackEarned; compute() derives the drawback grant).
  *   rebuildStateFromEvents(base, events, opts?) — replay onto `base` (or an embedded {LOG}) → {ok, version, …}.
@@ -105,7 +108,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.647";
+export const BUILD = "v1.660";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -1317,7 +1320,11 @@ export function compute(b, opts){
   // earnedWithDm() — the frozen-ledger AP ceiling the Live Sheet displays — carves the drawback portion
   // out of the same bracket, or the two would report different totals for one character.
   const playerAp=Math.max(0,b.budget||0); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
-  const spendable=(_opts.ignorePlayerAp?0:playerAp)+_dGranted+dmAp; const remaining=spendable-total;
+  // DM discounts (feat/dm-ap-discount): their own pool, stamped on the build by foldBuild() (CharGen, which
+  // does not fold, sets it from economy(LOG).discounted). Outside the ignorePlayerAp bracket like the
+  // drawback grant — a discount is DM-given, not a player award.
+  const dmDiscountAp=Math.max(0,Number(b.dmDiscount)||0);
+  const spendable=(_opts.ignorePlayerAp?0:playerAp)+_dGranted+dmAp+dmDiscountAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
   const dset={};for(const x of (b.drawbacks||[]))dset[x]=1;
@@ -1334,7 +1341,7 @@ export function compute(b, opts){
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
   const {size, choosable:sizeChoosable}=sizeOf(b);
-  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
@@ -1503,6 +1510,7 @@ export function activeEvents(events) {
   const drawRemoved = new Set(), drawRepriced = new Map();
   const dmMatched = new Set();
   const dmAdjustments = [];
+  const _refundAdj = new Map();   // refunded boon index -> its dmAdjustments entry (net of a DM discount, below)
   const _boonBySeq = Object.create(null), _drawBySeq = Object.create(null);   // `${seq}|${name}` -> purchase index, or -1 if ambiguous
   const _dqRemove = (q, idx) => { if (!q) return; const k = q.indexOf(idx); if (k >= 0) q.splice(k, 1); };
   const _seqTarget = (map, e) => {
@@ -1541,7 +1549,8 @@ export function activeEvents(events) {
       const j = _seqTarget(_boonBySeq, e);
       if (j < 0 || boonRemoved.has(j) || boonRefunded.has(j)) return;
       dmMatched.add(i); boonRefunded.add(j); refundedBy.set(j, e); _dqRemove(_openBoons[e.refVal], j);
-      dmAdjustments.push({ kind: 'boonRefunded', label: e.refVal, ap: -Number(e.cost) });
+      const _adj = { kind: 'boonRefunded', label: e.refVal, ap: -Number(e.cost) };
+      dmAdjustments.push(_adj); _refundAdj.set(j, _adj);   // ap net of any DM discount (set below, #649 merge)
     } else if (e.type === 'dmUnlockDrawback') {
       if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return;
       const j = _lockedBySeq[e.targetSeq + '|' + e.refVal];
@@ -1561,8 +1570,56 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
+  // discounts (feat/dm-ap-discount, D-GH-2026-10-13-dm-ap-discount): a DM can take AP off one earlier
+  // priced purchase with a `dmDiscount` event {targetSeq, targetCat, amount}. Keyed by `seq`, like the
+  // unlock above, because a purchase has no other stable identity (payloads differ by category and many
+  // carry no name at all). `targetCat` is the target's own category ('buyoff'/'names' for those types),
+  // a cross-check so a wrong seq cannot land on an unrelated event. A discount counts only when:
+  //   * it is DM-stamped (dmEdit === true, set server-side by dm_edit_character_log);
+  //   * exactly ONE earlier event carries that seq (ambiguous -> nothing, fail-safe), its category
+  //     matches, and it still costs AP (_spendCost > 0).
+  // A purchase's net discount is the sum of its discounts — a NEGATIVE amount is how a DM corrects a
+  // mistake, nothing is ever deleted — clamped to [0, the purchase's frozen cost]. A boon the DM later
+  // removes keeps its discount: removal refunds nothing, so its cost still counts as spend, and the
+  // discount against that spend stands with it. Moves AP only; never alters the build.
+  const discounts = new Map();      // target index -> net discounted AP (already clamped)
+  const _discRaw = new Map();       // target index -> raw sum before clamping
+  const _bySeq = new Map();         // seq -> index, or -1 when more than one event carries it
+  evs.forEach((e, i) => {
+    if (e.type === 'dmDiscount') {
+      if (e.dmEdit !== true || e.targetSeq == null) return;
+      const amt = Number(e.amount);
+      if (!Number.isFinite(amt)) return;
+      const j = _bySeq.get(e.targetSeq);
+      if (j == null || j < 0) return;
+      const t = evs[j];
+      const cat = t.type === 'buy' ? t.cat : t.type;
+      if (cat !== e.targetCat || !(_spendCost(t) > 0)) return;
+      _discRaw.set(j, (_discRaw.get(j) || 0) + amt);
+      return;
+    }
+    if (e.seq != null) _bySeq.set(e.seq, _bySeq.has(e.seq) ? -1 : i);
+  });
+  _discRaw.forEach((raw, j) => {
+    const net = Math.min(_spendCost(evs[j]), Math.max(0, raw));
+    if (net > 0) discounts.set(j, net);
+  });
+  // Discount x refund (merge of #649 with campaign house rules, D-GH-2026-10-13-campaign-house-rules addendum): a
+  // boon the DM REFUNDED (a matched dmRefundBoon) loses its discount, whichever came first. The refund already returns
+  // the boon's full frozen cost (its event carries cost:-frozen), so keeping the discount as well would credit the
+  // discounted AP twice. Net effect: the refund hands back frozen cost MINUS the discount — exactly what the player
+  // paid. Order-independent on purpose: a discount (or a negative correction) written after the refund is inert too.
+  // The server mirrors this (pact_ap_ledger_split's `discount` column), and so does serverApLedger().
+  const refundDiscount = new Map();   // refunded boon index -> the discount it carried (dropped), for display
+  boonRefunded.forEach(j => {
+    const d = discounts.get(j) || 0;
+    discounts.delete(j);
+    if (d > 0) refundDiscount.set(j, d);
+    const adj = _refundAdj.get(j);
+    if (adj && d > 0) { adj.ap -= d; adj.discount = d; }
+  });
   return { evs, boughtOff, buyoffTarget, boonRemoved, lost, unlocked, unlockedBy,
-           boonRefunded, refundedBy, drawRemoved, drawRepriced, dmMatched, dmAdjustments };
+           boonRefunded, refundedBy, drawRemoved, drawRepriced, dmMatched, dmAdjustments, discounts, refundDiscount };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
@@ -1600,6 +1657,10 @@ function _spendCost(e) {
 //   * a matched dmRefundBoon adds its own NEGATIVE cost to spent. The refunded purchase's original cost stays in
 //     spent, so the net is zero — the same two sums the server's pact_ap_ledger_spend adds.
 // Only MATCHED events count (ae.dmMatched: DM-stamped and landing on a real, still-open target).
+//   * ae.discounts (feat/dm-ap-discount, #649) — target index -> net DM discount, already clamped and already
+//     emptied of refunded boons (activeEvents()). BOTH features use this third parameter: it is ALWAYS the whole
+//     `ae`, never ae.discounts on its own — passing a bare Map would silently drop every house-rules term (and
+//     vice versa), with no error. economy-ae-signature checks in house-rules-ledger-ci.mjs pin this.
 function _economyFrom(evs, boughtOff, ae) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   const _removed = (ae && ae.drawRemoved) || null, _deltas = (ae && ae.drawRepriced) || null;
@@ -1632,10 +1693,24 @@ function _economyFrom(evs, boughtOff, ae) {
     else spent += _spendCost(e);
   });
   earned += drawbackEarned;
+  // DM discounts (feat/dm-ap-discount). Owner decision B1: a discounted purchase keeps its FULL price in
+  // `spent` (= "AP value", what equivalent level and the creation threshold read), and the discount is
+  // AP the character EARNED — so `available` comes out as what the player actually paid, and equivalent
+  // level (read from earned) rises as if the AP had been awarded. apPaid = spent − discounted.
+  let discounted = 0;
+  const discountList = [];
+  const discounts = (ae && ae.discounts) || null;
+  if (discounts) discounts.forEach((amt, j) => {
+    discounted += amt;
+    const t = evs[j];
+    discountList.push({ index: j, seq: t.seq, cat: t.type === 'buy' ? t.cat : t.type, label: t.label || '', cost: _spendCost(t), discount: amt });
+  });
+  earned += discounted;
   // drawbackEarned exposed (D-GH41) so a caller can isolate "raw award total" from "total earned" without
   // re-deriving drawback-bought-off filtering itself — purely additive, existing {earned,spent,available}
   // destructuring is unaffected.
-  return { earned, spent, available: earned - spent, drawbackEarned };
+  return { earned, spent, available: earned - spent, drawbackEarned,
+           discounted, apValue: spent, apPaid: spent - discounted, discounts: discountList };
 }
 
 export function economy(events) {
@@ -1668,7 +1743,9 @@ export function earnedWithDm(eco, opts) {
   // compute()'s spendable disagree by exactly the grant for every character in such a campaign, which
   // is the D-GH30 display-divergence failure mode all over again.
   const drawbackEarned = (eco && Number(eco.drawbackEarned)) || 0;
-  return (_opts.ignorePlayerAp ? drawbackEarned : playerEarned) + dmAp;
+  // A DM discount survives the toggle too (feat/dm-ap-discount): it is DM-given, not a player award.
+  const discounted = (eco && Number(eco.discounted)) || 0;
+  return (_opts.ignorePlayerAp ? drawbackEarned + discounted : playerEarned) + dmAp;
 }
 
 /* creationLocked timeline — for each event in an already-resolved activeEvents() list, was the
@@ -2625,7 +2702,10 @@ export function foldBuild(events) {
   // Subtract here rather than teaching economy() a second "earned" figure: the frozen ledger's `earned`
   // is what the DM Console and Live Sheet display and must keep meaning "everything this LOG earned".
   const _eco = _economyFrom(ae.evs, ae.boughtOff, ae);
-  b.budget = _eco.earned - _eco.drawbackEarned;
+  // DM discounts are their own pool (b.dmDiscount), like the drawback grant: compute() adds it to
+  // spendable OUTSIDE the ignorePlayerAp bracket, so it must not ride in on the awards-only budget.
+  b.budget = _eco.earned - _eco.drawbackEarned - _eco.discounted;
+  b.dmDiscount = _eco.discounted;
   return b;
 }
 
@@ -2786,12 +2866,16 @@ export function creationCeiling(events, opts) {
   const o = opts || {};
   const st = creationLockState(events);
   const drawbackBonus = Math.max(0, Number(o.drawbackAp) || 0);
+  // Owner decision F1 (feat/dm-ap-discount): a DM discount raises the ceiling by its amount, the way a
+  // drawback grant does, so a DM's gift never uses up the player's own creation budget.
+  const _eco = economy(events);
+  const discountBonus = _eco.discounted;
   const base = st.threshold;
-  const ceiling = base + drawbackBonus;
-  const spent = Number.isFinite(Number(o.spent)) ? Number(o.spent) : economy(events).spent;
+  const ceiling = base + drawbackBonus + discountBonus;
+  const spent = Number.isFinite(Number(o.spent)) ? Number(o.spent) : _eco.spent;
   return {
     enforced: st.confirmed,   // no explicit threshold stamped -> no ceiling, see above
-    base, drawbackBonus, ceiling, spent,
+    base, drawbackBonus, discountBonus, ceiling, spent,
     remaining: ceiling - spent,
     locked: st.locked,
   };
@@ -3237,7 +3321,8 @@ export function repriceDraft(events, opts) {
 //                  never a mint: the buyoff itself cost 3× the value.
 //   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when it is a finite number (max 0), else NO cap
 //                  (owner decision Z1, 2026-10-13: the same rule js/campaign.js drawbackCapFromRules() gives compute())
-//   spendable      dmAp + (ignorePlayerAp ? 0 : awardEarned) + drawbackGranted   (X1: the grant survives the toggle)
+//   discount       DM discounts (#649): every dmDiscount amount, minus those aimed at a refunded boon (see below)
+//   spendable      dmAp + discount + (ignorePlayerAp ? 0 : awardEarned) + drawbackGranted   (X1: the grant survives the toggle)
 // opts: {dmAp?, ignorePlayerAp?, drawbackCap?, houseRulesCtx?} — the same opts compute() takes. Pure; a model, not the authority:
 // the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one, and the
 // Docker harness (testing/scripts/creation-lock-guard-test/run-house-rules.sh) checks the SQL against fixed cases.
@@ -3287,8 +3372,18 @@ export function serverApLedger(events, opts) {
   const capped = Number.isFinite(o.drawbackCap);
   const cap = capped ? Math.max(0, o.drawbackCap) : null;
   const drawbackGranted = capped ? Math.min(cap, drawbackEarned) : drawbackEarned;
-  const spendable = n(o.dmAp) + (o.ignorePlayerAp ? 0 : awardEarned) + drawbackGranted;
-  return { spent, awardEarned, drawbackEarned, drawbackGranted, cap, spendable, apLeft: spendable - spent };
+  // DM discounts (#649, pact_ap_ledger_discount as the house-rules migration redefines it): a PLAIN sum of every
+  // dmDiscount amount that is a JSON number — the RPC keeps each purchase's net within [0, cost] and only a DM can
+  // write one (trg_pact_dm_discount_authorship), so the server does not re-check targets — EXCEPT a discount aimed at
+  // a boon a matched dmRefundBoon refunded (by targetSeq): the refund already returned the full price, so counting the
+  // discount too would credit it twice (activeEvents() drops it the same way). Outside the ignorePlayerAp switch.
+  const _refundedSeq = new Set();
+  evs.forEach((ev, i) => { if (ae.dmMatched.has(i) && ev.type === 'dmRefundBoon' && ev.targetSeq != null) _refundedSeq.add(String(ev.targetSeq)); });
+  let discount = 0;
+  for (const ev of evs) if (ev.type === 'dmDiscount' && typeof ev.amount === 'number' && Number.isFinite(ev.amount)
+      && !(ev.targetSeq != null && _refundedSeq.has(String(ev.targetSeq)))) discount += ev.amount;
+  const spendable = n(o.dmAp) + discount + (o.ignorePlayerAp ? 0 : awardEarned) + drawbackGranted;
+  return { spent, awardEarned, drawbackEarned, drawbackGranted, cap, discount, spendable, apLeft: spendable - spent };
 }
 
 // houseRulesImpact(rows, oldCtx, newCtx) — the DM Console's preview for a house-rules change (S2/T2), with all the
@@ -3301,6 +3396,7 @@ export function serverApLedger(events, opts) {
 //   serverApLeft    serverApLedger() now, and after the reprice events for EVERY changed held drawback were applied
 // Per held purchase (open: not bought off / removed / refunded):
 //   {kind:'boon'|'drawback', name, seq, index, frozenCost, oldEffective, newEffective, valueDelta, apDelta,
+//    (boons) discount, refundAp = frozenCost − discount (what a T2 refund hands back, net of a #649 DM discount),
 //    imposed, dmGranted, locked, changed, barredNew, ledgerGrant?, ledgerDelta?, repriceEvent?}
 //   valueDelta   newEffective − oldEffective (0 for an imposed drawback, which grants nothing either way)
 //   apDelta      what this one change alone does to the browser's AP left, drawbackCap applied (M5). A boon reprice
@@ -3380,7 +3476,11 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
       } else if (e.cat === 'boon') {
         if (ae.boonRemoved.has(i) || ae.boonRefunded.has(i)) return;
         const oldEffective = tOldB[v] ? (+tOldB[v].ap || 0) : 0, newEffective = tNewB[v] ? (+tNewB[v].ap || 0) : 0;
-        purchases.push({ kind: 'boon', name: v, seq: e.seq, index: i, frozenCost, oldEffective, newEffective,
+        // discount / refundAp (#649 merge): what a T2 refund actually hands back — the frozen cost minus the DM discount
+        // already given on it (activeEvents() drops that discount once the boon is refunded, so it is not paid twice).
+        const discount = (ae.discounts && ae.discounts.get(i)) || 0;
+        purchases.push({ kind: 'boon', name: v, seq: e.seq, index: i, frozenCost, discount, refundAp: frozenCost - discount,
+          oldEffective, newEffective,
           valueDelta: newEffective - oldEffective, apDelta: 0, imposed: false, dmGranted: e.dmEdit === true, locked,
           changed: newEffective !== oldEffective, ambiguousSeq: _amb(e),
           barredNew: !!(tOldB[v] && tOldB[v].allowed) && !(tNewB[v] && tNewB[v].allowed) });
@@ -3452,7 +3552,8 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
   // A base snapshot's own `budget` is awards-only under the same rule (a CharGen export's award field,
   // or a previous fold), and any drawbacks it carries are granted by compute() off b.drawbacks.
   const baseBudget = Number(base && base.budget) || 0;
-  b.budget = baseBudget + eco.earned - eco.drawbackEarned;
+  b.budget = baseBudget + eco.earned - eco.drawbackEarned - eco.discounted;
+  b.dmDiscount = (Number(base && base.dmDiscount) || 0) + eco.discounted;
 
   const result = compute(b, opts);
   return {

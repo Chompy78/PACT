@@ -420,3 +420,30 @@ Technical choices (none owner-level unless listed under "Open"):
   `override` action carries `expected` so the server refuses a race in between. A pin row's "now" is the value applying it
   would give — the character's own override for that drawback when there is one, else the campaign's / printed.
 
+
+
+## Addendum 2026-10-13 — merge with `preview` / #649 (DM AP discount)
+
+**Context.** #649 (`feat/dm-ap-discount`) merged to `preview` and its migration `2026-10-13-dm-ap-discount.sql` was APPLIED to
+production the same day. It redefined three functions this feature's unapplied migration also redefines
+(`dm_edit_character_log`, `pact_ap_ledger_protected`, `pact_enforce_ap_budget_consistency`) and added
+`pact_ap_ledger_discount()` plus the authorship trigger. Applying this feature's migration as it stood would have
+stripped live discount support (the 2026-09-02 failure class in `sql/migrations/README.md`); the #649 session raised the same warning.
+
+**Decision.**
+- The integration branch merges `preview` (a merge, keeping history). The migration's three shared functions are rebuilt on
+  #649's applied definitions, keeping every `dmDiscount` part verbatim. The rollback restores the post-#649 definitions,
+  i.e. what is live. The SQL harness BASE is `schema.sql` + the current `rls-policies.sql` (which carries #649) + the live
+  09-03 and 10-12 files; the rollback is checked byte-identical against that BASE.
+- **Discount × refund:** a boon the DM refunds (a matched `dmRefundBoon`) loses its #649 discount, whichever came first. The
+  refund already returns the full frozen cost, so keeping the discount would credit the discounted AP twice. Engine
+  (`activeEvents().refundDiscount`, `_economyFrom` reading `ae.discounts`), `serverApLedger()` and the SQL
+  (`pact_ap_ledger_discount()` skips a refunded target) agree. A discount aimed at an already-refunded boon is refused by the RPC.
+- `_economyFrom(evs, boughtOff, ae)` takes the whole `activeEvents()` result; passing a bare discounts Map would silently drop
+  every house-rules term.
+- Fixture EV-034 (ours) renumbered EV-040.
+
+**Before applying (owner):** re-read the three live functions with `pg_get_functiondef` and confirm they still match
+`rls-policies.sql` on `preview`. If they don't, rebuild the migration on the live text first.
+
+**Status:** merged into the integration branch; migration still NOT APPLIED.
