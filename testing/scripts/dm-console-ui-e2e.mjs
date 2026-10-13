@@ -656,7 +656,8 @@ check('...total drops back to 39 with the award ignored (0 + 6 + 33)',
       dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal === '39', dmap.awardedIgnoreOn && dmap.awardedIgnoreOn.apTotal);
 
 // feat/campaign-npcs: NPC rows (getRoster()'s isNpc) are split off the party at load. They render in their own
-// "NPCs" section with the per-card DM tools, and every party-wide feature — here the Award AP tick-list — ignores them.
+// "NPCs" section with the per-card DM tools. The Award AP tick-list lists them after the players (feat/award-ap-npcs);
+// its "Select all PCs" leaves them out.
 const npc = await page.evaluate(() => {
   const el = document.getElementById('campRoster');
   const built = (id, name) => ({ id, name, ap: 0, owner_id: 'o-' + id, stats: { SEQ: 2, LOG: [
@@ -672,6 +673,9 @@ const npc = await page.evaluate(() => {
     npcCardIds: npcCards.map(c => c.getAttribute('data-id')),
     partyCardIds: [...el.querySelectorAll('.card')].filter(c => !c.closest('.npc-section')).map(c => c.getAttribute('data-id')),
     tickIds: [...document.querySelectorAll('#campAwardApList input')].map(i => i.value),
+    tickNpcIds: [...document.querySelectorAll('#campAwardApList input[data-npc]')].map(i => i.value),
+    tickLabelEscaped: !document.querySelector('#campAwardApList b'),
+    selAllLabel: (document.getElementById('campAwardApSelAll') || {}).textContent || '',
     npcBasicMode: npcCards.some(c => c.querySelector('.dm-basicmode-btn')),
     playerBasicMode: !!el.querySelector('.card[data-id="p1"] .dm-basicmode-btn'),
     npcAwardForm: npcCards.every(c => c.querySelector('.award-btn')),
@@ -679,6 +683,10 @@ const npc = await page.evaluate(() => {
     addBtn: !!(sec && sec.querySelector('.npc-add-open')),
     injected: !!(sec && sec.querySelector('b')),
   };
+  document.querySelectorAll('#campAwardApList input').forEach(i => { i.checked = false; });
+  document.querySelector('#campAwardApList input[value="n2"]').checked = true;
+  document.getElementById('campAwardApSelAll').click();
+  out.afterSelAll = window._dmAwardApChecked();
   window._dmRenderCloudRoster(el, [ built('p1', 'Player One') ]);
   out.noNpcsStillHasAdd = !!el.querySelector('.npc-section .npc-add-open') && !el.querySelector('.npc-section .card');
   window._dmRenderCloudRoster(el, [ { ...built('n1', 'Bram Cotter Ch8-12'), isNpc: true } ]);
@@ -690,15 +698,18 @@ const npc = await page.evaluate(() => {
 });
 check('NPCs render in their own "NPCs" section', npc.hasSection && npc.npcCardIds.join() === 'n1,n2', JSON.stringify(npc.npcCardIds));
 check('...and not among the party cards', npc.partyCardIds.join() === 'p1', JSON.stringify(npc.partyCardIds));
-check('the Award AP tick-list (and so its Select all) holds players only', npc.tickIds.join() === 'p1', JSON.stringify(npc.tickIds));
+check('the Award AP tick-list lists the players, then the NPCs (feat/award-ap-npcs)', npc.tickIds.join() === 'p1,n1,n2', JSON.stringify(npc.tickIds));
+check('...the NPC rows are marked NPC, and an NPC name there is escaped', npc.tickNpcIds.join() === 'n1,n2' && npc.tickLabelEscaped === true, JSON.stringify(npc.tickNpcIds));
+check('the button reads "Select all PCs"', npc.selAllLabel === 'Select all PCs', npc.selAllLabel);
+check('Select all PCs ticks every player and leaves the NPCs as they were', npc.afterSelAll.slice().sort().join() === 'n2,p1', JSON.stringify(npc.afterSelAll));
 check('an NPC card keeps the per-character award form', npc.npcAwardForm === true);
 check('an NPC card has no basic-mode control (a player-account setting); a player card still does', !npc.npcBasicMode && npc.playerBasicMode);
 check('an NPC card says "Remove NPC from campaign"', /Remove NPC from campaign/.test(npc.npcRemoveLabel), npc.npcRemoveLabel);
 check('the NPC section offers "+ Add an NPC"', npc.addBtn === true);
 check('an NPC name is escaped (no injected markup)', npc.injected === false);
 check('with no NPCs yet the section still offers Add, with no cards', npc.noNpcsStillHasAdd === true);
-check('a campaign with only NPCs says "No player characters" and ticks nobody',
-      /No player characters/.test(npc.onlyNpcsEmptyText) && npc.onlyNpcsTickCount === 0, npc.onlyNpcsEmptyText);
+check('a campaign with only NPCs says "No player characters" and still lists its NPC in Award AP',
+      /No player characters/.test(npc.onlyNpcsEmptyText) && npc.onlyNpcsTickCount === 1, npc.onlyNpcsEmptyText);
 
 // feat/dm-roster-lock-icon: each character shows a locked/unlocked icon after its tier. Characters are imported
 // the way a DM imports a file (the hidden #fileInput) so the real analyser and renderers run. The state is the

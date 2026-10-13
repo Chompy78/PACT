@@ -1,4 +1,4 @@
-<!--**PACT-Live-Char-Sheet v1.660.html**-->
+<!--**PACT-Live-Char-Sheet v1.663.html**-->
 
 <!doctype html>
 <!--
@@ -2618,11 +2618,29 @@ function _lsDescBlock(b,opts){
   if(filled(ap.overall))n++; if(filled(ap.backstory))n++;
   var regen=ro?'':'<button type="button" class="btn g" style="padding:1px 7px;font-size:11px" onclick="lsRegenDesc()" title="Write the paragraph again from the fields below (the same writer as the Character Creator\'s 🪶 Auto-write)">🪶 Regenerate paragraph</button>';
   return '<details class="lsdesc" data-lshost="'+(opts.sheet?'sheetbody':'sheet')+'"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary><b>Appearance &amp; description</b> <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
-    +'<div class="lsdhd"><span>Description</span>'+regen+'</div>'
+    +'<div class="lsdhd"><span>Description</span>'+regen+_lsApCopyBtns(ro)+'</div>'
     +'<textarea rows="4" data-lsd="overall" onchange="_lsDescEdit(this)" aria-label="Description paragraph" placeholder="A one-paragraph description — write your own, or fill in the fields below and press 🪶 Regenerate paragraph."'+ro+'>'+E(ap.overall)+'</textarea>'
     +'<div class="lsdgrid">'+grid+'</div>'
     +'<div class="lsdhd"><span>Backstory &amp; notes</span></div>'
     +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea></details>';
+}
+// feat/appearance-copy-paste (AF1): copy every text appearance field to the clipboard / paste a copied one over this
+// character's (shared code: js/ui-helpers.js pactAppearanceCopy/pactAppearancePaste). Name, coins and weapons never travel.
+// Paste goes through the same writer as every other appearance edit; not offered in the DM read-only view or the past.
+function _lsApCopyBtns(ro){
+  var st=' style="padding:1px 7px;font-size:11px"';
+  return '<button type="button" class="btn g"'+st+' onclick="lsCopyAppearance()" title="Copy every appearance &amp; description field, to paste onto another character">📋 Copy appearance</button>'
+    +(ro?'':'<button type="button" class="btn g"'+st+' onclick="lsPasteAppearance()" title="Replace this character\'s appearance &amp; description with one you copied (you see the changes first; name, coins and weapons are kept)">📥 Paste appearance</button>');
+}
+function lsCopyAppearance(){ pactAppearanceCopy(foldBuild(null).appearance||{}); }
+function lsPasteAppearance(){
+  if(_viewOnlyBlock())return;
+  if(viewAt!=null){flash('Return to the present to paste an appearance.');return;}
+  pactAppearancePaste(foldBuild(null).appearance||{},function(merged){
+    var isNew=pactAppearanceIndex(LOG)<0;
+    LOG=pactWithAppearance(LOG,merged,{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
+    save();render();
+  });
 }
 // Commit one field. Deferred a tick so a Tab/click has already moved focus; render() rebuilds #sheet, so the field the
 // player moved to is re-focused afterwards (_lsDescRestoreFocus) instead of being lost mid-edit.

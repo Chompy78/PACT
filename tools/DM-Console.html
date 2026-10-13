@@ -665,11 +665,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 
           <div class="subtile" id="campAwardApTile">
             <div class="stitle">Award AP</div>
-            <div class="grantnote" style="margin-top:0;margin-bottom:8px">Tick whoever earned it, set an amount and a note, and award every ticked character the same AP at once &mdash; for a shared session reward instead of awarding each character one at a time on their own roster card below.</div>
+            <div class="grantnote" style="margin-top:0;margin-bottom:8px">Tick whoever earned it (your NPCs are listed after the players), set an amount and a note, and award every ticked character the same AP at once &mdash; for a shared session reward instead of awarding each character one at a time on their own roster card below.</div>
             <div class="rulegrid" id="campAwardApList"></div>
             <div id="campAwardApEmpty" style="display:none;font-size:11px;color:var(--muted)">No characters in this campaign yet.</div>
             <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0">
-              <button type="button" class="btn sm ghost" id="campAwardApSelAll">Select all</button>
+              <button type="button" class="btn sm ghost" id="campAwardApSelAll" title="Tick every player character (NPCs are left as they are)">Select all PCs</button>
               <button type="button" class="btn sm ghost" id="campAwardApSelNone">Select none</button>
             </div>
             <div class="award-form" style="margin-top:8px">
@@ -1349,14 +1349,15 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.660';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.663';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
                           // [{id, summary, hasData, campId, ownerId, player, ap, playerLabel, dmNotes}]
   // feat/campaign-npcs (D-GH-2026-10-11-campaign-npcs): the DM's own NPC rows, split off cloudRoster at load
-  // (window._dmRenderCloudRoster) so EVERY party-wide feature reading cloudRoster — the Award AP tick-list and its
-  // Select all, the table view, matrix/ledger overlays, counts — excludes them with no per-feature filter to forget.
+  // (window._dmRenderCloudRoster) so EVERY party-wide feature reading cloudRoster — the table view, matrix/ledger overlays,
+  // counts — excludes them with no per-feature filter to forget. One deliberate exception (feat/award-ap-npcs, owner request
+  // 2026-10-14): the Award AP tick-list ALSO lists cloudNpcs, after the players, marked data-npc; its "Select all PCs" skips them.
   // They render in their own "NPCs" section; per-card handlers find them through _cloudEntry().
   var cloudNpcs = [];
   function _cloudEntry(id){
@@ -2907,7 +2908,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     return '<div class="npc-section" style="margin-top:18px">' +
       '<div class="lbl" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">🎭 NPCs' +
         (cloudNpcs.length ? ' <span style="opacity:.7;font-weight:400">('+cloudNpcs.length+')</span>' : '') +
-        ' <button type="button" class="infobtn" title="Your own characters added to this campaign as NPCs. Add as many as you like, including several versions of one NPC (give each a distinct name, e.g. &quot;Bram Cotter Ch8-12&quot;). They get no starting AP — award AP to each one from its card. They are never in Award AP’s tick-list, the table view or the party overlays, and players cannot see them.">&#9432;</button>' +
+        ' <button type="button" class="infobtn" title="Your own characters added to this campaign as NPCs. Add as many as you like, including several versions of one NPC (give each a distinct name, e.g. &quot;Bram Cotter Ch8-12&quot;). They get no starting AP — award AP to each one from its card, or tick them in Award AP above (listed after the players; Select all PCs leaves them out). They are never in the table view or the party overlays, and players cannot see them.">&#9432;</button>' +
         ' <button type="button" class="btn sm ghost npc-add-open">+ Add an NPC</button></div>' +
       '<div class="npc-add-row" style="display:none;margin:6px 0"></div>' +
       (visible.length ? '<div class="cardgrid">' + visible.map(function(rec){ return cardFn(rec); }).join('') + '</div>' : '') +
@@ -3002,17 +3003,22 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var empty = document.getElementById('campAwardApEmpty');
     if(!el) return;
     var prevChecked = new Set(Array.prototype.slice.call(el.querySelectorAll('input:checked')).map(function(cb){ return cb.value; }));
-    if(!cloudRoster.length){
+    // feat/award-ap-npcs (owner request 2026-10-14): the campaign's NPCs are listed too, after the players and marked NPC,
+    // so a DM can give them a shared award here. "Select all PCs" never ticks them (data-npc="1").
+    var npcs = (typeof cloudNpcs !== 'undefined' && cloudNpcs) ? cloudNpcs : [];
+    if(!cloudRoster.length && !npcs.length){
       el.innerHTML = '';
       if(empty) empty.style.display = '';
       return;
     }
     if(empty) empty.style.display = 'none';
-    el.innerHTML = cloudRoster.map(function(rec){
+    var row = function(rec, npc){
       var nm = _rosterDisplayName(rec);
       var ck = prevChecked.has(String(rec.id)) ? ' checked' : '';
-      return '<label><input type="checkbox" class="campAwardApChk" value="'+esc(rec.id)+'"'+ck+'> '+esc(nm)+'</label>';
-    }).join('');
+      return '<label><input type="checkbox" class="campAwardApChk" value="'+esc(rec.id)+'"'+(npc?' data-npc="1"':'')+ck+'> '+esc(nm)+
+        (npc ? ' <span class="hint" style="font-size:10px;color:var(--muted)">NPC</span>' : '')+'</label>';
+    };
+    el.innerHTML = cloudRoster.map(function(rec){ return row(rec, false); }).join('') + npcs.map(function(rec){ return row(rec, true); }).join('');
   }
   window._dmAwardApChecked = function(){
     return Array.prototype.slice.call(document.querySelectorAll('#campAwardApList input:checked')).map(function(cb){ return cb.value; });
@@ -4657,7 +4663,7 @@ document.addEventListener('campaign-ready', function () {
   // (window._dmAwardApChecked bridges it, same reason window._campBridge/_peekBlocks are read off
   // window elsewhere in this file) since that's the only place cloudRoster is reachable from.
   if(campAwardApSelAll) campAwardApSelAll.addEventListener('click', function(){
-    document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = true; });
+    document.querySelectorAll('#campAwardApList input[type=checkbox]:not([data-npc])').forEach(function(cb){ cb.checked = true; });
   });
   if(campAwardApSelNone) campAwardApSelNone.addEventListener('click', function(){
     document.querySelectorAll('#campAwardApList input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
