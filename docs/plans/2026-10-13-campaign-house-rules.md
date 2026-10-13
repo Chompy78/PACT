@@ -416,3 +416,6 @@ charHouseRules: {
 - **M4 as built:** a buy-off's `targetSeq` must equal the seq of the purchase the engine's FIFO match cancels; only then does the
   server net that purchase's grant (−cost + ΣΔ). Untargeted buy-offs keep the old approximation. The Live Sheet stamps it in PR2.
 - PR3's migration, harness, apply order and residual risk: see the decision record's PR3 addendum.
+- **AB1 (owner, 2026-10-13):** the server gets its own drawback price list, generated from `js/engine-data.js`; a player
+  drawback grants `least(−cost + ΣΔ, effective value)` (pin > override > campaign > printed > 0, the engine's precedence), so a
+  forged cost or name mints nothing; a deleted custom falls back to printed or 0, matching the engine. See the decision record.

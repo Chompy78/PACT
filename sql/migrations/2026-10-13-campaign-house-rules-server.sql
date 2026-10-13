@@ -52,20 +52,29 @@
 --      not currently creation-locked · not in this campaign · an archived character. A target always PRECEDES the event
 --    (it is appended). A DM's own NPC is accepted, like every other DM write path (dm_edit_character_log, award_ap).
 --    M3: a reprice's `from` must equal the target's ledger grant (−cost + ΣΔ of earlier matched reprices) and `to` its new
---    effective value (DM pin > DM override > campaign charHouseRules); when none of those names it, the effective value is
---    the PRINTED one, which this database cannot know (it has no copy of js/engine-data.js and must not get one), so `to`
---    is then accepted within 0..1000 — the printed-value fallback the orchestrator asked for. amount = to − from always.
+--    effective value (DM pin > DM override > campaign charHouseRules > printed — the printed-value fallback when a
+--    campaign deletes a custom/repriced entry — and 0 for a name none of them knows), read from AB1's generated price list
+--    by the same pact_hr_drawback_effective() the ledger uses. amount = to − from always.
 -- 3. dm_edit_character_log() also accepts {type:'dmHouseRules', overrides} (same validator; campaignId stamped). Allowed
 --    on a creation draft (it is not a buy, so repriceDraft never touches it). The three AP-moving types stay refused there:
 --    they are RPC-only (orchestrator decision).
--- 4. Ledger (§6.4 + M1 + M4 + X1 + Z1). New pact_ap_ledger_split(log) -> (spent, award_earned, drawback_earned):
+-- 4. Ledger (§6.4 + M1 + M4 + X1 + Z1 + AB1). New pact_ap_ledger_split(log, charHouseRules, campaign) -> (spent, award_earned,
+--    drawback_earned):
 --      spent           buy (non-patch, non-drawback) + buyoff + names costs (unchanged) + dmRefundBoon.cost (matched)
 --      award_earned    award amounts (unchanged)
---      drawback_earned −cost of every drawback buy (unchanged) + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack
---                      (matched) − M4: the grant (−cost + ΣΔ) of each purchase a buyoff provably cancelled — a buyoff
---                      whose `targetSeq` equals the seq of the purchase js/engine.js's FIFO match cancels. A buyoff
---                      without one keeps the old approximation (its grant stays): more lenient, never a mint, since the
---                      buy-off itself cost 3x the value. The Live Sheet starts stamping targetSeq in PR2.
+--      drawback_earned PER PLAYER DRAWBACK PURCHASE (owner decision AB1, 2026-10-13):
+--                        least(−cost + ΣΔ of its matched dmRepriceDrawback events, its EFFECTIVE value)
+--                      where effective = DM pin > DM override for the character's current campaign > the campaign's
+--                      charHouseRules > the printed value (pact_drawback_printed, GENERATED from js/engine-data.js by
+--                      testing/scripts/gen-drawback-prices-sql.mjs; CI fails if they drift) > 0 for a name none of them
+--                      knows — exactly js/engine.js drawbackValue(), which is what the browser grants. So a forged
+--                      {buy, drawback, cost:-1000} grants its printed value at most, and a made-up name grants 0.
+--                      A held CUSTOM drawback the DM later deletes from the campaign falls back to its printed value, or 0
+--                      when it has none — the engine does the same, so browser and server agree.
+--                      0 for: a DM-imposed one (truthy dmEdit, cost >= 0), a DM-removed one (matched dmRemoveDrawback,
+--                      whatever its grantBack), and one a TARGETED buyoff cancelled (M4: targetSeq equals the seq of the
+--                      purchase js/engine.js's FIFO match cancels). An UNTARGETED buyoff leaves its purchase's grant in (the
+--                      old approximation): more lenient, never a mint, since the buy-off itself cost 3x the value.
 --    "matched" = DM-stamped (dmEdit = true) AND resolved to its target exactly as js/engine.js activeEvents().dmMatched
 --    resolves it (pact_hr_resolve: by targetSeq + name, unique, still held, finite amount) — PR #654 review. Every amount is
 --    read as Number(x) || 0 (pact_num), as the engine reads it, so a malformed cost string counts 0 instead of raising
@@ -153,6 +162,16 @@
 --      rollback;
 --    Expect new_left >= old_left except where a DM cap now applies; a new_left < 0 is a character who can still save but
 --    cannot buy until their DM awards AP.
+-- Q5 (AB1) who LOSES drawback AP against today's server: a player drawback stored at more than its printed value (a later
+--    rules bump lowered it, or a name no longer in the rules). The browser already grants only the printed value, so this
+--    brings the server into agreement; a CharGen cost-0 drawback (F4a) grants 0 before and after. Inside the same rolled-back
+--    dry run as Q3 (it needs pact_drawback_printed):
+--      select c.id, c.name, e#>>'{payload,v}' as drawback, -(e->>'cost')::numeric as stored, pact_drawback_printed(e#>>'{payload,v}') as printed
+--        from characters c, jsonb_array_elements(c.stats->'LOG') e
+--       where c.campaign_id is not null and e->>'type' = 'buy' and e->>'cat' = 'drawback'
+--         and not (coalesce(e->'dmEdit', 'false') <> 'false'::jsonb and coalesce((e->>'cost')::numeric, 0) >= 0)
+--         and -(coalesce((e->>'cost')::numeric, 0)) > coalesce(pact_drawback_printed(e#>>'{payload,v}'), 0);
+--    (No live campaign has charHouseRules yet (Q1), so printed is the effective value for every row.) Expect few or none.
 -- Q4 the drawback-cap settings the server will now enforce:
 --   select id, name, ignore_player_ap, rules->'drawbackCap' as drawback_cap, rules->'enforceApBudget' as enforce from campaigns order by name;
 -- =====================================================================================================================
@@ -447,56 +466,231 @@ returns numeric language sql immutable set search_path = public, pg_temp as $$
   select coalesce(public.pact_js_number(p), 0);
 $$;
 
-create or replace function public.pact_ap_ledger_split(p_log jsonb)
+-- AB1 (owner, 2026-10-13): the server's own copy of the PRINTED drawback values, generated from js/engine-data.js.
+-- testing/scripts/gen-drawback-prices-sql.mjs writes the block below; --check (sql-guards CI) fails if it drifts.
+-- BEGIN GENERATED pact_drawback_printed — testing/scripts/gen-drawback-prices-sql.mjs; do not edit by hand
+-- 109 printed drawbacks, js/engine-data.js rules v0.377. NULL = not a printed drawback.
+create or replace function public.pact_drawback_printed(p_name text)
+returns numeric language sql immutable set search_path = public, pg_temp as $$
+  select (('{"Addled Memory":2,
+    "Affliction — Clumsy (DEX)":2,
+    "Affliction — Dim-Willed (WIS)":2,
+    "Affliction — Dull-Witted (INT)":2,
+    "Affliction — Feeble (STR)":2,
+    "Affliction — Hollow (CHA)":2,
+    "Affliction — Sickly (CON)":2,
+    "Agoraphobic":2,
+    "Always Hungry":1,
+    "Asthmatic":2,
+    "Bad Back":1,
+    "Bad Knee":2,
+    "Bad Liar":2,
+    "Bad With Animals":1,
+    "Berserk Temper":4,
+    "Blunt":2,
+    "Borrowed Time":6,
+    "Brittle Bones":2,
+    "Burned Eye":4,
+    "Butterfingers":1,
+    "Can''t Swim":2,
+    "Claustrophobic":2,
+    "Code of Honour":3,
+    "Cold Heart":3,
+    "Compulsion":3,
+    "Conspicuous":2,
+    "Cracked Ribs":2,
+    "Crawling Things":1,
+    "Crushed Leg":3,
+    "Cursed Wealth":3,
+    "Dependent":3,
+    "Doppelganger":3,
+    "Echo":2,
+    "Faltering Resolve":3,
+    "Fear of Being Alone":2,
+    "Fear of the Dark":2,
+    "Fear of the Dead":1,
+    "Forgetful":1,
+    "Frail":4,
+    "Frightening Visage":3,
+    "Frostbitten Limbs":2,
+    "Geas of the Road":1,
+    "Glass Frame":5,
+    "Gun Shy":1,
+    "Hard of Hearing":2,
+    "Haunted / Phobia":2,
+    "Heavy Sleeper":1,
+    "Hexed Luck":8,
+    "Honest to a Fault":3,
+    "Hunted":4,
+    "Illiterate":1,
+    "Iron-Bane":4,
+    "Lame":3,
+    "Leaden Reflexes":6,
+    "Light-Blind":6,
+    "Lost Fingers":2,
+    "Maimed Hand":2,
+    "Mana Leak":2,
+    "Mana-Sick":2,
+    "Mangled Arm":4,
+    "Marked":3,
+    "Merciful":2,
+    "Missing Arm":5,
+    "Motion Sick":1,
+    "Mute":5,
+    "Nightmares":3,
+    "No Head for Heights":2,
+    "Not a Morning Person":1,
+    "Notorious":3,
+    "Oath of Poverty (permanent)":5,
+    "Old Wound":3,
+    "One-Eyed":4,
+    "Outsider":2,
+    "Overthinks Everything":1,
+    "Peg Leg":4,
+    "Prophesied Doom":4,
+    "Quick to Quarrel":1,
+    "Rattled Skull":2,
+    "Reckless":3,
+    "Resists Healing Magic":4,
+    "Ritual-Blind":2,
+    "Ruined Hearing":2,
+    "Scarred Throat":2,
+    "Scorched Lungs":2,
+    "Sensory Overload":2,
+    "Shattered Hand":2,
+    "Shell-Shocked":2,
+    "Slow Study":4,
+    "Slow to Mend":5,
+    "Slow-Footed":2,
+    "Sluggish":1,
+    "Snorer":1,
+    "Soul Debt":5,
+    "Squeamish":2,
+    "Suggestible":2,
+    "Superstitious":2,
+    "Sweaty Palms":1,
+    "Thin-Skinned":5,
+    "Torn Shoulder":2,
+    "Trembling Hands":2,
+    "Truename Known":3,
+    "Two Souls":5,
+    "Unwary":2,
+    "Vulnerable":6,
+    "Weak-Willed":5,
+    "Weather-Bringer":1,
+    "Wild Surge":3,
+    "Withered Arm":4,
+    "Wrenched Back":2}'::jsonb) ->> p_name)::numeric;
+$$;
+-- END GENERATED pact_drawback_printed
+
+-- pact_hr_drawback_effective(name, charHouseRules, override) — a drawback's CURRENT EFFECTIVE value for a campaign character,
+-- exactly js/engine.js drawbackValue() in a campaign context: DM pin > DM override > campaign charHouseRules > printed, and 0
+-- for a name none of them knows (a made-up or deleted custom drawback). A name that is an Object.prototype property reads as
+-- 0 in the engine (the table lookup finds the prototype's function, whose .ap is undefined), so it is 0 here too.
+create or replace function public.pact_hr_drawback_effective(p_name text, p_chr jsonb, p_ov jsonb)
+returns numeric language plpgsql immutable set search_path = public, pg_temp as $$
+declare
+  x jsonb;
+begin
+  if p_name is null then return 0; end if;
+  if p_name in ('__proto__', 'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString',
+                'toString', 'valueOf', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__') then
+    return 0;
+  end if;
+  if jsonb_typeof(p_ov) = 'object' then
+    x := p_ov -> 'pins' -> 'draws' -> p_name;
+    if jsonb_typeof(p_ov -> 'pins') = 'object' and jsonb_typeof(x) = 'object' and public.pact_js_number(x -> 'ap') is not null then
+      return public.pact_js_number(x -> 'ap');
+    end if;
+    x := p_ov -> 'draws' -> p_name;
+    if jsonb_typeof(x) = 'object' then return public.pact_num(x -> 'ap'); end if;
+  end if;
+  if jsonb_typeof(p_chr) = 'object' then
+    x := p_chr -> 'draws' -> p_name;
+    if jsonb_typeof(x) = 'object' then return public.pact_num(x -> 'ap'); end if;
+  end if;
+  return coalesce(public.pact_drawback_printed(p_name), 0);
+end;
+$$;
+
+-- pact_ap_ledger_split(log, charHouseRules?, campaign?) — see the header for the sums. Drawbacks are summed PER PURCHASE
+-- (AB1): a player drawback buy grants least(−cost + ΣΔ of its matched DM reprices, its effective value) — never more than
+-- the drawback is worth for this character today, so a forged cost or a made-up name buys nothing; a DM-imposed one
+-- (truthy dmEdit, cost >= 0) grants 0; a DM-removed one, or one a TARGETED buy-off cancelled (M4), grants 0; one an
+-- untargeted buy-off cancelled keeps its grant (the old, accepted approximation). Without p_chr/p_campaign (the
+-- pact_ap_ledger_spend wrapper) only printed values are known.
+create or replace function public.pact_ap_ledger_split(p_log jsonb, p_chr jsonb default null, p_campaign uuid default null)
 returns table(spent numeric, award_earned numeric, drawback_earned numeric)
 language plpgsql stable set search_path = public, pg_temp as $$
 declare
   ev jsonb;
-  o bigint;
+  v_log jsonb := case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end;
   v_spent numeric := 0;
   v_award numeric := 0;
   v_draw numeric := 0;
   v_need boolean := false;
   r jsonb; b record; p jsonb;
+  v_byord jsonb := '{}'; v_netted jsonb := '{}'; v_ov jsonb; v_g numeric; v_o bigint;
 begin
-  for ev in select * from jsonb_array_elements(case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end) loop
+  for ev in select * from jsonb_array_elements(v_log) loop
     if (ev->>'type') = 'award' then
       v_award := v_award + public.pact_num(ev->'amount');
     elsif (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'drawback' then
-      -- drawback cost is stored negative (a refund); js/engine.js's economy() negates it into earned.
-      v_draw := v_draw - public.pact_num(ev->'cost');
+      v_need := true;
     elsif (ev->>'type') in ('buyoff','names') or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch') then
       v_spent := v_spent + public.pact_num(ev->'cost');
-      if (ev->>'type') = 'buyoff' and (ev->>'targetSeq') is not null then v_need := true; end if;
-    elsif (ev->>'type') in ('dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback') and ev->'dmEdit' = 'true'::jsonb then
+    elsif (ev->>'type') = 'dmRefundBoon' and ev->'dmEdit' = 'true'::jsonb then
       v_need := true;
     end if;
   end loop;
-
-  if v_need then
-    r := public.pact_hr_resolve(p_log);
-    -- M1 + the PR #654 review: a DM house-rules AP event counts ONLY when it is DM-stamped AND resolves to its target exactly
-    -- as js/engine.js activeEvents() resolves it (dmMatched) — never unconditionally. Otherwise a player who managed to
-    -- un-match one (e.g. by renumbering its target) would keep a refund the browser no longer shows.
-    for b in select key::bigint as ord from jsonb_each(r -> 'matched') loop
-      ev := p_log -> (b.ord::int - 1);
-      if (ev->>'type') = 'dmRefundBoon' then
-        v_spent := v_spent + public.pact_num(ev->'cost');
-      elsif (ev->>'type') = 'dmRemoveDrawback' then
-        v_draw := v_draw - public.pact_num(ev->'grantBack');
-      else
-        v_draw := v_draw + public.pact_num(ev->'amount');
-      end if;
-    end loop;
-    -- M4: a buyoff that names (targetSeq) the purchase js/engine.js's FIFO match cancels takes that purchase's grant back
-    -- out: −cost + ΣΔ of the matched DM reprices of it (all of which precede the buyoff — a reprice after it matches nothing).
-    for b in select key::bigint as ord, value::int as n from jsonb_each_text(r -> 'buyoffs') loop
-      ev := p_log -> (b.ord::int - 1);
-      p := r -> 'purchases' -> (b.n - 1);
-      if (ev->>'targetSeq') is null or (p->>'seq') is null or (p->>'seq') <> (ev->>'targetSeq') then continue; end if;
-      v_draw := v_draw - (-public.pact_num(p->'cost') + (p->>'delta')::numeric);
-    end loop;
+  if not v_need then
+    spent := v_spent; award_earned := v_award; drawback_earned := 0;
+    return next; return;
   end if;
+
+  r := public.pact_hr_resolve(v_log);
+  -- M1 + the PR #654 review: a DM refund counts only when it MATCHED its target (js/engine.js dmMatched). Reprices and
+  -- removals act through the per-purchase grant below (delta / status), which pact_hr_resolve also builds from matches only.
+  for b in select key::bigint as ord from jsonb_each(r -> 'matched') loop
+    ev := v_log -> (b.ord::int - 1);
+    if (ev->>'type') = 'dmRefundBoon' then v_spent := v_spent + public.pact_num(ev->'cost'); end if;
+  end loop;
+  for p in select value from jsonb_array_elements(r -> 'purchases') loop
+    v_byord := v_byord || jsonb_build_object(p->>'ord', p);
+  end loop;
+  -- M4: a buyoff that names (targetSeq) the purchase js/engine.js's FIFO match cancels: that purchase grants nothing.
+  for b in select key::bigint as ord, value::int as n from jsonb_each_text(r -> 'buyoffs') loop
+    ev := v_log -> (b.ord::int - 1);
+    p := r -> 'purchases' -> (b.n - 1);
+    if (ev->>'targetSeq') is not null and (p->>'seq') is not null and (p->>'seq') = (ev->>'targetSeq') then
+      v_netted := v_netted || jsonb_build_object(p->>'ord', true);
+    end if;
+  end loop;
+  -- The character's DM override for its CURRENT campaign: the last DM-stamped dmHouseRules for that campaignId (js/engine.js
+  -- _replay: dmEdit === true, campaignId a string, overrides a plain object).
+  if p_campaign is not null then
+    select e -> 'overrides' into v_ov
+      from jsonb_array_elements(v_log) with ordinality as t(e, ord)
+     where jsonb_typeof(e) = 'object' and e->>'type' = 'dmHouseRules' and e->'dmEdit' = 'true'::jsonb
+       and jsonb_typeof(e->'campaignId') = 'string' and e->>'campaignId' = p_campaign::text
+       and jsonb_typeof(e->'overrides') = 'object'
+     order by ord desc limit 1;
+  end if;
+  for ev, v_o in select x.e, x.ord from jsonb_array_elements(v_log) with ordinality as x(e, ord) loop
+    if jsonb_typeof(ev) <> 'object' or (ev->>'type') is distinct from 'buy' or coalesce(ev->>'cat','') <> 'drawback' then continue; end if;
+    if public.pact_js_truthy(ev->'dmEdit') and public.pact_num(ev->'cost') >= 0 then continue; end if;   -- imposed: grants 0
+    p := v_byord -> (v_o::text);
+    if p is null then                                                   -- no payload.v: no name, worth 0
+      v_g := least(-public.pact_num(ev->'cost'), 0);
+    elsif p->>'status' = 'removed' or v_netted ? (v_o::text) then
+      v_g := 0;
+    else
+      v_g := least(-public.pact_num(ev->'cost') + (p->>'delta')::numeric,
+                   public.pact_hr_drawback_effective(p->>'name', p_chr, v_ov));
+    end if;
+    v_draw := v_draw + v_g;
+  end loop;
 
   spent := v_spent; award_earned := v_award; drawback_earned := v_draw;
   return next;
@@ -542,9 +736,9 @@ begin
   end if;
 
   select spent, award_earned, drawback_earned into v_new_spent, v_new_award, v_new_draw
-    from public.pact_ap_ledger_split(NEW.stats->'LOG');
+    from public.pact_ap_ledger_split(NEW.stats->'LOG', v_campaign.rules->'charHouseRules', NEW.campaign_id);
   select spent into v_old_spent
-    from public.pact_ap_ledger_split(OLD.stats->'LOG');
+    from public.pact_ap_ledger_split(OLD.stats->'LOG', v_campaign.rules->'charHouseRules', NEW.campaign_id);
 
   -- X1: a drawback's grant counts whether or not the campaign ignores player AP (only AWARDS are the player's to ignore).
   -- Z1: capped at the DM's drawback cap when they set one (js/campaign.js drawbackCapFromRules), uncapped otherwise.
@@ -1156,23 +1350,16 @@ begin
             raise exception 'PACT house rules: action % — from (%) is not the purchase''s current grant (%)', v_idx, v_from, v_grant;
           end if;
           -- M3 to: its effective value now — DM pin > DM override (the last DM-stamped snapshot for THIS campaign) >
-          -- campaign charHouseRules > printed. The printed value lives only in js/engine-data.js; when nothing here names
-          -- the drawback, `to` is accepted within 0..1000 (the printed-value fallback).
+          -- campaign charHouseRules > printed (AB1's generated price list), 0 for a name none of them knows: the same
+          -- pact_hr_drawback_effective() the ledger caps each grant at, so a tick always lands browser and server together.
           select e -> 'overrides' into v_ov
             from jsonb_array_elements(v_log) with ordinality as t(e, ord)
-           where e->>'type' = 'dmHouseRules' and e->'dmEdit' = 'true'::jsonb and e->>'campaignId' = p_campaign::text
+           where jsonb_typeof(e) = 'object' and e->>'type' = 'dmHouseRules' and e->'dmEdit' = 'true'::jsonb
+             and jsonb_typeof(e->'campaignId') = 'string' and e->>'campaignId' = p_campaign::text
              and jsonb_typeof(e->'overrides') = 'object'
            order by ord desc limit 1;
-          v_eff := null;
-          if jsonb_typeof(v_ov -> 'pins' -> 'draws' -> v_name) = 'object'
-             and public.pact_js_number(v_ov -> 'pins' -> 'draws' -> v_name -> 'ap') is not null then
-            v_eff := public.pact_js_number(v_ov -> 'pins' -> 'draws' -> v_name -> 'ap');
-          elsif jsonb_typeof(v_ov -> 'draws' -> v_name) = 'object' then
-            v_eff := coalesce(public.pact_js_number(v_ov -> 'draws' -> v_name -> 'ap'), 0);
-          elsif jsonb_typeof(v_chr -> 'draws' -> v_name) = 'object' then
-            v_eff := coalesce(public.pact_js_number(v_chr -> 'draws' -> v_name -> 'ap'), 0);
-          end if;
-          if v_eff is not null and v_to <> v_eff then
+          v_eff := public.pact_hr_drawback_effective(v_name, v_chr, v_ov);
+          if v_to <> v_eff then
             raise exception 'PACT house rules: action % — to (%) is not "%"''s effective value for this character (%)', v_idx, v_to, v_name, v_eff;
           end if;
           if v_amt <> v_to - v_from then
@@ -1208,7 +1395,9 @@ revoke all on function public.pact_hr_drawback_cap(jsonb)         from public, a
 revoke all on function public.pact_hr_entry_ok(text, jsonb, text) from public, anon;
 revoke all on function public.pact_hr_validate(jsonb, text)       from public, anon;
 revoke all on function public.pact_hr_resolve(jsonb)              from public, anon;
-revoke all on function public.pact_ap_ledger_split(jsonb)         from public, anon;
+revoke all on function public.pact_ap_ledger_split(jsonb, jsonb, uuid) from public, anon;
+revoke all on function public.pact_drawback_printed(text)          from public, anon;
+revoke all on function public.pact_hr_drawback_effective(text, jsonb, jsonb) from public, anon;
 revoke all on function public.pact_dm_family(jsonb)               from public, anon;
 grant execute on function public.pact_js_truthy(jsonb)               to authenticated;
 grant execute on function public.pact_js_number(jsonb)               to authenticated;
@@ -1217,7 +1406,9 @@ grant execute on function public.pact_hr_drawback_cap(jsonb)         to authenti
 grant execute on function public.pact_hr_entry_ok(text, jsonb, text) to authenticated;
 grant execute on function public.pact_hr_validate(jsonb, text)       to authenticated;
 grant execute on function public.pact_hr_resolve(jsonb)              to authenticated;
-grant execute on function public.pact_ap_ledger_split(jsonb)         to authenticated;
+grant execute on function public.pact_ap_ledger_split(jsonb, jsonb, uuid) to authenticated;
+grant execute on function public.pact_drawback_printed(text)          to authenticated;
+grant execute on function public.pact_hr_drawback_effective(text, jsonb, jsonb) to authenticated;
 grant execute on function public.pact_dm_family(jsonb)               to authenticated;
 revoke all on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb) from public, anon;
 grant execute on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb) to authenticated;

@@ -56,12 +56,15 @@ begin
   perform as_dm();
   return dm_apply_house_rules_change(camp(p_camp), p_chr, p_actions);
 end $$;
-create or replace function split(p_log jsonb) returns jsonb language plpgsql as $$
+create or replace function split(p_log jsonb, p_chr jsonb default null, p_camp uuid default null) returns jsonb language plpgsql as $$
 declare r record;
 begin
-  select * into r from pact_ap_ledger_split(p_log);
+  select * into r from pact_ap_ledger_split(p_log, p_chr, p_camp);
   return jsonb_build_array(r.spent, r.award_earned, r.drawback_earned);
 end $$;
+-- a character's ledger as its budget check sees it (its campaign's charHouseRules and id)
+create or replace function splitc(p_name text) returns jsonb language sql as $$
+  select split(c.stats->'LOG', cp.rules->'charHouseRules', c.campaign_id) from characters c join campaigns cp on cp.id = c.campaign_id where c.name = p_name $$;
 
 select as_admin();
 truncate characters, character_backups, campaign_dms, campaigns cascade;
@@ -77,12 +80,12 @@ insert into campaign_dms(campaign_id, dm_id) select id, dm_id from campaigns on 
 
 insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
 -- HOLD: a finished character with a player boon, two player drawbacks, a DM-granted boon (buy + award pair), an imposed
--- locked drawback, then the lock and one in-play buy. Ledger: spent 6+12+1 = 19; awards 79+12; drawbacks 5+3.
+-- locked drawback, then the lock and one in-play buy. Ledger: spent 6+12+1 = 19; awards 79+12; drawbacks 5+2 (printed).
  ('a0000000-0000-0000-0000-000000000001', camp(1), 'hold', 'livesheet', 0, '{"SEQ":10,"LOG":[
    {"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"boon","cost":6,"payload":{"v":"Alertness"}},
    {"seq":3,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
-   {"seq":4,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Squeamish"}},
+   {"seq":4,"type":"buy","cat":"drawback","cost":-2,"payload":{"v":"Squeamish"}},
    {"seq":5,"type":"buy","cat":"boon","cost":12,"payload":{"v":"Lucky"},"dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"},
    {"seq":6,"type":"award","amount":12,"note":"DM boon grant","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"},
    {"seq":7,"type":"buy","cat":"drawback","cost":0,"payload":{"v":"Hexed"},"dmEdit":true,"dmLocked":true,"dmId":"d0000000-0000-0000-0000-000000000001"},
@@ -102,10 +105,10 @@ insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
 -- BOFF: Squeamish taken (seq 2), bought off, taken again (seq 5, open). A boon removed by the DM (dmRemoveBoon, seq 7).
  ('a0000000-0000-0000-0000-000000000004', camp(1), 'boff', 'livesheet', 0, '{"SEQ":9,"LOG":[
    {"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},
-   {"seq":2,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Squeamish"}},
+   {"seq":2,"type":"buy","cat":"drawback","cost":-2,"payload":{"v":"Squeamish"}},
    {"seq":3,"type":"creationLocked"},
-   {"seq":4,"type":"buyoff","refVal":"Squeamish","cost":9},
-   {"seq":5,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Squeamish"}},
+   {"seq":4,"type":"buyoff","refVal":"Squeamish","cost":6},
+   {"seq":5,"type":"buy","cat":"drawback","cost":-2,"payload":{"v":"Squeamish"}},
    {"seq":6,"type":"buy","cat":"boon","cost":6,"payload":{"v":"Alertness"}},
    {"seq":7,"type":"dmRemoveBoon","refVal":"Alertness","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"},
    {"seq":8,"type":"buy","cat":"boon","cost":6,"payload":{"v":"Bulwark"}}]}'),
@@ -119,24 +122,24 @@ insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
    {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
    {"seq":3,"type":"creationLocked"}]}'),
--- CAP4 / CAPOFF: 8 AP of drawbacks, no awards, no DM AP; the DM's cap is 4 (on) / 4 but switched off.
+-- CAP4 / CAPOFF: 7 AP of drawbacks, no awards, no DM AP; the DM's cap is 4 (on) / 4 but switched off.
  ('a0000000-0000-0000-0000-000000000007', camp(3), 'cap4', 'livesheet', 0, '{"SEQ":5,"LOG":[
    {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
-   {"seq":3,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Squeamish"}},
+   {"seq":3,"type":"buy","cat":"drawback","cost":-2,"payload":{"v":"Squeamish"}},
    {"seq":4,"type":"creationLocked"}]}'),
  ('a0000000-0000-0000-0000-000000000008', camp(4), 'capoff', 'livesheet', 0, '{"SEQ":5,"LOG":[
    {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
-   {"seq":3,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Squeamish"}},
+   {"seq":3,"type":"buy","cat":"drawback","cost":-2,"payload":{"v":"Squeamish"}},
    {"seq":4,"type":"creationLocked"}]}'),
--- NOCAP: a campaign with no drawbackCap key at all, 20 AP of drawbacks (more than DATA.drawbackCap 12).
+-- NOCAP: a campaign with no drawbackCap key at all, 21 AP of drawbacks at their printed values (more than DATA.drawbackCap 12).
  ('a0000000-0000-0000-0000-000000000009', camp(1), 'nocap', 'livesheet', 0, '{"SEQ":7,"LOG":[
    {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
-   {"seq":3,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Light-Blind"}},
-   {"seq":4,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Iron-Bane"}},
-   {"seq":5,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Leaden Reflexes"}},
+   {"seq":3,"type":"buy","cat":"drawback","cost":-6,"payload":{"v":"Light-Blind"}},
+   {"seq":4,"type":"buy","cat":"drawback","cost":-4,"payload":{"v":"Iron-Bane"}},
+   {"seq":5,"type":"buy","cat":"drawback","cost":-6,"payload":{"v":"Leaden Reflexes"}},
    {"seq":6,"type":"creationLocked"}]}'),
 -- WITHDM: already carries DM house-rules events (written as admin, so BEFORE and AFTER see the same row): a refund of
 -- Bulwark (seq 5) and an override snapshot. Ledger after: spent 6+6-6+1 = 7.
@@ -275,7 +278,7 @@ select t('target: two purchases share seq+name (ambiguous)', 'refused', 'fail', 
 select t('target: already bought off', 'refused', 'fail', $b$ select hr(1, null, jsonb_build_array(act('removeDrawback', 'boff', '{"name":"Squeamish","targetSeq":2}'))) $b$, '%no longer held (boughtOff)%');
 select t('target: the retaken copy after a buy-off IS open', 'allowed', 'fail', $b$
   select hr(1, null, jsonb_build_array(act('removeDrawback', 'boff', '{"name":"Squeamish","targetSeq":5}')));
-  select ok(lastev('boff')->>'grantBack' = '3', 'grantBack 3') $b$);
+  select ok(lastev('boff')->>'grantBack' = '2', 'grantBack 2') $b$);
 select t('target: a boon the DM removed (dmRemoveBoon, FIFO)', 'refused', 'fail', $b$ select hr(1, null, jsonb_build_array(act('refundBoon', 'boff', '{"name":"Alertness","targetSeq":6}'))) $b$, '%no longer held (dmRemoved)%');
 select t('target: a boon already refunded', 'refused', 'fail', $b$ select hr(1, null, jsonb_build_array(act('refundBoon', 'withdm', '{"name":"Bulwark","targetSeq":5}'))) $b$, '%no longer held (refunded)%');
 select t('target: removed twice in one call', 'refused', 'fail', $b$
@@ -321,10 +324,13 @@ select t('reprice: stamped dmRepriceDrawback, server ledger +2', 'allowed', 'fai
   select as_admin();
   select ok(lastev('hold') - 'ts' - 'label' = '{"type":"dmRepriceDrawback","refVal":"Slow to Mend","targetSeq":3,"amount":2,"from":5,"to":7,"campaignId":"c1000000-0000-0000-0000-000000000001","seq":10,"dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}'::jsonb, 'event ' || lastev('hold')::text);
   select ok((select (stats->>'SEQ')::int = 11 from characters where name = 'hold'), 'SEQ advanced');
-  select ok(split(logof('hold')) = '[19, 91, 10]', 'ledger ' || split(logof('hold'))::text) $b$);
-select t('reprice: the printed-value fallback (nothing names the drawback) accepts to', 'allowed', 'fail', $b$
-  select hr(1, null, jsonb_build_array(act('reprice', 'hold', '{"name":"Squeamish","targetSeq":4,"amount":6,"from":3,"to":9}')));
-  select as_admin(); select ok(lastev('hold')->>'to' = '9', 'stamped') $b$);
+  select ok(splitc('hold') = '[19, 91, 9]', 'ledger ' || splitc('hold')::text) $b$);
+select t('reprice: the printed-value fallback — the campaign deletes its reprice, the holder is ticked back to printed 5', 'allowed', 'fail', $b$
+  select hr(1, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":2,"from":5,"to":7}')));
+  select hr(1, '{}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":-2,"from":7,"to":5}')));
+  select as_admin(); select ok(lastev('hold')->>'to' = '5', 'stamped'); select ok(splitc('hold') = '[19, 91, 7]', 'ledger ' || splitc('hold')::text) $b$);
+select t('reprice M3 (AB1): with nothing naming it, to must be the PRINTED value (now known to the server)', 'refused', 'fail', $b$
+  select hr(1, null, jsonb_build_array(act('reprice', 'hold', '{"name":"Squeamish","targetSeq":4,"amount":7,"from":2,"to":9}'))) $b$, '%effective value for this character (2)%');
 select t('reprice: to the pin value when the DM pinned it', 'allowed', 'fail', $b$
   select hr(1, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('pin', 'hold', '{"overrides":{"pins":{"draws":{"Slow to Mend":{"ap":6,"reason":"kept","at":"2026-10-13"}}}}}'),
     act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":1,"from":5,"to":6}')));
@@ -336,15 +342,15 @@ select t('reprice then remove in ONE call: grantBack = −cost + ΣΔ (M4)', 'al
   select hr(1, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":2,"from":5,"to":7}'),
     act('removeDrawback', 'hold', '{"name":"Slow to Mend","targetSeq":3}')));
   select as_admin(); select ok(lastev('hold')->>'grantBack' = '7', 'grantBack 7');
-  select ok(split(logof('hold')) = '[19, 91, 3]', 'ledger ' || split(logof('hold'))::text) $b$);
+  select ok(splitc('hold') = '[19, 91, 2]', 'ledger ' || splitc('hold')::text) $b$);
 select t('a second reprice chains: from includes the first Δ', 'allowed', 'fail', $b$
   select hr(1, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":2,"from":5,"to":7}')));
   select hr(1, '{"draws":{"Slow to Mend":{"ap":2}}}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":-5,"from":7,"to":2}')));
-  select as_admin(); select ok(split(logof('hold')) = '[19, 91, 5]', 'ledger ' || split(logof('hold'))::text) $b$);
+  select as_admin(); select ok(splitc('hold') = '[19, 91, 4]', 'ledger ' || splitc('hold')::text) $b$);
 select t('refund: dmRefundBoon cost = −frozen cost; spent drops', 'allowed', 'fail', $b$
   select hr(1, '{"dmAllows":{"boons":false}}', jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2,"cost":-500}')));
   select as_admin(); select ok(lastev('hold')->>'cost' = '-6', 'cost -6, not the client''s');
-  select ok(split(logof('hold')) = '[13, 91, 8]', 'ledger ' || split(logof('hold'))::text) $b$);
+  select ok(splitc('hold') = '[13, 91, 7]', 'ledger ' || splitc('hold')::text) $b$);
 select t('override/pin: a dmHouseRules event, campaignId stamped by the server', 'allowed', 'fail', $b$
   select hr(1, null, jsonb_build_array(act('override', 'draft', '{"overrides":{"boons":{"Shiny":{"hd":1,"ap":2}}},"campaignId":"c1000000-0000-0000-0000-000000000005"}')));
   select as_admin(); select ok(lastev('draft')->>'type' = 'dmHouseRules' and lastev('draft')->>'campaignId' = camp(1)::text
@@ -353,12 +359,12 @@ select t('the RPC returns what it wrote', 'allowed', 'fail', $b$
   select ok((select r->'charHouseRules' = '{"draws":{"Slow to Mend":{"ap":7}}}' and jsonb_array_length(r->'events') = 1
     and r->'events'->0->>'character' = chid('hold')::text
     from (select hr(1, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('reprice', 'hold', '{"name":"Slow to Mend","targetSeq":3,"amount":2,"from":5,"to":7}'))) as r) x), 'return') $b$);
-select t('after a refund the player can spend the refunded AP (80 left + 6 refunded = 86)', 'allowed', 'fail', $b$
+select t('after a refund the player can spend the refunded AP (79 left + 6 refunded = 85)', 'allowed', 'fail', $b$
   select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
-  select owner_append('hold', '{"seq":11,"type":"buy","cat":"boon","cost":86,"payload":{"v":"Bulwark"}}') $b$);
-select t('…but not one AP more (87)', 'refused', 'pass', $b$
+  select owner_append('hold', '{"seq":11,"type":"buy","cat":"boon","cost":85,"payload":{"v":"Bulwark"}}') $b$);
+select t('…but not one AP more (86)', 'refused', 'pass', $b$
   do $d$ begin perform hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}'))); exception when others then null; end $d$;
-  select owner_append('hold', '{"seq":11,"type":"buy","cat":"boon","cost":87,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
+  select owner_append('hold', '{"seq":11,"type":"buy","cat":"boon","cost":86,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
 
 -- =====================================================================================================================
 -- 5. dm_edit_character_log and dmHouseRules
@@ -387,22 +393,22 @@ select t('ledger: split sums, dmEdit-only counting of the new events', 'allowed'
     {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":2,"dmEdit":true},
     {"type":"dmRefundBoon","refVal":"B","targetSeq":2,"cost":-40},
     {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":20,"dmEdit":"true"},
-    {"type":"dmRemoveDrawback","refVal":"A","targetSeq":1,"grantBack":-30,"dmEdit":1}]') = '[0, 10, 7]', 'sums') $b$);
+    {"type":"dmRemoveDrawback","refVal":"A","targetSeq":1,"grantBack":-30,"dmEdit":1}]', '{"draws":{"A":{"ap":7}}}') = '[0, 10, 7]', 'sums') $b$);
 select t('ledger M4: a targeted buyoff nets out the grant incl. ΣΔ', 'allowed', 'fail', $b$
   select ok(split('[{"type":"award","amount":10},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},
     {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":2,"dmEdit":true},
     {"type":"buyoff","refVal":"A","targetSeq":1,"cost":21}]') = '[21, 10, 0]', 'netted') $b$);
 select t('ledger M4: an untargeted buyoff keeps the grant (old approximation)', 'allowed', 'fail', $b$
   select ok(split('[{"type":"award","amount":10},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},
-    {"type":"buyoff","refVal":"A","cost":15}]') = '[15, 10, 5]', 'kept') $b$);
+    {"type":"buyoff","refVal":"A","cost":15}]', '{"draws":{"A":{"ap":5}}}') = '[15, 10, 5]', 'kept') $b$);
 select t('ledger M4: a targetSeq that is NOT the purchase FIFO cancels nets nothing', 'allowed', 'fail', $b$
   select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-4,"seq":2},
-    {"type":"buyoff","refVal":"A","targetSeq":2,"cost":12}]') = '[12, 0, 9]', 'not netted') $b$);
+    {"type":"buyoff","refVal":"A","targetSeq":2,"cost":12}]', '{"draws":{"A":{"ap":5}}}') = '[12, 0, 9]', 'not netted') $b$);
 select t('ledger M4: the second buyoff of two copies nets the second', 'allowed', 'fail', $b$
   select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-4,"seq":2},
     {"type":"buyoff","refVal":"A","targetSeq":1,"cost":15},{"type":"buyoff","refVal":"A","targetSeq":2,"cost":12}]') = '[27, 0, 0]', 'both netted') $b$);
 select t('ledger: pact_ap_ledger_spend keeps its shape (player_earned = awards + drawbacks)', 'allowed', 'pass', $b$
-  select ok((select spent = 4 and player_earned = 15 from pact_ap_ledger_spend('[{"type":"award","amount":10},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5},{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4}]')), 'shape') $b$);
+  select ok((select spent = 4 and player_earned = 15 from pact_ap_ledger_spend('[{"type":"award","amount":10},{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":-5},{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4}]')), 'shape') $b$);
 select t('budget M4: buying off with targetSeq cannot spend the grant it cancels', 'refused', 'fail', $b$
   select owner_append('tb', '{"seq":4,"type":"buyoff","refVal":"Slow to Mend","targetSeq":2,"cost":15}') $b$, 'PACT: over AP budget%');
 select t('budget M4: the same buyoff within budget is fine', 'allowed', 'pass', $b$
@@ -413,15 +419,15 @@ select t('budget X1: an ignore-player-AP campaign counts the drawback grant (10 
   select owner_append('ign', '{"seq":4,"type":"buy","cat":"boon","cost":15,"payload":{"v":"Bulwark"}}') $b$);
 select t('budget X1: …but not more than that', 'refused', 'pass', $b$
   select owner_append('ign', '{"seq":4,"type":"buy","cat":"boon","cost":16,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
-select t('budget Z1: the DM''s cap (4) limits the 8 AP of drawbacks', 'refused', 'fail', $b$
+select t('budget Z1: the DM''s cap (4) limits the 7 AP of drawbacks', 'refused', 'fail', $b$
   select owner_append('cap4', '{"seq":5,"type":"buy","cat":"boon","cost":5,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
 select t('budget Z1: within the cap', 'allowed', 'pass', $b$
   select owner_append('cap4', '{"seq":5,"type":"buy","cat":"boon","cost":4,"payload":{"v":"Bulwark"}}') $b$);
-select t('budget Z1: the cap switched OFF — no cap (all 8)', 'allowed', 'pass', $b$
-  select owner_append('capoff', '{"seq":5,"type":"buy","cat":"boon","cost":8,"payload":{"v":"Bulwark"}}') $b$);
+select t('budget Z1: the cap switched OFF — no cap (all 7)', 'allowed', 'pass', $b$
+  select owner_append('capoff', '{"seq":5,"type":"buy","cat":"boon","cost":7,"payload":{"v":"Bulwark"}}') $b$);
 select t('budget Z1: cap off, still not more than the grant', 'refused', 'pass', $b$
-  select owner_append('capoff', '{"seq":5,"type":"buy","cat":"boon","cost":9,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
-select t('budget Z1: no drawbackCap key — no cap, not DATA.drawbackCap (20 > 12)', 'allowed', 'pass', $b$
+  select owner_append('capoff', '{"seq":5,"type":"buy","cat":"boon","cost":8,"payload":{"v":"Bulwark"}}') $b$, 'PACT: over AP budget%');
+select t('budget Z1: no drawbackCap key — no cap, not DATA.drawbackCap (20 of 21 > 12)', 'allowed', 'pass', $b$
   select owner_append('nocap', '{"seq":7,"type":"buy","cat":"boon","cost":20,"payload":{"v":"Bulwark"}}') $b$);
 select t('budget: a DM reprice moves the server''s grant (ign: +2)', 'allowed', 'fail', $b$
   select hr(2, '{"draws":{"Slow to Mend":{"ap":7}}}', jsonb_build_array(act('reprice', 'ign', '{"name":"Slow to Mend","targetSeq":2,"amount":2,"from":5,"to":7}')));
@@ -482,7 +488,7 @@ select t('honest: player buys off the DM-imposed drawback after the DM unlocked 
   select as_dm(); select dm_edit_character_log(chid('hold'), '[{"type":"dmUnlockDrawback","refVal":"Hexed","targetSeq":7,"note":"the curse lifts"}]');
   select owner_append('hold', '{"seq":11,"type":"buyoff","refVal":"Hexed","cost":0}') $b$);
 select t('honest: player appends a targeted buyoff (PR2 Live Sheet shape)', 'allowed', 'pass', $b$
-  select owner_append('hold', '{"seq":10,"type":"buyoff","refVal":"Squeamish","targetSeq":4,"cost":9}') $b$);
+  select owner_append('hold', '{"seq":10,"type":"buyoff","refVal":"Squeamish","targetSeq":4,"cost":6}') $b$);
 
 -- DM paths keep working with every new trigger on
 select t('DM: award_ap', 'allowed', 'pass', $b$ select as_dm(); select award_ap(chid('hold'), 25, 'session 2') $b$);
@@ -525,7 +531,7 @@ select t('ATK1 (b): an un-matched DM refund counts NOTHING in the server ledger 
   select ok(split('[{"type":"award","amount":10},{"type":"buy","cat":"boon","payload":{"v":"Bulwark"},"cost":10,"seq":200},
     {"type":"dmRefundBoon","refVal":"Bulwark","targetSeq":2,"cost":-10,"dmEdit":true}]') = '[10, 10, 0]', 'refund not counted');
   select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},
-    {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":9,"dmEdit":true}]') = '[0, 0, 10]', 'ambiguous reprice not counted');
+    {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":9,"dmEdit":true}]', '{"draws":{"A":{"ap":5}}}') = '[0, 0, 10]', 'ambiguous reprice not counted');
   select ok(split('[{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4,"seq":1},{"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":"Infinity","dmEdit":true}]') = '[4, 0, 0]', 'non-finite not counted');
   select ok(split('[{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4,"seq":1},{"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":-4,"dmEdit":true},
     {"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":-4,"dmEdit":true}]') = '[0, 0, 0]', 'a second refund of one purchase not counted') $b$);
@@ -534,9 +540,9 @@ select t('ATK7: renumbering a purchase inside the frozen prefix (before an award
 select t('ATK7: …a buyoff''s seq too', 'refused', 'fail', $b$
   select as_admin(); update characters set stats = jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":9,"type":"award","amount":1}]'::jsonb) || '{"SEQ":10}' where name = 'boff';
   select owner_upd('boff', $e$ jsonb_set(stats, '{LOG,3,seq}', '444') $e$) $b$, 'PACT: locked character history%');
-select t('KNOWN GAP — owner decision AB pending (ATK2): ignore-mode player appends a -1000 drawback and spends it', 'allowed', 'fail', $b$
+select t('ATK2 / AB1: an ignore-mode player''s forged -1000 drawback (made-up name) grants nothing', 'refused', 'pass', $b$
   select owner_append('ig3', '{"seq":3,"type":"buy","cat":"drawback","cost":-1000,"payload":{"v":"Fake"}}');
-  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$);
+  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$, 'PACT: over AP budget%');
 select t('ATK5: a draft rebuild that drops a DM override (CharGen Randomise shape) is refused', 'refused', 'fail', $b$
   select as_dm(); select dm_edit_character_log(chid('drhr'), '[{"type":"dmHouseRules","overrides":{}}]');
   select owner_upd('drhr', $e$ jsonb_set(stats, '{LOG}', '[{"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},{"seq":2,"type":"buy","cat":"boon","cost":7,"payload":{"v":"Bulwark"}}]') $e$) $b$, 'PACT: only your DM%');
@@ -562,4 +568,47 @@ select t('RPC: a DM''s own NPC is accepted, like every other DM write path', 'al
 select t('a malformed cost string counts 0 instead of blocking every save (Number(x)||0, as the engine reads it)', 'allowed', 'fail', $b$
   select owner_append('tb', '{"seq":4,"type":"buy","cat":"skill","cost":"abc","payload":{"v":"Arcana"}}');
   select owner_upd('tb', $e$ stats || '{"name":"again"}'::jsonb $e$) $b$);
+-- =====================================================================================================================
+-- 10. AB1 (owner, 2026-10-13): a player drawback grants at most its EFFECTIVE value; an unknown name grants nothing
+-- =====================================================================================================================
+select t('AB1 price list: pact_drawback_printed knows the printed values (generated from js/engine-data.js)', 'allowed', 'fail', $b$
+  select ok(pact_drawback_printed('Slow to Mend') = 5 and pact_drawback_printed('Peg Leg') = 4 and pact_drawback_printed('Fake') is null, 'printed') $b$);
+select t('AB1: in a campaign that counts player AP, an inflated real drawback no longer mints AP (tb: 10 + 5 + 5, not + 500)', 'refused', 'fail', $b$
+  select owner_append('tb', '{"seq":4,"type":"buy","cat":"drawback","cost":-500,"payload":{"v":"Slow to Mend"}}');
+  select owner_append('tb', '{"seq":5,"type":"buy","cat":"boon","cost":100,"payload":{"v":"Lucky"}}') $b$, 'PACT: over AP budget%');
+select t('AB1: a real name at an inflated cost grants its printed value (ign: 10 DM + 5, not 10 + 500)', 'refused', 'pass', $b$
+  select owner_append('ig3', '{"seq":3,"type":"buy","cat":"drawback","cost":-500,"payload":{"v":"Slow to Mend"}}');
+  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":16,"payload":{"v":"Lucky"}}') $b$, 'PACT: over AP budget%');
+select t('AB1: …and that printed value IS spendable (15)', 'allowed', 'fail', $b$
+  select owner_append('ig3', '{"seq":3,"type":"buy","cat":"drawback","cost":-500,"payload":{"v":"Slow to Mend"}}');
+  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":15,"payload":{"v":"Lucky"}}') $b$);
+select t('AB1: a CharGen cost-0 drawback (F4a) grants 0, as today', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":0,"seq":1}]') = '[0, 0, 0]', 'zero') $b$);
+select t('AB1: a campaign CUSTOM drawback grants its campaign value; deleted from the campaign it grants 0 (engine: no entry, no printed value)', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Hexed Custom"},"cost":-4,"seq":1}]', '{"draws":{"Hexed Custom":{"ap":4}}}') = '[0, 0, 4]', 'custom');
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Hexed Custom"},"cost":-4,"seq":1}]', '{}') = '[0, 0, 0]', 'deleted') $b$);
+select t('AB1: a deleted campaign REPRICE of a printed drawback falls back to the printed value', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":-9,"seq":1}]', '{}') = '[0, 0, 5]', 'printed') $b$);
+select t('AB1: precedence pin > DM override (this campaign only) > campaign > printed', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"X"},"cost":-9,"seq":1},
+      {"type":"dmHouseRules","dmEdit":true,"campaignId":"c1000000-0000-0000-0000-000000000001","overrides":{"draws":{"X":{"ap":6}}}}]', '{"draws":{"X":{"ap":3}}}', camp(1)) = '[0, 0, 6]', 'override');
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"X"},"cost":-9,"seq":1},
+      {"type":"dmHouseRules","dmEdit":true,"campaignId":"c1000000-0000-0000-0000-000000000005","overrides":{"draws":{"X":{"ap":6}}}}]', '{"draws":{"X":{"ap":3}}}', camp(1)) = '[0, 0, 3]', 'another campaign''s override ignored');
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"X"},"cost":-9,"seq":1},
+      {"type":"dmHouseRules","dmEdit":true,"campaignId":"c1000000-0000-0000-0000-000000000001","overrides":{"draws":{"X":{"ap":6}},"pins":{"draws":{"X":{"ap":2}}}}}]', '{"draws":{"X":{"ap":3}}}', camp(1)) = '[0, 0, 2]', 'pin');
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"X"},"cost":-9,"seq":1},
+      {"type":"dmHouseRules","campaignId":"c1000000-0000-0000-0000-000000000001","overrides":{"draws":{"X":{"ap":6}}}}]', '{"draws":{"X":{"ap":3}}}', camp(1)) = '[0, 0, 3]', 'override without dmEdit ignored') $b$);
+select t('AB1: an imposed drawback grants 0; a DM-stamped one with a negative cost grants normally', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":0,"dmEdit":true},{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":3,"dmEdit":true},
+      {"type":"buy","cat":"drawback","payload":{"v":"Peg Leg"},"cost":-4,"dmEdit":true}]') = '[0, 0, 4]', 'imposed 0') $b$);
+select t('AB1: an Object.prototype name, or no name at all, grants 0', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"toString"},"cost":-5},{"type":"buy","cat":"drawback","payload":{"v":"constructor"},"cost":-5},
+      {"type":"buy","cat":"drawback","payload":{},"cost":-5}]', '{"draws":{}}') = '[0, 0, 0]', 'zero') $b$);
+select t('AB1: a removed drawback grants 0 whatever grantBack says', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"Slow to Mend"},"cost":-5,"seq":1},
+      {"type":"dmRemoveDrawback","refVal":"Slow to Mend","targetSeq":1,"grantBack":-100,"dmEdit":true}]') = '[0, 0, 0]', 'removed') $b$);
+select t('AB1 budget: a campaign custom drawback is spendable in its campaign (RPC-written rules)', 'allowed', 'fail', $b$
+  select hr(2, '{"draws":{"Hexed Custom":{"ap":4}}}', '[]');
+  select owner_append('ig3', '{"seq":3,"type":"buy","cat":"drawback","cost":-4,"payload":{"v":"Hexed Custom"}}');
+  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":14,"payload":{"v":"Lucky"}}') $b$);
 select as_admin();

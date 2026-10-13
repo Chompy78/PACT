@@ -25,7 +25,9 @@ on:
       - "testing/scripts/creation-lock-guard-test/**"
       - "testing/scripts/house-rules-ledger-ci.mjs"
       - "js/engine.js"
+      - "js/engine-data.js"
       - "js/campaign.js"
+      - "testing/scripts/gen-drawback-prices-sql.mjs"
       - ".github/workflows/sql-guards.yml"
   workflow_dispatch:
 
@@ -109,5 +111,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: The server's drawback price list matches js/engine-data.js (AB1)
+        run: node testing/scripts/gen-drawback-prices-sql.mjs --check
       - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
         run: testing/scripts/creation-lock-guard-test/run-house-rules.sh

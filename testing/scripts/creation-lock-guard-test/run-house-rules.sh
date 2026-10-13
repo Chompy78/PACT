@@ -23,7 +23,7 @@ docker cp drawback-cap-shapes.json "$C":/tmp/caps.json >/dev/null
 
 CHANGED="'public.pact_ap_ledger_spend(jsonb)','public.pact_enforce_ap_budget_consistency()','public.pact_ap_ledger_protected(jsonb)','public.pact_enforce_locked_history()','public.dm_edit_character_log(uuid,jsonb)'"
 defs() { psqlc -At -c "select string_agg(f || '=' || md5(pg_get_functiondef(f::regprocedure)), ' ' order by f) from unnest(array[$CHANGED]) f"; }
-added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('dm_apply_house_rules_change','pact_enforce_dm_family','pact_guard_char_house_rules','pact_dm_family','pact_ap_ledger_split','pact_hr_resolve','pact_hr_validate','pact_hr_entry_ok','pact_hr_drawback_cap','pact_js_number','pact_js_truthy','pact_num'))
+added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('dm_apply_house_rules_change','pact_enforce_dm_family','pact_guard_char_house_rules','pact_dm_family','pact_ap_ledger_split','pact_hr_resolve','pact_hr_validate','pact_hr_entry_ok','pact_hr_drawback_cap','pact_js_number','pact_js_truthy','pact_num','pact_drawback_printed','pact_hr_drawback_effective'))
   + (select count(*) from pg_trigger where tgname in ('trg_pact_dm_family_guard','trg_pact_guard_char_house_rules'))"; }
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 mispredicted() { psqlc -At -F ' | ' -c "select before, verdict, got, name from res where (verdict = 'PASS') <> (before = 'pass') order by n" | cut -c1-240; }
@@ -40,7 +40,7 @@ echo "=== applying $M/2026-10-13-campaign-house-rules-server.sql ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server.sql"
 psqlc < house-rules-cases.sql >/dev/null; echo "AFTER: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-260; echo "FAILED"; exit 1; }
-[ "$(added)" = "14" ] || { echo "EXPECTED 12 functions + 2 triggers after the migration, found $(added)"; exit 1; }
+[ "$(added)" = "16" ] || { echo "EXPECTED 14 functions + 2 triggers after the migration, found $(added)"; exit 1; }
 echo "=== Z1: pact_hr_drawback_cap() vs js/campaign.js drawbackCapFromRules() on every shape ==="
 CAPBAD=$(psqlc -At -c "select count(*) from jsonb_array_elements(pg_read_file('/tmp/caps.json')::jsonb) s
   where public.pact_hr_drawback_cap(s->'rules') is distinct from (s->>'cap')::numeric")
@@ -50,10 +50,10 @@ echo "=== the ledger: the REAL SQL vs house-rules-ledger-ci.mjs's port, on the f
 if command -v node >/dev/null; then
   TMPJ=$(mktemp); node ../house-rules-ledger-ci.mjs --iterations 300 --dump-logs "$TMPJ" >/dev/null
   chmod 644 "$TMPJ"; docker cp "$TMPJ" "$C":/tmp/logs.json >/dev/null; rm -f "$TMPJ"
-  LBAD=$(psqlc -At -c "select count(*) from jsonb_array_elements(pg_read_file('/tmp/logs.json')::jsonb) d, lateral public.pact_ap_ledger_split(d->'log') s
+  LBAD=$(psqlc -At -c "select count(*) from jsonb_array_elements(pg_read_file('/tmp/logs.json')::jsonb) d, lateral public.pact_ap_ledger_split(d->'log', d->'chr', (d->>'campaign')::uuid) s
     where s.spent is distinct from (d->>'spent')::numeric or s.award_earned is distinct from (d->>'award')::numeric or s.drawback_earned is distinct from (d->>'draw')::numeric")
   LN=$(psqlc -At -c "select jsonb_array_length(pg_read_file('/tmp/logs.json')::jsonb)")
-  [ "$LBAD" = "0" ] && echo "all $LN logs: spent / award_earned / drawback_earned agree" || { psqlc -At -c "select (d->>'spent') || '/' || (d->>'award') || '/' || (d->>'draw') || ' vs ' || s.spent || '/' || s.award_earned || '/' || s.drawback_earned from jsonb_array_elements(pg_read_file('/tmp/logs.json')::jsonb) d, lateral public.pact_ap_ledger_split(d->'log') s where s.spent is distinct from (d->>'spent')::numeric or s.award_earned is distinct from (d->>'award')::numeric or s.drawback_earned is distinct from (d->>'draw')::numeric limit 5"; echo "SQL LEDGER DISAGREES WITH THE PORT ($LBAD of $LN)"; exit 1; }
+  [ "$LBAD" = "0" ] && echo "all $LN logs: spent / award_earned / drawback_earned agree" || { psqlc -At -c "select (d->>'spent') || '/' || (d->>'award') || '/' || (d->>'draw') || ' vs ' || s.spent || '/' || s.award_earned || '/' || s.drawback_earned from jsonb_array_elements(pg_read_file('/tmp/logs.json')::jsonb) d, lateral public.pact_ap_ledger_split(d->'log', d->'chr', (d->>'campaign')::uuid) s where s.spent is distinct from (d->>'spent')::numeric or s.award_earned is distinct from (d->>'award')::numeric or s.drawback_earned is distinct from (d->>'draw')::numeric limit 5"; echo "SQL LEDGER DISAGREES WITH THE PORT ($LBAD of $LN)"; exit 1; }
 else
   echo "node not found — skipped (CI runners have it)"
 fi
@@ -66,7 +66,7 @@ psqlc -At -c "select 'trigger functions callable by authenticated: ' || (has_fun
 echo "=== rollback: every redefined function byte-identical to BASE, every addition gone ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 [ "$(defs)" = "$BASE" ] && echo "rollback restores the five definitions exactly" || { echo "ROLLBACK DIFFERS: $(defs)"; exit 1; }
-[ "$(added)" = "0" ] && echo "rollback removes the 12 functions and 2 triggers" || { echo "ROLLBACK LEFT $(added) OBJECTS"; exit 1; }
+[ "$(added)" = "0" ] && echo "rollback removes the 14 functions and 2 triggers" || { echo "ROLLBACK LEFT $(added) OBJECTS"; exit 1; }
 psqlc < house-rules-cases.sql >/dev/null; echo "AFTER ROLLBACK: $(counts)"
 BAD=$(mispredicted); [ -z "$BAD" ] || { echo "$BAD" | sed 's/^/  mispredicted: /'; echo "AFTER-ROLLBACK STATE DIFFERS FROM BEFORE"; exit 1; }
 echo "the cases land exactly as BEFORE again"

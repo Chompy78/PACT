@@ -169,7 +169,7 @@ Technical choices made while wiring the context into the three tools (none is an
 ## Addendum 2026-10-13 — PR3, the server half (`feat/campaign-house-rules-server`)
 
 Migration `sql/migrations/2026-10-13-campaign-house-rules-server.sql` + `-rollback.sql`, rehearsed in Docker by
-`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (151 cases). **NOT applied** to the live database by merging;
+`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (164 cases). **NOT applied** to the live database by merging;
 `sql/rls-policies.sql` and the baseline tests are deliberately unchanged until it is (sql/migrations/README.md; precedents
 #580 -> #598, #600 -> #608).
 
@@ -243,15 +243,43 @@ FIFO purchase in `_openDrawbackEvent()`); nothing else needs to change for M4.
   inside would end it early); a manual apply must use `psql -1`, which the harness now does.
 - **Rollback header corrected:** after a rollback the server ignores the DM events while the browser counts them — STRICTER
   for refunds and positive reprices, but MORE LENIENT for a removal or a negative reprice.
-- **Open, owner decision AB (BLOCKING 2):** with X1 + Z1 an ignore-player-AP player can append a forged
+- **Owner decision AB1 (2026-10-13) — see the next section.** *(Was: "Open, owner decision AB (BLOCKING 2)".)* with X1 + Z1 an ignore-player-AP player can append a forged
   `{buy, drawback, cost:-1000}` and spend it (the server has no drawback price table). Pinned as a "KNOWN GAP" case in the
   harness; X1/Z1 behaviour unchanged pending the owner's answer.
+
+### Owner decision AB1 (2026-10-13) — the server gets its own drawback price list
+
+Closes the review's BLOCKING 2: with X1 + Z1 a player in an ignore-player-AP campaign could append `{buy, drawback,
+cost:-1000}` and spend it, because the server counted `−cost` and had no idea what any drawback is worth.
+
+- **Price list.** `public.pact_drawback_printed(name)` is GENERATED from `js/engine-data.js` (`DATA.drawbacks`, 109 entries at
+  rules v0.377) by `testing/scripts/gen-drawback-prices-sql.mjs` into a marked block of the migration. `--check` runs in
+  engine-parity and sql-guards CI and fails with "re-run the generator" on drift. Once applied, a drawback price change ships
+  as a NEW migration started from `--stdout` (docs/VERSION-SYNC.md, rules-bump steps).
+- **Grant.** Per player drawback purchase the server credits `least(−cost + ΣΔ of its matched DM reprices, effective value)`,
+  effective = DM pin > DM override for the character's current campaign > campaign `charHouseRules` > printed > 0 —
+  `pact_hr_drawback_effective()`, the same precedence as `resolveHouseRules()` / `drawbackValue()`, including the engine's
+  quirk that an `Object.prototype` property name ("toString", "constructor"…) reads as 0. DM-imposed (dmEdit, cost >= 0):
+  0. DM-removed and targeted-bought-off: 0. Untargeted-bought-off: kept (the accepted approximation). Still capped by Z1.
+- **A held custom drawback the DM deletes from the campaign** falls back to its printed value, or 0 if it has none. That is
+  what the engine already does (`_drawVal`: no house-rule entry -> `DATA.drawbacks[name]`, `_fin(undefined)` = 0), so no
+  engine change was needed for agreement; the RPC's M3 `to` check now uses the same function (it can verify the printed
+  fallback instead of accepting any `to`).
+- **Engine changes made for it (no `compute()` change for any valid log, rules stay v0.377):** `serverApLedger()` models the
+  per-purchase grant and takes `opts.houseRulesCtx` (`houseRulesImpact()` passes old/new ctx); `activeEvents()`'s name-keyed
+  maps are now null-prototype objects — a drawback or boon named "constructor"/"toString" previously CRASHED every fold of
+  that character (`_openDraws[v].push is not a function`), found by the new fuzz.
+- **Blast radius vs today's server:** a player drawback stored above its printed value (a later rules bump lowered it, or a
+  name no longer in the rules) now grants the printed value — the browser already showed exactly that, so this is agreement,
+  not a new loss to the player's visible AP; header query Q5 lists them. A CharGen cost-0 drawback (F4a) grants
+  min(0, value) = 0, as today. A DM-imposed drawback with a positive cost now counts 0 instead of a negative amount (gain).
+  No other legitimate shape loses AP.
 
 ### Constraints for applying it (owner)
 
 1. The read-only blast-radius queries in the migration header (Q1–Q4), and `roundtrip-audit.mjs` on a fresh export (it now
    checks the DM family and buy/buyoff `seq`, which this migration freezes).
-2. Owner decision AB (above) first, if it changes the migration.
+2. AB1 is in the migration; Q5 in its header lists who loses drawback AP against today's server (expected: few or none).
 3. Apply with `apply_migration` (or `psql -1`), then `get_advisors` (security + performance) and `get_logs`; then fold into
    `sql/rls-policies.sql` and the baseline tests.
 

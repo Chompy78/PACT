@@ -1467,8 +1467,8 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
   PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR #654 OPEN, NOT APPLIED: migration
       sql/migrations/2026-10-13-campaign-house-rules-server.sql + rollback, Docker harness run-house-rules.sh (in sql-guards CI).
-      Blocked on owner decision AB (forged drawback grants in ignore-mode campaigns, X1+Z1). Then: the header's read-only
-      queries Q1-Q4, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
+      Owner decision AB1 (server drawback price list, generated from engine-data.js) is in. Before applying: the header's
+      read-only queries Q1-Q5, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
       follow-up PR folds it into sql/rls-policies.sql and the baseline tests. It may be applied BEFORE the promotion (the PR
       #654 review withdrew the "apply together" constraint: main's re-costing of a DM grant is already refused today).
       PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
