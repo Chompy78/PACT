@@ -1564,3 +1564,43 @@ campaign-house-rules engine PR reads the effective value); (3) decide with the o
 (a DM-run correction RPC or a one-off migration) — measure first.
 ```
 **Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
+
+## feat/dm-rules-lock-bars — every locked Campaign Rules section says it is locked, right where the DM is looking — TODO
+Branch feat/dm-rules-lock-bars. **Effort:** low · **Risk:** low — DM-Console-only UI on the existing lock (`_setRulesLocked`); nothing saved changes (damage scale low).
+
+```text
+Found 2026-10-13 (owner: "i found [the languages] but can't see how to edit it"). Campaign Rules, the advancement tile and the
+custom-fields tile start LOCKED (every control disabled by _setRulesLocked(true)), and the only ways out are ruleLockHint at the
+top of the rules group and ruleLockBtn beside "Save rules" — both out of sight while a DM scrolls a long section. #651 fixed this
+for the 🗣 Languages box only (a 🔒 note on the box, ruleLanguagesLockNote — owner choice C2). The 11 "Banned …" lists, the
+economy band and the advancement/curve fields still look simply greyed out.
+
+DO (owner's option C1 from that session): a bar pinned to the top of each locked section while it scrolls —
+"🔒 Locked — Unlock to edit" with the unlock action right there — shown only while locked, hidden once unlocked. It must NOT be
+a <button> inside the swept tiles (_scopedControlEls disables every button there) — use the same span role="button" pattern as
+ruleLanguagesLockNote, and stay inert during an archived-campaign peek (check ruleLockHint.disabled, as that note does).
+Consider replacing the languages-only note with the general bar so there is one mechanism.
+```
+**Done when:** with rules locked, every rules section (including the Banned lists and the curve) shows the bar at its top while scrolled; clicking it unlocks all of them; it hides once unlocked and does nothing during an archived peek; `campaign-language-list-e2e` and `dm-console-ui-e2e` pass with new checks for this.
+
+## feat/feature-effect-text — class features, subclass abilities and racial traits get real ⓘ effect text — TODO
+Branch feat/feature-effect-text. **Effort:** high · **Risk:** medium — ~600 short rules summaries must agree with the Players Guide (ambiguity drives it); display-only, so no pricing can break.
+
+```text
+#653 (2026-10-13) gave every effect on the Live Sheet's Character panel and 📋 Sheet an ⓘ, from one lookup: _lsFx() in
+tools/PACT-Live-Char-Sheet.html. Boons, arts, masteries, drawbacks, maneuvers and metamagic have effect text in DATA, but the
+364 class features (DATA.features), 192 subclass abilities (DATA.subAbilMap) and most of the 38 racial traits (DATA.racial —
+only 4 are covered by the display-only DATA.racialFx) have none, so their ⓘ falls back to "See the Players Handbook, p.N"
+(FEAT_PG) or is absent.
+
+DO:
+  1. Add a display-only effect map (same shape and status as racialFx/masteryFx: never read by compute(), so NO DATA.version
+     bump — log it in CHANGELOG.md as a docs change). Decide with the owner whether it lives in js/engine-data.js or a separate
+     display-data file; it is ~600 entries.
+  2. Write each entry as a one- or two-sentence summary of what the ability does in play, taken from the Players Guide's own
+     wording (the guide master lives in pact-guide — see AGENTS.md "A mechanics change isn't finished…" and VERSION-SYNC.md).
+     Where the guide and the PHB differ, the guide wins; where the guide is silent, flag it rather than inventing rules text.
+  3. Point _lsFx() at the new map, keeping the PHB-page fallback for anything still unwritten.
+  4. Consider batching by class (one PR per class or two) so each is reviewable.
+```
+**Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
