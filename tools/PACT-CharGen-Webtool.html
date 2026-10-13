@@ -2410,6 +2410,8 @@ function buildForm(F){
     '<div class="row"><button class="btn ghost" type="button" onclick="randomiseAppearance()">🎲 Randomise all</button>'+
       '<button class="btn ghost" type="button" onclick="genDescription();render()" title="Write a one-paragraph description from these fields">🪶 Auto-write</button>'+
       '<button class="btn ghost" type="button" onclick="genPortrait()" title="Build AI image-generator prompts from this character">📷 AI Portrait</button>'+
+      '<button class="btn ghost" type="button" onclick="cgCopyAppearance()" title="Copy every appearance &amp; description field, to paste onto another character">📋 Copy appearance</button>'+
+      '<button class="btn ghost" type="button" onclick="cgPasteAppearance()" title="Replace this character\'s appearance &amp; description with one you copied (you see the changes first; the name is kept; Undo reverts it)">📥 Paste appearance</button>'+
       '<span class="hint">Each field has its own 🎲 — species &amp; class steer the roll; height &amp; age use PHB ranges.</span></div>'+
     '<div class="sublab2">Appearance</div>'+
     '<div class="apcols">'+
@@ -7251,6 +7253,21 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
 // demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
 // survive untouched) and commit through the same coalescing mechanism the Setup panel's own ap_* fields
 // use, so a Sheet-tab edit and a Setup-panel edit of the same character never fight each other.
+// feat/appearance-copy-paste (AF1): copy every text appearance field / paste a copied one over this character's (shared
+// code: js/ui-helpers.js). Paste fills the Setup panel's ap_* inputs first (the DOM owns those keys, so a later DOM read
+// can't write the old values back), then commits through the same appearance slot as every other edit — one Undo step.
+function cgCopyAppearance(){
+  try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();}catch(e){}
+  pactAppearanceCopy(readBuild().appearance||{});
+}
+function cgPasteAppearance(){
+  try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();}catch(e){}
+  pactAppearancePaste(readBuild().appearance||{},function(merged){
+    Object.keys(merged).forEach(function(k){if(typeof merged[k]!=='string')return;var el=document.getElementById('ap_'+k);if(el)el.value=merged[k];});
+    _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});
+    render();
+  });
+}
 function _shCommitAppearanceField(key,v){
   var merged=Object.assign({},(readBuild().appearance)||{});merged[key]=v;
   _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});

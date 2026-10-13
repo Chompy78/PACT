@@ -187,6 +187,81 @@ function pactWithAppearance(log, merged, opts) {
   return out;
 }
 
+/* feat/appearance-copy-paste (owner decision AF1): copy every TEXT appearance field of one character and paste it onto
+   another, in either tool. Only string values travel — the appearance object also carries the Live Sheet's own
+   `playerSheet` (coins, weapons; an object), which is never copied and never overwritten. The character's name is not
+   part of appearance, so it never travels either. Paste REPLACES every text field: a field empty or absent in the copy
+   is cleared on the target. The clipboard text is untrusted (another app, another person): it is parsed, not run;
+   keys and values are shape-checked; and the preview is a plain-text confirm(), never HTML. */
+var PACT_APPEARANCE_SCHEMA = 'pact-appearance/1';
+function _pactApTextFields(app) {
+  var out = {};
+  if (app && typeof app === 'object') Object.keys(app).forEach(function (k) { if (typeof app[k] === 'string') out[k] = app[k]; });
+  return out;
+}
+function pactAppearanceCopyText(app) {
+  return JSON.stringify({ schema: PACT_APPEARANCE_SCHEMA, appearance: _pactApTextFields(app) });
+}
+/* -> {ok:true, appearance} | {ok:false, error} */
+function pactAppearanceParse(text) {
+  var d;
+  try { d = JSON.parse(String(text == null ? '' : text)); } catch (e) { return { ok: false, error: 'That is not a copied appearance (press 📋 Copy appearance on the other character first).' }; }
+  if (!d || typeof d !== 'object' || d.schema !== PACT_APPEARANCE_SCHEMA || !d.appearance || typeof d.appearance !== 'object' || Array.isArray(d.appearance))
+    return { ok: false, error: 'That is not a copied appearance (press 📋 Copy appearance on the other character first).' };
+  var keys = Object.keys(d.appearance), app = {};
+  if (keys.length > 200) return { ok: false, error: 'That copied appearance has too many fields.' };
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i], v = d.appearance[k];
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(k) || k === 'playerSheet') continue;   // skip odd keys; never the Live Sheet's own panel
+    if (typeof v !== 'string') continue;
+    if (v.length > 20000) return { ok: false, error: 'A field in that copied appearance is too long.' };
+    app[k] = v;
+  }
+  return { ok: true, appearance: app };
+}
+/* The target's appearance with every text field replaced by the copy's (absent = cleared); non-text keys kept.
+   -> {merged, changed:[{key, from, to}]} */
+function pactAppearanceMerge(cur, pasted) {
+  var merged = JSON.parse(JSON.stringify(cur && typeof cur === 'object' ? cur : {})), changed = [];
+  var curText = _pactApTextFields(merged);
+  Object.keys(curText).forEach(function (k) {
+    if (!Object.prototype.hasOwnProperty.call(pasted, k) && curText[k] !== '') { changed.push({ key: k, from: curText[k], to: '' }); merged[k] = ''; }
+  });
+  Object.keys(pasted).forEach(function (k) {
+    var was = typeof merged[k] === 'string' ? merged[k] : '';
+    if (was !== pasted[k]) changed.push({ key: k, from: was, to: pasted[k] });
+    merged[k] = pasted[k];
+  });
+  return { merged: merged, changed: changed };
+}
+function pactAppearanceCopy(app) {
+  var ok = _csCopy(pactAppearanceCopyText(app));
+  if (typeof flash === 'function') flash(ok ? 'Appearance copied — open the other character and press 📥 Paste appearance.' : 'Copy the text shown, then paste it on the other character.');
+}
+/* Reads the clipboard (or asks for the text), previews the change as plain text, and calls apply(merged) on OK. */
+function pactAppearancePaste(cur, apply) {
+  function go(text) {
+    var p = pactAppearanceParse(text);
+    if (!p.ok) { if (typeof flash === 'function') flash(p.error, 'warn'); return; }
+    var m = pactAppearanceMerge(cur, p.appearance);
+    if (!m.changed.length) { if (typeof flash === 'function') flash('Nothing to change — this character already has that appearance.'); return; }
+    var cut = function (s) { s = String(s).replace(/\s+/g, ' '); return s.length > 40 ? s.slice(0, 39) + '…' : (s || '(empty)'); };
+    var lines = m.changed.slice(0, 15).map(function (c) { return '• ' + c.key + ': ' + cut(c.from) + ' → ' + cut(c.to); });
+    if (m.changed.length > 15) lines.push('…and ' + (m.changed.length - 15) + ' more');
+    if (!window.confirm('Replace this character\'s appearance with the copied one?\n' + m.changed.length + ' field(s) change:\n\n' + lines.join('\n') +
+        '\n\nThe name, coins and weapons are not touched.')) return;
+    apply(m.merged);
+    if (typeof flash === 'function') flash('Appearance pasted — ' + m.changed.length + ' field(s) changed.');
+  }
+  function ask() { var t = window.prompt('Paste the copied appearance here (Ctrl/Cmd-V):', ''); if (t != null) go(t); }
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText && window.isSecureContext) {
+      navigator.clipboard.readText().then(go, ask); return;
+    }
+  } catch (e) {}
+  ask();
+}
+
 /* One tool's device-local scratch record for a character id (the pre-fix store), or null. Read-only. */
 function pactSheetScratch(tool, id) {
   try {

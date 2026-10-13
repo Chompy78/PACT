@@ -1600,27 +1600,14 @@ Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime �
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
 
-## feat/appearance-copy-paste — copy all appearance fields from one character to another — TODO
-Branch feat/appearance-copy-paste. **Effort:** low · **Risk:** low — writes only the cost-0 `appearance` patch, which the server already exempts after a lock/seal.
-
-```text
-Owner request 2026-10-14 (decision AF1). Add "Copy appearance" and "Paste appearance" buttons to the Sheet's "Appearance &
-description" area in BOTH CharGen and the Live Sheet. Copy puts the character's whole folded appearance block
-(foldBuild(LOG).appearance — description fields, custom label/text pairs, and the #635 sub-keys playerName, alignment,
-background, allies, backstory) on the clipboard as JSON tagged {schema:'pact-appearance/1', appearance:{...}}. Paste reads it,
-validates the tag and that every value is a string (drop anything else), shows a preview of what will change, then writes ONE
-appearance event through the shared writer (js/ui-helpers.js pactWithAppearance) — one undo step. Default: replace every field
-(empty fields in the copy clear the target's); the character's NAME is never copied. Works signed out and offline. Refused in a
-DM read-only view. Fallback when the clipboard API is unavailable: a textarea to paste into. Every value through esc() in the
-preview (stored-XSS rule — the clipboard text is untrusted).
-```
-**Done when:** e2e: copy from character A, paste into B in each tool (and across tools) → B's appearance equals A's, name unchanged, one undo step reverts it; a hostile clipboard payload renders as text and is refused if malformed; works on a locked/sealed campaign character (server accepts); `engine-parity-ci` 0 failed.
-
 ## feat/npc-duplicate-version — DM Console: duplicate an NPC as a new version — TODO
 Branch feat/npc-duplicate-version. **Effort:** medium · **Risk:** medium — creates a new cloud character row and binds it as an NPC (server RPCs; the copy's AP/history handling decides what the DM can do with it).
 
 ```text
-Owner request 2026-10-14 (decision AF3). In DM Console's NPC section, add "Duplicate as a new version" on an NPC's card:
+Owner request 2026-10-14 (decision AF3). OWNER ANSWER 2026-10-14: the copy KEEPS its AP — everything is identical to the
+source apart from the name (whole LOG copied: awards, seals, DM events, build, appearance). Verify every server guard accepts
+that (DM-family forgery guard: the copy is written by the DM, so DM events are legitimately DM-stamped).
+ In DM Console's NPC section, add "Duplicate as a new version" on an NPC's card:
 asks for the new name (prefilled, e.g. "Bram Cotter" -> "Bram Cotter (copy)"; the DM edits it to e.g. "Bram Cotter Ch8-12"),
 creates a NEW cloud character owned by the DM (fresh id) whose LOG is a copy of the source NPC's, then binds it to the same
 campaign as an NPC via dm_bind_npc (no starting AP, as for any NPC). Decide and record: whether the copy keeps the source's AP

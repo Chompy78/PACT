@@ -29,6 +29,7 @@ on:
       - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
       - "testing/scripts/campaign-language-list-e2e.mjs"
+      - "testing/scripts/appearance-copy-paste-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/economy-ui.yml"
@@ -81,3 +82,5 @@ jobs:
 
       - name: Campaign language list (all three tools)
         run: node testing/scripts/campaign-language-list-e2e.mjs
+      - name: Copy / paste appearance between characters (Live Sheet + CharGen)
+        run: node testing/scripts/appearance-copy-paste-e2e.mjs
