@@ -108,6 +108,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .ecobox{background:var(--card);border-radius:8px;padding:4px 12px;text-align:center;min-width:78px}
 .ecobox b{font-size:18px;color:var(--navytx);display:block;line-height:1}.ecobox span{font-size:9px;color:var(--grey);text-transform:uppercase}
 .ecobox.drift b{font-size:13px;color:var(--good)}
+.apsrc{white-space:nowrap;cursor:help}.apsrc.off{opacity:.6}
 .layout{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;padding:12px}
 @media(max-width:1000px){
  .layout{grid-template-columns:1fr}
@@ -115,7 +116,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  .layout>.card>h3:first-child{cursor:pointer;user-select:none}
  .layout>.card>h3:first-child::before{content:"▾  ";font-size:10px;color:var(--teal)}
  .layout>.card.clp>h3:first-child::before{content:"▸  "}
- .layout>.card.clp>:not(h3:first-child){display:none}
+ .layout>.card.clp>:not(h3:first-child){display:none !important}   /* !important: the Buy filters carry an inline display */
 }
 #lmobar{display:none}
 /* feat/livesheet-center-panel: on desktop the Buy and History panels fold to a thin strip (click the heading),
@@ -123,10 +124,14 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 @media(min-width:1001px){
  .layout>.card:not(:nth-child(2))>h3:first-child{cursor:pointer;user-select:none}
  .layout>.card:not(:nth-child(2))>h3:first-child::before{content:"▾  ";font-size:10px;color:var(--teal)}
- .layout>.card.clp:not(:nth-child(2))>:not(h3:first-child){display:none}
- .layout>.card.clp:not(:nth-child(2))>h3:first-child{writing-mode:vertical-rl;margin:0;white-space:nowrap}
- .layout>.card.clp:not(:nth-child(2))>h3:first-child::before{content:"▸  "}
- .layout>.card.clp:not(:nth-child(2)){padding:10px 6px}
+ .layout>.card.clp:not(:nth-child(2))>:not(h3:first-child){display:none !important}   /* !important: the Buy filters carry an inline display */
+ /* feat/livesheet-centre-columns: the folded strip is ONE tall click target (the whole strip, not a thin label), tinted so it
+    reads as a button, with a bigger arrow pointing the way it opens. */
+ .layout>.card.clp:not(:nth-child(2)){padding:0;overflow:hidden}
+ .layout>.card.clp:not(:nth-child(2))>h3:first-child{writing-mode:vertical-rl;margin:0;white-space:nowrap;height:100%;width:100%;box-sizing:border-box;padding:12px 0;border:0;display:flex;align-items:center;background:var(--lt);font-size:13px}
+ .layout>.card.clp:not(:nth-child(2))>h3:first-child:hover,.layout>.card.clp:not(:nth-child(2))>h3:first-child:focus-visible{background:var(--line)}
+ .layout>.card.clp:nth-child(1)>h3:first-child::before{content:"»  ";font-size:16px}
+ .layout>.card.clp:nth-child(3)>h3:first-child::before{content:"«  ";font-size:16px}
  .layout:has(>.card:nth-child(1).clp){grid-template-columns:40px 1fr 300px}
  .layout:has(>.card:nth-child(3).clp){grid-template-columns:300px 1fr 40px}
  .layout:has(>.card:nth-child(1).clp):has(>.card:nth-child(3).clp){grid-template-columns:40px 1fr 40px}
@@ -134,6 +139,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 @media(max-width:600px){
  body{font-size:14px}
  .top{flex-wrap:wrap}.top h1{font-size:16px}
+ #apFloat{display:none !important}   /* the bottom bar (#lmobar) shows AP left on phones */
  .eco{width:100%;margin-left:0;gap:6px}.ecobox{flex:1 1 44%;min-width:0}  /* M: 2-per-row so each AP figure is readable */
  .layout{padding:10px;padding-bottom:56px;gap:10px}
  /* M1: ability + stat rows wrap to 3 across so each box is readable (6-across is unusable on a phone).
@@ -190,17 +196,27 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .kp{background:var(--lt);border-radius:7px;text-align:center;padding:5px 0}.kp b{font-size:16px;color:var(--navytx);display:block}.kp span{font-size:8px;color:var(--grey);text-transform:uppercase}
 .seg{font-size:12px;margin:3px 0}
 .itip[title]{cursor:help}
-.shgrid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
-.shskills{flex:0 0 190px;min-width:170px;border:1px solid var(--line);border-radius:8px;padding:6px 8px}
-.shskills h5{margin:0 0 4px;font-size:12px;color:var(--navytx)}
-.shmain{flex:1 1 260px;min-width:0}
+/* feat/livesheet-centre-columns: Stats · Skills · General. Sized by the Character card's own width (container query), not
+   the window, because the Buy/History panels beside it fold and unfold. */
+#sheet{container-type:inline-size}
+.shcols3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr);gap:10px;align-items:start;margin-top:6px}
+.shc{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+.shc h5{margin:0 0 4px;font-size:12px;color:var(--navytx)}
+.shstats .abrow,.shstats .kpis{grid-template-columns:repeat(3,1fr)}
+@container (max-width:640px){.shcols3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.shmain{grid-column:1/-1}}
+@container (max-width:420px){.shcols3{grid-template-columns:minmax(0,1fr)}}
+.lsdgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 8px;margin:6px 0}
+.lsdf{display:flex;flex-direction:column;font-size:11px;color:var(--grey);min-width:0}
+.lsdf input,.lsdf textarea,.lsdesc textarea{font:inherit;font-size:12px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:5px;padding:3px 5px;min-width:0;width:100%;box-sizing:border-box}
+.lsdf.wide{grid-column:1/-1}
+.lsdesc textarea{resize:vertical;line-height:1.45}
+.lsdhd{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:8px 0 2px;font-size:11px;color:var(--grey)}
 .skrow{display:flex;gap:6px;align-items:baseline;font-size:12px;line-height:1.55;opacity:.62}
 .skrow.on{opacity:1}
 .skmk{width:12px;text-align:center}.sknm{flex:1}.skab{font-size:10px;color:var(--grey)}.sktot{min-width:26px;text-align:right}
 .sklegend{font-size:10px;color:var(--grey);margin-top:4px}
 .fxi{border:0;background:none;color:var(--navytx);cursor:pointer;padding:0 2px;font-size:13px;line-height:1;vertical-align:baseline}
 .fxpop{position:absolute;z-index:9999;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;box-shadow:0 4px 16px rgba(0,0,0,.25)}
-@media (max-width:600px){.shskills{flex:1 1 100%}}
 .pssec{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
 .pssec h4{margin:0 0 6px;font-size:13px;color:var(--navytx)}
 .pscoins{display:flex;flex-wrap:wrap;gap:6px}
@@ -294,13 +310,18 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
    doesn't silently un-do it. */
 @media(max-width:768px){
  body{height:100dvh;overflow:hidden;display:flex;flex-direction:column}
- .top,.eco,.bar{flex:0 0 auto}
- .top{position:static}
- .layout{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+ /* feat/livesheet-centre-columns: only the header row stays on screen. It used to be the header + AP summary + DM bar +
+    tip banners — about half a phone screen. Those now scroll with the panels inside #lsScroll; the header keeps to one
+    row and scrolls sideways; the bottom bar (#lmobar) still shows AP left + Undo/Redo at all times. */
+ .top{flex:0 0 auto;position:static;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ .top>*{flex-shrink:0}
+ #lsScroll{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+ #lsScroll>#versionBanner,#lsScroll>#apNudgeBanner{position:static !important}
  /* AI Portrait/Print/Close: not part of D-GH5's header, just an overlay — simpler fix, let it scroll
     away with the rest of the sheet-view overlay's own content instead of staying pinned. */
  .shtop{position:static}
 }
+@media(max-width:600px){.top h1{display:none}}   /* one header row on a phone: the buttons need the room; ← Home names the app */
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
 .lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
@@ -437,6 +458,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <button class="btn g" onclick="toggleSheet()" title="Toggle the printable sheet">📋 <span class="bl">Sheet</span></button>
 <span style="position:relative;display:inline-block"><button class="btn g" onclick="toggleMore(event)" title="More tools &amp; theme">⋯ <span class="bl">More</span></button><div id="moremenu" class="moremenu"><span class="mi-theme">🎨 <select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></span><button class="mi" onclick="closeMore();openNames()">✎ Name spells &amp; languages</button><button class="mi" onclick="closeMore();openSpellBrowser()">🔍 Spell browser</button><button class="mi" id="miSpellTog" onclick="closeMore();toggleSheetSpell()">🚫 Hide spellcasting on sheet</button><button class="mi" onclick="closeMore();openBonds()">⛓ Bonds</button><button class="mi" onclick="closeMore();openEconomy()">🪙 Coin &amp; calendar</button><button class="mi" onclick="closeMore();openWallet()">🎒 Record gold &amp; downtime</button><button class="mi" onclick="closeMore();resetAll()">↺ Reset</button><button class="mi" onclick="closeMore();showInfo()">&#x2139;&#xFE0F; Info</button></div></span>
 </div>
+<div id="lsScroll"><!-- feat/livesheet-centre-columns: the phone app-shell's ONE scroll area (D-GH5) — everything below the header -->
 <div class="eco" id="eco"></div>
 <div id="sheetview"><div class="shtop"><b>📋 Character Sheet</b><button class="btn" onclick="genPortraitFor(foldBuild(null))">📷 AI Portrait</button><button class="btn" onclick="window.print()">🖨 Print</button><button class="btn g" onclick="toggleSheet()">✕ Close</button></div><div id="sheetbody"></div></div>
 <div class="bar"><button onclick="toggleDM()" id="dmtoggle" class="dmtog">🛠 DM tools ▾</button><span id="dmcontent" style="display:inline">
@@ -448,16 +470,17 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
-  <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Buy / progress</h3><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
+  <div class="card"><h3 role="button" tabindex="0" title="Show or hide this panel" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Buy / progress</h3><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
   <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Character</h3><div id="sheet"></div>
     <h3 style="margin-top:10px">Needs review</h3><div id="tray"></div></div>
-  <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">History &amp; ledger</h3>
+  <div class="card"><h3 role="button" tabindex="0" title="Show or hide this panel" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">History &amp; ledger</h3>
 <div class="aplegend" title="Colour key for the History &amp; ledger">
   <span><span class="dot g"></span>AP awarded</span>
   <span><span class="dot r"></span>Warning / drawback cost</span>
   <span><span class="dot k"></span>Standard purchase</span>
 </div><div id="ledger"></div></div>
 </div>
+</div><!-- /#lsScroll -->
 <div id="lmobar"><div id="lmobar-ap" title="Tap to jump to the buy panel" onclick="var s=document.getElementById('buysearch');if(s)s.scrollIntoView({behavior:'smooth'});"><b id="lmb">—</b> <span id="lms"></span></div><div id="lmobar-acts"><button onclick="undo()" title="Undo" aria-label="Undo">↶</button><button onclick="redo()" title="Redo" aria-label="Redo">↷</button></div></div>
 <script>
 
@@ -1459,6 +1482,9 @@ async function exportJSON(){ const b=foldBuild(null); const blob=new Blob([JSON.
   await _pactShareOrSave(blob,_efn,'“'+_efn+'” sent to the share sheet — choose Save to Files to keep it.','Character saved to your Downloads as “'+_efn+'”.'); }
 // Loading a saved character preserves its frozen prices. If it was stamped under an OLDER rules version,
 // we keep those prices (grandfathered) and surface the drift; with only the current version live this stays silent.
+// Where the top banners go: on a phone (D-GH5 app-shell, ≤768px) inside the scroll area so they don't stay pinned over the
+// sheet; on desktop the top of the page, as before.
+function _lsBannerHost(){var sc=document.getElementById('lsScroll');return (sc&&window.matchMedia&&window.matchMedia('(max-width:768px)').matches)?sc:document.body;}
 function _showVersionBanner(){
   // Hide, don't just return. This returned early when the loaded character was current-version, so a
   // banner raised by an EARLIER load (a stale localStorage save, say) stayed on screen over a character
@@ -1468,7 +1494,7 @@ function _showVersionBanner(){
   vb=document.createElement('div');vb.id='versionBanner';
   vb.style.cssText='position:sticky;top:0;z-index:50;background:#7a4f00;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center';
   vb.innerHTML='⚠ Loaded <b>'+esc(loadedRules)+'</b> character in <b>'+RULES+'</b> rules — past prices frozen; new buys use current rates. <button onclick="this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>';
-  document.body.insertBefore(vb,document.body.firstChild);
+  _lsBannerHost().insertBefore(vb,_lsBannerHost().firstChild);
 }
 // Low-spend nudge: Live Sheet has no character-creation discounts (race/origin bonuses etc.),
 // so building a new character here from scratch costs more AP than starting in CharGen.
@@ -1482,7 +1508,7 @@ function _apNudgeBanner(spent){
   nb=document.createElement('div');nb.id='apNudgeBanner';
   nb.style.cssText='position:sticky;top:0;z-index:49;background:#0d4f6e;color:#fff;padding:6px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px';
   nb.innerHTML='<span>💡 Only '+spent+' AP spent so far. Live Sheet doesn\'t apply character-creation options (race discounts, origin bonuses, etc.) — building a new character here costs more AP than starting in <b>CharGen</b>, which is the recommended starting point.</span><button onclick="window._apNudgeDismissedFor=currentCharId();this.parentNode.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;flex-shrink:0">✕</button>';
-  document.body.insertBefore(nb,document.body.firstChild);
+  _lsBannerHost().insertBefore(nb,_lsBannerHost().firstChild);
 }
 // D-GH40: accepts the unified CHAR_SCHEMA shape (from either tool's native Save/Export) as well as any
 // older untagged/CharGen-tagged LOG file — the `if(d.LOG)` check already tolerated the shape structurally;
@@ -1810,8 +1836,17 @@ function render(){
     // in DM AP the same way compute()'s own spendable formula does — _dmAp/_ignPlr are already the
     // same gated values compute() itself uses two lines above (_dmOpts() zeroes both when rules status
     // isn't 'active'), so this can't disagree with the ceiling compute() priced against.
-    var ap=earnedWithDm(eco,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):((_dmAp||_dmSt==='active')?(' · <span class="ed" title="'+(_ignPlr?'Player-log AP is not counted toward the budget for this campaign — ':'')+'DM-granted AP (server-authoritative)">'+(_ignPlr?eco.earned+' player AP ignored · ':'')+_dmAp+' from DM</span>'):'');return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · <b>'+_apAvail+'</b> AP left · '+eco.earned+' earned'+_dmchip+' · '+eco.spent+' spent'+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>'+_lsWalletLine(idx);})();
-  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent / '+eco.earned+' earned'+(_dmAp?' · '+_dmAp+' from DM':'');}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
+    var ap=earnedWithDm(eco,{dmAp:_dmAp,ignorePlayerAp:_ignPlr});var _c=_lvlCurve;var L=trackLevel(ap,_c);var nx=(L<20)?(_c.l1+_c.inc*L):null;var _sw=_swapAvailFrom(b.hd||1,LOG);var _dmSt=window._rulesStatus||'none';
+    // feat/livesheet-centre-columns: AP left as one explicit sum of its three sources — compute()'s own pools, so the parts
+    // always add up to the figure (spendable = player AP [unless the DM ignores it] + drawback AP + DM AP).
+    var _pl=r.playerAp||0,_dbA=r.drawbackAp||0,_dbRaw=eco.drawbackEarned||0,_pt=function(n,lab,tip,cls){return '<span class="apsrc'+(cls?' '+cls:'')+'" title="'+tip+'">'+n+' '+lab+'</span>';};
+    var _apSum='<b title="AP you can still spend">'+_apAvail+' AP left</b> = '
+      +(_ignPlr?_pt('<s>'+_pl+'</s>','player','Your own AP awards ('+_pl+') — NOT counted: this campaign\'s DM supplies all AP','off'):_pt(_pl,'player','AP awarded on this sheet (+ Award AP, redeemed codes)'))
+      +((_dmSt!=='none'||_dmAp)?(' + '+_pt(_dmAp,'DM','AP granted by your DM in the campaign (server-authoritative)')):'')   // no campaign → no DM term
+      +' + '+_pt(_dbA,'drawbacks','AP received for taking drawbacks'+(_dbRaw>_dbA?(' — capped by the campaign at '+_dbA+' of '+_dbRaw):''))
+      +' − '+_pt(eco.spent,'spent','AP spent on purchases');
+    var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):'';return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · '+_apSum+_dmchip+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>'+_lsWalletLine(idx);})();
+  {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+eco.spent+' spent of '+r.spendable;}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
   const ABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
   // Display-only campaign-name suffix (fix/duplicate-name-and-campaign-suffix) — never written into
@@ -1820,6 +1855,9 @@ function render(){
   // distinguishable the moment the sheet is open, without having to check My Characters first.
   let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>';
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
+  // feat/livesheet-centre-columns: name + class line on top, then three columns — Stats · Skills · General
+  // (features, drawbacks, DM fields, description) — then Spellcasting, then coins/weapons/notes. Needs review stays below the card.
+  sh+='<div class="shcols3"><div class="shc shstats"><h5>Stats</h5>';
   sh+='<div class="abrow">'+ABILS.map(a=>'<div class="abx itip" title="'+esc(a+' '+((r.effScore&&r.effScore[a])||b.stats[a])+' ('+sgn(m[a])+') — governs '+(_abGov[a]||''))+'"><b style="color:'+ABCOL[a]+'">'+a+'</b><span>'+((r.effScore&&r.effScore[a])||b.stats[a])+'</span><i>'+sgn(m[a])+'</i></div>').join('')+'</div>';
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
   const _kbd={
@@ -1836,15 +1874,15 @@ function render(){
     Attune:'Attunement slots: '+(b.attune||0)
   };
   sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',b.hd+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
+  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.map(esc).join(', ')||'—')+'</div></div>';   // .shstats
   const _ftip=function(label,tip){return '<span class="itip"'+(tip?' title="'+esc(tip)+'"':'')+'>'+esc(label)+'</span>';};
   const _fxI=function(fx){return fx?'<button type="button" class="fxi" aria-label="Show effect" data-fx="'+esc(fx)+'" onclick="_fxPop(this,event)">ⓘ</button>':'';};
   const feats=[]; b.features.forEach(l=>{var nm=l.split(': ')[1]||l;feats.push(_ftip(nm, nm!==l?l:''));}); b.boons.forEach(x=>feats.push(_ftip('Boon: '+x,(DATA.boons[x]||{}).fx||'')+_fxI((DATA.boons[x]||{}).fx)));
   // feat/livesheet-center-panel: every skill, owned or not, with its ability and total bonus (engine skillMods()).
-  sh+='<div class="shgrid"><div class="shskills"><h5>Skills</h5>'+skillMods(b,r).map(function(k){
+  sh+='<div class="shc shskills"><h5>Skills</h5>'+skillMods(b,r).map(function(k){
       var mk=k.prof===2?'◉':(k.prof?'●':'○'),tt=k.prof===2?'expertise':(k.prof?'proficient':'not proficient');
       return '<div class="skrow'+(k.prof?' on':'')+'" title="'+esc(k.skill+' — '+tt+': '+sgn(k.abMod)+' '+k.ab+(k.prof?' + '+(k.prof*r.prof)+' proficiency':''))+'"><span class="skmk">'+mk+'</span><span class="sknm">'+esc(k.skill)+'</span><span class="skab">'+k.ab+'</span><b class="sktot">'+sgn(k.total)+'</b></div>';
-    }).join('')+'<div class="sklegend">● proficient · ◉ expertise</div></div><div class="shmain">';
-  sh+='<div class="seg"><b>Saves:</b> '+(b.saves.map(esc).join(', ')||'—')+'</div>';
+    }).join('')+'<div class="sklegend">● proficient · ◉ expertise</div></div><div class="shc shmain"><h5>General</h5>';
   if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).map(esc).join(', ')+'</div>';
   if(feats.length)sh+='<div class="seg"><b>Features:</b> '+feats.join(' · ')+'</div>';
   // V1: Arts & Techniques / Maneuvers / Metamagic — these carry full effect text (DATA.*.fx)
@@ -1870,10 +1908,11 @@ function render(){
   const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
   if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
   sh+=_lsDescBlock(b);
+  sh+='</div></div>';   // .shmain, .shcols3
   sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
-  sh+='</div></div>';   // .shmain, .shgrid
   $('sheet').innerHTML=sh;
+  _lsDescRestoreFocus();
   _lsScheduleCopyIn();
   // --- ledger / history ---
   let led='<table class="led"><tr><th>#</th><th>Event</th><th>AP</th><th></th></tr>';
@@ -2459,27 +2498,63 @@ function _lsNotesCopyIn(){
   LOG=pactWithAppearance(LOG,Object.assign({},cur,plan),{seq:isNew?SEQ++:undefined,ts:Date.now(),rules:RULES});
   save();render();
 }
-// Read-only "Appearance & description" block on the Character panel (fix/livesheet-name-description-notes). Reads the build
-// render() already folded (foldBuild(idx)), so time-travel stays honest. Every value through esc().
+// "Appearance & description" block on the Character panel (fix/livesheet-name-description-notes; editable in place since
+// feat/livesheet-centre-columns). Collapsed by default; its open state survives re-renders. Reads the build render()
+// already folded (foldBuild(idx)), so time-travel stays honest — and is read-only there and in the DM view. Every value
+// is escaped. Edits commit on change (blur) through _shCommitAppearanceField(), the same writer the 📋 Sheet uses.
 var LS_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['build','Build'],['hair','Hair'],['eyes','Eyes'],['nose','Nose'],
   ['skin','Skin'],['marks','Marks'],['voice','Voice'],['demeanour','Demeanour'],['quirk','Quirk'],['likes','Likes'],['dislikes','Dislikes'],
   ['father','Father'],['mother','Mother'],['hometown','Home town'],['profession','Former trade'],['familyfor','Family known for'],
   ['famevent','Notable past event'],['secret','Family secret'],['drink','Favourite drink'],['ambition','Ambition'],['fear','Greatest fear'],
   ['prized','Prized possession'],['faith','Faith'],['companion','Companion'],['custom1','',1],['custom2','',1],
   ['playerName','Player name'],['alignment','Alignment'],['background','Background'],['allies','Allies & organisations']];
-function _lsDescTxt(v){return esc(String(v)).replace(/\n/g,'<br>');}
+var LS_DESC_LONG={allies:1};
+var LS_DESC_OPEN=false, _lsDescFocus=null;
 function _lsDescBlock(b){
-  var ap=(b&&b.appearance)||{}, rows=[], filled=function(v){return typeof v==='string'&&v.trim()!=='';};
-  LS_DESC_FIELDS.forEach(function(f){
-    if(f[2]){var lab=ap[f[0]+'Label'],txt=ap[f[0]+'Text'];if(filled(txt)||filled(lab))rows.push('<div class="seg"><b>'+(filled(lab)?esc(lab):'Note')+':</b> '+(filled(txt)?_lsDescTxt(txt):'')+'</div>');return;}
-    if(filled(ap[f[0]]))rows.push('<div class="seg"><b>'+esc(f[1])+':</b> '+_lsDescTxt(ap[f[0]])+'</div>');
-  });
-  var over=filled(ap.overall)?'<div class="seg">'+_lsDescTxt(ap.overall)+'</div>':'';
-  var back=filled(ap.backstory)?'<div class="seg"><b>Backstory &amp; notes:</b><br>'+_lsDescTxt(ap.backstory)+'</div>':'';
-  var any=!!(over||back||rows.length);
-  var edit=VIEW_ONLY?'':' <button type="button" class="btn" style="padding:1px 7px;font-size:12px" onclick="event.preventDefault();toggleSheet()" title="Edit these on the Sheet">✎ Edit on the Sheet</button>';
-  return '<details class="lsdesc"'+(any?' open':'')+'><summary><b>Appearance &amp; description</b>'+edit+'</summary>'
-    +(any?over+rows.join('')+back:'<div class="seg" style="color:var(--grey)">Nothing written yet — add a description on the 📋 Sheet or in the Character Creator.</div>')+'</details>';
+  var ap=(b&&b.appearance)||{}, ro=(VIEW_ONLY||viewAt!=null)?' disabled':'', E=function(v){return esc(v==null?'':String(v));};
+  var n=0, filled=function(v){return typeof v==='string'&&v.trim()!=='';};
+  var inp=function(k,lab,ph){if(filled(ap[k]))n++;
+    var c=LS_DESC_LONG[k]?'<textarea rows="2" data-lsd="'+k+'" onchange="_lsDescEdit(this)" aria-label="'+E(lab)+'"'+ro+'>'+E(ap[k])+'</textarea>'
+      :'<input data-lsd="'+k+'" value="'+E(ap[k])+'"'+(ph?' placeholder="'+E(ph)+'"':'')+' onchange="_lsDescEdit(this)" aria-label="'+E(lab)+'"'+ro+'>';
+    return '<label class="lsdf'+(LS_DESC_LONG[k]?' wide':'')+'">'+E(lab)+c+'</label>';};
+  var grid=LS_DESC_FIELDS.map(function(f){
+    if(f[2])return inp(f[0]+'Label','Custom field label','e.g. Lucky number')+inp(f[0]+'Text',filled(ap[f[0]+'Label'])?ap[f[0]+'Label']:'Custom field value');
+    return inp(f[0],f[1]);}).join('');
+  if(filled(ap.overall))n++; if(filled(ap.backstory))n++;
+  var regen=ro?'':'<button type="button" class="btn g" style="padding:1px 7px;font-size:11px" onclick="lsRegenDesc()" title="Write the paragraph again from the fields below (the same writer as the Character Creator\'s 🪶 Auto-write)">🪶 Regenerate paragraph</button>';
+  return '<details class="lsdesc"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary><b>Appearance &amp; description</b> <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
+    +'<div class="lsdhd"><span>Description</span>'+regen+'</div>'
+    +'<textarea rows="4" data-lsd="overall" onchange="_lsDescEdit(this)" aria-label="Description paragraph" placeholder="A one-paragraph description — write your own, or fill in the fields below and press 🪶 Regenerate paragraph."'+ro+'>'+E(ap.overall)+'</textarea>'
+    +'<div class="lsdgrid">'+grid+'</div>'
+    +'<div class="lsdhd"><span>Backstory &amp; notes</span></div>'
+    +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea></details>';
+}
+// Commit one field. Deferred a tick so a Tab/click has already moved focus; render() rebuilds #sheet, so the field the
+// player moved to is re-focused afterwards (_lsDescRestoreFocus) instead of being lost mid-edit.
+function _lsDescEdit(el){
+  var k=el.getAttribute('data-lsd'), v=el.value;
+  setTimeout(function(){
+    if(viewAt!=null){flash('Return to the present to edit your description.');return;}
+    var a=document.activeElement; _lsDescFocus=(a&&a.getAttribute&&a.closest&&a.closest('#sheet .lsdesc'))?a.getAttribute('data-lsd'):null;
+    if(((foldBuild(null).appearance||{})[k]||'')===v){_lsDescFocus=null;return;}
+    _shCommitAppearanceField(k,v);
+  },0);
+}
+function _lsDescRestoreFocus(){
+  var k=_lsDescFocus; _lsDescFocus=null; if(!k)return;
+  var el=document.querySelector('#sheet [data-lsd="'+k+'"]'); if(el&&el.focus)el.focus();
+}
+// 🪶 Regenerate paragraph: rewrite appearance.overall from the other fields with the shared writer. The appearance holder
+// is rewritten in place (see pactWithAppearance), so Undo can't bring a hand-written paragraph back — ask first.
+function lsRegenDesc(){
+  if(_viewOnlyBlock())return;
+  if(viewAt!=null){flash('Return to the present to edit your description.');return;}
+  var b=foldBuild(null), ap=b.appearance||{};
+  var txt=pactComposeDescription(ap,{name:b.name,species:b.species,originClass:b.originClass});
+  var cur=typeof ap.overall==='string'?ap.overall.trim():'';
+  if(cur&&cur!==txt&&!confirm('Replace your current description paragraph with a freshly written one? Undo can\'t bring the old one back.'))return;
+  LS_DESC_OPEN=true;
+  _shCommitAppearanceField('overall',txt);
 }
 var _CSABCOL={STR:'#DE3520',DEX:'#39843C',CON:'#B36113',INT:'#3F6FD8',WIS:'#008393',CHA:'#9C27B0'};
 function _csEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}

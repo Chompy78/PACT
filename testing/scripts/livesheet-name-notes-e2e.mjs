@@ -132,7 +132,7 @@ const BACK = 'Raised on the docks; owes the Guild.\nSecond line.';
   await page.evaluate(() => switchToLiveSheet());
   await page.waitForURL(/Live-Char-Sheet/, { timeout: 15000 });
   await lsReady(page); await page.waitForTimeout(600);
-  const desc = await safe(() => page.textContent('#sheet .lsdesc'), '');
+  const desc = await safe(() => page.$eval('#sheet .lsdesc', el => [...el.querySelectorAll('input,textarea')].map(e => e.value).join(' | ')), '');   // editable fields since feat/livesheet-centre-columns
   const missing = Object.keys(AP).filter(k => k !== 'custom1Label' && k !== 'overall').filter(k => !desc.includes(AP[k]));
   check('the Live Sheet Character panel has an Appearance & description block', !!desc);
   check('…showing every appearance field set in CharGen (' + (Object.keys(AP).length - 2) + ' + custom + overall)', missing.length === 0 && desc.includes('Lucky number') && desc.includes('A wiry <b>auburn</b> woman.'), 'missing: ' + missing.join(','));

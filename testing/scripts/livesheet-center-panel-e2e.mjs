@@ -127,6 +127,35 @@ await page.evaluate(() => { window.confirm = () => true; });
 await page.click('.pswpn .psdel');
 check('a weapon can be removed', await page.evaluate(() => foldBuild(null).appearance.playerSheet.weapons.length === 0));
 
+// feat/livesheet-centre-columns: name on top, then Stats · Skills · General side by side, then Spellcasting/notes below.
+check('Stats, Skills and General sit side by side under the name', await page.evaluate(() => {
+  const r = s => document.querySelector('#sheet ' + s).getBoundingClientRect();
+  const n = r('.shname'), st = r('.shstats'), sk = r('.shskills'), g = r('.shmain');
+  return n.bottom <= st.top + 1 && st.right <= sk.left + 1 && sk.right <= g.left + 1 && Math.abs(st.top - sk.top) < 2 && Math.abs(sk.top - g.top) < 2; }));
+check('the description block is inside General', await page.evaluate(() => !!document.querySelector('#sheet .shmain .lsdesc')));
+check('coins/weapons/notes come after the three columns', await page.evaluate(() => {
+  const c = document.querySelector('#sheet .shcols3').getBoundingClientRect(), p = document.querySelector('#sheet .pssec').getBoundingClientRect();
+  return p.top >= c.bottom - 1; }));
+check('the description is collapsed by default', await page.evaluate(() => !document.querySelector('#sheet .lsdesc').open));
+await page.click('#sheet .lsdesc summary');
+await page.fill('#sheet [data-lsd="hair"]', 'copper "braided" <b>x</b>');
+await page.press('#sheet [data-lsd="hair"]', 'Tab');
+await page.waitForTimeout(150);
+check('editing a description field saves it in the character', await page.evaluate(() => (foldBuild(null).appearance || {}).hair) === 'copper "braided" <b>x</b>');
+check('…the block stays open and focus moves on to the next field', await page.evaluate(() =>
+  document.querySelector('#sheet .lsdesc').open && document.activeElement && document.activeElement.getAttribute('data-lsd') === 'eyes'));
+check('…and the value is escaped (no element injected)', await page.evaluate(() => !document.querySelector('#sheet .lsdesc .lsdgrid b')));
+await page.fill('#sheet [data-lsd="eyes"]', 'grey');
+await page.press('#sheet [data-lsd="eyes"]', 'Tab');
+await page.waitForTimeout(150);
+const regen = await page.evaluate(() => { const before = LOG.length; lsRegenDesc(); const b = foldBuild(null);
+  return { para: b.appearance.overall, want: pactComposeDescription(b.appearance, { name: b.name, species: b.species, originClass: b.originClass }), shown: document.querySelector('#sheet [data-lsd="overall"]').value, grew: LOG.length - before }; });
+check('🪶 Regenerate paragraph writes the paragraph from the fields', /grey eyes/.test(regen.para) && regen.para === regen.want && regen.shown === regen.para, regen.para);
+check('…without adding a history entry', regen.grew === 0, String(regen.grew));
+const asked = await page.evaluate(() => { let n = 0; const c = window.confirm; window.confirm = () => { n++; return false; };   // the weapon test above stubbed it to true
+  _shCommitAppearanceField('overall', 'Hand-written.'); lsRegenDesc(); window.confirm = c; return n; });
+const kept = await page.evaluate(() => foldBuild(null).appearance.overall);
+check('…and asks before replacing a hand-written paragraph (cancel keeps it)', asked === 1 && kept === 'Hand-written.', kept);
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }
 const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
