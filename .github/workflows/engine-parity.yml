@@ -18,6 +18,8 @@ on:
       - "testing/fixtures/**"
       - "testing/expected/**"
       - "testing/scripts/engine-parity-ci.mjs"
+      - "testing/scripts/gen-drawback-prices-sql.mjs"
+      - "sql/migrations/**"
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
@@ -141,6 +143,11 @@ jobs:
 
       - name: Run the campaign house-rules ledger gate
         run: node testing/scripts/house-rules-ledger-ci.mjs --iterations 1500 --seed ${{ github.run_id }}
+
+      # AB1: the server's printed drawback values (pact_drawback_printed) are generated from js/engine-data.js. A drawback
+      # price change without re-running the generator fails here.
+      - name: The server's drawback price list matches js/engine-data.js
+        run: node testing/scripts/gen-drawback-prices-sql.mjs --check
 
   imposed-drawback-grants:
     # fix/imposed-drawbacks-grant-no-ap. compute() once credited a DM-imposed drawback's table value as income

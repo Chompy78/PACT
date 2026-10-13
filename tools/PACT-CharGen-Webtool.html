@@ -3440,8 +3440,20 @@ function _cgSealedFloor(){
 // WORDING: "locked", never "your DM sealed it" -- _cgSealedFloor() is non-zero for the pre-existing
 // AP-award boundary as well as for a real seal, and the two are indistinguishable here. See
 // _lsBlockedBySeal() in the Live Sheet and isSealRejection() in js/sync.js.
+// feat/campaign-house-rules-server (M1): events only a campaign DM may write — a truthy dmEdit, or a DM-only type. The
+// database (trg_pact_dm_family_guard) refuses any save by the player that adds, changes, removes or reorders one, so a
+// whole-history rebuild (Randomise, loading a file over the character) must not run while any exist. Mirrors
+// public.pact_dm_family() in sql/migrations/2026-10-13-campaign-house-rules-server.sql.
+const _CG_DM_ONLY_TYPES=new Set(['dmHouseRules','dmRefundBoon','dmRemoveDrawback','dmRepriceDrawback','dmRemoveBoon','dmUnlockDrawback','sessionSeal']);
+function _cgIsDmFamily(e){return !!(e&&(e.dmEdit||_CG_DM_ONLY_TYPES.has(e.type)));}
 function _cgBlockedBySeal(what){
-  if(_cgSealedFloor()===0) return false;
+  if(_cgSealedFloor()===0){
+    if(!LOG.some(_cgIsDmFamily)) return false;
+    alert('\uD83D\uDD12 Your DM has made changes to this character.\n\n' + what + ' rebuilds the whole history from the form, '
+        + 'which would drop or rewrite what your DM added (a granted boon, an imposed drawback or house rules) \u2014 '
+        + 'and the server will refuse it.\n\nUse \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
+    return true;
+  }
   alert('\uD83D\uDD12 Part of this character\'s history is locked.\n\n' + what + ' rebuilds the whole history from the form, '
       + 'which would drop what the server has locked (by a session seal, or by an AP award) \u2014 and it will be refused.\n\n'
       + 'Use \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
@@ -3471,8 +3483,17 @@ function retractFlatEvent(cat,predicate){
   // the FIRST match, so a sealed duplicate would otherwise block retraction of a legitimately
   // removable later copy of the same item for ever.
   const _floor=_cgSealedFloor();
-  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+  // A purchase the DM made (granted boon, imposed drawback) is never the player's to retract — the server refuses it (M1).
+  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&!_cgIsDmFamily(e)&&predicate(e);});
   if(i===-1){
+    if(LOG.some(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&_cgIsDmFamily(e)&&predicate(e);})){
+      if(!_histSuspended&&!_cgSealRefusedPass){
+        _cgSealRefusedPass=true;
+        flash('\uD83D\uDD12 Your DM added that \u2014 only they can remove it.');
+        Promise.resolve().then(function(){ _cgSealRefusedPass=false; try{render();}catch(e){} });
+      }
+      return false;
+    }
     // Distinguish "not there" from "there but sealed" — the caller must put the tick back only in the
     // second case, and the reconcile callers (which ignore the return) must not silently diverge.
     const _sealedMatch=LOG.some(function(e,idx){return idx<_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});

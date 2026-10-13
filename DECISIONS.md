@@ -17,7 +17,9 @@
   turned off stops new purchases; the DM may opt in to remove owned items with refund (T2) and choose which holders a drawback
   reprice applies to (S2), via seq-targeted `dmRefundBoon` / `dmRemoveDrawback` / `dmRepriceDrawback` events that move browser and
   server ledger by the same amount. Engine half landed (rules v0.377); tools, server, DM editor, #642 rework and the guide follow.
-  Open: X1's server cap fallback (12) vs the browser's uncapped grant when a DM switches the cap off.
+  Owner Z1 (2026-10-13) closed the cap question: the server caps drawback grants exactly as js/campaign.js drawbackCapFromRules()
+  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration, written and rehearsed, NOT applied) adds
+  the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
   Full record: `decisions/2026/D-GH-2026-10-13-campaign-house-rules.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign

@@ -99,13 +99,13 @@ is the backstop; a DM-RPC vs stale player save race surfaces as a sync.js optimi
 
 ## Known gaps / open questions (for the owner)
 
-1. **X1 fallback vs the browser.** When a campaign's drawback cap is switched OFF, `compute()` grants drawbacks uncapped (rules
+1. **X1 fallback vs the browser.** *(Resolved 2026-10-13 by owner decision Z1 — see the PR3 addendum below.)* When a campaign's drawback cap is switched OFF, `compute()` grants drawbacks uncapped (rules
    v0.351, AZ1: the cap is enforced only when a campaign supplies one), but X1's server falls back to capping at `DATA.drawbackCap` (12).
    A campaign character with the cap off and more than 12 AP of drawbacks would see more AP than the server allows — a purchase
    can pass the client gate and be refused on save. The gate `house-rules-ledger-ci.mjs` asserts the direction (server stricter)
    and counts these cases. Before PR3: either the browser caps at 12 in a campaign whose cap is off, or the server is uncapped when
    the DM switched the cap off. Owner call.
-2. A player buy-off: the SQL keeps a bought-off drawback's grant (its documented, accepted approximation), so the server is more
+2. *(Resolved 2026-10-13 in PR3 — see the addendum: a buy-off carrying `targetSeq` is netted exactly.)* A player buy-off: the SQL keeps a bought-off drawback's grant (its documented, accepted approximation), so the server is more
    lenient; M4 asks PR3 to net out ΣΔ too, which needs the server to know which purchase a buyoff cancelled. Asserted (server ≥
    browser) in the gate.
 3. **M6:** `priceOf('drawback')` now returns a SOLO character's own house-ruled value (was the printed value, 0 for a custom
@@ -113,7 +113,7 @@ is the backstop; a DM-RPC vs stale player save race surfaces as a sync.js optimi
 
 ### What PR3's RPC must refuse (so the server never counts what the engine ignores)
 
-The server ledger counts a DM-stamped AP event UNCONDITIONALLY; the engine counts it only when it matches. The RPC must therefore
+*(PR3, after the PR #654 review: the server ledger now ALSO counts such an event only when it matches — see the PR3 addendum; the RPC refusals below stay as a second line.)* The server ledger counts a DM-stamped AP event UNCONDITIONALLY; the engine counts it only when it matches. The RPC must therefore
 refuse exactly the events the engine ignores, or the two diverge: a `targetSeq` no purchase has; a target of the wrong type or name
 (a boon event at a drawback purchase and vice versa); a target already bought off, removed (dmRemoveDrawback / dmRemoveBoon) or
 refunded; a target whose seq+name is shared with another purchase (ambiguous — `houseRulesImpact` flags it `ambiguousSeq` and the
@@ -166,3 +166,169 @@ Technical choices made while wiring the context into the three tools (none is an
   parsing it — values ride in `data-*` attributes. (d) Share links strip every `_`-prefixed (derived) key.
 - **Not fixed here (reviewer's note):** a DM refund (`dmRefundBoon`) returns the boon's AP but not the gold/downtime `wealthLedger()`
   charged for it.
+## Addendum 2026-10-13 — PR3, the server half (`feat/campaign-house-rules-server`)
+
+Migration `sql/migrations/2026-10-13-campaign-house-rules-server.sql` + `-rollback.sql`, rehearsed in Docker by
+`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (191 cases). **NOT applied** to the live database by merging;
+`sql/rls-policies.sql` and the baseline tests are deliberately unchanged until it is (sql/migrations/README.md; precedents
+#580 -> #598, #600 -> #608).
+
+### Owner decision Z1 (2026-10-13) — the drawback cap when the DM switched it off
+
+Resolves open question 1 above. **When a campaign's drawback cap is switched OFF (`rules.drawbackCap.enabled === false`) the
+server applies NO cap to drawback grants; when it is on, it caps at `rules.drawbackCap.ap`; when the setting is absent it uses
+the same default `js/campaign.js` `drawbackCapFromRules()` uses.** That default is *no cap* (an absent key means off; a present
+object with `enabled` unset means on), so the X1 fallback to `DATA.drawbackCap` (12) is gone and the browser and the server
+now apply one rule. `pact_hr_drawback_cap(rules)` mirrors the JS function including its `Number()` coercion of `ap` (string,
+boolean, null, array) and compute()'s `Math.max(0, cap)`; 45 shapes generated from the real JS function are checked against
+the SQL in the harness and against the JS in `house-rules-ledger-ci.mjs`. The engine's `serverApLedger()` model and the CI port
+follow, so the fuzz's former "cap-off, server stricter" bucket is now strict equality.
+
+### Orchestrator decision M4 — implemented
+
+A buy-off may carry `targetSeq` = the seq of the purchase it cancels. Because js/engine.js's buy-off match is FIFO by name
+(the oldest open purchase), "the purchase it cancels" is that FIFO purchase — the engine is unchanged; `activeEvents()` only
+gains an additive `buyoffTarget` map (buyoff index -> purchase index) so the model can read it. The server
+(`pact_hr_resolve()`, a SQL port of the parts of `activeEvents()` it needs) nets out that purchase's grant — `−cost + ΣΔ` of
+the DM reprices aimed at it before the buy-off — **only when the buy-off's `targetSeq` equals the FIFO purchase's seq**. A
+buy-off without one (every existing one) keeps the old approximation (the grant stays): more lenient, never a mint, since the
+buy-off itself cost 3× the value. **PR2 must make the Live Sheet stamp `targetSeq`** on every buy-off (it already finds the
+FIFO purchase in `_openDrawbackEvent()`); nothing else needs to change for M4.
+
+### Technical choices made in PR3 (not owner-level)
+
+- **`campaigns.rules.charHouseRules` guard carries the key over silently** instead of refusing the save, so DM Console's
+  existing whole-blob "Save rules" keeps working and simply cannot erase or forge it. Writers: `dm_apply_house_rules_change()`
+  (transaction-local GUC `pact.hr_rpc`, set around its one UPDATE and cleared) and admin sessions.
+- **RPC action kinds:** `override` (alias `pin`) carries a whole `dmHouseRules` override snapshot; `reprice`, `refundBoon`,
+  `removeDrawback` target one purchase by `targetSeq` + `name`. `p_char_house_rules` SQL NULL = unchanged, JSON null = remove.
+  At most 500 actions, processed in order against the log as the earlier actions left it, all or nothing.
+- **"Creation-locked" for the AP-moving kinds is the explicit-event test** (last `creationLocked` after last
+  `creationUnlocked`), as #642 used. The engine's `creationLockState()` also counts a threshold auto-lock; such a character is
+  refused by the RPC (the safe direction) — PR4 must show it as not tickable, like a draft.
+- **M3 printed-value fallback:** the database has no copy of `js/engine-data.js` (and must not get one), so when no pin,
+  override or campaign entry names the drawback, `to` is accepted within 0..1000. Everything else about the event is checked.
+- **DM-granted boons are refused for `refundBoon`** (plan §7.2): removing one is `dmRemoveBoon` via `dm_edit_character_log`,
+  which is FIFO by name in the engine — PR4 must only offer it when the DM-granted copy is the oldest open one of that name.
+- **History protection:** a DM-stamped AP-moving event is a locked-history boundary for a campaign character **even after
+  creation is reopened** — re-costing a purchase under a refund would pay the refund twice. To keep honest saves accepted, the
+  engine's `sealedFloor()` (which `repriceDraft()` and both tools' undo use) now also floors at such an event.
+- **M1 guard compares the WHOLE events** of the DM family (truthy `dmEdit`, or a DM-only type), labels and `ts` included,
+  for non-DM non-admin writers on campaign characters. `testing/scripts/dm-family-roundtrip-e2e.mjs` loads characters carrying
+  every family type into the real Live Sheet and CharGen and proves an honest save (and a buy-off / a harmless edit) leaves
+  the family byte-identical; `roundtrip-audit.mjs` now checks the same on a live export.
+
+### PR #654 security review — changes (2026-10-13)
+
+- **BLOCKING 1 (seq rewrite):** a player could renumber a purchase inside the frozen prefix (the protected projection
+  stripped `seq`), so the engine stopped matching a DM refund while the SQL still counted it — refund kept AND boon kept.
+  Fixed both ways: (a) `pact_ap_ledger_protected()` keeps `seq` on buy and buyoff events (no client renumbers one — checked in
+  both tools by `dm-family-roundtrip-e2e.mjs`, and on live data by `roundtrip-audit.mjs`, which now mirrors the rule); (b) the
+  SQL ledger counts a DM AP event only when `pact_hr_resolve()` matches it to its target exactly as `activeEvents()` does
+  (`dmMatched`), and the engine's `serverApLedger()` model and the CI port do the same. The CI fuzz no longer leaves
+  non-matching or duplicate-seq histories out of the browser-vs-server comparison: they are compared strictly.
+- **CharGen dead-end:** 🎲 Randomise and loading a file over the character now refuse, with a message naming the DM, while the
+  log holds any DM-family event; unticking a purchase the DM made (a granted boon, an imposed drawback) is refused instead of
+  retracting the DM's event. A small CharGen hunk (`_cgIsDmFamily`, `_cgBlockedBySeal`, `retractFlatEvent`).
+- **Draft re-price relaxation:** in a creation draft the guard lets a DM-stamped boon buy's cost RISE (never fall, nothing else
+  changed). Finding while testing it: a DM boon GRANT is always followed by its matched `award`, which is a locked-history
+  boundary TODAY — so `main`'s CharGen re-costing a DM grant in a draft is already refused by the live database (a
+  pre-existing stuck-save, fixed by PR1's engine), and this migration adds no new refusal there. **The "apply together with
+  the promotion" constraint is withdrawn**: the migration may be applied before the promotion, which PR1's security gate
+  requires anyway.
+- **RPC:** archived characters are refused (as `dm_bind_npc` treats them); a DM's own NPC is accepted, like
+  `dm_edit_character_log` and `award_ap`. Ledger and RPC amounts read as `Number(x) || 0` (`pact_num`), so a malformed cost
+  string counts 0 instead of raising and blocking every save of that character.
+- **Atomic apply:** neither file carries BEGIN/COMMIT (Supabase `apply_migration` already runs one transaction, and a COMMIT
+  inside would end it early); a manual apply must use `psql -1`, which the harness now does.
+- **Rollback header corrected:** after a rollback the server ignores the DM events while the browser counts them — STRICTER
+  for refunds and positive reprices, but MORE LENIENT for a removal or a negative reprice.
+- **Owner decision AB1 (2026-10-13) — see the next section.** *(Was: "Open, owner decision AB (BLOCKING 2)".)* with X1 + Z1 an ignore-player-AP player can append a forged
+  `{buy, drawback, cost:-1000}` and spend it (the server has no drawback price table). Pinned as a "KNOWN GAP" case in the
+  harness; X1/Z1 behaviour unchanged pending the owner's answer.
+
+### Owner decision AB1 (2026-10-13) — the server gets its own drawback price list
+
+Closes the review's BLOCKING 2: with X1 + Z1 a player in an ignore-player-AP campaign could append `{buy, drawback,
+cost:-1000}` and spend it, because the server counted `−cost` and had no idea what any drawback is worth.
+
+- **Price list.** `public.pact_drawback_printed(name)` is GENERATED from `js/engine-data.js` (`DATA.drawbacks`, 109 entries at
+  rules v0.377) by `testing/scripts/gen-drawback-prices-sql.mjs` into a marked block of the migration. `--check` runs in
+  engine-parity and sql-guards CI and fails with "re-run the generator" on drift. Once applied, a drawback price change ships
+  as a NEW migration started from `--stdout` (docs/VERSION-SYNC.md, rules-bump steps).
+- **Grant.** Per player drawback purchase the server credits `least(−cost + ΣΔ of its matched DM reprices, effective value)`,
+  effective = DM pin > DM override for the character's current campaign > campaign `charHouseRules` > printed > 0 —
+  `pact_hr_drawback_effective()`, the same precedence as `resolveHouseRules()` / `drawbackValue()`, including the engine's
+  quirk that an `Object.prototype` property name ("toString", "constructor"…) reads as 0. DM-imposed (dmEdit, cost >= 0):
+  0. DM-removed and targeted-bought-off: 0. Untargeted-bought-off: kept (the accepted approximation). Still capped by Z1.
+- **A held custom drawback the DM deletes from the campaign** falls back to its printed value, or 0 if it has none. That is
+  what the engine already does (`_drawVal`: no house-rule entry -> `DATA.drawbacks[name]`, `_fin(undefined)` = 0), so no
+  engine change was needed for agreement; the RPC's M3 `to` check now uses the same function (it can verify the printed
+  fallback instead of accepting any `to`).
+- **Engine changes made for it (no `compute()` change for any valid log, rules stay v0.377):** `serverApLedger()` models the
+  per-purchase grant and takes `opts.houseRulesCtx` (`houseRulesImpact()` passes old/new ctx); `activeEvents()`'s name-keyed
+  maps are now null-prototype objects — a drawback or boon named "constructor"/"toString" previously CRASHED every fold of
+  that character (`_openDraws[v].push is not a function`), found by the new fuzz.
+- **Blast radius vs today's server:** a player drawback stored above its printed value (a later rules bump lowered it, or a
+  name no longer in the rules) now grants the printed value — the browser already showed exactly that, so this is agreement,
+  not a new loss to the player's visible AP; header query Q5 lists them. A CharGen cost-0 drawback (F4a) grants
+  min(0, value) = 0, as today. A DM-imposed drawback with a positive cost now counts 0 instead of a negative amount (gain).
+  No other legitimate shape loses AP.
+
+### PR #654 round-2 review — changes (2026-10-13)
+
+- **F1 (introduced by AB1/X1, blocking): one grant per drawback name.** 20 copies of "Slow to Mend" minted 100 AP in an
+  uncapped ignore-mode campaign. Verified first that no drawback can legitimately be held twice at once: `MUT.drawback` just
+  pushes a name; CharGen's drawback picker is a checkbox; the Live Sheet lists an owned drawback as "Active drawback" instead of
+  for sale; the guide never lets a drawback stack (its only stacking line forbids Frail + Glass Frame together); an imposed copy
+  grants 0 anyway; a bought-off copy has left the fold before a retake. So: of two OPEN player copies of a name only the oldest
+  earns — in `compute()`'s grant (the second is listed "held twice — counted once" at 0), `economy()`, `serverApLedger()`, the CI
+  port and `pact_ap_ledger_split`. A `compute()` change only for logs holding duplicates (no tool makes one); every parity fixture
+  is unchanged; `DATA.version` stays v0.377 (unreleased). A copy closed by an untargeted (legacy) buyoff keeps its old lenient
+  grant on the server and does not use up the name.
+- **New server refusals** (`pact_enforce_player_grants`, non-DM non-admin writers of campaign characters, NEW events only —
+  stored ones are grandfathered): a player drawback buy after the creation lock unless the campaign set
+  `rules.postLockDrawbacks` (`postLockAllowance()`, as the Live Sheet's `_lsBarGrant()`); a buyoff without `targetSeq` (R2-5;
+  the Live Sheet stamps it since PR2), one that cancels nothing, and one cheaper than rate × the purchase's effective value
+  (W1). The DM's buy-off rate IS known server-side — it is on the imposed purchase (`dmRemovalCost`: 'expensive' = 3, else 1) —
+  so that check is in. Bindings after the lock (the other half of `_lsBarGrant`) stay client-side; not in this review item.
+- **F3:** seq/targetSeq are keyed as the engine keys them (`pact_js_key`: JavaScript `String()` of the number, so 5.0 is "5").
+- **F4:** server-stamped seqs come from `pact_next_seq()` (whole-number SEQ, else max seq + 1) in the RPC and
+  `dm_edit_character_log`; a garbage SEQ no longer blocks every DM write. (`seal_character_history` / `award_ap_and_seal` keep
+  their own cast — not redefined here.)
+- **F5:** `houseRulesImpact()` emits no reprice event whose `ledgerDelta` is 0 (the RPC refuses amount 0).
+- **Generator:** the no-argument mode rewrites only a file carrying a `-- STATUS: NOT APPLIED` line; the PR that records the
+  apply flips it to `-- STATUS: APPLIED <date>`. A later price change uses `--stdout` or `--write <new migration>`.
+- **Board:** `fix/server-negative-cost-after-lock` extended with F2 (a negative cost on any other non-drawback buy or a
+  `names` event still lowers server spend in every campaign mode — pre-existing, pinned as allowed in the harness; a clamp must
+  keep Martially/Magically Bound's legitimate negative costs); the campaignId/adjustments-table follow-up gains R2-6 (a pin
+  forged while solo with the target campaign's own id survives joining — pinned as a KNOWN GAP case).
+
+### PR #654 round-3 review — changes (2026-10-13)
+
+- A new buy-off's `targetSeq` must equal the seq of the purchase it actually cancels (the oldest open copy). Before, a
+  `targetSeq` naming nothing (999, `true`) or a closed copy passed the price check while the ledger kept the cancelled
+  purchase's grant.
+- `pact_next_seq()` = greatest(whole-number SEQ, max seq in the LOG + 1): a stale SEQ can't reuse a seq.
+- The generator's `--write` without a file prints usage.
+- Board (PR4): the tools should be strict when a bound character's campaign rules are unknown (offline, no snapshot); and the
+  ledger label of a removal aimed at a second, non-granting copy.
+
+### Constraints for applying it (owner)
+
+1. The read-only blast-radius queries in the migration header (Q1–Q4), and `roundtrip-audit.mjs` on a fresh export (it now
+   checks the DM family and buy/buyoff `seq`, which this migration freezes).
+2. AB1 is in the migration; Q5 in its header lists who loses drawback AP against today's server (expected: few or none).
+3. Apply with `apply_migration` (or `psql -1`), then `get_advisors` (security + performance) and `get_logs`; then, in the
+   PR that records the apply, flip the migration's `-- STATUS: NOT APPLIED` line and fold it into `sql/rls-policies.sql` and
+   the baseline tests.
+
+### Residual risk (plan §6.7, corrected by the review)
+
+A player cannot leave a campaign (`dm_unbind_character` is the only way out). The real paths into campaign X with DM-stamped AP
+events no DM of X wrote: (1) forge them on a solo character (no guard) before its first join; (2) create a campaign Y, bind
+their own character to it with `dm_bind_npc`, write the events as Y's DM, `dm_unbind_character` it, then join X with X's invite
+code. Follow-up on the board: count AP-moving DM events only when their stamped `campaignId` equals the character's current
+`campaign_id` — on BOTH sides (the engine has no campaign in `economy()`, so doing it server-only would split browser and server
+for every legitimately moved character; not cheap, so not done here) — or have the RPC record the amounts in a server-side
+table that the ledger reads instead of the player-writable log.

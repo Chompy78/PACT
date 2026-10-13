@@ -17,14 +17,17 @@
  *   (f)  THE LEDGER INVARIANT, fuzzed: over random campaign histories in which a DM changes the campaign's drawback
  *        values (S2: tick = dmRepriceDrawback, untick = pin), removes drawbacks / refunds boons (T2), awards DM AP,
  *        flips ignore-player-AP and the cap, the BROWSER's AP left (compute().spendable − economy().spent, D-GH30)
- *        equals an INDEPENDENT JS port of the server ledger (pact_ap_ledger_spend + the budget trigger, as plan
- *        §6.4 + addendum M1/M4/X1 will leave them), and equals the engine's own serverApLedger() model.
- *        Two scoped exceptions, each asserted in its own DIRECTION rather than skipped:
- *          - a log with a player buyoff: the SQL keeps a bought-off drawback's grant (its documented, accepted
- *            approximation), so the server is MORE lenient — asserted server ≥ browser;
- *          - a campaign with the DM's drawback cap switched OFF whose drawbacks grant more than DATA.drawbackCap:
- *            X1's server falls back to capping at DATA.drawbackCap while compute() does not cap at all, so the
- *            server is STRICTER — asserted server ≤ browser, and counted in the output (open owner question).
+ *        equals an INDEPENDENT JS port of the server ledger (pact_ap_ledger_split + pact_hr_resolve + pact_hr_drawback_cap +
+ *        the budget trigger, as sql/migrations/2026-10-13-campaign-house-rules-server.sql defines them), and equals the
+ *        engine's own serverApLedger() model. One scoped exception, asserted in its own DIRECTION rather than skipped:
+ *        Non-matching DM events (bad / stale / ambiguous targets, non-finite amounts) stay IN the compared log: the server,
+ *        like the engine, counts a DM AP event only when it matches its target (PR #654 review).
+ *          - a log with an UNTARGETED player buyoff (no targetSeq naming the purchase it cancels): the SQL keeps that
+ *            bought-off drawback's grant (the old, accepted approximation), so the server is MORE lenient — asserted
+ *            server ≥ browser. Targeted buyoffs (M4) and campaigns whose DM switched the cap off (owner decision Z1)
+ *            are in the strict scope.
+ *        With --dump-logs FILE it writes every history and the port's sums; run-house-rules.sh feeds them to the real SQL.
+ *   Z1   the server cap rule == js/campaign.js drawbackCapFromRules() on the 45 shapes the SQL harness also checks.
  *        F4(a) (CharGen's cost-0 drawback events, Y1, out of scope) is excluded by construction: every drawback
  *        here is stamped at priceOf(), which is the behaviour this PR gives the Live Sheet.
  *
@@ -53,30 +56,112 @@ const t = (name, got, want) => {
 const section = s => console.log(s);
 
 // ---------------------------------------------------------------------------------------------------------------
-// The INDEPENDENT server-ledger port. Written from sql/rls-policies.sql's pact_ap_ledger_spend and
-// pact_enforce_ap_budget_consistency as they stand, plus exactly the plan's §6.4 additions as the addendum amends
-// them — kept deliberately separate from js/engine.js's serverApLedger() so the two check each other.
-//   SQL today: award -> earned; buy/drawback -> earned += -cost; buyoff|names|buy(non-patch) -> spent += cost.
+// The INDEPENDENT server-ledger port. Written from sql/migrations/2026-10-13-campaign-house-rules-server.sql
+// (pact_ap_ledger_split + pact_hr_resolve + pact_hr_drawback_cap + pact_enforce_ap_budget_consistency) — kept
+// deliberately separate from js/engine.js's serverApLedger() so the two check each other.
+//   award -> award_earned; buy/drawback -> drawback_earned += -cost; buyoff|names|buy(non-patch) -> spent += cost.
 //   §6.4 + M1: dmRefundBoon -> spent += cost; dmRemoveDrawback -> drawback_earned -= grantBack;
 //              dmRepriceDrawback -> drawback_earned += amount — each ONLY when dmEdit = true.
-//   §6.4 split + X1: spendable = ap + (ignore ? 0 : award_earned) + least(cap, drawback_earned),
-//              cap = rules.drawbackCap.ap when enabled, else DATA.drawbackCap.
+//   M4: a buyoff whose targetSeq equals the seq of the purchase its FIFO match cancels nets that purchase's
+//       -cost + (sum of DM reprice amounts aimed at it before the buyoff) out of drawback_earned.
+//   X1 + Z1: spendable = ap + (ignore ? 0 : award_earned) + (cap == null ? drawback_earned : least(cap, drawback_earned)),
+//       cap = rules.drawbackCap.ap (Number(), max 0) when the drawbackCap object is present and not enabled:false, else none.
 // ---------------------------------------------------------------------------------------------------------------
-function sqlLedgerPort(log, { dmAp = 0, ignorePlayerAp = false, capRule = null } = {}) {
+function sqlCap(rules) {                  // pact_hr_drawback_cap: mirrors js/campaign.js drawbackCapFromRules (Z1)
+  const c = rules && rules.drawbackCap;
+  if (!c || typeof c !== 'object' || Array.isArray(c) || c.enabled === false) return null;
+  const n = Number(c.ap);
+  return Number.isFinite(n) ? Math.max(0, n) : null;
+}
+function sqlLedgerPort(log, { dmAp = 0, ignorePlayerAp = false, capRule = null, chr = null, campaignId = null } = {}) {
+  const { spent, award, draw } = sqlLedgerParts(log, chr, campaignId);
+  const cap = sqlCap({ drawbackCap: capRule });
+  return dmAp + (ignorePlayerAp ? 0 : award) + (cap == null ? draw : Math.min(cap, draw)) - spent;
+}
+// pact_hr_drawback_effective(name, charHouseRules, override): pin > override > campaign > printed (pact_drawback_printed,
+// generated from DATA.drawbacks), 0 for an unknown name or an Object.prototype property name.
+const PROTO_NAMES = new Set(['__proto__', 'constructor', 'hasOwnProperty', 'isPrototypeOf', 'propertyIsEnumerable', 'toLocaleString',
+  'toString', 'valueOf', '__defineGetter__', '__defineSetter__', '__lookupGetter__', '__lookupSetter__']);
+const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x);
+const own = (o, k) => isObj(o) && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined;
+function sqlEffective(name, chr, ov) {
+  const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  if (name == null || PROTO_NAMES.has(name)) return 0;
+  if (isObj(ov)) {
+    const pin = isObj(ov.pins) ? own(own(ov.pins, 'draws'), name) : undefined;
+    if (isObj(pin) && Number.isFinite(Number(pin.ap))) return Number(pin.ap);
+    const od = own(ov.draws, name); if (isObj(od)) return num(od.ap);
+  }
+  if (isObj(chr)) { const cd = own(chr.draws, name); if (isObj(cd)) return num(cd.ap); }
+  const pr = own(DATA.drawbacks, name); return pr == null ? 0 : Number(pr);
+}
+function sqlLedgerParts(log, chr = null, campaignId = null) {     // pact_ap_ledger_split(log, chr, campaign)
   let spent = 0, award = 0, draw = 0;
   const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-  for (const ev of log) {
+  const fin = v => Number.isFinite(Number(v));
+  const truthy = v => !(v === undefined || v === null || v === false || v === 0 || v === '');
+  const evs = log.filter(Boolean);
+  // pact_hr_resolve: one forward pass. Drawback/boon queues by name (FIFO), 'seq|name' maps per category (-1 = shared),
+  // statuses, ΣΔ of matched reprices, which DM events matched and which purchase each buyoff cancelled.
+  const N = () => Object.create(null);   // jsonb objects have no prototype: neither may these name-keyed maps
+  const dq = N(), bq = N(), dmap = N(), bmap = N(), status = {}, delta = {}, buyoffOf = new Map();
+  const drop = (q, j) => { if (q) { const x = q.indexOf(j); if (x >= 0) q.splice(x, 1); } };
+  evs.forEach((ev, i) => {
+    if (typeof ev !== 'object') return;
     const type = ev.type, cat = ev.cat == null ? '' : ev.cat;
     if (type === 'award') award += num(ev.amount);
-    else if (type === 'buy' && cat === 'drawback') draw += num(ev.cost) * -1;
+    else if (type === 'buy' && cat === 'drawback') { /* per purchase, below */ }
     else if (type === 'buyoff' || type === 'names' || (type === 'buy' && cat !== 'patch')) spent += num(ev.cost);
-    else if (type === 'dmRefundBoon' && ev.dmEdit === true) spent += num(ev.cost);
-    else if (type === 'dmRemoveDrawback' && ev.dmEdit === true) draw -= num(ev.grantBack);
-    else if (type === 'dmRepriceDrawback' && ev.dmEdit === true) draw += num(ev.amount);
-  }
-  const cap = (capRule && capRule.enabled !== false && Number.isFinite(Number(capRule.ap))) ? Number(capRule.ap) : DATA.drawbackCap;
-  return dmAp + (ignorePlayerAp ? 0 : award) + Math.min(cap, draw) - spent;
+    if (type === 'buy' && (cat === 'drawback' || cat === 'boon') && ev.payload && ev.payload.v != null) {
+      const v = String(ev.payload.v), Q = cat === 'drawback' ? dq : bq, M = cat === 'drawback' ? dmap : bmap;
+      (Q[v] = Q[v] || []).push(i); status[i] = 'open'; delta[i] = 0;
+      if (ev.seq != null) { const k = ev.seq + '|' + v; M[k] = (k in M) ? -1 : i; }
+    } else if ((type === 'dmRemoveDrawback' || type === 'dmRepriceDrawback' || type === 'dmRefundBoon')
+               && ev.dmEdit === true && ev.refVal != null && ev.targetSeq != null) {
+      const amt = type === 'dmRemoveDrawback' ? ev.grantBack : type === 'dmRepriceDrawback' ? ev.amount : ev.cost;
+      if (amt != null && !fin(amt)) return;
+      if (type !== 'dmRemoveDrawback' && !fin(amt)) return;
+      const j = (type === 'dmRefundBoon' ? bmap : dmap)[ev.targetSeq + '|' + ev.refVal];
+      if (j == null || j < 0 || status[j] !== 'open') return;
+      if (type === 'dmRepriceDrawback') delta[j] += Number(amt);
+      else if (type === 'dmRemoveDrawback') { status[j] = 'removed'; drop(dq[String(ev.refVal)], j); }
+      else { status[j] = 'refunded'; drop(bq[String(ev.refVal)], j); spent += num(ev.cost); }
+    } else if (type === 'buyoff' && ev.refVal != null) {
+      const q = dq[String(ev.refVal)];
+      if (q && q.length) { const j = q.shift(); status[j] = 'boughtOff'; buyoffOf.set(i, j); }
+    } else if (type === 'dmRemoveBoon' && ev.refVal != null) {
+      const q = bq[String(ev.refVal)];
+      if (q && q.length) { const j = q.shift(); status[j] = 'dmRemoved'; }
+    }
+  });
+  const netted = new Set();
+  for (const [i, j] of buyoffOf) { const ev = evs[i], p = evs[j]; if (ev.targetSeq != null && p.seq != null && String(p.seq) === String(ev.targetSeq)) netted.add(j); }
+  let ov = null;
+  if (campaignId) for (const e of evs) if (isObj(e) && e.type === 'dmHouseRules' && e.dmEdit === true && typeof e.campaignId === 'string'
+      && e.campaignId === campaignId && isObj(e.overrides)) ov = e.overrides;
+  const openNames = new Set();   // F1: one grant per name among the open copies (the oldest)
+  evs.forEach((ev, i) => {
+    if (!isObj(ev) || ev.type !== 'buy' || (ev.cat == null ? '' : ev.cat) !== 'drawback') return;
+    if (truthy(ev.dmEdit) && num(ev.cost) >= 0) return;                         // imposed
+    if (!(i in status)) { draw += Math.min(-num(ev.cost), 0); return; }          // no name
+    if (status[i] === 'removed' || netted.has(i)) return;
+    if (status[i] === 'open') { const nm = String(ev.payload.v); if (openNames.has(nm)) return; openNames.add(nm); }
+    draw += Math.min(-num(ev.cost) + delta[i], sqlEffective(String(ev.payload.v), chr, ov));
+  });
+  return { spent, award, draw };
 }
+
+// --dump-logs FILE: every generated history (with and without its junk events) and what this port says
+// pact_ap_ledger_split returns for it. run-house-rules.sh feeds the file to the REAL SQL, so the port, the engine's
+// serverApLedger() and the database are all checked against each other on the same random logs.
+const DUMP = arg('dump-logs', null), dumped = [];
+// The log as the database would store it: a JSON round trip (Infinity/NaN become null, exactly as a client's save would).
+// 'camp-A' becomes a uuid there (the SQL takes the campaign as a uuid), in the log and in the campaign id alike.
+const CAMP_UUID = 'c0ffee00-0000-4000-8000-00000000000a';
+const dumpLog = (L, chr, campaignId) => { if (DUMP) {
+  const J = JSON.parse(JSON.stringify(L).split('"camp-A"').join(JSON.stringify(CAMP_UUID)));
+  const cid = campaignId === 'camp-A' ? CAMP_UUID : campaignId;
+  const p = sqlLedgerParts(J, chr, cid); dumped.push({ log: J, chr, campaign: cid, spent: p.spent, award: p.award, draw: p.draw }); } };
 
 const STM = 'Slow to Mend';               // printed 5, no stat cap / caster gate / wound flag
 const ctx = (rules, id = 'camp-A', bans) => ({ campaignId: id, rules, bans: bans || { boons: [], draws: [] } });
@@ -86,6 +171,81 @@ const ovr = (overrides, cid = 'camp-A', seq = 50) => ({ type: 'dmHouseRules', ca
 const patchHR = (hr, seq = 3) => ({ type: 'buy', cat: 'patch', _slot: 'houseRules', payload: { patch: { houseRules: hr } }, cost: 0, seq });
 const award = (amount, seq) => ({ type: 'award', amount, seq });
 const fighter = { type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0, seq: 2 };
+
+// ================================================================================================================
+section('Z1 — the server cap rule == js/campaign.js drawbackCapFromRules() on every shape the SQL harness checks');
+{
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(resolve(REPO, 'js/campaign.js'), 'utf8').match(/export function drawbackCapFromRules\(rules\) \{[\s\S]*?\n\}\n/);
+  const real = new Function('return ' + src[0].replace('export ', ''))();
+  const shapes = JSON.parse(readFileSync(resolve(REPO, 'testing/scripts/creation-lock-guard-test/drawback-cap-shapes.json'), 'utf8'));
+  const eff = r => { const c = real(r); return Number.isFinite(c) ? Math.max(0, c) : null; };
+  t(`all ${shapes.length} shapes: the real function still gives the recorded cap`, shapes.filter(x => eff(x.rules) !== x.cap).map(x => x.rules), []);
+  t(`all ${shapes.length} shapes: the SQL port agrees`, shapes.filter(x => sqlCap(x.rules) !== x.cap).map(x => x.rules), []);
+  t('serverApLedger: no drawbackCap -> uncapped (Z1), not DATA.drawbackCap',
+    serverApLedger([{ type: 'buy', cat: 'drawback', payload: { v: 'A' }, cost: -20, seq: 1 }], { houseRulesCtx: ctx({ draws: { A: { ap: 20 } } }) }).drawbackGranted, 20);
+  t('serverApLedger: cap 4', serverApLedger([{ type: 'buy', cat: 'drawback', payload: { v: 'A' }, cost: -20, seq: 1 }], { drawbackCap: 4, houseRulesCtx: ctx({ draws: { A: { ap: 20 } } }) }).drawbackGranted, 4);
+}
+
+section('M4 — a targeted buyoff nets out exactly the purchase FIFO cancels');
+{
+  const L = [{ type: 'award', amount: 10, seq: 1 }, { type: 'buy', cat: 'drawback', payload: { v: 'A' }, cost: -5, seq: 2 },
+    dmE({ type: 'dmRepriceDrawback', refVal: 'A', targetSeq: 2, amount: 2, from: 5, to: 7, seq: 3 }),
+    { type: 'buyoff', refVal: 'A', targetSeq: 2, cost: 21, seq: 4 }];
+  t('netted incl. ΣΔ (engine model)', serverApLedger(L).drawbackEarned, 0);
+  t('netted incl. ΣΔ (port)', sqlLedgerParts(L).draw, 0);
+  t('activeEvents().buyoffTarget maps the buyoff to its purchase', [...E.activeEvents(L).buyoffTarget], [[3, 1]]);
+  const U = L.map(e => e.type === 'buyoff' ? { type: 'buyoff', refVal: 'A', cost: 21, seq: 4 } : e);
+  const A7 = ctx({ draws: { A: { ap: 7 } } }), A5 = ctx({ draws: { A: { ap: 5 } } });
+  t('untargeted: the grant stays (old approximation)', [serverApLedger(U, { houseRulesCtx: A7 }).drawbackEarned, sqlLedgerParts(U, A7.rules, 'camp-A').draw], [7, 7]);
+  const W = [{ type: 'buy', cat: 'drawback', payload: { v: 'A' }, cost: -5, seq: 1 }, { type: 'buy', cat: 'drawback', payload: { v: 'A' }, cost: -4, seq: 2 },
+    { type: 'buyoff', refVal: 'A', targetSeq: 2, cost: 12, seq: 3 }];
+  t('a targetSeq that is not the FIFO purchase nets nothing', [serverApLedger(W, { houseRulesCtx: A5 }).drawbackEarned, sqlLedgerParts(W, A5.rules, 'camp-A').draw], [9, 9]);
+  // PR #654 review (ATK1): a refund whose target was renumbered matches nothing — and then counts on NEITHER side.
+  const R = [{ type: 'award', amount: 10, seq: 1 }, { type: 'buy', cat: 'boon', payload: { v: 'Bulwark' }, cost: 10, seq: 200 },
+    dmE({ type: 'dmRefundBoon', refVal: 'Bulwark', targetSeq: 2, cost: -10, seq: 3 })];
+  t('an un-matched refund: engine model spends 10, port spends 10', [serverApLedger(R).spent, sqlLedgerParts(R).spent], [10, 10]);
+  t('…and matched it refunds on both', [serverApLedger(R.map(e => e.seq === 200 ? Object.assign({}, e, { seq: 2 }) : e)).spent,
+    sqlLedgerParts(R.map(e => e.seq === 200 ? Object.assign({}, e, { seq: 2 }) : e)).spent], [0, 0]);
+  t('sealedFloor: a DM refund is a floor (repriceDraft never re-costs under it)', E.sealedFloor([{ type: 'buy', cat: 'boon', payload: { v: 'B' }, cost: 6, seq: 1 },
+    dmE({ type: 'dmRefundBoon', refVal: 'B', targetSeq: 1, cost: -6, seq: 2 }), { type: 'buy', cat: 'skill', payload: { v: 'Arcana' }, cost: 1, seq: 3 }]), 2);
+  t('sealedFloor: an unstamped (no dmEdit) refund is no floor', E.sealedFloor([{ type: 'buy', cat: 'boon', payload: { v: 'B' }, cost: 6, seq: 1 },
+    { type: 'dmRefundBoon', refVal: 'B', targetSeq: 1, cost: -6, seq: 2 }]), 0);
+}
+
+// ================================================================================================================
+section('AB1 — a drawback grants at most its effective value; an unknown name grants nothing');
+{
+  const D = (v, cost, seq, extra) => Object.assign({ type: 'buy', cat: 'drawback', payload: { v }, cost, seq }, extra || {});
+  const both = (L, c) => [serverApLedger(L, { houseRulesCtx: c }).drawbackEarned, sqlLedgerParts(L, c ? c.rules : null, c ? c.campaignId : null).draw];
+  const P = DATA.drawbacks[STM];
+  t('a forged made-up name grants 0', both([D('Totally Fake', -1000, 1)], ctx({})), [0, 0]);
+  t('a real name at an inflated cost grants its printed value', both([D(STM, -1000, 1)], ctx({})), [P, P]);
+  t('a real name stamped BELOW its value (CharGen cost 0, F4a) grants what was stamped', both([D(STM, 0, 1)], ctx({})), [0, 0]);
+  t('a campaign custom drawback grants its campaign value', both([D('Hexed Custom', -4, 1)], ctx({ draws: { 'Hexed Custom': { ap: 4 } } })), [4, 4]);
+  t('…and 0 once the DM deletes it from the campaign (engine: no entry, no printed value)', both([D('Hexed Custom', -4, 1)], ctx({})), [0, 0]);
+  t('a deleted REPRICE of a printed one falls back to the printed value', both([D(STM, -9, 1)], ctx({})), [P, P]);
+  t('an override for this campaign counts; for another campaign not', [both([D('X', -6, 1), ovr({ draws: { X: { ap: 6 } } })], ctx({})),
+    both([D('X', -6, 1), ovr({ draws: { X: { ap: 6 } } }, 'camp-B')], ctx({}))], [[6, 6], [0, 0]]);
+  t('a pin beats the override', both([D('X', -6, 1), ovr({ draws: { X: { ap: 6 } }, pins: { draws: { X: { ap: 2 } } } })], ctx({})), [2, 2]);
+  t('an override WITHOUT dmEdit is ignored', both([D('X', -6, 1), Object.assign(ovr({ draws: { X: { ap: 6 } } }), { dmEdit: false })], ctx({})), [0, 0]);
+  t('an imposed drawback grants 0 whatever its name', both([D(STM, 0, 1, { dmEdit: true, dmLocked: true })], ctx({})), [0, 0]);
+  t('a DM-granted (dmEdit, cost < 0) one is a normal grant', both([D(STM, -P, 1, { dmEdit: true })], ctx({})), [P, P]);
+  t('an Object.prototype name grants 0', both([D('toString', -5, 1), D('constructor', -5, 2)], ctx({ draws: {} })), [0, 0]);
+  // F1 (round-2 review): two OPEN player copies of one name grant once — browser, model and port alike.
+  const dup = [award(10, 1), fighter].concat(Array.from({ length: 20 }, (_, k) => D(STM, -P, 10 + k)));
+  t('F1: 20 copies of one drawback grant once (model, port)', both(dup, ctx({})), [P, P]);
+  t('F1: …and once in the browser (compute)', compute(withHouseRulesCtx(foldBuild(dup), ctx({}))).drawbackAp, P);
+  t('F1: …and in economy()', economy(dup).drawbackEarned, P);
+  const retake = [award(10, 1), D(STM, -P, 2), { type: 'buyoff', refVal: STM, targetSeq: 2, cost: 3 * P, seq: 3 }, D(STM, -P, 4)];
+  t('F1: a bought-off copy then a retake: the retake grants (the first is closed)', [both(retake, ctx({})), compute(withHouseRulesCtx(foldBuild(retake), ctx({}))).drawbackAp], [[P, P], P]);
+  t('F1: an imposed copy beside a player copy: the player copy grants', both([D(STM, -P, 1), D(STM, 0, 2, { dmEdit: true, dmLocked: true })], ctx({})), [P, P]);
+  t('F5: houseRulesImpact emits no reprice with ledgerDelta 0', (() => { const L = [award(79, 1), fighter, { type: 'creationLocked', seq: 3 }, D(STM, -3, 4),
+      dmE({ type: 'dmRepriceDrawback', refVal: STM, targetSeq: 4, amount: 2, from: 3, to: 5, seq: 5 })];
+    const [r] = houseRulesImpact([{ id: 'x', LOG: L }], ctx({ draws: { [STM]: { ap: 3 } } }), ctx({ draws: { [STM]: { ap: 5 } } }));
+    return 'repriceEvent' in r.purchases[0]; })(), false);
+  t('the engine\'s browser grant agrees on the deleted custom', compute(withHouseRulesCtx(foldBuild([award(79, 1), fighter, D('Hexed Custom', -4, 3)]), ctx({}))).drawbackAp, 0);
+}
 
 // ================================================================================================================
 section('(e) + M6 — priceOf("drawback") prices at the EFFECTIVE value');
@@ -239,7 +399,7 @@ function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; 
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const PLAYER_DRAWS = Object.keys(DATA.drawbacks).filter(k => !(DATA.wounds && DATA.wounds[k]) && !(DATA.drawbackMaxStats && DATA.drawbackMaxStats[k]) && !(DATA.drawbackReq && DATA.drawbackReq[k])).slice(0, 8);
 const BOONS = ['Bulwark', 'Deft Catch', 'Crippling Strike', 'Fleet as Thought'];
-const stats = { checked: 0, buyoffLenient: 0, capStricter: 0, steps: 0, junk: 0, junkLogs: 0, ambiguous: 0 };
+const stats = { checked: 0, buyoffLenient: 0, buyoffTargeted: 0, capOffOver12: 0, steps: 0, junk: 0, junkLogs: 0, ambiguous: 0, forged: 0, deleted: 0 };
 
 function fuzzOne(rng) {
   const pick = a => a[Math.floor(rng() * a.length)];
@@ -253,9 +413,10 @@ function fuzzOne(rng) {
   let capRule = rng() < 0.6 ? { enabled: true, ap: int(4, 20) } : (rng() < 0.5 ? { enabled: false, ap: 12 } : null);
   let ignorePlayerAp = rng() < 0.4, dmAp = int(0, 60);
   let overrides = {};           // the character's current DM override snapshot for camp-A
+  let forgedD = false;          // a forged drawback or a deleted custom: the frozen ledger no longer mirrors compute() (income identity off)
   // DM-stamped AP events that must NOT match (bad seq, wrong type, stale or ambiguous target, non-finite amount).
-  // The engine must ignore them; the server counts AP-moving events unconditionally, so PR3's RPC must refuse
-  // exactly these — the server comparison below runs on the log WITHOUT them.
+  // The engine must ignore them, and so must the server (it counts a DM AP event only when it matches); the RPC refuses them anyway.
+
   const JUNK = new Set(), ambiguous = new Set();
   const pushDm = ev => { if (ambiguous.has(ev.targetSeq)) JUNK.add(ev); LOG.push(ev); };
   const C = () => ctx(JSON.parse(JSON.stringify(rules)));
@@ -310,7 +471,9 @@ function fuzzOne(rng) {
       const changed = imp.purchases.filter(p => p.kind === 'drawback' && p.changed && p.name === name);
       rules = next;
       if (changed.length) {
-        if (rng() < 0.6) { for (const p of changed) pushDm(dmE(Object.assign({}, p.repriceEvent, { seq: S() }))); }
+        // A holder whose purchase shares its seq+name can't be targeted (houseRulesImpact gives it no repriceEvent): the
+        // console must PIN the name for this character instead — and a pin covers every copy, so then nothing is ticked.
+        if (rng() < 0.6 && !changed.some(p => p.ambiguousSeq)) { for (const p of changed) pushDm(dmE(Object.assign({}, p.repriceEvent, { seq: S() }))); }
         else {
           overrides = JSON.parse(JSON.stringify(overrides));
           ((overrides.pins = overrides.pins || {}).draws = overrides.pins.draws || {})[name] = { ap: changed[0].oldEffective, reason: 'kept', at: 'x' };
@@ -319,7 +482,8 @@ function fuzzOne(rng) {
       }
     } else if (roll < 0.33) {
       // re-tick: drop the pins and reconcile every held copy to its new effective value
-      if (overrides.pins) {
+      // (not while a pinned holder is ambiguous — its pin is the only thing keeping both sides equal; it can't be ticked)
+      if (overrides.pins && !houseRulesImpact([{ id: 'x', LOG }], C(), C())[0].purchases.some(p => p.ambiguousSeq)) {
         overrides = JSON.parse(JSON.stringify(overrides)); delete overrides.pins;
         LOG.push(dmE({ type: 'dmHouseRules', overrides, seq: S() }));
         const [imp] = houseRulesImpact([{ id: 'x', LOG }], C(), C());
@@ -342,12 +506,42 @@ function fuzzOne(rng) {
       const v = pick(BOONS); LOG.push({ type: 'buy', cat: 'boon', payload: { v }, cost: priceOf(cur(), 'boon', { v }), seq: S() });
     } else if (roll < 0.78) {
       const held = foldBuild(LOG).drawbacks;
-      if (held.length) { const v = pick(held); LOG.push({ type: 'buyoff', refVal: v, cost: drawbackBuyoffQuote(cur(), v).cost, seq: S() }); }
+      if (held.length) {
+        const v = pick(held), ev = { type: 'buyoff', refVal: v, cost: drawbackBuyoffQuote(cur(), v).cost, seq: S() };
+        // M4: an honest client stamps the seq of the purchase the buyoff cancels (the oldest open one of that name).
+        if (rng() < 0.75) { const ae = E.activeEvents(LOG.concat([ev])); const j = ae.buyoffTarget.get(ae.evs.length - 1);
+          if (j != null && ae.evs[j].seq != null) ev.targetSeq = ae.evs[j].seq; }
+        LOG.push(ev);
+      }
     } else if (roll < 0.86) {
       junkStep();
     } else if (roll < 0.88) {
-      // forged by a player: no dmEdit — both sides must ignore it
-      const v = pick(BOONS); LOG.push({ type: pick(['dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback']), refVal: v, targetSeq: int(1, seq), cost: -50, grantBack: 50, amount: 50, seq: S() });
+      const k = int(0, 4);
+      if (k === 0) {
+        // forged by a player: no dmEdit — both sides must ignore it
+        const v = pick(BOONS); LOG.push({ type: pick(['dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback']), refVal: v, targetSeq: int(1, seq), cost: -50, grantBack: 50, amount: 50, seq: S() });
+      } else if (k === 1) {
+        // AB1: a forged drawback with a made-up name and a huge grant — worth 0 on both sides
+        LOG.push({ type: 'buy', cat: 'drawback', payload: { v: pick(['Fake', 'Totally Real Curse', 'constructor', 'toString']) }, cost: -int(1, 1000), seq: S() }); stats.forged++; forgedD = true;
+      } else if (k === 2) {
+        // AB1: a real name stamped at an inflated cost — worth its effective value on both sides
+        LOG.push({ type: 'buy', cat: 'drawback', payload: { v: pick(drawNames()) }, cost: -int(10, 1000), seq: S() }); stats.forged++; forgedD = true;
+      } else {
+        // AB1: the DM deletes the campaign's custom drawback (with no action for its holders, or a tick to 0 / a pin)
+        if (rules.draws['Hexed Custom']) {
+          const before = C(); const next = JSON.parse(JSON.stringify(rules)); delete next.draws['Hexed Custom'];
+          const [imp] = houseRulesImpact([{ id: 'x', LOG }], before, ctx(next));
+          const changed = imp.purchases.filter(p => p.kind === 'drawback' && p.changed && p.name === 'Hexed Custom');
+          rules = next; stats.deleted++; forgedD = true;
+          const a = rng();
+          if (changed.length && a < 0.4 && !changed.some(p => p.ambiguousSeq)) { for (const p of changed) pushDm(dmE(Object.assign({}, p.repriceEvent, { seq: S() }))); }
+          else if (changed.length && a < 0.7) {
+            overrides = JSON.parse(JSON.stringify(overrides));
+            ((overrides.pins = overrides.pins || {}).draws = overrides.pins.draws || {})['Hexed Custom'] = { ap: changed[0].oldEffective, reason: 'kept', at: 'x' };
+            LOG.push(dmE({ type: 'dmHouseRules', overrides, seq: S() }));
+          }
+        }
+      }
     } else if (roll < 0.91) { LOG.push({ type: 'award', amount: int(0, 20), seq: S() }); }
     else if (roll < 0.94) { dmAp = int(0, 60); }
     else if (roll < 0.97) { ignorePlayerAp = !ignorePlayerAp; }
@@ -359,6 +553,7 @@ function fuzzOne(rng) {
   // 1. The engine IGNORES every non-matching DM event: the log with them and the log without them fold, price and
   //    tally identically.
   const FULL = LOG.slice();
+  dumpLog(FULL, JSON.parse(JSON.stringify(rules)), 'camp-A');
   if (JUNK.size) {
     stats.junkLogs++;
     const clean = FULL.filter(e => !JUNK.has(e));
@@ -366,28 +561,31 @@ function fuzzOne(rng) {
       return JSON.stringify([r.total, r.spendable, r.drawbackAp, r.warnings, ec, foldBuild(L).boons, foldBuild(L).drawbacks]); };
     if (sig(FULL) !== sig(clean)) fails.push(`non-matching dmEdit events changed the engine's answer (${JUNK.size} of them)`);
     if (FULL.some(e => JUNK.has(e) && E.activeEvents(FULL).dmMatched.has(E.activeEvents(FULL).evs.indexOf(e)))) fails.push('a non-matching dmEdit event was reported as matched');
-    LOG.length = 0; clean.forEach(e => LOG.push(e));   // 2. the server comparison runs on what the RPC would allow
+    // 2. The server comparison runs on the FULL log, junk included: since the PR #654 review the server counts a DM
+    //    AP event only when it matches (pact_hr_resolve), exactly like the engine, so non-matching events must move
+    //    neither side.
   }
   const browser = compute(cur(), o).spendable - economy(LOG).spent;
-  const port = sqlLedgerPort(LOG, { dmAp, ignorePlayerAp, capRule });
-  const model = serverApLedger(LOG, o).apLeft;
+  const port = sqlLedgerPort(LOG, { dmAp, ignorePlayerAp, capRule, chr: rules, campaignId: 'camp-A' });
+  const model = serverApLedger(LOG, Object.assign({}, o, { houseRulesCtx: C() })).apLeft;
   if (port !== model) fails.push(`engine serverApLedger() ${model} != independent SQL port ${port}`);
   const hasBuyoff = LOG.some(e => e.type === 'buyoff');
   // A history with a duplicated purchase seq: the holder can't be targeted (houseRulesImpact flags it ambiguousSeq;
   // the console must pin it), and this generator doesn't pin, so the server comparison is meaningless there.
-  if (ambiguous.size) { stats.ambiguous++; return fails.length ? { fails, LOG: FULL, opts: o, rules, capRule } : null; }
-  const uncappedGrant = compute(cur(), Object.assign({}, o, { drawbackCap: undefined })).drawbackAp;
+  if (ambiguous.size) stats.ambiguous++;   // compared strictly too: an event aimed at a shared seq matches nothing on either side
   const capOff = o.drawbackCap === undefined;
-  const capGap = capOff && uncappedGrant > DATA.drawbackCap;
-  // The buyoff direction is asserted with the cap question taken out (an uncapped server when the DM's cap is off),
-  // so the two scoped differences cannot mask each other.
-  const portNoX1 = capOff ? sqlLedgerPort(LOG, { dmAp, ignorePlayerAp, capRule: { enabled: true, ap: 1e9 } }) : port;
-  if (hasBuyoff) { stats.buyoffLenient++; if (!(portNoX1 >= browser)) fails.push(`buyoff log: server ${portNoX1} should be >= browser ${browser} (the SQL keeps a bought-off grant)`); }
-  else if (capGap) { stats.capStricter++; if (!(port <= browser)) fails.push(`cap-off log: server ${port} should be <= browser ${browser}`); }
+  if (capOff && compute(cur(), o).drawbackAp > DATA.drawbackCap) stats.capOffOver12++;   // Z1: strict now (was the open question)
+  // M4: a buyoff that names the purchase it cancels (targetSeq) is netted exactly; one that does not keeps the SQL's
+  // old approximation (the grant stays), so the server is MORE lenient there — asserted in that direction.
+  const ae = E.activeEvents(LOG);
+  const untargeted = ae.evs.some((e, i) => e.type === 'buyoff' && ae.buyoffTarget.has(i)
+    && !(e.targetSeq != null && ae.evs[ae.buyoffTarget.get(i)].seq != null && String(ae.evs[ae.buyoffTarget.get(i)].seq) === String(e.targetSeq)));
+  if (hasBuyoff && !untargeted) stats.buyoffTargeted++;
+  if (untargeted) { stats.buyoffLenient++; if (!(port >= browser)) fails.push(`untargeted buyoff log: server ${port} should be >= browser ${browser} (the SQL keeps a bought-off grant)`); }
   else { stats.checked++; if (port !== browser) fails.push(`AP left: browser ${browser} != server ${port}`); }
   // and the frozen ledger stays internally consistent: compute()'s grant vs economy().drawbackEarned agree on a
   // log with no buyoff and no cap in force (the income identity, carried into a campaign context).
-  if (!hasBuyoff && capOff) {
+  if (!hasBuyoff && capOff && !forgedD) {
     const eco = economy(LOG); const r = compute(cur(), { houseRulesCtx: C() });
     if (r.drawbackAp !== eco.drawbackEarned) fails.push(`income identity: compute().drawbackAp ${r.drawbackAp} != economy().drawbackEarned ${eco.drawbackEarned}`);
   }
@@ -402,12 +600,16 @@ section(`(f) ledger invariant — ${ITER} random campaign histories, seed ${SEED
     const r = fuzzOne(rng);
     if (r) { bad++; if (bad <= 3) { console.log(`  FAIL iteration ${i}: ${r.fails.join('; ')}`); console.log('    ' + JSON.stringify({ opts: r.opts, rules: r.rules, capRule: r.capRule, LOG: r.LOG })); } }
   }
-  t(`fuzz: browser AP left == server ledger on every history (${stats.checked} strict, ${stats.buyoffLenient} buyoff-lenient, ${stats.capStricter} cap-off-stricter, ${stats.steps} DM/player steps)`, bad, 0);
+  t(`fuzz: browser AP left == server ledger on every history (${stats.checked} strict, ${stats.buyoffLenient} untargeted-buyoff-lenient, ${stats.steps} DM/player steps)`, bad, 0);
   t('fuzz: the strict scope is not empty', stats.checked > ITER / 3, true);
+  t('fuzz: targeted buyoffs (M4) reach the strict scope', stats.buyoffTargeted > 0, true);
+  t('fuzz: cap-off campaigns granting more than DATA.drawbackCap reach the strict scope (Z1)', stats.capOffOver12 > 0, true);
   t('fuzz: non-matching dmEdit events were generated', stats.junk > ITER / 4, true);
-  console.log(`  ${stats.junk} non-matching dmEdit events across ${stats.junkLogs} histories — all ignored by the engine; ${stats.ambiguous} histories with a duplicated seq left out of the server comparison`);
-  console.log(`  coverage: ${stats.checked} strict equality, ${stats.buyoffLenient} server-more-lenient (buyoff), ${stats.capStricter} server-STRICTER (cap switched off, grant > ${DATA.drawbackCap} — open owner question, see the decision record)`);
+  t(`fuzz: AB1 forged drawbacks (${stats.forged}) and deleted customs (${stats.deleted}) were generated`, stats.forged > ITER / 25 && stats.deleted > 0, true);
+  console.log(`  ${stats.junk} non-matching dmEdit events across ${stats.junkLogs} histories — ignored by the engine AND the server; ${stats.ambiguous} histories with a duplicated seq, compared strictly`);
+  console.log(`  coverage: ${stats.checked} strict equality (incl. ${stats.buyoffTargeted} with targeted buyoffs, ${stats.capOffOver12} cap-off with a grant > ${DATA.drawbackCap}), ${stats.buyoffLenient} server-more-lenient (an untargeted buyoff)`);
 }
 
+if (DUMP) { (await import('node:fs')).writeFileSync(DUMP, JSON.stringify(dumped)); console.log(`  wrote ${dumped.length} logs to ${DUMP}`); }
 console.log(fail === 0 ? `\n✓ ${pass} passed / 0 failed` : `\n✗ ${fail} FAILED / ${pass} passed`);
 process.exit(fail === 0 ? 0 : 1);

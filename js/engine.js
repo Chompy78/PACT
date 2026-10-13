@@ -69,7 +69,9 @@
  *   drawbackValue(b, name, ctx?) — a drawback's current effective AP value.
  *   drawbackBuyoffQuote(b, name, srcEvent?, ctx?) — {base, rate, cost}: 3× (or the DM's rate) × effective value (W1).
  *   houseRulesImpact(rows, oldCtx, newCtx) — the DM Console's S2/T2 preview, per roster row.
- *   serverApLedger(events, opts?) — a model of the server AP ledger (plan §6.4 + X1), for previews and gates.
+ *   serverApLedger(events, opts?) — a model of the server AP ledger (plan §6.4 + X1/Z1/M4), for previews and gates.
+ *   A `buyoff` may carry `targetSeq` = the seq of the purchase it cancels (the oldest open one of that name, M4); the
+ *   server then nets that purchase's grant out of its ledger (a buyoff without it keeps the old approximation).
  *   New event types (all DM-stamped through the server; each counts ONLY when dmEdit === true):
  *     {type:'dmHouseRules', campaignId, overrides:{dmAllows?, boons?, draws?, disabled?, pins?:{draws}}} — snapshot
  *        override layer for that campaign; applies only while the character is in it.
@@ -1159,7 +1161,15 @@ export function compute(b, opts){
   // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
   // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
   const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
+  // ONE grant per drawback name (PR #654 round-2 review, F1): no drawback can be held twice at once — CharGen's picker is a
+  // checkbox, the Live Sheet lists an owned one as "Active drawback" rather than for sale, and a bought-off copy has left the
+  // fold before a retake. A log that nevertheless holds two open player copies (hand-written) earned AP for each; now the
+  // second copy is listed at 0. The server ledger (pact_ap_ledger_split) applies the same rule. Imposed copies grant 0 anyway
+  // and do not use up the name.
+  const _grantedNames=new Set();
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=_drawVal(HRd,lab);
+    if(!_impIdx.has(_dIdx)&&_grantedNames.has(lab)){_DI.push([lab+' (held twice — counted once)',0]);continue;}
+    if(!_impIdx.has(_dIdx))_grantedNames.add(lab);
     // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
     // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
     // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed drawbacks
@@ -1424,7 +1434,12 @@ export function activeEvents(events) {
   //     deterministic default for an edge case the task doesn't require a specific answer to.
   // Do not "fix" this into a seq lookup without checking the fixtures first — they'd all lack the field.
   const boughtOff = new Set();
-  const _openDraws = {};   // drawback value -> queue of still-open purchase indices, oldest first
+  // buyoffTarget (feat/campaign-house-rules-server, M4): buyoff index -> the purchase index that buyoff cancelled
+  // (the same FIFO match as boughtOff, kept as a map so the server-ledger model can net out exactly that purchase).
+  const buyoffTarget = new Map();
+  // Null-prototype maps (PR #654 / AB1): keyed by player-typed names, so a drawback named "constructor" or "toString"
+  // must not find Object.prototype's function here (it crashed every fold of that character).
+  const _openDraws = Object.create(null);   // drawback value -> queue of still-open purchase indices, oldest first
   // boonRemoved (feat/dm-edit-events): a DM can remove a player-bought boon with NO refund — the
   // player already spent the AP, and _spendCost() must keep counting it (removal ≠ buyoff, which DOES
   // refund). Resolved with the exact same FIFO-by-value pattern as boughtOff above, on purpose: a boon
@@ -1433,7 +1448,7 @@ export function activeEvents(events) {
   // to stay bought, not silently vanish from the build again. `dmRemoveBoon` events carry `refVal` (the
   // boon name) exactly like `buyoff` carries it for drawbacks.
   const boonRemoved = new Set();
-  const _openBoons = {};   // boon value -> queue of still-open purchase indices, oldest first
+  const _openBoons = Object.create(null);   // boon value -> queue of still-open purchase indices, oldest first
   // lost (feat/ledger-show-lost-purchases): a bought-off drawback or DM-removed boon drops OUT of the
   // fold (see _replay's boughtOff/boonRemoved guards), so it never reaches compute() via b.drawbacks/
   // b.boons — yet the AP it cost is still real, permanent spend (a buyoff's cost always counts via
@@ -1469,7 +1484,7 @@ export function activeEvents(events) {
   // would refuse.
   const unlocked = new Set();
   const unlockedBy = new Map();
-  const _lockedBySeq = {};   // `${seq}|${drawback}` -> index of the imposed locked purchase, or -1 if ambiguous
+  const _lockedBySeq = Object.create(null);   // `${seq}|${drawback}` -> index of the imposed locked purchase, or -1 if ambiguous
   // Campaign house rules (feat/campaign-house-rules-engine, D-GH-2026-10-13-campaign-house-rules). Three AP-moving
   // DM events, each targeting ONE purchase by `targetSeq` + name — never FIFO-by-name, because a character can hold
   // two copies and the DM's tick list is per purchase:
@@ -1488,7 +1503,7 @@ export function activeEvents(events) {
   const drawRemoved = new Set(), drawRepriced = new Map();
   const dmMatched = new Set();
   const dmAdjustments = [];
-  const _boonBySeq = {}, _drawBySeq = {};   // `${seq}|${name}` -> purchase index, or -1 if ambiguous
+  const _boonBySeq = Object.create(null), _drawBySeq = Object.create(null);   // `${seq}|${name}` -> purchase index, or -1 if ambiguous
   const _dqRemove = (q, idx) => { if (!q) return; const k = q.indexOf(idx); if (k >= 0) q.splice(k, 1); };
   const _seqTarget = (map, e) => {
     if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return -1;
@@ -1534,7 +1549,7 @@ export function activeEvents(events) {
     } else if (e.type === 'buyoff') {
       if (e.refVal == null) return;
       const q = _openDraws[e.refVal];
-      if (q && q.length) { boughtOff.add(q.shift()); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
+      if (q && q.length) { const _j = q.shift(); boughtOff.add(_j); buyoffTarget.set(i, _j); lost.push({ kind: 'drawback', label: e.refVal, cost: Number(e.cost) || 0 }); }
     } else if (e.type === 'buy' && e.cat === 'boon') {
       const v = e.payload && e.payload.v;
       if (v == null) return;
@@ -1546,7 +1561,7 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy,
+  return { evs, boughtOff, buyoffTarget, boonRemoved, lost, unlocked, unlockedBy,
            boonRefunded, refundedBy, drawRemoved, drawRepriced, dmMatched, dmAdjustments };
 }
 
@@ -1589,11 +1604,16 @@ function _economyFrom(evs, boughtOff, ae) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   const _removed = (ae && ae.drawRemoved) || null, _deltas = (ae && ae.drawRepriced) || null;
   const _matched = (ae && ae.dmMatched) || null;
+  // One grant per drawback name (F1, as compute()): only the OLDEST open, non-imposed copy of a name earns.
+  const _earnedNames = new Set();
   evs.forEach((e, i) => {
     if (e.type === 'award') earned += Number(e.amount) || 0;
     else if (e.type === 'buy' && e.cat === 'drawback') {
-      if (!boughtOff.has(i) && !(_removed && _removed.has(i)))
+      if (!boughtOff.has(i) && !(_removed && _removed.has(i))) {
+        const _imp = e.dmEdit && (Number(e.cost) || 0) >= 0, _nm = e.payload && e.payload.v;
+        if (!_imp && _nm != null) { if (_earnedNames.has(String(_nm))) return; _earnedNames.add(String(_nm)); }
         drawbackEarned += (-(Number(e.cost) || 0)) + ((_deltas && _deltas.get(i)) || 0);
+      }
     }
     else if (e.type === 'dmRefundBoon') {
       if (_matched && _matched.has(i)) spent += _fin(e.cost);
@@ -2929,6 +2949,15 @@ export function sealedFloor(events, opts) {
   for (let i = log.length - 1; i >= 0; i--) {
     if (log[i] && log[i].type === 'sessionSeal') { floor = i + 1; break; }
   }
+  // An AP-moving DM house-rules event (dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback, DM-stamped) freezes
+  // everything before it, on the server too (pact_enforce_locked_history, campaign characters,
+  // D-GH-2026-10-13-campaign-house-rules). Counted for every character here, not only campaign-bound ones: it keeps
+  // repriceDraft() (which calls this without opts) from re-costing a purchase a DM has already refunded or
+  // repriced if creation is ever reopened — that would turn the refund into a second payout.
+  for (let i = log.length - 1; i >= floor; i--) {
+    const e = log[i];
+    if (e && e.dmEdit === true && (e.type === 'dmRefundBoon' || e.type === 'dmRemoveDrawback' || e.type === 'dmRepriceDrawback')) { floor = i + 1; break; }
+  }
   if (o.campaignBound) {
     for (let i = log.length - 1; i >= 0; i--) {
       const e = log[i];
@@ -3194,34 +3223,70 @@ export function repriceDraft(events, opts) {
   return log;
 }
 
-// serverApLedger(events, opts?) — a JS MODEL of the server's campaign AP ledger as the campaign-house-rules plan
-// (D-GH-2026-10-13-campaign-house-rules, PR3) will leave it: pact_ap_ledger_spend's sums plus the three AP-moving
-// DM events, and pact_enforce_ap_budget_consistency's spendable. It reads ONLY frozen numbers on the log — never a
-// price — exactly like the SQL, so it is the yardstick for "do browser and server agree on AP left?".
-//   spent          buy (non-patch, non-drawback) + buyoff + names costs, + a DM-stamped dmRefundBoon's (negative) cost
+// serverApLedger(events, opts?) — a JS MODEL of the server's campaign AP ledger as the campaign-house-rules migration
+// (D-GH-2026-10-13-campaign-house-rules, PR3: sql/migrations/2026-10-13-campaign-house-rules-server.sql) leaves it:
+// pact_ap_ledger_split()'s sums and pact_enforce_ap_budget_consistency()'s spendable. It reads ONLY frozen numbers on
+// the log plus the server's own copy of the printed drawback values (AB1, pact_drawback_printed) — exactly like the SQL, so
+// it is the yardstick for "do browser and server agree on AP left?".
+//   spent          buy (non-patch, non-drawback) + buyoff + names costs, + a matched dmRefundBoon's (negative) cost
 //   awardEarned    award amounts
-//   drawbackEarned −cost of every drawback buy (bought off or not — the SQL's accepted approximation),
-//                  + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack (DM-stamped only, owner/orchestrator M1)
-//   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when given, else DATA.drawbackCap (owner X1)
+//   drawbackEarned per player drawback purchase: least(−cost + ΣΔ of its matched DM reprices, its effective value) —
+//                  owner decision AB1; 0 for a DM-imposed, DM-removed (matched) or TARGETED-bought-off (M4: a buyoff
+//                  whose `targetSeq` is the seq of the purchase the FIFO match cancels, activeEvents().buyoffTarget)
+//                  one. An UNTARGETED buyoff leaves its purchase's grant in (the old approximation) — more lenient,
+//                  never a mint: the buyoff itself cost 3× the value.
+//   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when it is a finite number (max 0), else NO cap
+//                  (owner decision Z1, 2026-10-13: the same rule js/campaign.js drawbackCapFromRules() gives compute())
 //   spendable      dmAp + (ignorePlayerAp ? 0 : awardEarned) + drawbackGranted   (X1: the grant survives the toggle)
-// opts: {dmAp?, ignorePlayerAp?, drawbackCap?} — the same opts compute() takes. Pure; a model, not the authority:
-// the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one.
+// opts: {dmAp?, ignorePlayerAp?, drawbackCap?, houseRulesCtx?} — the same opts compute() takes. Pure; a model, not the authority:
+// the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one, and the
+// Docker harness (testing/scripts/creation-lock-guard-test/run-house-rules.sh) checks the SQL against fixed cases.
 export function serverApLedger(events, opts) {
   const o = opts || {};
   const n = _fin;
+  const ae = activeEvents(events);
+  const evs = ae.evs;
   let spent = 0, awardEarned = 0, drawbackEarned = 0;
-  for (const ev of (Array.isArray(events) ? events : [])) {
-    if (!ev) continue;
+  for (const ev of evs) {
     const t = ev.type, cat = ev.cat || '';
     if (t === 'award') awardEarned += n(ev.amount);
-    else if (t === 'buy' && cat === 'drawback') drawbackEarned -= n(ev.cost);
+    else if (t === 'buy' && cat === 'drawback') { /* per purchase, below */ }
     else if (t === 'buyoff' || t === 'names' || (t === 'buy' && cat !== 'patch')) spent += n(ev.cost);
-    else if (ev.dmEdit === true && t === 'dmRefundBoon') spent += n(ev.cost);
-    else if (ev.dmEdit === true && t === 'dmRemoveDrawback') drawbackEarned -= n(ev.grantBack);
-    else if (ev.dmEdit === true && t === 'dmRepriceDrawback') drawbackEarned += n(ev.amount);
   }
-  const cap = Number.isFinite(o.drawbackCap) ? Math.max(0, o.drawbackCap) : DATA.drawbackCap;
-  const drawbackGranted = Math.min(cap, drawbackEarned);
+  // A DM refund counts only when it MATCHES its target (activeEvents().dmMatched) — the server does the same through
+  // pact_hr_resolve(), so a mis-aimed or un-matched one moves neither side (PR #654 review).
+  evs.forEach((ev, i) => { if (ae.dmMatched.has(i) && ev.type === 'dmRefundBoon') spent += n(ev.cost); });
+  // M4: purchases a TARGETED buyoff cancelled (targetSeq == the seq of the purchase the FIFO match cancels) grant nothing.
+  const netted = new Set();
+  evs.forEach((ev, i) => {
+    if (ev.type !== 'buyoff' || ev.targetSeq == null) return;
+    const j = ae.buyoffTarget.get(i);
+    if (j != null && evs[j].seq != null && String(evs[j].seq) === String(ev.targetSeq)) netted.add(j);
+  });
+  // AB1 (owner, 2026-10-13): each player drawback grants least(−cost + ΣΔ of its matched reprices, its effective value for
+  // this character in its campaign) — pin > override > campaign > printed, 0 for an unknown name (drawbackValue()). An
+  // imposed one (dmEdit, cost >= 0), a DM-removed one and a targeted-bought-off one grant 0; an untargeted-bought-off one
+  // keeps its grant (the SQL's old approximation). opts.houseRulesCtx = the campaign context (null = printed values only).
+  const ctx = o.houseRulesCtx || { campaignId: null, rules: null };
+  const stub = { _dmHouseRulesByCampaign: {} };
+  if (typeof ctx.campaignId === 'string' && ctx.campaignId) {
+    for (const ev of evs) if (ev.type === 'dmHouseRules' && ev.dmEdit === true && ev.campaignId === ctx.campaignId
+        && ev.overrides && typeof ev.overrides === 'object' && !Array.isArray(ev.overrides)) stub._dmHouseRulesByCampaign[ctx.campaignId] = ev.overrides;
+  }
+  // F1: one grant per name among the OPEN copies (the oldest); a copy closed by an untargeted buyoff keeps its legacy grant.
+  const openNames = new Set();
+  evs.forEach((ev, i) => {
+    if (ev.type !== 'buy' || (ev.cat || '') !== 'drawback') return;
+    if (ev.dmEdit && n(ev.cost) >= 0) return;                                  // imposed: grants 0
+    const v = ev.payload && ev.payload.v;
+    if (v == null) { drawbackEarned += Math.min(-n(ev.cost), 0); return; }
+    if (ae.drawRemoved.has(i) || netted.has(i)) return;
+    if (!ae.boughtOff.has(i)) { if (openNames.has(String(v))) return; openNames.add(String(v)); }
+    drawbackEarned += Math.min(-n(ev.cost) + (ae.drawRepriced.get(i) || 0), drawbackValue(stub, v, ctx));
+  });
+  const capped = Number.isFinite(o.drawbackCap);
+  const cap = capped ? Math.max(0, o.drawbackCap) : null;
+  const drawbackGranted = capped ? Math.min(cap, drawbackEarned) : drawbackEarned;
   const spendable = n(o.dmAp) + (o.ignorePlayerAp ? 0 : awardEarned) + drawbackGranted;
   return { spent, awardEarned, drawbackEarned, drawbackGranted, cap, spendable, apLeft: spendable - spent };
 }
@@ -3293,7 +3358,7 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
           apDelta: imposed ? 0 : capF(sumOld + valueDelta) - capF(sumOld), imposed, dmGranted: false, locked, changed,
           barredNew: !!(tOldD[v] && tOldD[v].allowed) && !(tNewD[v] && tNewD[v].allowed),
           ledgerGrant, ledgerDelta: imposed ? 0 : newEffective - ledgerGrant, ambiguousSeq: _amb(e) };
-        if (changed && !p.ambiguousSeq) {
+        if (changed && !p.ambiguousSeq && p.ledgerDelta !== 0) {   // F5: a 0 delta is refused by the RPC and moves nothing
           p.repriceEvent = { type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: p.ledgerDelta, from: ledgerGrant, to: newEffective };
           synth.push(Object.assign({ dmEdit: true }, p.repriceEvent));
         }
@@ -3310,7 +3375,8 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
     return {
       id: row.id, locked, purchases,
       apLeft: { before: cOld.spendable - eco.spent, after: cNew.spendable - eco.spent },
-      serverApLeft: { before: serverApLedger(LOG, opts).apLeft, afterIfApplied: serverApLedger(LOG.concat(synth), opts).apLeft },
+      serverApLeft: { before: serverApLedger(LOG, Object.assign({}, opts, { houseRulesCtx: oldCtx || null })).apLeft,
+                      afterIfApplied: serverApLedger(LOG.concat(synth), Object.assign({}, opts, { houseRulesCtx: newCtx || null })).apLeft },
     };
   });
 }

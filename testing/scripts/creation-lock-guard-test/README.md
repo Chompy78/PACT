@@ -26,7 +26,7 @@ test it (the restart note's option T3).
 |---|---|
 | `freeze-live-defs.sql` | `pact_ap_ledger_protected()` and `pact_enforce_locked_history()` exactly as LIVE on 2026-10-04 (`pg_get_functiondef`); loaded after `base.sql`, whose older copy predates `dmUnlockDrawback` |
 | `freeze-cases.sql` | 66 cases: attacks (refused after), legitimate saves (allowed), the lock lifecycle (reopen, re-lock, seal), solo/unlocked characters, and **one case per patch key** including an unknown future key (fail-closed) |
-| `run-freeze.sh` | `BEFORE` (36 attacks work today) → apply → `AFTER` (all 61 pass) → rollback (byte-identical definitions) → attacks work again. In CI as the `freeze-rehearsal` job |
+| `run-freeze.sh` | `BEFORE` (36 attacks work today) → apply (`psql -1`) → `AFTER` (all 61 pass) → rollback (byte-identical definitions) → attacks work again. In CI as the `freeze-rehearsal` job |
 | `backup-replay-audit.mjs` | replays every real old→new save from `character_backups` through the OLD then the NEW rule; lists the saves only the new rule refuses |
 | `roundtrip-audit.mjs` | loads every live character in the real CharGen and Live Sheet, autosaves, and checks the frozen part of the history is untouched (`--force-end` stress mode, `--synthetic` Live-Sheet-origin variants) |
 
@@ -50,4 +50,16 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 |---|---|
 | `award-shims.sql` | Supabase stand-ins (auth schema, roles, `auth.users`, `auth.uid()` from `request.jwt.claims`, pgcrypto) |
 | `award-cases.sql` | 39 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus `2026-09-03-dm-zero-player-ap.sql`, so `dm_edit_character_log`, `award_ap`, `award_ap_and_seal`, `dm_zero_player_ap`, the budget check and the history lock all run beside the rule: player-award attacks, the CharGen Budget singleton moves (incl. the live 77-AP-after-the-lock shape), DM paths, solo, reopened, `ignore_player_ap` campaigns, and award amounts that are not JSON numbers ("NaN", "500", "Infinity", a NaN planted before the lock) |
-| `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
+| `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply (`psql -1`) → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
+
+## Campaign house rules, the server half — added 2026-10-13 (NOT applied to the live database)
+
+`sql/migrations/2026-10-13-campaign-house-rules-server.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-13-campaign-house-rules` (its PR3 addendum), plan `docs/plans/2026-10-13-campaign-house-rules.md`. Adds `dm_apply_house_rules_change()`, the `campaigns.rules.charHouseRules` guard, `dmHouseRules` in `dm_edit_character_log()`, the split ledger with the owner's Z1 drawback cap and M4 targeted buy-off netting, the M1 DM-family forgery guard and the extended history lock. `rls-policies.sql` is NOT changed until the migration is applied.
+
+| File | What |
+|---|---|
+| `house-rules-cases.sql` | 191 cases (incl. three PR #654 security review rounds' attacks — two pinned as allowed: the pre-existing negative-cost route and the R2-6 residual risk — and owner decision AB1's drawback price list) on the REAL fresh-install path (`schema.sql` + `rls-policies.sql` + `2026-09-03-dm-zero-player-ap.sql`), each with an AFTER expectation and a BEFORE prediction: the campaign-key guard, every RPC refusal the decision record lists (shape, who, draft, unknown/wrong/ambiguous/stale target, imposed, DM-granted, M3 from/to incl. pin > override > campaign and the printed-value fallback), what the RPC stamps, `dm_edit_character_log` + `dmHouseRules`, the ledger and budget (X1, Z1, M4, V1), every forgery the M1 guard refuses, the honest player saves and every DM path it must keep allowing, and the history lock |
+| `drawback-cap-shapes.json` | 45 `rules.drawbackCap` shapes with the cap the real `js/campaign.js` `drawbackCapFromRules()` gives (generated from it; `house-rules-ledger-ci.mjs` re-checks the JS side) |
+| `run-house-rules.sh` | `BEFORE` (every case lands as predicted: 145 gaps/new behaviours fail) → apply (`psql -1`) → `AFTER` (all pass; Z1 shapes agree; the real SQL ledger equals `house-rules-ledger-ci.mjs`'s port on the fuzz's random histories) → rollback (five definitions byte-identical, seventeen functions and three triggers gone, cases back to BEFORE). In CI's `freeze-rehearsal` job |
+
+Also: `testing/scripts/dm-family-roundtrip-e2e.mjs` (real Live Sheet + CharGen: an honest save never touches the DM family) and `roundtrip-audit.mjs`, which now checks the DM family on a live export too.
