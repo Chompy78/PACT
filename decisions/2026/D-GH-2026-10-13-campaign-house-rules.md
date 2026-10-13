@@ -169,7 +169,7 @@ Technical choices made while wiring the context into the three tools (none is an
 ## Addendum 2026-10-13 — PR3, the server half (`feat/campaign-house-rules-server`)
 
 Migration `sql/migrations/2026-10-13-campaign-house-rules-server.sql` + `-rollback.sql`, rehearsed in Docker by
-`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (186 cases). **NOT applied** to the live database by merging;
+`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (191 cases). **NOT applied** to the live database by merging;
 `sql/rls-policies.sql` and the baseline tests are deliberately unchanged until it is (sql/migrations/README.md; precedents
 #580 -> #598, #600 -> #608).
 
@@ -303,6 +303,16 @@ cost:-1000}` and spend it, because the server counted `−cost` and had no idea 
   `names` event still lowers server spend in every campaign mode — pre-existing, pinned as allowed in the harness; a clamp must
   keep Martially/Magically Bound's legitimate negative costs); the campaignId/adjustments-table follow-up gains R2-6 (a pin
   forged while solo with the target campaign's own id survives joining — pinned as a KNOWN GAP case).
+
+### PR #654 round-3 review — changes (2026-10-13)
+
+- A new buy-off's `targetSeq` must equal the seq of the purchase it actually cancels (the oldest open copy). Before, a
+  `targetSeq` naming nothing (999, `true`) or a closed copy passed the price check while the ledger kept the cancelled
+  purchase's grant.
+- `pact_next_seq()` = greatest(whole-number SEQ, max seq in the LOG + 1): a stale SEQ can't reuse a seq.
+- The generator's `--write` without a file prints usage.
+- Board (PR4): the tools should be strict when a bound character's campaign rules are unknown (offline, no snapshot); and the
+  ledger label of a removal aimed at a second, non-granting copy.
 
 ### Constraints for applying it (owner)
 

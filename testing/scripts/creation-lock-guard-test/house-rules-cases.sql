@@ -694,4 +694,23 @@ select t('KNOWN GAP R2-6 (residual risk, board follow-up): a pin forged while so
   select owner_upd('ig3', $e$ jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":3,"type":"dmHouseRules","dmEdit":true,"campaignId":"c1000000-0000-0000-0000-000000000002","overrides":{"pins":{"draws":{"Fake":{"ap":1000}}}}},{"seq":4,"type":"buy","cat":"drawback","cost":-1000,"payload":{"v":"Fake"}}]'::jsonb) $e$);
   select as_admin(); update characters set campaign_id = camp(2) where name = 'ig3';
   select owner_append('ig3', '{"seq":5,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$);
+-- =====================================================================================================================
+-- 12. PR #654 round 3
+-- =====================================================================================================================
+select t('round 3: a buyoff whose targetSeq names nothing (999) is refused', 'refused', 'fail', $b$
+  select as_admin(); update characters set ap = 50 where name = 'tb';
+  select owner_append('tb', '{"seq":4,"type":"buyoff","refVal":"Slow to Mend","targetSeq":999,"cost":15}') $b$, 'PACT: that buy-off names seq 999%');
+select t('round 3: …targetSeq true', 'refused', 'fail', $b$
+  select as_admin(); update characters set ap = 50 where name = 'tb';
+  select owner_append('tb', '{"seq":4,"type":"buyoff","refVal":"Slow to Mend","targetSeq":true,"cost":15}') $b$, 'PACT: that buy-off names seq true%');
+select t('round 3: …targetSeq of a different, already-closed copy (boff: seq 2 was bought off; the open copy is seq 5)', 'refused', 'fail', $b$
+  select as_admin(); update characters set ap = 50 where name = 'boff';
+  select owner_append('boff', '{"seq":9,"type":"buyoff","refVal":"Squeamish","targetSeq":2,"cost":6}') $b$, 'PACT: that buy-off names seq 2, but it cancels the Squeamish at seq 5%');
+select t('round 3: …and the right seq (5) is accepted', 'allowed', 'pass', $b$
+  select as_admin(); update characters set ap = 50 where name = 'boff';
+  select owner_append('boff', '{"seq":9,"type":"buyoff","refVal":"Squeamish","targetSeq":5,"cost":6}') $b$);
+select t('round 3: a stale (too low) SEQ can''t make the RPC reuse a seq the LOG already has', 'allowed', 'fail', $b$
+  select owner_upd('hold', $e$ jsonb_set(stats, '{SEQ}', '3') $e$);
+  select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{}}')));
+  select as_admin(); select ok(lastev('hold')->>'seq' = '10', 'seq ' || (lastev('hold')->>'seq')) $b$);
 select as_admin();

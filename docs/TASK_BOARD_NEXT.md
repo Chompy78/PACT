@@ -1495,6 +1495,15 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       AP-moving action on a character without an explicit creationLocked after its last creationUnlocked — so a threshold
       auto-locked character is NOT tickable either — and refunds of DM-granted boons (use dmRemoveBoon via
       dm_edit_character_log, FIFO by name: offer it only when the DM-granted copy is the oldest open one of that name).
+      Client strictness when campaign rules are UNKNOWN (PR #654 round 3, finding 4 — PR4 or a small follow-up): a BOUND
+      character with no rulesSnapshot and rules not active gets postLockAllowance(null) = allowed and a context without the
+      campaign's charHouseRules (Live Sheet _lsHrCtx ~560-566, CharGen ~4181 / ~4329), so a post-lock drawback can be taken
+      and a campaign-custom drawback is priced at printed/0 — then the server (PR3) refuses the whole sync. When campaign
+      rules are unknown for a bound character the tools should be strict: no post-lock drawbacks, and flag items whose price
+      depends on campaign house rules instead of pricing them.
+      Cosmetic (round 3, finding 5): a dmRemoveDrawback aimed at a SECOND open copy of a name is labelled "−v AP" in the
+      ledger rows, but moves 0 (F1: only the oldest copy grants) — the DM Console should label it, or offer removal of the
+      granting copy first.
   PR5 feat/dm-house-rules-editor (rework #642): per-character overrides as dmHouseRules on the same RPC/validator.
   PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
       testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must

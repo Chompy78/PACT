@@ -110,10 +110,10 @@
 --      non-admin writer of a campaign character, a NEW player drawback buy once creation is locked unless the campaign set
 --      rules.postLockDrawbacks (js/engine.js postLockAllowance(), the Live Sheet's _lsBarGrant()).
 --    * R2-5: the same trigger refuses a NEW buyoff without targetSeq (stored ones are grandfathered), one that cancels
---      nothing, and one cheaper than rate × the purchase's effective value (W1: 3 for a drawback the player took; for a
+--      nothing, one whose targetSeq is not the seq of the purchase it actually cancels (round 3), and one cheaper than rate × the purchase's effective value (W1: 3 for a drawback the player took; for a
 --      DM-imposed one the DM's rate on the purchase, 'expensive' 3 else 1).
 --    * F3: seq / targetSeq are compared as js/engine.js compares them — String() of the number (pact_js_key: 5.0 is "5").
---    * F4: a server-stamped event's seq comes from pact_next_seq() — SEQ when it is a whole number, else max seq + 1 —
+--    * F4: a server-stamped event's seq comes from pact_next_seq() — greatest(whole-number SEQ, max seq in the LOG + 1) —
 --      in dm_apply_house_rules_change() and dm_edit_character_log(); a garbage SEQ no longer blocks every DM write.
 --
 -- WHAT IT DELIBERATELY LEAVES ALONE
@@ -269,16 +269,18 @@ returns text language sql immutable set search_path = public, pg_temp as $$
     else p #>> '{}' end;
 $$;
 
--- pact_next_seq(stats): the seq a server-stamped event takes — stats.SEQ when it is a whole number, else one past the highest
--- numeric seq in the LOG (round-2 review, F4: a player-written SEQ of "abc" made every DM write to that character raise).
+-- pact_next_seq(stats): the seq a server-stamped event takes — the greater of stats.SEQ (when a whole number) and one past
+-- the highest numeric seq in the LOG (round-2 review, F4: a player-written SEQ of "abc" made every DM write to that character raise).
 create or replace function public.pact_next_seq(p_stats jsonb)
 returns integer language sql immutable set search_path = public, pg_temp as $$
-  select case when jsonb_typeof(p_stats -> 'SEQ') = 'number' and (p_stats ->> 'SEQ')::numeric between 0 and 2000000000
-               and (p_stats ->> 'SEQ')::numeric = trunc((p_stats ->> 'SEQ')::numeric)
-              then (p_stats ->> 'SEQ')::integer
-              else coalesce((select max(trunc((e ->> 'seq')::numeric))::integer
-                               from jsonb_array_elements(case when jsonb_typeof(p_stats -> 'LOG') = 'array' then p_stats -> 'LOG' else '[]'::jsonb end) e
-                              where jsonb_typeof(e -> 'seq') = 'number' and abs((e ->> 'seq')::numeric) < 2000000000), 0) + 1 end;
+  -- greatest() of the two (round 3): a stale, too-low SEQ can't hand out a seq the LOG already uses.
+  select greatest(
+    case when jsonb_typeof(p_stats -> 'SEQ') = 'number' and (p_stats ->> 'SEQ')::numeric between 0 and 2000000000
+              and (p_stats ->> 'SEQ')::numeric = trunc((p_stats ->> 'SEQ')::numeric)
+         then (p_stats ->> 'SEQ')::integer else 0 end,
+    coalesce((select max(trunc((e ->> 'seq')::numeric))::integer
+                from jsonb_array_elements(case when jsonb_typeof(p_stats -> 'LOG') = 'array' then p_stats -> 'LOG' else '[]'::jsonb end) e
+               where jsonb_typeof(e -> 'seq') = 'number' and abs((e ->> 'seq')::numeric) < 2000000000), 0) + 1);
 $$;
 
 -- pact_hr_drawback_cap(rules) — owner decision Z1: the drawback AP cap the server applies, mirroring
@@ -1074,6 +1076,12 @@ begin
       raise exception 'PACT: that buy-off cancels no drawback the character holds';
     end if;
     v_p := v_r -> 'purchases' -> (v_n - 1);
+    -- Round 3: the targetSeq must name exactly the purchase the buyoff cancels (the oldest open copy). A targetSeq that names
+    -- nothing (999, true, a closed copy) would leave the cancelled purchase's grant on the server while the browser drops it.
+    if (v_p ->> 'seq') is null or public.pact_js_key(v_ev->'targetSeq') is distinct from (v_p ->> 'seq') then
+      raise exception 'PACT: that buy-off names seq %, but it cancels the % at seq % — reload the character and buy it off again',
+        public.pact_js_key(v_ev->'targetSeq'), v_p ->> 'name', coalesce(v_p ->> 'seq', '(none)');
+    end if;
     v_rate := case when public.pact_js_truthy(v_p -> 'dmEdit')
                    then (case when v_new -> (((v_p ->> 'ord')::int) - 1) ->> 'dmRemovalCost' = 'expensive' then 3 else 1 end)
                    else 3 end;

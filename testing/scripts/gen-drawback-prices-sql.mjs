@@ -59,7 +59,12 @@ const args = process.argv.slice(2);
 const want = block();
 if (args.includes('--stdout')) { console.log(want); process.exit(0); }
 const wi = args.indexOf('--write');
-const file = wi >= 0 ? path.resolve(args[wi + 1] || '') : latestFile();
+if (wi >= 0 && (!args[wi + 1] || args[wi + 1].startsWith('--') || !fs.existsSync(args[wi + 1]) || !fs.statSync(args[wi + 1]).isFile())) {
+  console.error('usage: node testing/scripts/gen-drawback-prices-sql.mjs --write <existing .sql file carrying the generated block>\n' +
+    '       node testing/scripts/gen-drawback-prices-sql.mjs --stdout | --check');
+  process.exit(2);
+}
+const file = wi >= 0 ? path.resolve(args[wi + 1]) : latestFile();
 if (!args.includes('--check') && wi < 0) {
   // An APPLIED migration is history (sql/migrations/README.md): rewriting it would make the file disagree with the database.
   if (!/^-- STATUS: NOT APPLIED\b/m.test(fs.readFileSync(file, 'utf8'))) {
