@@ -80,6 +80,14 @@ character inserted with one, or a character holding one bound to a campaign).
   2026-10-13 still ran the 2026-09-03 version of that function (`2026-10-12-server-player-award-after-lock.sql` is not
   applied), so a separate trigger was written instead; it does not depend on that migration.
 
+## Gold and downtime are not discounted (owner decision P1, 2026-10-13)
+
+A `dmDiscount` changes AP only. A purchase's gold and downtime still come from its full AP price, or from the `gp`/`days`
+frozen on the purchase (`_paidFor()`), and nothing reads the discount there. This is deliberate and consistent with B1:
+the purchase is still worth its full price. A DM who also wants to waive the gold awards it back with a note (the
+workaround `feat/economy-purchase-discount` settled on). Scaling gold and time with the discount, or a per-discount
+option, was considered and left to that task. `feat/wizard-scribe` sets its own gold and downtime.
+
 ## Why no rules-version bump
 
 No price, ladder, gate or existing `compute()` output changed: every existing fixture and every live character
