@@ -195,27 +195,26 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
-## Apply the player-award-after-lock migration to live — TODO (owner)
-**Effort:** small · **Risk:** high — a trigger change on every campaign character save; owner approval needed.
+## Fold the player-award-after-lock migration into the baseline (applied 2026-10-13) — TODO
+**Effort:** small · **Risk:** medium — baseline/drift-guard edits only, but a mistaken fold is how the 2026-09-02 regression happened.
 
 ```text
-The SQL and the tool changes merged with fix/server-player-award-after-lock (D-GH-2026-10-12-server-player-award-after-lock);
-the migration is NOT applied. Owner, with the Supabase MCP:
-1. Confirm live pact_enforce_player_ap_ceiling() still matches sql/migrations/2026-09-03-dm-zero-player-ap.sql
-   (select pg_get_functiondef('public.pact_enforce_player_ap_ceiling()'::regprocedure)) — so the rollback file is exact.
-2. Re-measure on campaign characters: (a) none whose stored LOG is creation-locked or sealed would have a rising award total
-   (none on 2026-10-12); (b) NO award whose jsonb_typeof(amount) <> 'number' — the migration refuses every save of such a
-   character, and the 2026-10-12 measurement did not record the JSON type.
-3. Apply sql/migrations/2026-10-12-server-player-award-after-lock.sql, then run get_advisors and skim get_logs.
-4. Then, in a follow-up "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
-   - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
-     2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
-   - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (18 → 19 functions), \ir the 2026-10-12
-     migration there, and assert the trigger function is NOT callable by authenticated;
-   - change "NOT APPLIED" to the apply date in the migration header, the decision record's Status and the CHANGELOG line.
+APPLIED to production 2026-10-13 (migration `server_player_award_after_lock`, owner decision N1, during feat/dm-ap-discount):
+the live function matched 2026-09-03-dm-zero-player-ap.sql; 0 campaign award amounts were non-numbers; afterwards the new
+version is live, `authenticated` cannot execute it, and postgres logs show no errors. The migration header, the decision
+record's Status and a CHANGELOG line already say APPLIED. NOT done that day: re-measure 2(a) — no creation-locked or sealed
+campaign character whose stored award total would rise — not needed for the apply (it only refuses future saves), but record it.
+
+Still to do, in an "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
+  - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
+    2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
+  - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (21 → 22 functions since feat/dm-ap-discount),
+    \ir the 2026-10-12 migration there, and assert the trigger function is NOT callable by authenticated.
+COORDINATE with the campaign house-rules work (session pact-cf, branch chore/campaign-house-rules-sync-preview): its
+harness BASE already loads the live 09-03/10-12 files, and it also edits rls-policies.sql.
 ```
-**Done when:** the migration is applied to live with owner approval, the advisors are clean, and the applied PR has folded it
-into rls-policies.sql with the drift guard covering it.
+**Done when:** rls-policies.sql carries the applied function, the drift guard covers it (and passes in sql-guards CI), and the
+2(a) re-measure is recorded in the decision record.
 
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
