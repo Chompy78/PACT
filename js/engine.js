@@ -3317,6 +3317,10 @@ export function serverApLedger(events, opts) {
 //                or shares seq+name with another purchase: no DM event can target it (it would match nothing, or the RPC
 //                refuses it), so the console must PIN it rather than offer a tick / refund / removal
 //   barredNew    allowed to be bought under the old rules but not under the new — the T2 candidates
+// row.overrides (optional, feat/campaign-house-rules-overrides): the DM's per-character override SNAPSHOT about to be
+// written for this character in newCtx's campaign (DM Console's per-character editor). The NEW side is priced as if it were
+// already the character's last dmHouseRules event for that campaign; the old side is the log as it stands. Absent or not an
+// object = the override is unchanged. Pass the same ctx as oldCtx and newCtx to preview an override change alone.
 export function houseRulesImpact(rows, oldCtx, newCtx) {
   return (Array.isArray(rows) ? rows : []).filter(Boolean).map(row => {
     const LOG = (Array.isArray(row.LOG) ? row.LOG : []).filter(Boolean);
@@ -3328,7 +3332,11 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
     const eco = _economyFrom(ae.evs, ae.boughtOff, ae);
     const fold = foldBuild(LOG);
     const bOld = withHouseRulesCtx(Object.assign({}, fold), oldCtx || null);
-    const bNew = withHouseRulesCtx(Object.assign({}, fold), newCtx || null);
+    const _cidN = (newCtx && typeof newCtx.campaignId === 'string' && newCtx.campaignId && !_HR_BAD_KEYS.has(newCtx.campaignId)) ? newCtx.campaignId : null;
+    const _ovN = (_cidN && _hrObj(row.overrides)) ? clone(row.overrides) : undefined;
+    const _ovEv = _ovN === undefined ? [] : [{ type: 'dmHouseRules', dmEdit: true, campaignId: _cidN, overrides: _ovN }];
+    const bNew = withHouseRulesCtx(Object.assign({}, fold, _ovN === undefined ? {}
+      : { _dmHouseRulesByCampaign: Object.assign({}, fold._dmHouseRulesByCampaign || {}, { [_cidN]: _ovN }) }), newCtx || null);
     const locked = creationLockState(LOG).locked;
     const tOldB = effectiveBoonTable(bOld), tNewB = effectiveBoonTable(bNew);
     const tOldD = effectiveDrawbackTable(bOld), tNewD = effectiveDrawbackTable(bNew);
@@ -3382,7 +3390,7 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
       id: row.id, locked, purchases,
       apLeft: { before: cOld.spendable - eco.spent, after: cNew.spendable - eco.spent },
       serverApLeft: { before: serverApLedger(LOG, Object.assign({}, opts, { houseRulesCtx: oldCtx || null })).apLeft,
-                      afterIfApplied: serverApLedger(LOG.concat(synth), Object.assign({}, opts, { houseRulesCtx: newCtx || null })).apLeft },
+                      afterIfApplied: serverApLedger(LOG.concat(_ovEv, synth), Object.assign({}, opts, { houseRulesCtx: newCtx || null })).apLeft },
     };
   });
 }

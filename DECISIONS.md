@@ -22,7 +22,15 @@
   the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
   PR4 (DM Console editor): one review dialog (S2 ticks per character + drawback, T2 removals, below 0 shown) then ONE RPC call;
   bound characters with unknown campaign rules are strict in both player tools; owner answers AC (draft reprice) and AD1 (opt-in removal on bans) deferred to board tasks.
+  bound characters with unknown campaign rules are strict in both player tools; two owner questions open (see the PR4 addendum).
+  PR5 (per-character overrides, reworks #642): the card editor writes a whole `dmHouseRules` snapshot through the same RPC, with
+  a single-holder S2 for a held drawback (tick = reprice, untick = pin); #642's draft and held-drawback refusals are gone.
   Full record: `decisions/2026/D-GH-2026-10-13-campaign-house-rules.md`.
+## D-GH-2026-10-12-dm-house-rules-editor — a DM sets one campaign character's house rules (PR #642) — SUPERSEDED
+- H2 (owner away) design for a per-character editor (an appended houseRules patch through `dm_edit_character_log`, refused for
+  drafts and for held drawbacks). Never merged; superseded on 2026-10-13 by D-GH-2026-10-13-campaign-house-rules (owner P2/R1):
+  PR5 reworks it into the per-character `dmHouseRules` override layer with S2 for held drawbacks. #638's H2 decisions stay open.
+  Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable

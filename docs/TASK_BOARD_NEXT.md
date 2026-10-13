@@ -1507,7 +1507,8 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       Cosmetic (round 3, finding 5): a dmRemoveDrawback aimed at a SECOND open copy of a name is labelled "−v AP" in the
       ledger rows, but moves 0 (F1: only the oldest copy grants) — the DM Console should label it, or offer removal of the
       granting copy first.
-  PR5 feat/dm-house-rules-editor (rework #642): per-character overrides as dmHouseRules on the same RPC/validator.
+  PR5 feat/campaign-house-rules-overrides (rework #642) — PR OPEN (2026-10-13, see CHANGELOG): per-character overrides as a
+      dmHouseRules snapshot via the RPC, single-holder S2, inherited values shown; #642 closed in its favour.
   PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
       testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
       merge BEFORE preview is promoted to main.
@@ -1519,21 +1520,17 @@ server accepts the save; S2 tick/untick moves AP left identically in the Live Sh
 leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
 verify-guide.mjs passes; promotion to main only after PR3 is applied (security gate above) and PR6 has landed.
 
-## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
-Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
+## feat/dm-house-rules-editor — revisit #638's H2 decisions now that DMs can set house rules — TODO
+Branch fix/player-free-ap-h2-revisit. **Effort:** low · **Risk:** low — owner decisions, then small tool changes.
 
 ```text
-Since fix/player-free-ap (#638, 2026-10-12) a player can't edit a server-confirmed campaign character's houseRules (DM Calls:
-Bound/Boons/Drawbacks/Non-core; custom and repriced boons/drawbacks), because they are priced. But nobody else can either:
-DM Console's currentHouseRules is campaign free-text labels and never reaches a character's houseRules. Decide with the owner
-whether house rules belong on the CAMPAIGN (all characters inherit — engine reads campaign rules) or per character via a DM
-RPC (dm_edit_character_log allowlist), then build it. Also revisit the #638 H2 decisions recorded in
-decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; solo characters lose DM Calls after their own
-lock; starting gold refused both ways after the lock).
+The editor half of this task is done by feat/campaign-house-rules (campaign-wide rules, PR4) and its per-character overrides
+(PR5, which superseded PR #642 — see decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md, addendum). What is left is the
+owner review of the #638 H2 decisions recorded in decisions/2026/D-GH-2026-10-12-player-free-ap.md: solo self-awards are not
+noLock; solo characters lose DM Calls after their own lock; starting gold is refused both ways after the lock. Confirm or
+reverse each, then make the matching tool change.
 ```
-**Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
-> **2026-10-13:** the owner chose BOTH — campaign-wide rules with this editor kept as per-character overrides (P2/R1). This branch
-> becomes PR5 of `feat/campaign-house-rules` above (its `buy/patch` event is replaced by `dmHouseRules`; see the plan's §8).
+**Done when:** the owner has confirmed or reversed each of the three #638 H2 decisions and any reversal is implemented with a test.
 
 ## fix/chargen-join-generation-guard — CharGen's join-campaign flow can bind the wrong character if the player switches mid-join — TODO
 Branch fix/chargen-join-generation-guard. **Effort:** low · **Risk:** medium — damage likelihood is low (narrow race), but the damage is a character attached to the wrong campaign.

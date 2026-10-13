@@ -1817,6 +1817,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
     h += dmEditBody(id, curBoons, lockedDraws, heldDraws, dm && dm.log);
+    h += dmHouseRulesBody(id, dm);   // feat/campaign-house-rules-overrides: this character's house-rule overrides
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -2048,6 +2049,79 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="unlock-draw" style="font-size:11px;color:var(--muted)"></span></div>';
     }
     return h;
+  }
+  // feat/campaign-house-rules-overrides (PR5 of D-GH-2026-10-13-campaign-house-rules; reworks #642's per-character editor):
+  // a DM's house-rule OVERRIDES for THIS character in the selected campaign — on top of the campaign's Character house
+  // rules (owner decisions R1/U1). Stored as ONE dmHouseRules snapshot per campaign (the last one is the whole layer), written
+  // through dm_apply_house_rules_change(); it applies only while the character is in that campaign. Each override row shows
+  // the value it replaces (the campaign's, else the printed one). The submit — preview, single-holder S2 tick for a held
+  // drawback whose value changes, the RPC call — lives with the campaign editor (window._dmHrOverrideSubmit). Every name is
+  // player/DM text: esc()'d, carried in data-* attributes.
+  var _DM_HR_CALLS = [
+    ['bound',     '⚔✦ Bound', 'Martially Bound and Magically Bound'],
+    ['boons',     '✦ Boons', 'buying boons'],
+    ['drawbacks', '✗ Drawbacks', 'taking drawbacks'],
+    ['tasha',     '🜂 Non-core', 'non-core (XGtE / TCoE) items']];
+  function _dmHrCurrent(log){
+    var apr = window._dmCampaignApRules || {}, cid = apr.campaignId, F = window._engineFold, ov = null;
+    try {
+      var by = F && Array.isArray(log) ? F.foldBuild(log)._dmHouseRulesByCampaign : null;
+      ov = (cid && by && Object.prototype.hasOwnProperty.call(by, cid)) ? by[cid] : null;
+    } catch(e){ ov = null; }
+    var O = window._dmHrOverride;
+    return { cid: cid, chr: (apr.rules && apr.rules.charHouseRules) || {}, ov: O ? O.normalise(ov) : null };
+  }
+  // The value an override replaces: the campaign's entry, else the printed one, else none.
+  function _dmHrInherited(kind, name, chr){
+    var t = kind === 'boon' ? (chr.boons || {}) : (chr.draws || {}), e = Object.prototype.hasOwnProperty.call(t, name) ? t[name] : null;
+    if(e && typeof e === 'object') return 'campaign: ' + (Number(e.ap) || 0) + ' AP' + (kind === 'boon' ? ', HD ' + (Number(e.hd) || 1) + '+' : '');
+    if(kind === 'boon' && DATA.boons[name]) return 'printed: ' + DATA.boons[name].ap + ' AP, HD ' + DATA.boons[name].hd + '+';
+    if(kind !== 'boon' && DATA.drawbacks[name] !== undefined) return 'printed: ' + DATA.drawbacks[name] + ' AP';
+    return 'not in the campaign rules — only this character has it';
+  }
+  function dmHouseRulesBody(id, dm){
+    if(!dm || !Array.isArray(dm.log) || !window._dmHrOverride) return '';
+    var cur = _dmHrCurrent(dm.log); if(!cur.cid || !cur.ov) return '';
+    var ov = cur.ov, chr = cur.chr, cid = esc(id), campDa = (chr.dmAllows && typeof chr.dmAllows === 'object') ? chr.dmAllows : {};
+    var calls = _DM_HR_CALLS.map(function(c){
+      var v = Object.prototype.hasOwnProperty.call(ov.dmAllows, c[0]) ? (ov.dmAllows[c[0]] ? 'on' : 'off') : '';
+      var camp = campDa[c[0]] !== false ? 'on' : 'off';
+      return '<label style="font-size:12px;display:flex;align-items:center;gap:4px" title="'+esc(c[2])+'">'+esc(c[1]) +
+        ' <select class="field dm-hr-call" data-cid="'+cid+'" data-key="'+esc(c[0])+'" style="flex:0 0 auto">' +
+        '<option value=""'+(v === '' ? ' selected' : '')+'>campaign ('+camp+')</option>' +
+        '<option value="on"'+(v === 'on' ? ' selected' : '')+'>on for them</option>' +
+        '<option value="off"'+(v === 'off' ? ' selected' : '')+'>off for them</option></select></label>';
+    }).join('');
+    var rows = [];
+    Object.keys(ov.boons).sort().forEach(function(k){ var b = ov.boons[k];
+      rows.push(['boon', k, 'boon · '+b.ap+' AP, HD '+b.hd+'+', _dmHrInherited('boon', k, chr), 'remove', 'Use the campaign value']); });
+    Object.keys(ov.draws).sort().forEach(function(k){ var d = ov.draws[k];
+      rows.push(['draw', k, 'drawback · '+d.ap+' AP', _dmHrInherited('draw', k, chr), 'remove', 'Use the campaign value']); });
+    ov.disabled.boons.slice().sort().forEach(function(k){ rows.push(['offboon', k, 'boon · disabled for them', 'on top of the campaign bans', 'reenable', 'Re-enable']); });
+    ov.disabled.draws.slice().sort().forEach(function(k){ rows.push(['offdraw', k, 'drawback · disabled for them', 'on top of the campaign bans', 'reenable', 'Re-enable']); });
+    Object.keys(ov.pins.draws).sort().forEach(function(k){ var p = ov.pins.draws[k];
+      rows.push(['pin', k, 'drawback · kept at '+p.ap+' AP', (p.reason || 'kept at its old value when its rule changed') + ' — now ' + (Object.prototype.hasOwnProperty.call(ov.draws, k) ? ov.draws[k].ap + ' AP (your rule for them)' : _dmHrInherited('draw', k, chr).replace(/^campaign: |^printed: /, '')), 'unpin', 'Apply the current value']); });
+    var list = rows.length ? rows.map(function(r){
+      return '<div class="dm-hr-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;margin:2px 0">' +
+        '<span style="flex:1 1 220px;min-width:0;overflow-wrap:anywhere"><b>'+esc(r[1])+'</b> <span style="color:var(--muted)">'+esc(r[2])+'</span>' +
+        '<br><span class="dm-hr-inh" style="font-size:11px;color:var(--muted)">'+esc(r[3])+'</span></span>' +
+        '<button type="button" class="btn sm ghost dm-hr-btn" data-act="'+r[4]+'" data-cid="'+cid+'" data-kind="'+r[0]+'" data-name="'+esc(r[1])+'">'+esc(r[5])+'</button></div>';
+    }).join('') : '<div style="font-size:11px;color:var(--muted)">No overrides — this character uses the campaign’s house rules.</div>';
+    var missing = window._dmHrOverride.missing(cur.cid);
+    return '<div class="ruleblock dm-hr-block" data-cid="'+cid+'"><div class="lbl">DM edit — house rules for this character <button type="button" class="infobtn" title="Overrides for THIS character only, on top of the campaign’s Character house rules (Campaign Rules panel). They apply only while the character is in this campaign. Each change is ADDED to their log as a DM edit — their history is not rewritten. A boon they already bought keeps the price they paid. Changing the value of a drawback they hold changes their AP: you are shown it and choose — tick to apply, or leave unticked to let them keep the old value.">&#9432;</button></div>' +
+      (missing ? '<div class="dp-warn">The server has not been updated for campaign house rules yet — these can be changed once the app owner applies the latest database update.</div>' : '') +
+      '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'+calls +
+      '<button type="button" class="btn sm dm-hr-btn" data-act="calls" data-cid="'+cid+'">Save calls</button></div>' +
+      '<div style="margin:6px 0 4px">'+list+'</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+      '<select class="field dm-hr-kind" data-cid="'+cid+'" style="flex:0 0 auto"><option value="boon">Boon</option><option value="draw">Drawback</option></select>' +
+      '<input type="text" class="field dm-hr-name" data-cid="'+cid+'" maxlength="80" placeholder="Name" style="flex:2 1 160px">' +
+      '<input type="number" class="field dm-hr-hd" data-cid="'+cid+'" min="1" max="20" step="1" placeholder="HD" title="Hit Dice needed (boons only; blank = the campaign’s or built-in’s, or 1)" style="flex:0 1 64px">' +
+      '<input type="number" class="field dm-hr-ap" data-cid="'+cid+'" min="0" max="1000" step="1" placeholder="AP" title="AP it costs (boon) or gives (drawback) for this character" style="flex:0 1 70px">' +
+      '<input type="text" class="field dm-hr-fx" data-cid="'+cid+'" maxlength="500" placeholder="What it does (optional)" style="flex:3 1 180px">' +
+      '<button type="button" class="btn sm dm-hr-btn" data-act="add" data-cid="'+cid+'">Set for them</button>' +
+      '<button type="button" class="btn sm ghost dm-hr-btn" data-act="disable" data-cid="'+cid+'" title="Stop this character buying it new (they keep one they own)">Disable for them</button>' +
+      '</div><span class="dm-status" data-cid="'+cid+'" data-kind="house-rules" style="font-size:11px;color:var(--muted)"></span></div>';
   }
   // Heritage-pack traits are owned by virtue of species and are NOT in s.racialTraits (they are derived,
   // never stored — see D-GH-2026-08-19-heritage-pack-visibility). Without this the DM Console showed a
@@ -3294,6 +3368,68 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
           alert('Unlock failed: '+udMsg);
         });
+        return;
+      }
+
+      // feat/campaign-house-rules-overrides: Save calls / Set for them / Disable / Use the campaign value / Re-enable /
+      // Apply the current value. Each builds the WHOLE next override snapshot for this character and hands it to the
+      // campaign closure's submit (preview + single-holder S2 + one RPC call). Own archived-peek guard.
+      var hrBtn = t.closest ? t.closest('.dm-hr-btn') : null;
+      if(hrBtn && card){
+        if(window._dmPeekActive){ if(window._dmPeekBlocks) window._dmPeekBlocks(); return; }
+        var hcid = hrBtn.getAttribute('data-cid'), hEntry = _cloudEntry(hcid);
+        if(!hEntry || !Array.isArray(hEntry.dm && hEntry.dm.log) || !window._dmHrOverride){ alert('Reload the roster first — this character’s log is not loaded.'); return; }
+        var hCur = _dmHrCurrent(hEntry.dm.log), hNext = JSON.parse(JSON.stringify(hCur.ov)), hAct = hrBtn.getAttribute('data-act'), hWhat = '';
+        var hq = function(cls){ return card.querySelector('.'+cls+'[data-cid="'+hcid+'"]'); };
+        var hName = ((hq('dm-hr-name') || {}).value || '').replace(/\s+/g, ' ').trim();
+        var hKind = (hq('dm-hr-kind') || {}).value === 'draw' ? 'draw' : 'boon';
+        if(hAct === 'calls'){
+          card.querySelectorAll('.dm-hr-call[data-cid="'+hcid+'"]').forEach(function(sel){
+            var k = sel.getAttribute('data-key'); if(sel.value === '') delete hNext.dmAllows[k]; else hNext.dmAllows[k] = sel.value === 'on'; });
+          hWhat = 'calls: ' + _DM_HR_CALLS.map(function(c){ return c[0] + ' ' + (Object.prototype.hasOwnProperty.call(hNext.dmAllows, c[0]) ? (hNext.dmAllows[c[0]] ? 'on' : 'OFF') : 'campaign'); }).join(', ');
+        } else if(hAct === 'add'){
+          var hApRaw = ((hq('dm-hr-ap') || {}).value || '').trim(), hAp = Number(hApRaw);
+          var hHdRaw = ((hq('dm-hr-hd') || {}).value || '').trim();
+          var hFx = ((hq('dm-hr-fx') || {}).value || '').trim().slice(0, 500);
+          if(!hName || hName.length > 80 || /^(__proto__|constructor|prototype)$/.test(hName)){ alert('Enter a name (up to 80 characters).'); return; }
+          // 0 to 1000 whole AP: a negative boon would be a hidden AP grant, so it is not offered.
+          if(hApRaw === '' || !Number.isInteger(hAp) || hAp < 0 || hAp > 1000){ alert('Enter the AP as a whole number from 0 to 1000.'); return; }
+          if(hKind === 'boon'){
+            var hc = (hCur.chr.boons || {})[hName], hb = DATA.boons[hName];
+            var hHd = hHdRaw === '' ? Number((hc && hc.hd) || (hb && hb.hd) || 1) : Number(hHdRaw);
+            if(!Number.isInteger(hHd) || hHd < 1 || hHd > 20){ alert('Hit Dice must be a whole number from 1 to 20.'); return; }
+            hNext.boons[hName] = { hd: hHd, ap: hAp, fx: hFx };
+            hWhat = 'boon ' + hName + ' at ' + hAp + ' AP (HD ' + hHd + '+)';
+          } else {
+            hNext.draws[hName] = { ap: hAp, fx: hFx };
+            // A drawback's own pin is replaced by the new value (the S2 tick decides who keeps the old one).
+            delete hNext.pins.draws[hName];
+            hWhat = 'drawback ' + hName + ' at ' + hAp + ' AP';
+          }
+        } else if(hAct === 'disable'){
+          if(!hName || hName.length > 80){ alert('Enter the name of the boon or drawback to disable for them.'); return; }
+          var hList = hKind === 'boon' ? hNext.disabled.boons : hNext.disabled.draws;
+          if(hList.indexOf(hName) < 0) hList.push(hName);
+          hWhat = 'disable ' + (hKind === 'boon' ? 'boon ' : 'drawback ') + hName;
+        } else if(hAct === 'remove' || hAct === 'reenable' || hAct === 'unpin'){
+          var rKind = hrBtn.getAttribute('data-kind'), rName = hrBtn.getAttribute('data-name') || '';
+          if(hAct === 'remove' && rKind === 'boon'){
+            // An override is the only home of a boon that is in neither the campaign rules nor the printed table: deleting
+            // it while the character holds it would orphan the purchase. Refused (kept from #642): take it off first.
+            var hOwn = (window._engineFold.foldBuild(hEntry.dm.log).boons || []).indexOf(rName) >= 0;
+            if(hOwn && !DATA.boons[rName] && !Object.prototype.hasOwnProperty.call(hCur.chr.boons || {}, rName)){
+              alert('“'+rName+'” is on this character and exists only in their overrides. Remove the boon from them first (DM edit — remove a boon), then remove the rule.'); return; }
+            delete hNext.boons[rName]; hWhat = 'boon ' + rName + ' back to the campaign value';
+          } else if(hAct === 'remove' && rKind === 'draw'){ delete hNext.draws[rName]; hWhat = 'drawback ' + rName + ' back to the campaign value'; }
+          else if(hAct === 'reenable' && rKind === 'offboon'){ hNext.disabled.boons = hNext.disabled.boons.filter(function(x){ return x !== rName; }); hWhat = 're-enable boon ' + rName; }
+          else if(hAct === 'reenable' && rKind === 'offdraw'){ hNext.disabled.draws = hNext.disabled.draws.filter(function(x){ return x !== rName; }); hWhat = 're-enable drawback ' + rName; }
+          else if(hAct === 'unpin'){ delete hNext.pins.draws[rName]; hWhat = 'drawback ' + rName + ' to its current value'; }
+          else return;
+        } else return;
+        var hSt = card.querySelector('.dm-status[data-cid="'+hcid+'"][data-kind="house-rules"]');
+        // hCur.ov = the snapshot this card was drawn from: the submit refuses if the fresh one differs (another DM wrote meanwhile).
+        try { window._dmHrOverrideSubmit(hcid, hNext, hWhat, hrBtn, hSt, hCur.ov); }
+        catch(e){ alert('House rules not saved: '+((e && e.message) || e)); }
         return;
       }
 
@@ -4740,8 +4876,18 @@ document.addEventListener('campaign-ready', function () {
     var imp = H.houseRulesImpact(input, oldCtx, newCtx);
     var holders = [];
     imp.forEach(function(ir, hi){
-      var r = live[hi], log = r.stats.LOG, inp = input[hi];
-      var opts = { dmAp: inp.dmAp, ignorePlayerAp: ignore }; if(Number.isFinite(cap)) opts.drawbackCap = cap;
+      var h = _chrBuildHolder(ir, live[hi], input[hi], t2, cid);
+      if(h.s2.length || h.t2.length || h.kept.length) holders.push(h);
+    });
+    return { cid: cid, newCtx: newCtx, newChr: newChr, holders: holders, t2: !!t2, diff: _chrRuleDiff(_chrSaved, _chrDraft),
+             skipped: (rows || []).length - live.length };
+  }
+  // One holder of the preview, from its houseRulesImpact() row: its state (draft / finished / archived), the S2 groups
+  // (one tick per drawback name) and, when T2 is on, what is taken away. Shared by the campaign save and the per-character
+  // override editor (feat/campaign-house-rules-overrides).
+  function _chrBuildHolder(ir, r, inp, t2, cid){
+      var F = window._engineFold, log = r.stats.LOG;
+      var opts = { dmAp: inp.dmAp, ignorePlayerAp: !!inp.ignorePlayerAp }; if(Number.isFinite(inp.drawbackCap)) opts.drawbackCap = inp.drawbackCap;
       // Finished = the RPC's own test (an explicit creationLocked after the last creationUnlocked). The engine's
       // creationLockState() agrees since the automatic threshold lock was retired (feat/creation-ceiling), so there is no
       // "finished, but not by Finish creating" state to handle.
@@ -4802,10 +4948,7 @@ document.addEventListener('campaign-ready', function () {
                g.noEvent = g.purchases.every(function(p){ return !p.repriceEvent; }); }
         h.s2.push(g);
       });
-      if(h.s2.length || h.t2.length || h.kept.length) holders.push(h);
-    });
-    return { cid: cid, newCtx: newCtx, newChr: newChr, holders: holders, t2: !!t2, diff: _chrRuleDiff(_chrSaved, _chrDraft),
-             skipped: (rows || []).length - live.length };
+      return h;
   }
   // The events this holder gets, in the order the RPC appends them: the override snapshot with any pins, the ticked
   // reprices, the T2 refunds / removals; then (a separate dm_edit_character_log call) DM-granted boon removals.
@@ -4822,15 +4965,17 @@ document.addEventListener('campaign-ready', function () {
       else if(row.action === 'dmRemoveBoon') dmRem.push(p.name);
     });
     var override = null, pinNames = Object.keys(pins);
-    if(pinNames.length){
+    if(pinNames.length || h.forceOverride){
       override = h.override ? JSON.parse(JSON.stringify(h.override)) : {};
       override.pins = (override.pins && typeof override.pins === 'object') ? override.pins : {};
       override.pins.draws = (override.pins.draws && typeof override.pins.draws === 'object') ? override.pins.draws : {};
       var today = new Date().toISOString().slice(0, 10);
       pinNames.forEach(function(n){
         var g = h.s2.filter(function(x){ return x.name === n; })[0];
-        override.pins.draws[n] = { ap: pins[n], reason: ('Kept at ' + pins[n] + ' AP when the campaign changed it to ' + g.newEff + ' AP').slice(0, 200), at: today };
+        override.pins.draws[n] = { ap: pins[n], reason: ('Kept at ' + pins[n] + ' AP when ' + (h.forceOverride ? 'your rule for this character' : 'the campaign') + ' changed it to ' + g.newEff + ' AP').slice(0, 200), at: today };
       });
+      if(override.pins && override.pins.draws && !Object.keys(override.pins.draws).length) delete override.pins.draws;
+      if(override.pins && !Object.keys(override.pins).length) delete override.pins;
     }
     return { override: override, pinNames: pinNames, reprices: rep, removals: rem, dmRemoveBoons: dmRem };
   }
@@ -4852,7 +4997,7 @@ document.addEventListener('campaign-ready', function () {
   }
   function _chrReviewHTML(plan){
     var h = '<button type="button" class="ov-x" data-chr-act="cancel" title="Close" aria-label="Close">&#10005;</button>' +
-      '<h3 class="ov-h" id="chrReviewTitle">Save character house rules?</h3>';
+      '<h3 class="ov-h" id="chrReviewTitle">' + (plan.single ? 'Change the house rules for ' + esc(plan.holders[0] ? plan.holders[0].name : 'this character') + '?' : 'Save character house rules?') + '</h3>';
     h += '<div class="ov-sub">' + (plan.diff.length ? plan.diff.map(function(l){ return esc(l); }).join('<br>') : 'Only the description text changes.') + '</div>';
     var s2n = 0, t2n = 0, keptn = 0;
     plan.holders.forEach(function(x){ s2n += x.s2.length; t2n += x.t2.length; keptn += x.kept.length; });
@@ -4898,7 +5043,7 @@ document.addEventListener('campaign-ready', function () {
         ' (' + plan.holders.filter(function(x){ return x.kept.length; }).map(function(x){ return esc(x.name) + ': ' + x.kept.map(function(p){ return esc(p.name); }).join(', '); }).join('; ') +
         '). To take them away with a refund, cancel and tick “Also remove from characters who own it”.</div>';
     }
-    if(!s2n && !t2n && !keptn) h += '<div class="grantnote">No character holds anything this changes the value of.</div>';
+    if(!s2n && !t2n && !keptn) h += '<div class="grantnote">' + (plan.single ? 'This changes no drawback they hold \u2014 their AP left stays as it is (a boon they already bought keeps the price they paid).' : 'No character holds anything this changes the value of.') + '</div>';
     h += '<div style="display:flex;gap:8px;margin-top:14px"><button type="button" class="btn sm" data-chr-act="apply" id="chrReviewApply">Save</button>' +
          '<button type="button" class="btn sm ghost" data-chr-act="cancel">Cancel</button></div>';
     return h;
@@ -4933,7 +5078,7 @@ document.addEventListener('campaign-ready', function () {
     plan.holders.forEach(function(h){
       var x = _chrHolderEvents(plan, h);
       if(x.override) actions.push({ kind: 'override', character: h.id, overrides: x.override, expected: h.expectedOverride,
-        label: ('DM house rules — kept at the old value: ' + x.pinNames.join(', ')).slice(0, 120) });
+        label: (h.forceOverride ? 'DM house rules for this character — ' + (plan.what || 'changed') : 'DM house rules — kept at the old value: ' + x.pinNames.join(', ')).slice(0, 120) });
       x.reprices.forEach(function(r){ actions.push({ kind: 'reprice', character: h.id, name: r.refVal, targetSeq: r.targetSeq, amount: r.amount, from: r.from, to: r.to }); });
       x.removals.forEach(function(r){ var a = { kind: r.kind, character: h.id, name: r.name, targetSeq: r.targetSeq }; if(r.label) a.label = r.label; actions.push(a); });
       if(x.dmRemoveBoons.length) dmRemove.push({ id: h.id, name: h.name, boons: x.dmRemoveBoons });
@@ -5021,6 +5166,116 @@ document.addEventListener('campaign-ready', function () {
     if(camp && camp.rules && camp.rules.charHouseRules !== undefined) o.charHouseRules = camp.rules.charHouseRules; else delete o.charHouseRules;
     return o;
   }
+  /* ---- Per-character house-rule OVERRIDES (feat/campaign-house-rules-overrides — PR5; reworks #642) ----------------
+     The card's editor (dmHouseRulesBody, the UI layer) builds the whole next override snapshot; this previews it with the
+     engine (houseRulesImpact with row.overrides — the same ctx both sides, so only the override moves), opens the same
+     review dialog for that one holder (a held drawback whose value changes: tick = reprice, unticked = keep the old value
+     with a pin in the same snapshot; a draft takes the new value), then ONE dm_apply_house_rules_change() call: the
+     override snapshot, then any reprice. #642's refusals are gone: a draft may be edited (a dmHouseRules event is not
+     re-priced by repriceDraft), and a held drawback's value may change (S2). */
+  function _ovNormalise(ov){
+    ov = (ov && typeof ov === 'object' && !Array.isArray(ov)) ? ov : {};
+    var out = { dmAllows: {}, boons: {}, draws: {}, disabled: { boons: [], draws: [] }, pins: { draws: {} } };
+    var num = function(v, dflt){ return (v == null || v === '') ? dflt : Number(v); };
+    var da = (ov.dmAllows && typeof ov.dmAllows === 'object') ? ov.dmAllows : {};
+    _CHR_CALLS.forEach(function(c){ if(typeof da[c[0]] === 'boolean') out.dmAllows[c[0]] = da[c[0]]; });
+    var bo = (ov.boons && typeof ov.boons === 'object') ? ov.boons : {};
+    Object.keys(bo).forEach(function(k){ var b = bo[k] || {}; out.boons[k] = { hd: num(b.hd, 1), ap: num(b.ap, 0), fx: b.fx == null ? '' : String(b.fx) }; });
+    var dr = (ov.draws && typeof ov.draws === 'object') ? ov.draws : {};
+    Object.keys(dr).forEach(function(k){ var d = dr[k] || {}; out.draws[k] = { ap: num(d.ap, 0), fx: d.fx == null ? '' : String(d.fx) }; });
+    var dis = (ov.disabled && typeof ov.disabled === 'object') ? ov.disabled : {};
+    ['boons', 'draws'].forEach(function(k){ out.disabled[k] = (Array.isArray(dis[k]) ? dis[k] : []).filter(function(x){ return typeof x === 'string'; }); });
+    var pd = ov.pins && typeof ov.pins === 'object' && ov.pins.draws && typeof ov.pins.draws === 'object' ? ov.pins.draws : {};
+    Object.keys(pd).forEach(function(k){ var p = pd[k] || {}; out.pins.draws[k] = { ap: num(p.ap, 0) };
+      if(typeof p.reason === 'string') out.pins.draws[k].reason = p.reason; if(typeof p.at === 'string') out.pins.draws[k].at = p.at; });
+    return out;
+  }
+  // What the server stores: only the keys in use, entries sorted (so "no change" compares equal).
+  function _ovForServer(o){
+    var out = {};
+    var dk = _CHR_CALLS.map(function(c){ return c[0]; }).filter(function(k){ return typeof o.dmAllows[k] === 'boolean'; });
+    if(dk.length){ out.dmAllows = {}; dk.forEach(function(k){ out.dmAllows[k] = o.dmAllows[k]; }); }
+    var bk = Object.keys(o.boons).sort(), wk = Object.keys(o.draws).sort();
+    if(bk.length){ out.boons = {}; bk.forEach(function(k){ var b = o.boons[k]; out.boons[k] = { hd: b.hd, ap: b.ap }; if(b.fx) out.boons[k].fx = b.fx; }); }
+    if(wk.length){ out.draws = {}; wk.forEach(function(k){ var d = o.draws[k]; out.draws[k] = { ap: d.ap }; if(d.fx) out.draws[k].fx = d.fx; }); }
+    var db = o.disabled.boons.slice().sort(), dd = o.disabled.draws.slice().sort();
+    if(db.length || dd.length){ out.disabled = {}; if(db.length) out.disabled.boons = db; if(dd.length) out.disabled.draws = dd; }
+    var pk = Object.keys(o.pins.draws).sort();
+    if(pk.length){ out.pins = { draws: {} }; pk.forEach(function(k){ out.pins.draws[k] = o.pins.draws[k]; }); }
+    return out;
+  }
+  function _ovProblem(o){
+    var p = _chrProblem({ dmAllows: {}, boons: o.boons, draws: o.draws }); if(p) return p;
+    var all = o.disabled.boons.concat(o.disabled.draws);
+    for(var i = 0; i < all.length; i++) if(!all[i].trim() || all[i].length > 80) return 'a disabled name is blank or longer than 80 characters.';
+    for(var k in o.pins.draws){ var a = o.pins.draws[k].ap;
+      if(typeof a !== 'number' || !Number.isInteger(a) || a < 0 || a > 1000) return 'the kept value of “'+k+'” is not a whole number from 0 to 1000.'; }
+    if(JSON.stringify(_ovForServer(o)).length > 30000) return 'the overrides are too large (the server keeps 32 KB at most).';
+    return '';
+  }
+  window._dmHrOverride = { normalise: _ovNormalise, missing: function(cid){ return !!_chrServerMissing[cid]; } };
+  window._dmHrOverrideSubmit = async function(charId, nextNorm, what, btn, st, builtFrom){
+    var cid = currentCampId;
+    if(!cid || _peekBlocks()) return;
+    if(_chrServerMissing[cid]){ alert(_CHR_MISSING_MSG); return; }
+    var problem = _ovProblem(nextNorm);
+    if(problem){ alert('Not saved — ' + problem); return; }
+    var next = _ovForServer(nextNorm);
+    var H = window._engineHR, F = window._engineFold;
+    var camp = currentCampaigns.find(function(c){ return c.id === cid; }), rules = (camp && camp.rules) || {};
+    var busy = function(m){ if(st) st.textContent = m || ''; };
+    if(btn) btn.disabled = true; busy('Checking…');
+    var plan, r;
+    try {
+      var rows = await B.getHouseRulesRoster(cid);
+      if(!_isCurrentCamp(cid)){ if(btn) btn.disabled = false; busy(''); return; }
+      r = (rows || []).filter(function(x){ return x && x.id === charId; })[0];
+      if(!r || !r.stats || !Array.isArray(r.stats.LOG)) throw new Error('this character is no longer in the campaign, or has no log');
+      if(r.archived) throw new Error('this character is archived — un-archive it first');
+      var by = F.foldBuild(r.stats.LOG)._dmHouseRulesByCampaign, curRaw = (by && Object.prototype.hasOwnProperty.call(by, cid)) ? by[cid] : null;
+      var cur = _ovForServer(_ovNormalise(curRaw));
+      // The card was drawn from an older snapshot (another DM, or another tab, wrote one since): sending ours whole would drop
+      // theirs. Refuse and redraw the roster so the DM edits the current one (PR #659 review). The RPC's `expected` backs this.
+      if(builtFrom && JSON.stringify(_ovForServer(builtFrom)) !== JSON.stringify(cur)){
+        if(btn) btn.disabled = false; busy('');
+        alert('Not saved — another DM changed this character’s house-rule overrides since this card was drawn. The roster is being reloaded: make your change again on the fresh card. Nothing was changed.');
+        if(window._dmReloadRoster) window._dmReloadRoster();
+        return;
+      }
+      if(JSON.stringify(cur) === JSON.stringify(next)){ if(btn) btn.disabled = false; busy(''); alert('Nothing to change — these are already this character’s overrides.'); return; }
+      var apr = window._dmCampaignApRules || {}, cap = (B && B.drawbackCapFromRules) ? B.drawbackCapFromRules(rules) : undefined;
+      var ctx = H.houseRulesCtxFromRules(rules, cid);
+      var inp = { id: r.id, LOG: r.stats.LOG, dmAp: Number(r.ap) || 0, ignorePlayerAp: !!apr.ignorePlayerAp, drawbackCap: cap, overrides: next };
+      var ir = H.houseRulesImpact([inp], ctx, ctx)[0];
+      var h = _chrBuildHolder(ir, r, inp, false, cid);
+      h.override = JSON.parse(JSON.stringify(next)); h.forceOverride = true; h.kept = [];
+      plan = { cid: cid, newCtx: ctx, holders: [h], t2: false, diff: ['For this character: ' + what], single: true, what: what, cur: cur };
+    } catch(err){
+      if(btn) btn.disabled = false; busy('');
+      alert('House rules not saved — ' + ((err && err.message) || err));
+      return;
+    }
+    busy('');
+    var ok = await _chrReview(plan);
+    if(!ok || !_isCurrentCamp(cid)){ if(btn) btn.disabled = false; return; }
+    var acts = _chrActions(plan);
+    var ovAct = acts.actions.filter(function(a){ return a.kind === 'override'; })[0];
+    // Every holder left unticked re-pins the value the DM just asked to apply: nothing would change.
+    if(acts.actions.length === 1 && ovAct && JSON.stringify(_ovForServer(_ovNormalise(ovAct.overrides))) === JSON.stringify(plan.cur)){
+      if(btn) btn.disabled = false; alert('Nothing changed — they keep the value they have.'); return;
+    }
+    busy('Saving…');
+    try { await B.dmApplyHouseRulesChange(cid, undefined, acts.actions); }
+    catch(err){
+      if(btn) btn.disabled = false; busy('');
+      if(_chrIsMissingFn(err)){ _chrServerMissing[cid] = true; _chrShowServerMsg(); alert(_CHR_MISSING_MSG); return; }
+      if(/another DM changed/i.test(String((err && err.message) || err))){ alert(_CHR_STALE_MSG); if(window._dmReloadRoster) window._dmReloadRoster(); return; }
+      var m = String((err && err.message) || err).replace(/^PACT house rules:\s*/, '');
+      alert('House rules not saved — the server refused it (nothing was changed): ' + m + '\n\nReload the roster and try again.');
+      return;
+    }
+    if(window._dmReloadRoster) window._dmReloadRoster(); else loadRoster(cid);
+  };
   window._dmCharHouseRulesTest = { load: function(r){ _chrLoad(r); }, draft: function(){ return _chrDraft; } };
   /* parseInt(x,10)||fallback silently rewrites a deliberate 0, because 0 is falsy. Harmless for the
      display-only curve dials, but startingTier.ap is REAL: bind_character_to_campaign pays it into

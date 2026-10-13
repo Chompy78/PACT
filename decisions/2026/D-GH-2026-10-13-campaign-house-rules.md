@@ -397,3 +397,26 @@ Technical choices (none owner-level unless listed under "Open"):
 - The "Also remove" tooltip now says only boons and drawbacks are removed (never Bound bindings). The unreachable
   threshold-lock branch is removed.
 
+## Addendum 2026-10-13 — PR5, per-character overrides (`feat/campaign-house-rules-overrides`, reworks #642)
+
+- **The card editor** ("DM edit — house rules for this character") edits the character's override layer for the selected
+  campaign: a call can be left on the campaign's setting or forced on/off for them; boons/drawbacks set for them (each row shows
+  the value it replaces — the campaign's, else the printed one); items disabled for them (added to the bans); S2 pins listed
+  with "Apply the current value". Every change sends the WHOLE next snapshot as an `override` action of
+  `dm_apply_house_rules_change()` (no campaign rules), never `dm_edit_character_log`, so one call can carry the override AND a
+  reprice (the RPC checks a reprice's `to` against the override written by the earlier action of the same call).
+- **Engine (additive, no `compute()` change):** `houseRulesImpact()` rows take an optional `overrides` — the snapshot about to be
+  written for newCtx's campaign — so the console previews an override change with the engine's own arithmetic (same ctx both
+  sides). Unit cases in `house-rules-ledger-ci.mjs`.
+- **Single-holder S2** reuses PR4's dialog and holder builder: a held drawback whose value changes is ticked (reprice after the
+  override) or left unticked (the old value pinned in the same snapshot); a draft takes the new value (PR4 owner question 1
+  applies here too); "Apply the current value" left unticked changes nothing and sends nothing.
+- **#642's refusals:** draft and held-drawback refusals removed (above); kept: deleting an override-only custom boon the character
+  holds (it would orphan the purchase), named out-of-limit entries, no negative AP.
+- **Tests:** `dm-house-rules-e2e.mjs` (#642's e2e, adapted — 48), shared fake server `testing/scripts/lib/house-rules-fake-server.mjs`,
+  and the replay harness now replays both editors' calls against the real migration (all accepted; finished characters agree).
+- **PR #659 review:** the card editor sends the snapshot it was drawn from; the submit re-reads the roster and refuses ("another DM
+  changed this character's overrides since this card was drawn") when the fresh snapshot differs, redrawing the roster, and the
+  `override` action carries `expected` so the server refuses a race in between. A pin row's "now" is the value applying it
+  would give — the character's own override for that drawback when there is one, else the campaign's / printed.
+
