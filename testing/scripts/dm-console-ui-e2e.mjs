@@ -658,7 +658,7 @@ check('...total drops back to 39 with the award ignored (0 + 6 + 33)',
 // feat/campaign-npcs: NPC rows (getRoster()'s isNpc) are split off the party at load. They render in their own
 // "NPCs" section with the per-card DM tools. The Award AP tick-list lists them after the players (feat/award-ap-npcs);
 // its "Select all PCs" leaves them out.
-const npc = await page.evaluate(() => {
+const npc = await page.evaluate(async () => {
   const el = document.getElementById('campRoster');
   const built = (id, name) => ({ id, name, ap: 0, owner_id: 'o-' + id, stats: { SEQ: 2, LOG: [
     { type: 'buy', cat: 'create', cost: 0, seq: 1, noLock: true, payload: {} },
@@ -680,6 +680,8 @@ const npc = await page.evaluate(() => {
     playerBasicMode: !!el.querySelector('.card[data-id="p1"] .dm-basicmode-btn'),
     npcAwardForm: npcCards.every(c => c.querySelector('.award-btn')),
     npcRemoveLabel: (npcCards[0] && npcCards[0].querySelector('.unbind-btn') || {}).textContent || '',
+    npcDupBtns: npcCards.map(c => !!c.querySelector('.npc-dup-btn')),
+    playerDupBtn: !!el.querySelector('.card[data-id="p1"] .npc-dup-btn'),
     addBtn: !!(sec && sec.querySelector('.npc-add-open')),
     injected: !!(sec && sec.querySelector('b')),
   };
@@ -687,6 +689,32 @@ const npc = await page.evaluate(() => {
   document.querySelector('#campAwardApList input[value="n2"]').checked = true;
   document.getElementById('campAwardApSelAll').click();
   out.afterSelAll = window._dmAwardApChecked();
+  // feat/npc-duplicate-version (AF3): the button asks for a name and calls duplicateNpc(source, name, campaign).
+  {
+    const B = window._campBridge || (window._campBridge = {});
+    const realDup = B.duplicateNpc, realPrompt = window.prompt, realReload = window._dmReloadRoster;
+    const calls = []; let reloaded = 0;
+    B.duplicateNpc = (id, name, camp) => { calls.push([id, name, camp]); return Promise.resolve('new-id'); };
+    window.prompt = (msg, def) => { out.dupPromptDefault = def; return 'Bram Cotter Ch13'; };
+    window._dmReloadRoster = () => { reloaded++; };
+    window._dmCampaignApRules = { ignorePlayerAp: true, campaignId: 'camp-1' };
+    const btn = el.querySelector('.card[data-id="n1"] .npc-dup-btn'); if (btn) btn.click();
+    await new Promise(r => setTimeout(r, 50));
+    out.dupCalls = calls.slice(); out.dupReloaded = reloaded;
+    window.prompt = () => null; calls.length = 0;
+    const btn2 = el.querySelector('.card[data-id="n1"] .npc-dup-btn'); if (btn2) btn2.click();
+    await new Promise(r => setTimeout(r, 50));
+    out.dupCancelCalls = calls.length;
+    B.duplicateNpc = realDup; window.prompt = realPrompt; window._dmReloadRoster = realReload;
+    window._dmCampaignApRules = { ignorePlayerAp: true };
+    if (B.npcCopyStats) {
+      const src = { schema: 'pact-character/1', name: 'Bram Cotter', id: 'old', SEQ: 3, rules: 'v0.376',
+        LOG: [ { seq: 1, type: 'award', amount: 10 }, { seq: 5, type: 'buy', cat: 'skill', cost: 2, payload: { v: 'Acrobatics' } } ] };
+      const c = B.npcCopyStats(src, 'Bram Cotter Ch13', 'new-id');
+      out.copy = { id: c.id, name: c.name, SEQ: c.SEQ, n: c.LOG.length, last: c.LOG[c.LOG.length - 1],
+                   sameEvents: JSON.stringify(c.LOG.slice(0, 2)) === JSON.stringify(src.LOG), srcUntouched: src.LOG.length === 2 && src.id === 'old' };
+    }
+  }
   window._dmRenderCloudRoster(el, [ built('p1', 'Player One') ]);
   out.noNpcsStillHasAdd = !!el.querySelector('.npc-section .npc-add-open') && !el.querySelector('.npc-section .card');
   window._dmRenderCloudRoster(el, [ { ...built('n1', 'Bram Cotter Ch8-12'), isNpc: true } ]);
@@ -706,6 +734,15 @@ check('an NPC card keeps the per-character award form', npc.npcAwardForm === tru
 check('an NPC card has no basic-mode control (a player-account setting); a player card still does', !npc.npcBasicMode && npc.playerBasicMode);
 check('an NPC card says "Remove NPC from campaign"', /Remove NPC from campaign/.test(npc.npcRemoveLabel), npc.npcRemoveLabel);
 check('the NPC section offers "+ Add an NPC"', npc.addBtn === true);
+check('each NPC card offers "Duplicate as new version"; a player card does not', npc.npcDupBtns.every(Boolean) && npc.npcDupBtns.length === 2 && !npc.playerDupBtn);
+check('Duplicate asks for a name (prefilled "<name> (copy)") and calls duplicateNpc(source, name, campaign), then reloads',
+      JSON.stringify(npc.dupCalls) === JSON.stringify([['n1', 'Bram Cotter Ch13', 'camp-1']]) && npc.dupReloaded === 1 && npc.dupPromptDefault === 'Bram Cotter Ch8-12 (copy)',
+      JSON.stringify([npc.dupCalls, npc.dupPromptDefault]));
+check('cancelling the name prompt duplicates nothing', npc.dupCancelCalls === 0);
+check('npcCopyStats: same events, a name event appended, new id/name, SEQ past every seq, source untouched',
+      !!npc.copy && npc.copy.sameEvents && npc.copy.n === 3 && npc.copy.last.type === 'name' && npc.copy.last.name === 'Bram Cotter Ch13' &&
+      npc.copy.last.seq === 6 && npc.copy.SEQ === 7 && npc.copy.id === 'new-id' && npc.copy.name === 'Bram Cotter Ch13' && npc.copy.srcUntouched,
+      JSON.stringify(npc.copy));
 check('an NPC name is escaped (no injected markup)', npc.injected === false);
 check('with no NPCs yet the section still offers Add, with no cards', npc.noNpcsStillHasAdd === true);
 check('a campaign with only NPCs says "No player characters" and still lists its NPC in Award AP',

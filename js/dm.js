@@ -90,6 +90,58 @@ export async function bindNpc(characterId, campaignId) {
   if (error) throw error;
 }
 
+/** Pure: the copy's stats envelope — the source's, deep-copied, with a `name` event appended for the new name, a fresh
+ *  id, and SEQ past every existing seq. Nothing else changes. (Exported for the tests.) */
+export function npcCopyStats(srcStats, name, id) {
+  const stats = JSON.parse(JSON.stringify(srcStats || {}));
+  const log = Array.isArray(stats.LOG) ? stats.LOG : [];
+  const maxSeq = log.reduce((m, e) => Math.max(m, (e && Number.isInteger(e.seq)) ? e.seq : 0), 0);
+  const seq = Math.max(Number.isInteger(stats.SEQ) ? stats.SEQ : 0, maxSeq + 1);
+  const ev = { seq, ts: Date.now(), type: 'name', name, label: 'Named: ' + name };
+  if (stats.rules != null) ev.rules = stats.rules;
+  log.push(ev);
+  stats.LOG = log; stats.SEQ = seq + 1; stats.id = id; stats.name = name;
+  return stats;
+}
+
+/**
+ * feat/npc-duplicate-version (owner decision AF3, 2026-10-14): duplicate one of the DM's own NPCs as a new version in the
+ * same campaign. The copy is identical apart from its name: the whole stats envelope (every LOG event — build, appearance,
+ * awards, seals, DM events) is copied, a `name` event is appended for the new name (the same event a Live Sheet rename
+ * writes), and the source's DM-awarded AP and gold are given to the copy through award_ap / award_gold so the server's
+ * ledgers record where they came from ("Copied from <name>"). Steps: insert the row (the DM owns it) → dm_bind_npc → award.
+ * If the bind fails the copy is left among the DM's own characters, unbound, and the error says so.
+ * Returns the new character's id.
+ */
+export async function duplicateNpc(sourceId, newName, campaignId) {
+  const { data: auth } = await supabase.auth.getUser();
+  const user = auth && auth.user;
+  if (!user) throw new Error('Sign in first.');
+  const name = String(newName == null ? '' : newName).replace(/\s+/g, ' ').trim();
+  if (!name) throw new Error('Give the new version a name.');
+  if (name.length > 80) throw new Error('That name is too long (80 characters at most).');
+  const { data: src, error: selErr } = await supabase.from('characters')
+    .select('id, owner_id, name, kind, stats, ap, gold, campaign_id, is_npc').eq('id', sourceId).single();
+  if (selErr) throw selErr;
+  if (!src || src.owner_id !== user.id || !src.is_npc) throw new Error('Only your own NPCs can be duplicated.');
+  if (name.toLowerCase() === String(src.name || '').trim().toLowerCase()) throw new Error('Give the new version a different name.');
+  const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : null;
+  if (!id) throw new Error('This browser cannot create a character id.');
+  const stats = npcCopyStats(src.stats, name, id);
+  const { error: insErr } = await supabase.from('characters')
+    .insert({ id, owner_id: user.id, name, kind: src.kind || 'livesheet', stats });
+  if (insErr) {
+    if (insErr.code === '23505') throw new Error('You already have a character named "' + name + '" — pick another name.');
+    throw insErr;
+  }
+  try { await bindNpc(id, campaignId); }
+  catch (e) { throw new Error('The copy "' + name + '" was saved to your characters but could not be added to the campaign: ' + (e && e.message || e)); }
+  const note = 'Copied from ' + (src.name || 'NPC');
+  if (Number(src.ap) || 0) await awardAp(id, Number(src.ap), note);
+  if (Number(src.gold) || 0) await awardGold(id, Number(src.gold), note);
+  return id;
+}
+
 /**
  * DM-only: set the player-name label and/or freeform notes for a character.
  * Upserts the character_dm_notes row; pass only the fields you want to change
