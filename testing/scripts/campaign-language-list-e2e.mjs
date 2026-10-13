@@ -45,9 +45,44 @@ const namesOpen = p => p.evaluate(() => { const b=document.getElementById('names
   check('DM: strict box ticked', await page.isChecked('#ruleLanguagesStrict'));
   check('DM: count line', /5 languages/.test(await page.textContent('#ruleLanguagesCount')));
   check('DM: controls start locked', await page.isDisabled('#ruleLanguages'));
+  // fix/dm-language-lock-note: the locked box says so, right where the DM is looking, and the note unlocks it.
+  const noteShown = () => page.evaluate(() => getComputedStyle(document.getElementById('ruleLanguagesLockNote')).display !== 'none');
+  check('DM: a 🔒 note sits on the locked language box', await noteShown());
+  await page.evaluate(() => document.getElementById('ruleLanguagesLockNote').click());
+  check('DM: clicking the note unlocks the box', !(await page.isDisabled('#ruleLanguages')) && !(await page.isDisabled('#ruleLanguagesStrict')));
+  check('DM: …and the note goes away once unlocked', !(await noteShown()));
+  await page.evaluate(() => document.getElementById('ruleLockBtn').click());
+  check('DM: re-locking brings the note back', await noteShown() && await page.isDisabled('#ruleLanguages'));
   await page.evaluate(() => window._dmRulesPanel.load({}));
   check('DM: untouched campaign = empty box + standard note', (await page.inputValue('#ruleLanguages')) === '' &&
         /standard list/.test(await page.textContent('#ruleLanguagesCount')) && !(await page.isChecked('#ruleLanguagesStrict')));
+  // fix/dm-language-lock-note (E1): standard languages are tick boxes; untick Common to drop it.
+  const ticked = () => page.evaluate(() => [...document.querySelectorAll('#ruleLanguagesStd input:checked')].map(c => c.value));
+  const collect = () => page.evaluate(() => window._dmRulesPanel.collectLanguages());
+  const std = await page.evaluate(() => window.STANDARD_LANGUAGES.slice());
+  // The rules panel is collapsed with no campaign selected, so set controls in-page and fire the event a real click would.
+  const box = (sel, on) => page.evaluate(([sel, on]) => { const e = document.querySelector(sel); e.checked = on; e.dispatchEvent(new Event('change', { bubbles: true })); }, [sel, on]);
+  check('DM: untouched campaign = every standard language ticked', JSON.stringify(await ticked()) === JSON.stringify(std));
+  check('DM: …and saving it unchanged still stores the empty (standard) list', JSON.stringify((await collect()).list) === '[]');
+  await page.evaluate(() => document.getElementById('ruleLanguagesLockNote').click());
+  await box('#ruleLanguagesStd input[value="Common"]', false);
+  let c1 = await collect();
+  check('DM: unticking Common saves the standard list without Common', c1.list.length === std.length - 1 && !c1.list.includes('Common') && c1.list.includes('Elvish'), JSON.stringify(c1.list).slice(0, 80));
+  const hint = () => page.evaluate(() => getComputedStyle(document.getElementById('ruleLanguagesStrictHint')).display !== 'none');
+  check('DM: …with a warning that players can still type it until "Only allow" is on', await hint());
+  await box('#ruleLanguagesStrict', true);
+  check('DM: …which goes away once "Only allow" is ticked', !(await hint()) && (await collect()).strict === true);
+  await page.evaluate(() => document.getElementById('ruleLanguagesNone').click());
+  await page.evaluate(() => { const t = document.getElementById('ruleLanguages'); t.value = 'Haldeni\nAlbric'; t.dispatchEvent(new Event('input', { bubbles: true })); });
+  await box('#ruleLanguagesStd input[value="Dwarvish"]', true);
+  c1 = await collect();
+  check('DM: own languages + ticked standard ones are saved together', JSON.stringify(c1.list) === '["Haldeni","Albric","Dwarvish"]', JSON.stringify(c1.list));
+  await page.evaluate(() => window._dmRulesPanel.load({ languages: { list: ['Dwarvish', 'Haldeni', 'Common'], strict: true } }));
+  check('DM: loading a mixed list ticks its standard languages and puts the rest in the box',
+        JSON.stringify(await ticked()) === '["Common","Dwarvish"]' && (await page.inputValue('#ruleLanguages')) === 'Haldeni');
+  check('DM: …and re-saving it keeps the saved order', JSON.stringify((await collect()).list) === '["Dwarvish","Haldeni","Common"]', JSON.stringify((await collect()).list));
+  check('DM: the tick boxes lock with the rest of Campaign Rules', await page.evaluate(() => { document.getElementById('ruleLockBtn').click();
+        return [...document.querySelectorAll('#ruleLanguagesStd input')].every(c => c.disabled); }));
   check('DM: no page errors', errors.length === 0, errors.join(' | '));
   await page.close();
 }

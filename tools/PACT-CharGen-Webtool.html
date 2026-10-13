@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.647.html**-->
+<!--**PACT-CharGen-Webtool v1.657.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.647 · Rules v0.376</title><style>
+<title>PACT Character Generator — Web Tool v1.657 · Rules v0.376</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.647</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.657</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -2137,47 +2137,16 @@ function apLocked(field){const e=$('ap_'+field+'_lock');return !!(e&&e.checked);
 function randField(field){_rollField(field);render();}
 function randomiseAppearance(){APFIELDS.forEach(f=>{if(!apLocked(f))_rollField(f);});if(!apLocked('overall'))genDescription();render();}
 // compose a one-paragraph prose description from the appearance + backstory fields
-function _artyc(s){s=(s||'').trim();
-  // numbers that READ with a leading vowel sound take "an": 8/80s/800s (eight…), 11 (eleven), 18 (eighteen)
-  if(/^[0-9]/.test(s)){var d=String(parseInt(s,10));return (/^8/.test(d)||d==='11'||d==='18')?'an':'a';}
-  return /^[aeiou]/i.test(s)?'an':'a';}  // a / an
-function _joinList(a){a=a.filter(Boolean);if(a.length<=1)return a.join('');if(a.length===2)return a[0]+' and '+a[1];return a.slice(0,-1).join(', ')+', and '+a[a.length-1];}
+// The paragraph itself is written by pactComposeDescription() (js/ui-helpers.js), shared with Live Sheet's
+// "Regenerate paragraph" button (feat/livesheet-centre-columns). This wrapper feeds it the form's current values.
+var GENDESC_FIELDS=['age','gender','hometown','build','height','hair','eyes','skin','nose','marks','demeanour','voice','quirk','profession','famevent','father','mother','familyfor','secret','likes','dislikes','drink','ambition','fear','faith','prized','companion'];
 function genDescription(){
-  const v=id=>val('ap_'+id); const b=readBuild(); const name=val('cname')||'This character';
-  const pcs=[];
-  // sentence 1 — identity; gender (female/male/non-binary) reads as an adjective, a/an correct
-  const core=[v('age')?(v('age')+'-year-old'):'',v('gender'),b.species,b.originClass].filter(Boolean).join(' ');
-  pcs.push(name+' is '+_artyc(core)+' '+core+(v('hometown')?(' from '+v('hometown')):'')+'.');
-  // physique — "are"; colouring/features — "have"
-  const are=[v('build'),v('height')&&('about '+v('height')+' tall')].filter(Boolean);
-  if(are.length)pcs.push('They are '+_joinList(are)+'.');
-  const have=[v('hair')&&v('hair').indexOf('none')<0&&(v('hair')+' hair'),v('eyes')&&(v('eyes')+' eyes'),v('skin'),v('nose')&&(_artyc(v('nose'))+' '+v('nose')+' nose'),v('marks')&&v('marks').indexOf('no distinguishing')<0&&v('marks')].filter(Boolean);
-  if(have.length)pcs.push('They have '+_joinList(have)+'.');
-  // manner: demeanour (are) · voice (speak) · quirk (own clause, avoids subject-verb clash)
-  if(v('demeanour'))pcs.push('By temperament they are '+v('demeanour')+'.');
-  if(v('voice'))pcs.push('They speak with '+_artyc(v('voice'))+' '+v('voice')+' voice.');
-  if(v('quirk'))pcs.push('A characteristic habit: '+v('quirk')+'.');
-  // past — fix "They was" -> "They were"
-  const past=[v('profession')&&('They '+v('profession').replace(/^was /,'were ')),v('famevent')].filter(Boolean);
-  if(past.length)pcs.push(past.join('. ')+'.');
-  // family
-  const parents=[v('father'),v('mother')].filter(Boolean).join(' and ');
-  const fam=[parents&&('Born to '+parents),v('familyfor')&&('a family known for '+v('familyfor'))].filter(Boolean);
-  if(fam.length)pcs.push(fam.join(', ')+(v('secret')?('. The family secret: '+v('secret')):'')+'.');
-  // tastes — likes / dislikes / drink
-  const tastes=[v('likes')&&('they favour '+v('likes')),v('dislikes')&&('cannot abide '+v('dislikes')),v('drink')&&('always take '+v('drink'))].filter(Boolean);
-  if(tastes.length)pcs.push('Given the choice, '+_joinList(tastes)+'.');
-  // drive
-  const drive=[v('ambition')&&('driven '+v('ambition')),v('fear')&&('haunted by a fear of '+v('fear')),v('faith')&&('keeping faith with '+v('faith'))].filter(Boolean);
-  if(drive.length)pcs.push('They are '+_joinList(drive)+'.');
-  // belongings / companion
-  const misc=[v('prized')&&('carry '+v('prized')),v('companion')&&v('companion').indexOf('no companion')<0&&('are accompanied by '+v('companion'))].filter(Boolean);
-  if(misc.length)pcs.push('They '+_joinList(misc)+'.');
+  const b=readBuild(); const ap={}; GENDESC_FIELDS.forEach(function(k){ap[k]=val('ap_'+k);});
+  const composed=pactComposeDescription(ap,{name:val('cname'),species:b.species,originClass:b.originClass});
   // fix/randomise-appearance-not-persisted: same DOM-only bug as _rollField() above — the composed
   // paragraph rendered on screen but was never written to the LOG, so it never survived past this render.
   // Same _histSuspended skip as _rollField() above, same reason (randomizeRoll()'s resync makes this
   // redundant work there).
-  const composed=pcs.join(' ');
   const e=$('ap_overall');if(e)e.value=composed;
   if(!_histSuspended)_shCommitAppearanceField('overall',composed);
 }
@@ -6144,6 +6113,18 @@ function randomizeRoll(themeKey,lvlWanted){
   // build -- which made every re-roll of a saved character a NEW cloud row (and, on a campaign character, a second
   // row carrying the same binding) while the original was left behind.
   b.id=currentCharId();
+  // fix/roller-wears-armour: the kit bucket buys armour TRAINING, never a worn piece. Since rules v0.376 an empty
+  // "Worn armour" is unarmoured (10 + Dex), so wear the best piece this build may legally wear (armourEligible: trained
+  // + STR; not banned by the campaign), by the AC it gives with this DEX. An allowed piece already worn is kept.
+  (function(){
+    var _wOk=function(n){ return !!(DATA.armours&&DATA.armours[n]) && armourEligible(b,n).ok &&
+      !(typeof cloudRuleBarred==='function'&&cloudRuleBarred('armour',n)); };
+    if(b.wornArmour&&_wOk(b.wornArmour)) return;
+    var dm=Math.floor(((b.stats&&b.stats.DEX)||10)/2)-5, best='', bestAc=10+dm;
+    Object.keys(DATA.armours||{}).forEach(function(n){ if(!_wOk(n)) return; var a=DATA.armours[n];
+      var ac=a.base+(a.cat==='heavy'?0:a.cat==='medium'?Math.min(dm,2):dm); if(ac>bestAc){best=n;bestAc=ac;} });
+    b.wornArmour=best;
+  })();
   try{
     applyBuild(b);
     try{randomiseAppearance();if(!val('cname'))genName();}catch(e){}
