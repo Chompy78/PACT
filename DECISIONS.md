@@ -21,7 +21,7 @@
   does — the DM's cap when on, NO cap when off or never set. PR3 (server migration, written and rehearsed, NOT applied) adds
   the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
   PR4 (DM Console editor): one review dialog (S2 ticks per character + drawback, T2 removals, below 0 shown) then ONE RPC call;
-  bound characters with unknown campaign rules are strict in both player tools; two owner questions open (see the PR4 addendum).
+  bound characters with unknown campaign rules are strict in both player tools; owner answers AC (draft reprice) and AD1 (opt-in removal on bans) deferred to board tasks.
   Full record: `decisions/2026/D-GH-2026-10-13-campaign-house-rules.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign

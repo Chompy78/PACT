@@ -366,16 +366,16 @@ Technical choices (none owner-level unless listed under "Open"):
 - **Proof against the real server.** `run-dm-house-rules-replay.sh` replays the e2e's captured calls on the PR3 migration
   in Docker: every call accepted; server AP left = engine AP left for every finished holder.
 
-### Open (owner) — found while building PR4
+### Owner questions from PR4 — answered 2026-10-13 (both DEFERRED to board tasks)
 
-1. **Draft holders of a repriced drawback disagree with the server on an increase.** Plan §5.4 says a draft "picks up the
-   change by itself", but `repriceDraft()` never re-stamps drawback costs and the RPC refuses AP-moving events on drafts, so
-   when a held drawback's value RISES the draft's browser shows the new grant while the server credits
-   `least(−cost, effective)` = the old one (replay: Bo 15 vs 13) — a purchase spending the difference is refused on save.
-   On a decrease both agree. Options: (a) pin drafts too (agreement; the draft keeps the old value), (b) let the RPC reprice
-   a draft's drawback (server change), (c) accept (as implemented, per the plan).
-2. **T2 and bans.** A newly banned item can't be taken away with refund (bans live in Save rules, which keeps "stop new
-   purchases only"). Should Save rules offer T2 for newly banned items too?
+1. **AC — draft holders of a repriced drawback** (found while building PR4): `repriceDraft()` never re-stamps drawback costs
+   and the RPC refuses AP-moving events on drafts, so when a held drawback's value RISES a draft's browser shows the new grant
+   while the server credits the old one (replay: Bo 15 vs 13). **Deferred** to the board task `feat/house-rules-draft-reprice`;
+   until then PR4 keeps the plan's behaviour (drafts listed, not tickable, nothing sent).
+2. **AD1 — T2 for bans:** the owner chose to offer the same opt-in "Also remove from characters who own it (refund)" when the
+   DM saves campaign BANS (default off; the same review, V1 below 0 allowed, refunds / removals through the RPC and
+   `dmRemoveBoon` for DM-granted oldest copies). **Deferred** to the board task `feat/house-rules-ban-removal`; not built in
+   PR4 — a ban still only stops new purchases.
 
 ### PR #658 review — changes (2026-10-13)
 
