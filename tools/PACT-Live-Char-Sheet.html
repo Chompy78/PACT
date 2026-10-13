@@ -109,7 +109,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .ecobox b{font-size:18px;color:var(--navytx);display:block;line-height:1}.ecobox span{font-size:9px;color:var(--grey);text-transform:uppercase}
 .ecobox.drift b{font-size:13px;color:var(--good)}
 .apsrc{white-space:nowrap;cursor:help}.apsrc.off{opacity:.6}
-.layout{display:grid;grid-template-columns:300px 1fr 300px;gap:12px;padding:12px}
+.layout{--buyW:300px;--ledW:300px;display:grid;grid-template-columns:var(--buyW) minmax(0,1fr) var(--ledW);gap:12px;padding:12px}
 @media(max-width:1000px){
  .layout{grid-template-columns:1fr}
  /* M8: collapse/expand the three top-level cards on mobile, mirroring the .bgcat/.cath pattern */
@@ -119,6 +119,8 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  .layout>.card.clp>:not(h3:first-child){display:none !important}   /* !important: the Buy filters carry an inline display */
 }
 #lmobar{display:none}
+.colgrip{display:none}@media(min-width:1001px){.colgrip{display:block}}
+.topname,.h1short{display:none}
 /* feat/livesheet-center-panel: on desktop the Buy and History panels fold to a thin strip (click the heading),
    and the Character panel widens into the space. Phones keep the M8 fold above. Remembered per browser. */
 @media(min-width:1001px){
@@ -132,9 +134,16 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  .layout>.card.clp:not(:nth-child(2))>h3:first-child:hover,.layout>.card.clp:not(:nth-child(2))>h3:first-child:focus-visible{background:var(--line)}
  .layout>.card.clp:nth-child(1)>h3:first-child::before{content:"»  ";font-size:16px}
  .layout>.card.clp:nth-child(3)>h3:first-child::before{content:"«  ";font-size:16px}
- .layout:has(>.card:nth-child(1).clp){grid-template-columns:40px 1fr 300px}
- .layout:has(>.card:nth-child(3).clp){grid-template-columns:300px 1fr 40px}
- .layout:has(>.card:nth-child(1).clp):has(>.card:nth-child(3).clp){grid-template-columns:40px 1fr 40px}
+ .layout:has(>.card:nth-child(1).clp){grid-template-columns:40px minmax(0,1fr) var(--ledW)}
+ .layout:has(>.card:nth-child(3).clp){grid-template-columns:var(--buyW) minmax(0,1fr) 40px}
+ .layout:has(>.card:nth-child(1).clp):has(>.card:nth-child(3).clp){grid-template-columns:40px minmax(0,1fr) 40px}
+ /* fix/livesheet-header-and-panel-width: drag the inner edge of Buy or History to widen it (double-click resets). */
+ .layout>.card:not(:nth-child(2)){position:relative}
+ .colgrip{position:absolute;top:0;bottom:0;width:10px;cursor:col-resize;z-index:5;touch-action:none}
+ .colgrip::after{content:"";position:absolute;top:50%;left:3px;width:4px;height:44px;margin-top:-22px;border-radius:3px;background:var(--line)}
+ .colgrip:hover::after,.colgrip:focus-visible::after,.colgrip.drag::after{background:var(--blue)}
+ .layout>.card:nth-child(1)>.colgrip{right:-11px}
+ .layout>.card:nth-child(3)>.colgrip{left:-11px}
 }
 @media(max-width:600px){
  body{font-size:14px}
@@ -313,15 +322,28 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
  /* feat/livesheet-centre-columns: only the header row stays on screen. It used to be the header + AP summary + DM bar +
     tip banners — about half a phone screen. Those now scroll with the panels inside #lsScroll; the header keeps to one
     row and scrolls sideways; the bottom bar (#lmobar) still shows AP left + Undo/Redo at all times. */
- .top{flex:0 0 auto;position:static;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
- .top>*{flex-shrink:0}
- #lsScroll{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+ .top{flex:0 0 auto;position:static}
+ #lsScroll{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+ body{overscroll-behavior:none}   /* no pull-to-refresh/rubber-band on the pinned header */
  #lsScroll>#versionBanner,#lsScroll>#apNudgeBanner{position:static !important}
  /* AI Portrait/Print/Close: not part of D-GH5's header, just an overlay — simpler fix, let it scroll
     away with the rest of the sheet-view overlay's own content instead of staying pinned. */
  .shtop{position:static}
 }
-@media(max-width:600px){.top h1{display:none}}   /* one header row on a phone: the buttons need the room; ← Home names the app */
+/* fix/livesheet-header-and-panel-width (owner): on a phone the pinned header holds ONLY the sheet's name, the character's
+   name and the buttons — row 1: ← · Live Sheet · character name; row 2: the buttons, small enough to fit without sideways
+   scrolling. Undo/Redo live in the bottom bar there (#lmobar), so they leave the header. */
+@media(max-width:600px){
+ .top{flex-wrap:wrap;gap:4px 5px;padding:6px 8px}
+ .top h1{display:block;font-size:14px;white-space:nowrap}
+ .h1full{display:none}.h1short{display:inline}
+ .topname{display:block;flex:1 1 0;min-width:0;font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .topbreak{display:block;flex-basis:100%;height:0}
+ .homelink{padding:2px 7px}
+ .top .btn{padding:4px 7px !important;font-size:14px !important}
+ .top>.btn[onclick="undo()"],.top>.btn[onclick="redo()"]{display:none}
+ .synchip,.cloudstatus{padding:2px 7px;font-size:10px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+}
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
 .lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
@@ -444,7 +466,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
 <div id="apFloat" title="AP available (Player AP + DM-granted AP − spent) — updates live as you buy, undo, or gain awards"><b id="apFloatN">0</b><span>AP left</span></div>
-<div class="top"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><h1>🧬 PACT — Live Character Sheet</h1><span class="v" id="verline">event-sourced · prices freeze at purchase</span>
+<div class="top"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← <span class="bl">Home</span></a><h1>🧬 <span class="h1full">PACT — Live Character Sheet</span><span class="h1short">Live Sheet</span></h1><span class="topname" id="topCharName"></span><span class="topbreak"></span><span class="v" id="verline">event-sourced · prices freeze at purchase</span>
 <button class="btn g" onclick="undo()" title="Undo">↶ <span class="bl">Undo</span></button><button class="btn g" onclick="redo()" title="Redo">↷ <span class="bl">Redo</span></button>
 <button class="btn g" id="exportBtn" onclick="exportJSON()" title="Export character to a file">⬇ <span class="bl">Export</span></button>
 <button class="btn g" onclick="document.getElementById('imp').click()" title="Import a character file">⬆ <span class="bl">Import</span></button>
@@ -1739,6 +1761,31 @@ function _lsPanelFoldInit(){
     new MutationObserver(function(){st[keys[i]]=c.classList.contains('clp')?1:0;try{localStorage.setItem('pactLsPanelFold',JSON.stringify(st));}catch(e){}}).observe(c,{attributes:true,attributeFilter:['class']});});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsPanelFoldInit);else _lsPanelFoldInit();
+// fix/livesheet-header-and-panel-width: widen Buy / History by dragging their inner edge (desktop only — the grips are hidden
+// below 1001px). Arrow keys nudge a focused grip; double-click resets to 300px. Remembered per browser.
+function _lsPanelWidthInit(){
+  var lay=document.querySelector('.layout'),cards=document.querySelectorAll('.layout>.card');if(!lay||cards.length<3)return;
+  var st={};try{st=JSON.parse(localStorage.getItem('pactLsPanelWidth')||'{}')||{};}catch(e){}
+  var vars={buy:'--buyW',ledger:'--ledW'};
+  function clampW(w){var max=Math.max(320,Math.floor(lay.clientWidth*0.45));return Math.round(Math.min(max,Math.max(220,w)));}
+  function setW(k,w,save){if(w==null){lay.style.removeProperty(vars[k]);delete st[k];}else{w=clampW(w);lay.style.setProperty(vars[k],w+'px');st[k]=w;}
+    if(save){try{localStorage.setItem('pactLsPanelWidth',JSON.stringify(st));}catch(e){}}}
+  Object.keys(vars).forEach(function(k){if(st[k])setW(k,st[k],false);});
+  [[0,'buy',1],[2,'ledger',-1]].forEach(function(t){var card=cards[t[0]],k=t[1],dir=t[2];
+    var g=document.createElement('div');g.className='colgrip';g.tabIndex=0;g.setAttribute('role','separator');g.setAttribute('aria-orientation','vertical');
+    g.setAttribute('aria-label','Resize the '+(k==='buy'?'Buy / progress':'History & ledger')+' panel');g.title='Drag to make this panel wider or narrower · double-click to reset';
+    card.appendChild(g);
+    var cur=function(){return card.getBoundingClientRect().width;};
+    g.addEventListener('pointerdown',function(e){e.preventDefault();g.setPointerCapture(e.pointerId);g.classList.add('drag');
+      var x0=e.clientX,w0=cur();
+      var mv=function(ev){setW(k,w0+dir*(ev.clientX-x0),false);};
+      var up=function(){g.classList.remove('drag');g.removeEventListener('pointermove',mv);g.removeEventListener('pointerup',up);g.removeEventListener('pointercancel',up);setW(k,cur(),true);};
+      g.addEventListener('pointermove',mv);g.addEventListener('pointerup',up);g.addEventListener('pointercancel',up);});
+    g.addEventListener('dblclick',function(){setW(k,null,true);});
+    g.addEventListener('keydown',function(e){var d=e.key==='ArrowRight'?20:e.key==='ArrowLeft'?-20:0;if(!d)return;e.preventDefault();setW(k,cur()+dir*d,true);});
+  });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsPanelWidthInit);else _lsPanelWidthInit();
 // ---- Player's own sheet: coins, weapons, note sections (feat/livesheet-center-panel, owner choices G1/H1) ----
 // Stored in b.appearance.playerSheet = {coins:{pp,gp,ep,sp,cp}, weapons:[{n,ab,prof,bonus,dice,type,notes}], notes:[{t,x}]}.
 // appearance is the patch field the server leaves editable after a lock/seal (pact_patch_exempt_keys), so this follows the
@@ -1912,6 +1959,7 @@ function render(){
   sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
   $('sheet').innerHTML=sh;
+  {const _tn=$('topCharName');if(_tn)_tn.textContent=b.name||'New Character';}   // textContent: player text, never markup
   _lsDescRestoreFocus();
   _lsScheduleCopyIn();
   // --- ledger / history ---

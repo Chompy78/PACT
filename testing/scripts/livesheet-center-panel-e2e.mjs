@@ -158,6 +158,20 @@ const kept = await page.evaluate(() => foldBuild(null).appearance.overall);
 check('…and asks before replacing a hand-written paragraph (cancel keeps it)', asked === 1 && kept === 'Hand-written.', kept);
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }
+// fix/livesheet-header-and-panel-width: drag Buy's inner edge to widen it; remembered after a reload; double-click resets.
+{
+  const buyW = () => page.evaluate(() => Math.round(document.querySelector('.layout>.card').getBoundingClientRect().width));
+  await page.evaluate(() => { const c = document.querySelector('.layout>.card'); c.classList.remove('clp'); });
+  const g = await page.locator('.layout>.card:nth-child(1)>.colgrip').boundingBox();
+  const w0 = await buyW();
+  await page.mouse.move(g.x + 5, g.y + g.height / 2); await page.mouse.down();
+  await page.mouse.move(g.x + 125, g.y + g.height / 2, { steps: 6 }); await page.mouse.up();
+  const w1 = await buyW();
+  check('dragging the Buy panel\'s edge widens it', w1 >= w0 + 110, w0 + ' -> ' + w1);
+  check('…and the width is remembered', await page.evaluate(() => (JSON.parse(localStorage.getItem('pactLsPanelWidth') || '{}').buy || 0)) === w1);
+  await page.locator('.layout>.card:nth-child(1)>.colgrip').dblclick();
+  check('double-clicking the edge resets it', await buyW() === 300, String(await buyW()));
+}
 const fatal = errs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
 check('no fatal page errors (desktop)', fatal.length === 0, fatal.slice(0, 2).join(' | '));
 await ctx.close();
@@ -167,6 +181,13 @@ check('on a phone the skills list stacks above the sheet', await ph.page.evaluat
   const a = document.querySelector('.shskills').getBoundingClientRect(), b = document.querySelector('.shmain').getBoundingClientRect();
   return a.bottom <= b.top + 1; }));
 check('no sideways scroll on a phone', await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+// fix/livesheet-header-and-panel-width: the pinned phone header is only the sheet name, the character name and the buttons.
+const hdr = await ph.page.evaluate(() => { const t = document.querySelector('.top'), r = t.getBoundingClientRect();
+  return { h: Math.round(r.height), over: t.scrollWidth > t.clientWidth + 1, name: getComputedStyle(document.getElementById('topCharName')).display !== 'none' && document.getElementById('topCharName').textContent,
+    eco: !t.contains(document.getElementById('eco')), cut: [...t.children].some(e => e.offsetParent && e.getBoundingClientRect().right > window.innerWidth + 1) }; });
+check('phone header: two short rows, nothing cut off or scrolling sideways', hdr.h <= 90 && !hdr.over && !hdr.cut, JSON.stringify(hdr));
+check('phone header: shows the character name', hdr.name === await ph.page.evaluate(() => foldBuild(null).name || 'New Character'), String(hdr.name));
+check('phone: the AP summary scrolls with the sheet, not pinned', await ph.page.evaluate(() => document.getElementById('lsScroll').contains(document.getElementById('eco'))));
 if (SHOT) await ph.page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-phone.png') });
 await ph.ctx.close();
 
