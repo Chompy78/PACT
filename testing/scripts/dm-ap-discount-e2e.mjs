@@ -189,6 +189,17 @@ async function openLive(LOG) {
   check('...and NOT with the "never changed your spendable AP" promise', !!dRow && !/never changed your spendable AP/.test(dRow.html));
   check('the AP summary shows AP value, AP paid and the discount',
     await page.evaluate(() => /12 AP value · 9 paid · 3 DM discount/.test((document.getElementById('lms') || {}).textContent || '')));
+  // The centre panel spells AP left out as a sum of its sources (#650); the discount is one of them, or the parts
+  // would not add up to the figure. Checked arithmetically from the rendered terms, not just by text.
+  const sum = await page.evaluate(() => {
+    const t = (document.getElementById('eco') || {}).textContent || '';
+    const m = t.match(/(-?\d+) AP left = (.*?) − (\d+) spent/);
+    if (!m) return { t: t.slice(0, 200) };
+    const parts = [...m[2].matchAll(/(-?\d+) (player|DM discount|DM|drawbacks)/g)].map(x => ({ n: Number(x[1]), lab: x[2] }));
+    return { left: Number(m[1]), spent: Number(m[3]), parts, ign: /<s>/.test(document.getElementById('eco').innerHTML) };
+  });
+  check('the AP-left sum has a "DM discount" term of 3', !!sum.parts && sum.parts.some(p => p.lab === 'DM discount' && p.n === 3), JSON.stringify(sum));
+  check('...and its parts add up to AP left', !!sum.parts && sum.parts.reduce((a, p) => a + p.n, 0) - sum.spent === sum.left, JSON.stringify(sum));
   check('no page errors in the Live Sheet', errs.length === 0, errs.join(' | '));
   await close();
 }
