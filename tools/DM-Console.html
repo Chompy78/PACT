@@ -928,14 +928,25 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <!-- Campaign language list (feat/campaign-language-list) — saved as rules.languages {list, strict}. -->
                 <div class="ruleblock">
                   <div class="lbl">🗣 Languages <button type="button" class="infobtn" title="The language names your players pick from when they name their languages (✎ Name spells & languages). Leave the box empty to use the standard Players Handbook list. Buying languages still costs the same AP — this only changes which names are on offer.">&#9432;</button></div>
-                  <textarea class="field" id="ruleLanguages" rows="5" style="width:100%;resize:vertical;font-family:inherit" placeholder="One language per line — leave empty for the standard list"></textarea>
-                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
-                    <button type="button" class="btn sm ghost" id="ruleLanguagesStandard">Fill with standard list</button>
-                    <span id="ruleLanguagesCount" style="font-size:11px;color:var(--muted)"></span>
+                  <!-- fix/dm-language-lock-note: the box is greyed out while Campaign Rules are locked, and the unlock controls are
+                       far above/below it — say so right here. A span, not a button: the lock disables every button in this tile. -->
+                  <span id="ruleLanguagesLockNote" role="button" tabindex="0" style="display:none;margin:0 0 5px;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;cursor:pointer">🔒 Locked — Campaign Rules are locked so a stray click can't change them. <u>Click here to unlock</u>, edit, then <b>Save rules</b>.</span>
+                  <!-- fix/dm-language-lock-note (owner choice E1): the standard languages as tick boxes — untick one (e.g. Common) to
+                       drop it — plus a box for the campaign's own names. Still saved as rules.languages {list, strict}: all standard
+                       ticked and nothing typed saves an empty list (= the standard list), exactly as before. -->
+                  <div style="font-size:11.5px;color:var(--muted);margin:2px 0 4px">Standard languages — untick any this campaign doesn’t use:</div>
+                  <div class="rulegrid" id="ruleLanguagesStd"></div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0 8px">
+                    <button type="button" class="btn sm ghost" id="ruleLanguagesAll">Tick all</button>
+                    <button type="button" class="btn sm ghost" id="ruleLanguagesNone">Untick all</button>
                   </div>
+                  <div style="font-size:11.5px;color:var(--muted);margin:0 0 4px">Your own languages — one per line:</div>
+                  <textarea class="field" id="ruleLanguages" rows="4" style="width:100%;resize:vertical;font-family:inherit" placeholder="e.g. Haldeni"></textarea>
+                  <div style="margin-top:5px"><span id="ruleLanguagesCount" style="font-size:11px;color:var(--muted)"></span></div>
                   <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0 0;cursor:pointer">
                     <input type="checkbox" id="ruleLanguagesStrict"> Only allow languages on this list <button type="button" class="infobtn" title="Off: your list is offered as suggestions, players can still type their own, and anything off-list is marked “Not on this campaign’s language list”. On: a player can’t save a NEW language that isn’t on your list. A language a character already has stays — languages can’t be unlearned — and is just marked.">&#9432;</button>
                   </label>
+                  <div id="ruleLanguagesStrictHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin-top:6px">⚠ Unticked languages are only hidden from the suggestions — players can still type them. Tick <b>Only allow languages on this list</b> to stop that.</div>
                 </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
@@ -3817,30 +3828,51 @@ document.addEventListener('campaign-ready', function () {
       btn.addEventListener('click', function(){ delete currentHouseRules[btn.dataset.hrdel]; renderHouseRules(); });
     });
   }
-  // Campaign language list (feat/campaign-language-list). The textarea holds the DM's own names, one
-  // per line; campaignLanguages() (js/engine.js) is the one place they're cleaned, so the count shown
-  // here and the list the players get can't disagree.
-  function _collectLanguages(){
-    var raw = document.getElementById('ruleLanguages').value.split(/\r?\n/);
+  // Campaign language list (feat/campaign-language-list; tick boxes since fix/dm-language-lock-note). The standard
+  // languages are tick boxes, the textarea holds the DM's own names one per line. campaignLanguages() (js/engine.js) is
+  // the one place names are cleaned, so the count shown here and the list the players get can't disagree.
+  var _lgOrder = [];   // the saved list's order, so re-saving an unchanged list doesn't reshuffle it
+  function _lgStd(){ return (window.STANDARD_LANGUAGES || []).slice(); }
+  function _lgClean(raw){
     // This classic script parses before the engine module bridge runs; every caller is post-boot, but
     // fall back to plain trimming rather than throw if one ever isn't.
-    var list = window.campaignLanguages
+    return window.campaignLanguages
       ? (function(c){ return c.custom ? c.list : []; })(window.campaignLanguages({ languages: { list: raw } }))
-      : raw.map(function(n){ return n.trim(); }).filter(Boolean);
-    return { list: list, strict: document.getElementById('ruleLanguagesStrict').checked };
+      : raw.map(function(n){ return String(n).trim(); }).filter(Boolean);
+  }
+  function _renderLanguageGrid(){
+    var el = document.getElementById('ruleLanguagesStd'), std = _lgStd();
+    if(!el || !std.length || el.dataset.rgSig === std.join('\u0001')) return;
+    var was = el.dataset.rgSig ? getRuleGridChecked('ruleLanguagesStd') : null;
+    el.dataset.rgSig = std.join('\u0001');
+    el.innerHTML = std.map(function(n){ return '<label><input type="checkbox" value="'+esc(n)+'">'+esc(n)+'</label>'; }).join('');
+    if(was) setRuleGridChecked('ruleLanguagesStd', was);
+    el.querySelectorAll('input').forEach(function(cb){ cb.addEventListener('change', _updateLanguagesCount); });
+    if(document.getElementById('ruleLanguages').disabled) el.querySelectorAll('input').forEach(function(cb){ cb.disabled = true; });
+  }
+  function _collectLanguages(){
+    var std = _lgStd(), ticked = getRuleGridChecked('ruleLanguagesStd');
+    var own = _lgClean(document.getElementById('ruleLanguages').value.split(/\r?\n/));
+    var strict = document.getElementById('ruleLanguagesStrict').checked;
+    // Every standard language ticked and nothing of their own = the untouched standard list, saved as [] as before.
+    if(ticked.length === std.length && !own.length) return { list: [], strict: strict, unticked: 0 };
+    var want = {}; own.concat(ticked).forEach(function(n){ want[n.toLowerCase()] = n; });
+    var out = [];
+    _lgOrder.concat(own, ticked).forEach(function(n){ var k = String(n).toLowerCase(); if(want[k]){ out.push(want[k]); delete want[k]; } });
+    return { list: _lgClean(out), strict: strict, unticked: std.length - ticked.length };
   }
   function _updateLanguagesCount(){
     var c = _collectLanguages(), el = document.getElementById('ruleLanguagesCount');
     el.textContent = c.list.length ? (c.list.length + ' language' + (c.list.length === 1 ? '' : 's') + ' on this campaign\u2019s list')
-                                   : 'Empty \u2014 players get the standard list';
+                                   : (c.unticked ? 'Nothing ticked or typed \u2014 players get the full standard list'
+                                                 : 'All standard languages \u2014 players get the standard list');
+    var h = document.getElementById('ruleLanguagesStrictHint');
+    if(h) h.style.display = (c.list.length && !c.strict && c.unticked) ? 'block' : 'none';
   }
   document.getElementById('ruleLanguages').addEventListener('input', _updateLanguagesCount);
-  document.getElementById('ruleLanguagesStandard').addEventListener('click', function(){
-    var ta = document.getElementById('ruleLanguages');
-    if(ta.value.trim() && !confirm('Replace what is in the box with the standard list?')) return;
-    ta.value = window.STANDARD_LANGUAGES.join('\n');
-    _updateLanguagesCount();
-  });
+  document.getElementById('ruleLanguagesStrict').addEventListener('change', _updateLanguagesCount);
+  document.getElementById('ruleLanguagesAll').addEventListener('click', function(){ setRuleGridChecked('ruleLanguagesStd', _lgStd()); _updateLanguagesCount(); });
+  document.getElementById('ruleLanguagesNone').addEventListener('click', function(){ setRuleGridChecked('ruleLanguagesStd', []); _updateLanguagesCount(); });
   function loadRulesIntoPanel(rules){
     var r = rules || {};
     renderRuleGrids();
@@ -3856,8 +3888,15 @@ document.addEventListener('campaign-ready', function () {
     ruleMultiDisc.checked = r.multiDisciplineAllowed !== false;
     // Campaign language list (feat/campaign-language-list). Shows the DM's own list only — an untouched
     // campaign shows an empty box (= the standard list), not the standard list pretending to be chosen.
-    var _lg = r.languages || {};
-    document.getElementById('ruleLanguages').value = (Array.isArray(_lg.list) ? _lg.list : []).join('\n');
+    var _lg = r.languages || {}, _lgList = Array.isArray(_lg.list) ? _lg.list : [];
+    _renderLanguageGrid();
+    // An empty saved list means the standard list: every box ticked. Otherwise a standard language is ticked only if it is
+    // on the saved list, and everything else on the list goes in the own-languages box.
+    var _stdK = {}; _lgStd().forEach(function(n){ _stdK[n.toLowerCase()] = n; });
+    var _onK = {}; _lgList.forEach(function(n){ _onK[String(n).toLowerCase()] = 1; });
+    setRuleGridChecked('ruleLanguagesStd', _lgList.length ? _lgStd().filter(function(n){ return _onK[n.toLowerCase()]; }) : _lgStd());
+    document.getElementById('ruleLanguages').value = _lgList.filter(function(n){ return !_stdK[String(n).toLowerCase()]; }).join('\n');
+    _lgOrder = _lgList.slice();
     document.getElementById('ruleLanguagesStrict').checked = _lg.strict === true;
     _updateLanguagesCount();
     rulePostLockDrawbacks.checked = r.postLockDrawbacks === true;   // absent = refused: only an explicit true allows it (js/engine.js postLockAllowance)
@@ -4221,7 +4260,7 @@ document.addEventListener('campaign-ready', function () {
   // different startingTier shapes (current, pre-2026-08-04, absent), which is exactly the kind of
   // branch that breaks silently and is impossible to reach from outside this closure. Exposed so
   // testing/scripts/dm-console-ui-e2e.mjs can drive it; nothing in the app calls it through window.
-  window._dmRulesPanel = { load: loadRulesIntoPanel };
+  window._dmRulesPanel = { load: loadRulesIntoPanel, collectLanguages: _collectLanguages };   // collectLanguages: what Save rules stores
   // Test seam: lets economy-ui-e2e.mjs render/inspect the party-wide downtime control without a live
   // Supabase campaign — same reasoning as window._dmRulesPanel immediately above.
   window._dmPartyDowntimeTest = { render: _renderPartyDowntime };
@@ -5181,6 +5220,7 @@ document.addEventListener('campaign-ready', function () {
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    var _lln = document.getElementById('ruleLanguagesLockNote'); if(_lln) _lln.style.display = locked ? 'block' : 'none';
     if(ruleLockHint){
       ruleLockHint.innerHTML = locked
         ? '🔒 <b>Campaign Rules are locked</b> — including the economy band, banned lists, and everything else below. Click here to unlock them (or use "Locked" next to Save rules at the bottom).'
@@ -5196,6 +5236,12 @@ document.addEventListener('campaign-ready', function () {
   function _toggleRulesLock(){ _setRulesLocked(!ruleMultiDisc.disabled); }
   if(ruleLockBtn) ruleLockBtn.addEventListener('click', _toggleRulesLock);
   if(ruleLockHint) ruleLockHint.addEventListener('click', _toggleRulesLock);
+  (function(n){ if(!n) return;
+    // Same way out as ruleLockHint, and inert whenever that is (the archived-campaign peek disables ruleLockHint).
+    var go = function(){ if(ruleLockHint && ruleLockHint.disabled) return; _setRulesLocked(false); var t = document.getElementById('ruleLanguages'); if(t) t.focus(); };
+    n.addEventListener('click', go);
+    n.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  })(document.getElementById('ruleLanguagesLockNote'));
   if(document.getElementById('ruleLockInfo'))
     document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
   _setRulesLocked(true);   // initial state, before any campaign is even selected
