@@ -1584,3 +1584,18 @@ creating) — recommended; AC2 let the RPC reprice drafts too (loosens "AP only 
 DO: get the owner's choice, then implement in DM Console's S2 review (and the RPC if AC2), with replay + e2e coverage.
 ```
 **Done when:** the owner has chosen; a draft holding a repriced drawback shows the same AP in the browser and on the server; replay harness covers it.
+
+## feat/house-rules-ban-removal — a DM banning an item can opt in to removing it from owners, with refund — TODO
+Branch feat/house-rules-ban-removal. **Effort:** medium · **Risk:** medium — moves AP on live characters (damage scale), but only when the DM opts in.
+
+```text
+Depends on feat/campaign-house-rules (integration branch; not yet in preview). Owner decision AD1, 2026-10-13.
+Today a campaign ban (rules.bannedBoons / bannedDrawbacks, saved by DM Console's Save rules) only stops new purchases; owners
+keep the item. AD1: when the DM saves a ban, offer the same opt-in checkbox as T2 — "Also remove from characters who own it
+(refund)", default OFF. If ticked: run houseRulesImpact over the roster and show the review (each owner, item, refund for a
+paid boon / grant taken back for a drawback, AP left after; V1: going below 0 is allowed and shown), then apply in ONE
+dm_apply_house_rules_change call (refundBoon / removeDrawback actions), plus dmRemoveBoon via dm_edit_character_log for a
+DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed but not touched. Unticked = today's behaviour.
+Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
+```
+**Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
