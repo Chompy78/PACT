@@ -527,9 +527,10 @@ async function run() {
       check('a clean browser shows the cloud character\'s Backstory and Alignment on the Character panel',
             /Typed on browser A/.test(desc) && /NG/.test(desc), (desc || '').slice(0, 160));
       await pB.evaluate(() => toggleSheet());
-      check('…and in the Sheet\'s Backstory field', await pB.inputValue('#sheetbody [data-mf="notes"]').catch(() => '') === 'Typed on browser A');
-      await pB.fill('#sheetbody [data-mf="notes"]', 'Edited on browser B');
-      await pB.dispatchEvent('#sheetbody [data-mf="notes"]', 'input');
+      check('…and in the Sheet\'s Backstory field', await pB.inputValue('#sheetbody .lsdesc [data-lsd="backstory"]').catch(() => '') === 'Typed on browser A');
+      // feat/livesheet-sheet-view-desc: the field is in the collapsed block and commits on change
+      await pB.evaluate(() => { const t = document.querySelector('#sheetbody .lsdesc [data-lsd="backstory"]'); t.value = 'Edited on browser B'; t.dispatchEvent(new Event('change', { bubbles: true })); });
+      await pB.waitForTimeout(300);
       await pB.evaluate(() => toggleSheet());              // close the Sheet, then save explicitly (autosave may be off)
       await pB.click('#sheet .shname .shrename').catch(() => {});   // rename from the character card
       await pB.waitForTimeout(800);

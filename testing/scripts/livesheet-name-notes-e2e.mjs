@@ -139,7 +139,8 @@ const BACK = 'Raised on the docks; owes the Guild.\nSecond line.';
   check('…escaped (the <b> in the description is text, not markup)', !(await safe(() => page.$('#sheet .lsdesc b:text("auburn")'))));
   check('…including the Backstory and Alignment typed on the CharGen Sheet', desc.includes('owes the Guild') && desc.includes('CN'), desc.slice(-160));
   await page.evaluate(() => toggleSheet());
-  check('the Live Sheet Sheet\'s Backstory shows the text', await safe(() => page.inputValue('#sheetbody [data-mf="notes"]'), '') === BACK);
+  // feat/livesheet-sheet-view-desc: the Live Sheet's Sheet view shows Backstory inside the collapsed Appearance & description block.
+  check('the Live Sheet Sheet\'s Backstory shows the text', await safe(() => page.inputValue('#sheetbody .lsdesc [data-lsd="backstory"]'), '') === BACK);
   check('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
   await ctx.close();
 }
@@ -166,8 +167,7 @@ section('3. one-time copy-in of device-local notes');
   const ap2 = await lsAp(page);
   check('reload: no duplication / re-join', ap2.alignment === 'NG / LG' && ap2.backstory === ap.backstory && await page.evaluate(() => LOG.filter(e => e.payload && e.payload.patch && e.payload.patch.appearance).length === 1));
   await page.evaluate(() => toggleSheet());
-  await page.fill('#sheetbody [data-mf="notes"]', '');
-  await page.dispatchEvent('#sheetbody [data-mf="notes"]', 'change');
+  await page.evaluate(() => { const t = document.querySelector('#sheetbody .lsdesc [data-lsd="backstory"]'); t.value = ''; t.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.waitForTimeout(300);
   await page.reload({ waitUntil: 'load' }); await lsReady(page); await page.waitForTimeout(400);
   check('a Backstory the player cleared stays cleared after reload (not re-copied)', (await lsAp(page)).backstory === '', JSON.stringify((await lsAp(page)).backstory));

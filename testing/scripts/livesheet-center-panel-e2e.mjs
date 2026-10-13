@@ -136,6 +136,15 @@ check('the description block is inside General', await page.evaluate(() => !!doc
 check('coins/weapons/notes come after the three columns', await page.evaluate(() => {
   const c = document.querySelector('#sheet .shcols3').getBoundingClientRect(), p = document.querySelector('#sheet .pssec').getBoundingClientRect();
   return p.top >= c.bottom - 1; }));
+// feat/livesheet-sheet-view-desc: the Character panel points at the full Sheet; the tip shows once, then goes for good.
+check('the Character panel has an "Open full sheet" button and a one-time tip', await page.evaluate(() => !!document.querySelector('#sheet .lssheetbtn') && !!document.getElementById('lsSheetTip')));
+await page.evaluate(() => { toggleSheet(); toggleSheet(); render(); });
+check('…opening the Sheet retires the tip (remembered)', await page.evaluate(() => !document.getElementById('lsSheetTip') && localStorage.getItem('pactLsSheetTipSeen') === '1'));
+check('the Sheet view uses the same collapsed Appearance & description block', await page.evaluate(() => { toggleSheet();
+  const d = document.querySelector('#sheetbody .lsdesc'); const ok = !!d && !d.open && !!d.querySelector('[data-lsd="overall"]') && !d.querySelector('[data-lsd="alignment"]')
+    && ![...document.querySelectorAll('#sheetbody h5')].some(h => /Personality|Backstory/.test(h.textContent)); toggleSheet(); return ok; }));
+check('the Sheet view gives features, boons and drawbacks an ⓘ', await page.evaluate(() => { toggleSheet();
+  const t = [...document.querySelectorAll('#sheetbody .fxi')].map(e => e.title); toggleSheet(); return t.some(x => /miss into a hit/.test(x)) && t.some(x => /Dash/.test(x)); }));
 check('the description is collapsed by default', await page.evaluate(() => !document.querySelector('#sheet .lsdesc').open));
 await page.click('#sheet .lsdesc summary');
 await page.fill('#sheet [data-lsd="hair"]', 'copper "braided" <b>x</b>');
