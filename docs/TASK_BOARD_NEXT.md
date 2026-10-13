@@ -1599,3 +1599,19 @@ DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed 
 Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
+
+## feat/appearance-copy-paste — copy all appearance fields from one character to another — TODO
+Branch feat/appearance-copy-paste. **Effort:** low · **Risk:** low — writes only the cost-0 `appearance` patch, which the server already exempts after a lock/seal.
+
+```text
+Owner request 2026-10-14 (decision AF1). Add "Copy appearance" and "Paste appearance" buttons to the Sheet's "Appearance &
+description" area in BOTH CharGen and the Live Sheet. Copy puts the character's whole folded appearance block
+(foldBuild(LOG).appearance — description fields, custom label/text pairs, and the #635 sub-keys playerName, alignment,
+background, allies, backstory) on the clipboard as JSON tagged {schema:'pact-appearance/1', appearance:{...}}. Paste reads it,
+validates the tag and that every value is a string (drop anything else), shows a preview of what will change, then writes ONE
+appearance event through the shared writer (js/ui-helpers.js pactWithAppearance) — one undo step. Default: replace every field
+(empty fields in the copy clear the target's); the character's NAME is never copied. Works signed out and offline. Refused in a
+DM read-only view. Fallback when the clipboard API is unavailable: a textarea to paste into. Every value through esc() in the
+preview (stored-XSS rule — the clipboard text is untrusted).
+```
+**Done when:** e2e: copy from character A, paste into B in each tool (and across tools) → B's appearance equals A's, name unchanged, one undo step reverts it; a hostile clipboard payload renders as text and is refused if malformed; works on a locked/sealed campaign character (server accepts); `engine-parity-ci` 0 failed.
