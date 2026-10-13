@@ -1599,3 +1599,43 @@ DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed 
 Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
+
+## fix/livesheet-pack-spells — Live Sheet and the 📋 Sheet don't show cantrips/spells that came from heritage packs (or other grants) — TODO
+Branch fix/livesheet-pack-spells. **Effort:** low–medium · **Risk:** low — display only (no pricing), but must read the same fold the engine prices.
+
+```text
+Owner report 2026-10-14. Cantrips and spells a character gets as part of a heritage/species pack — or any other non-direct
+source (origin/racial grant, subclass, feature) — are missing from the Live Sheet's spell list and from the 📋 Sheet view;
+only spells bought directly show. DO: find every place the engine grants a spell/cantrip (grep js/engine.js / engine-data.js
+for pack contents, racial spells, granted cantrips — use the engine's own fold/compute output, never re-derive rules in the
+tool) and list them in both views alongside bought ones, each marked with where it came from (e.g. "from Wood Elf heritage").
+Escape every name. Check CharGen's Sheet tab for the same gap.
+```
+**Done when:** e2e: a character with a heritage pack that grants a cantrip (and one granting a levelled spell) shows them in the Live Sheet spell list and the 📋 Sheet, labelled with their source; bought spells unchanged; `engine-parity-ci` 0 failed.
+
+## feat/livesheet-saves-in-stats-card — Live Sheet centre panel: saving throws in the stats card, colour-coded — TODO
+Branch feat/livesheet-saves-in-stats-card. **Effort:** low · **Risk:** low — display only.
+
+```text
+Owner report 2026-10-14. The Live Sheet centre panel doesn't show saving throws properly. Move them into the stats (ability)
+card: each ability shows its saving throw next to it, colour-coded with that ability's colour (the tools already use one
+colour per ability — e.g. CharGen's _CSABCOL STR/DEX/CON/INT/WIS/CHA), with proficient saves clearly marked. Values come from
+compute() (never re-derived). Keep it readable on a phone.
+```
+**Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
+
+## feat/livesheet-weapons — all weapon types selectable, DM custom weapon types, weapon stats on one line — TODO
+Branch feat/livesheet-weapons. **Effort:** medium · **Risk:** medium — a DM-defined list crosses users (esc() rule) and may need campaign storage.
+
+```text
+Owner request 2026-10-14. In the Live Sheet's weapons panel (centre panel / playerSheet):
+  1. Offer every weapon type (the full PHB simple + martial list, with damage dice, damage type, properties, range) so a player
+     can pick any of them, not only the current subset.
+  2. Let the DM add custom weapon types for the campaign (name, damage, type, properties, range) — store them in the campaign
+     rules (campaigns.rules, set in DM Console's campaign rules panel) so every character in the campaign can pick them;
+     solo characters see the standard list only. Every DM-typed value through esc() and data-* attributes, never inside onclick.
+  3. Show each weapon's stats on ONE line (name · attack bonus · damage dice + type · properties/range), wrapping only on
+     narrow phones.
+Check whether attack bonus/damage should come from compute() (proficiency, ability mod) — reuse the engine, don't re-derive.
+```
+**Done when:** a player can pick any standard weapon; a DM-added custom weapon appears for that campaign's characters (and is escaped); each weapon renders on one line at desktop width; e2e covers all three; `engine-parity-ci` 0 failed.
