@@ -1459,15 +1459,12 @@ Branches one per PR below. **Effort:** high · **Risk:** high — priced data ac
 
 ```text
 Owner decisions P2/R1/U1/T2/S2/V1/W1/X1/Y1 (2026-10-13) — read decisions/2026/D-GH-2026-10-13-campaign-house-rules.md and the plan
-docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) has landed:
+docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) and PR2 (tools) have landed:
 houseRulesCtx / withHouseRulesCtx / resolveHouseRules / effective tables / drawbackValue / drawbackBuyoffQuote / houseRulesImpact /
 serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events. Remaining, each its own PR:
-  PR2 feat/campaign-house-rules-tools (read-only): js/campaign.js houseRulesCtxFromRules(rules, campaignId) + a shared
-      latestRulesSnapshot(LOG); stamp the ctx at every fold entry point (Live Sheet + DM Console foldBuild wrappers, CharGen
-      readBuild, DM Console cloudAnalyze/analyzeAug); Live Sheet pickers/prices from the effective tables, buy-off via
-      drawbackBuyoffQuote (W1, fixes the free buy-off at ~LS 1064), ledger rows for the new events with esc(); CharGen HOUSE (own,
-      edited only when solo) vs EFF (effective) split — never re-emit the own patch slot from EFF; _cgRepriceDraft passes
-      {houseRulesCtx}; V1: relax _lsOverApBudget / _cgOverApBudget to refuse only spend INCREASES while AP left < 0.
+  PR2 feat/campaign-house-rules-tools — DONE (2026-10-13, see CHANGELOG): ctx stamped in all three tools' folds, js/campaign-rules.js
+      (houseRulesCtxFromRules / latestRulesSnapshot, re-exported by campaign.js), Live Sheet effective pickers + W1 buy-off + buyoff
+      targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
   PR3 feat/campaign-house-rules-server: one migration + rollback + Docker SQL harness (plan §6.1–6.5 + addendum M1/M3/M4/X1):
       campaigns charHouseRules guard trigger, RPC dm_apply_house_rules_change, dm_edit_character_log accepts dmHouseRules,
       pact_ap_ledger_spend counts the new events (dmEdit only, ΣΔ), split award/drawback earned + drawback cap (X1), DM-family

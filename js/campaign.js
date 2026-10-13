@@ -9,6 +9,9 @@
 
 import { supabase } from './supabase-client.js';
 import { currentUser } from './auth.js';
+// Pure campaign-rules readers (feat/campaign-house-rules-tools): part of this module's API, but kept in a
+// dependency-free file so each tool's engine bridge can import them without the Supabase client — see that file.
+export { houseRulesCtxFromRules, latestRulesSnapshot } from './campaign-rules.js';
 
 // dm_invite_code was removed by D-GH-2026-08-09-harden-invitation-system (it was readable by any
 // campaign member and redeemable system-wide with no membership check — a confirmed privilege-

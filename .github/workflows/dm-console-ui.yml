@@ -19,6 +19,7 @@ on:
       - "js/ap-by-level.js"
       - "js/advancement.js"
       - "js/campaign.js"
+      - "js/campaign-rules.js"
       - "js/supabase-client.js"
       - "testing/scripts/dm-console-ui-e2e.mjs"
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
@@ -28,6 +29,7 @@ on:
       - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/scripts/ledger-xss-e2e.mjs"
       - "testing/scripts/dm-console-notes-e2e.mjs"
+      - "testing/scripts/campaign-house-rules-tools-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -101,3 +103,8 @@ jobs:
       # detail shows the player's own text escaped (an <img onerror> backstory renders as text). Same cost profile.
       - name: DM Console — Appearance & backstory renders player text safely
         run: node testing/scripts/dm-console-notes-e2e.mjs
+
+      # feat/campaign-house-rules-tools: one campaign character shows the same AP left in all three tools under the campaign's
+      # house rules; Live Sheet custom drawback + W1 buy-off; V1 below-zero saves; offline snapshot; CharGen's own patch untouched.
+      - name: Campaign house rules — the same AP left in all three tools
+        run: node testing/scripts/campaign-house-rules-tools-e2e.mjs

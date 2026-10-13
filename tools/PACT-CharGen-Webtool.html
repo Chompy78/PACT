@@ -602,9 +602,16 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
+  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable } from '../js/engine.js';
+  import { houseRulesCtxFromRules, latestRulesSnapshot } from '../js/campaign-rules.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Powerful Build":"Count as Large for carrying capacity and for grappling.","Goliath: Giant Ancestry":"Choose one giant boon (Cloud, Fire, Frost, Hill, Stone or Storm) with the Lineage / Ancestry picker; use it Proficiency Bonus times per long rest.","Goliath: Large Form":"Once per long rest, become Large (T4+).","Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.requiredHD = requiredHD; window.sizeOf = sizeOf; window.lineageSpellHD = lineageSpellHD; window.lineageSpellLabel = lineageSpellLabel; window.MUT = MUT; window.foldBuild = foldBuild;
+  window.DATA = DATA; window.compute = compute; window.requiredHD = requiredHD; window.sizeOf = sizeOf; window.lineageSpellHD = lineageSpellHD; window.lineageSpellLabel = lineageSpellLabel; window.MUT = MUT;
+  // Campaign house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules): every fold carries the
+  // context the engine prices with (_cgHrCtx, classic script below), so the many compute()/priceOf() call sites need no
+  // change. Stamped here, at the one bridge every CharGen fold goes through; derived, never saved.
+  window.foldBuild = function(events){ var b = foldBuild(events); var f = window._cgHrCtx; return withHouseRulesCtx(b, typeof f === 'function' ? f(events) : null); };
+ 
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor;
   window.repriceDraft = repriceDraft; window.isCreationDraft = isCreationDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2/D7)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
@@ -616,6 +623,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.armourEligible = armourEligible;
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
+  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesCtxFromRules, latestRulesSnapshot };
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -788,7 +796,7 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
   // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
   // unrelated cloud/local character loaded afterward, inflating that character's budget.
   window._cgCopySourceAp = 0; window._cgCopySourceName = ''; window._cgCopySourceIgnorePlayerAp = false;
-  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false;
+  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false; window._cgCopySourceCampaignId = null;
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // Q2 (wallet warning): the server-held halves of the gold-and-downtime wallet, reset with the rest of the cloud state and re-fetched below once the campaign is confirmed.
@@ -1079,6 +1087,7 @@ document.addEventListener('sync-ready', function () {
         return;
       }
       if (res.error) throw res.error;
+      if (res.synced) _cgNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
     if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
@@ -1205,6 +1214,7 @@ document.addEventListener('sync-ready', function () {
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
     await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
+    _cgNoteCloudBase(rec.dirty ? null : rec.stats.LOG);   // V1: a clean cloud copy is what the server holds (after the load paths' resets)
     render();
     // An empty LOG is a legitimate state (a saved-but-never-built character) AND exactly what a failed
     // load looks like: a blank builder. Reported as "silently lands on a blank draft with no error".
@@ -1572,6 +1582,7 @@ document.addEventListener('sync-ready', function () {
           var srcCamp = await window._campaignBridge.getCampaign(rec.campaign_id);
           window._cgCopySourceIgnorePlayerAp = !!(srcCamp && srcCamp.ignore_player_ap);
           window._cgCopySourceRules = (srcCamp && srcCamp.rules) || null;
+          window._cgCopySourceCampaignId = rec.campaign_id;   // the copy's house-rules context (_cgHrCtx) resolves this campaign's rules
         }catch(e){ window._cgCopySourceIgnorePlayerAp = false; window._cgCopySourceRules = null; }
       }
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
@@ -1717,14 +1728,21 @@ function _cgDmOpts(){
 // pre-lock — the divergence this guards against is specifically a LOCKED character, where re-pricing
 // stops by design (D7) but this gate would otherwise still re-price anyway. Blocks only the CLOUD save
 // path; Local "Save to file" never calls this.
+// Owner decision V1 (D-GH-2026-10-13-campaign-house-rules): a DM removal can push a character below 0. The server
+// refuses a save only when the spend INCREASED past the budget, so below 0 a save that adds no spend still goes to the
+// cloud. _cgCloudSpentBase = the spend the server was last seen to hold (a clean cloud copy, or this page's accepted
+// push); unknown = treated as increased (the old rule — nothing to compare with). Same as the Live Sheet's gate.
+var _cgCloudSpentBase=null;
+function _cgNoteCloudBase(log){ try{ _cgCloudSpentBase=Array.isArray(log)?economy(log).spent:null; }catch(e){ _cgCloudSpentBase=null; } }
+function _cgSpendIncreased(){ return _cgCloudSpentBase==null || economy(LOG).spent > _cgCloudSpentBase; }
 function _cgOverApBudget(){
   if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
-  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0;
+  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0 && _cgSpendIncreased();
 }
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
+function _cgResetCloudApState(){_cgCloudSpentBase=null;window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;window._cgCopySourceCampaignId=null;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1809,6 +1827,8 @@ async function _cgAdoptEnvelopeBindingInner(d, campId){
         if(typeof bnd.ap === 'number') ap = bnd.ap;
         if(!bnd.campaignId){ _cgPendingCampaignId = null; render(); return; }   // the server says solo: drop the binding
         campId = bnd.campaignId; _cgPendingCampaignId = campId;
+        // V1: the server's spend, from this device's cached copy when it is clean (peek never reconciles or pushes).
+        try{ var _pk = S.peekCharacter && await S.peekCharacter(d.id); if(stale()) return; _cgNoteCloudBase(_pk && !_pk.dirty && _pk.stats ? _pk.stats.LOG : null); }catch(e){}
       }
     } else if(S && _session && navigator.onLine && d.id){
       // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, which is right for stats (this
@@ -2187,9 +2207,36 @@ function genPortrait(){genPortraitFor(readBuild());}
 
 // ===== DM house-rules (custom / repriced / disabled boons & drawbacks) =====
 // {boons:{name:{hd,ap,fx,custom}}, draws:{name:{ap,fx,custom}}, disabled:{boons:[],draws:[]}}
+//
+// TWO sets of house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules, owner decision U1):
+//   HOUSE — the character's OWN rules: edited here, saved in its houseRules patch slot. Edited ONLY when solo.
+//   EFF   — the rules in force: in a campaign the DM's (campaign rules, then a per-character DM override), solo = HOUSE.
+//           Resolved by the engine (resolveHouseRules / effectiveBoonTable / effectiveDrawbackTable) from the context
+//           every fold carries (_cgHrCtx). Read-only here.
+// HOUSE is NEVER written from EFF: in a campaign the own patch must stay exactly as the player left it (no history
+// rewrite — it comes back when the character leaves). So the own controls are hidden in a campaign, the HOUSE_RULES
+// slot never syncs there (_cgDmCustomReadOnly), and the DM's rules are shown in a separate read-only panel.
 let HOUSE={boons:{},draws:{},disabled:{boons:[],draws:[]}};
-function effBoons(){const o={};for(const k in DATA.boons)o[k]={hd:DATA.boons[k].hd,ap:DATA.boons[k].ap,fx:DATA.boons[k].fx,cat:DATA.boons[k].cat||'Other',custom:false};
-  for(const k in (HOUSE.boons||{})){const h=HOUSE.boons[k];const builtin=DATA.boons[k];o[k]={hd:+h.hd||1,ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:builtin?(builtin.cat||'Other'):'DM custom',custom:true};}return o;}
+// The context this character's folds are priced with: the live campaign rules once the server has confirmed the
+// binding AND they belong to this character's campaign; else the rules snapshot its LOG carries (offline, signed out,
+// unconfirmed); else none. A character that is not campaign-bound is solo even if its LOG holds an old snapshot (it may
+// have left), and the campaign-rules PREVIEW picker (window._cloudCampaign on a solo character) never applies here.
+// A DM's "Copy to CharGen" sandbox uses the rules frozen with the copy.
+function _cgHrCtx(ev){
+  var H=window._engineHR; if(!H) return null;
+  if(window._cgCopySourceIsCopy && window._cgCopySourceRules) return H.houseRulesCtxFromRules(window._cgCopySourceRules, window._cgCopySourceCampaignId||null);
+  if(!_cgIsCampaignBound()) return null;
+  var c=window._cloudCampaign, cid=window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'?_cgPendingCampaignId:null)||null;
+  if(window._dmApStatus==='active' && c && c.id && c.id===window._cgCampaignId) return H.houseRulesCtxFromRules(c.rules||{}, c.id);
+  var snap=H.latestRulesSnapshot(Array.isArray(ev)?ev:LOG);
+  return snap ? H.houseRulesCtxFromRules(snap.rules, snap.campaignId||cid) : null;
+}
+window._cgHrCtx=_cgHrCtx;
+function _cgHrInCampaign(){ return !!_cgHrCtx(LOG); }
+// The source the effective tables are read from: the stamped fold in a campaign; solo, the page's own HOUSE (which the
+// DM-customisation editor updates before it writes the LOG — the grids are rebuilt in between).
+function _cgHrSrc(){ return _cgHrInCampaign() ? readBuild() : {houseRules:HOUSE}; }
+function effBoons(){ var c=_cgHrInCampaign(); return window._engineHR.effectiveBoonTable(c?readBuild():{houseRules:HOUSE}, c?undefined:null); }
 // Heritage-pack traits are ticked in the grid for VISIBILITY (render() below) but must never reach the
 // stored build. In-pack traits price at 0 only while the pack is yours; stored and then followed by a
 // species change they re-price at the CROSS rate — measured, `Dwarf: Dwarven Resilience` is a 0 AP
@@ -2201,9 +2248,28 @@ function _cgStripPackTraits(vals, sp, sp2){
   const inPack=new Set(packTraitsFor(sp,sp2));
   return (vals||[]).filter(function(v){ return !inPack.has(v); });
 }
-function effDraws(){const o={};for(const k in DATA.drawbacks)o[k]={ap:DATA.drawbacks[k],fx:(DATA.drawbackFx&&DATA.drawbackFx[k])||'',cat:(DATA.drawbackCat&&DATA.drawbackCat[k])||'Other',custom:false};
-  for(const k in (HOUSE.draws||{})){const h=HOUSE.draws[k];o[k]={ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:'DM custom',custom:true};}return o;}
+function effDraws(){ var c=_cgHrInCampaign(); return window._engineHR.effectiveDrawbackTable(c?readBuild():{houseRules:HOUSE}, c?undefined:null); }
+// The OWN (HOUSE) disabled list — the own-rules editor's list. The pickers read each effective-table row's `disabled`
+// instead: HOUSE's list when solo, the campaign's bans plus a DM override's own list in a campaign.
 function isDisabled(kind,name){return (HOUSE.disabled&&HOUSE.disabled[kind]||[]).includes(name);}
+// The DM's rules in force, read-only, with where each comes from (campaign / DM override for you / kept at your old
+// value). Every name and text is DM- or player-typed: esc() all of it.
+function _cgRenderEffPanel(){
+  var el=$('dmEffPanel'); if(!el) return;
+  if(!_cgHrInCampaign()){ el.style.display='none'; el.innerHTML=''; return; }
+  var R=window._engineHR.resolveHouseRules(readBuild());
+  var TAG={campaign:'campaign',override:'DM override for you',pin:'kept at your old value'};
+  var rows=[];
+  Object.keys(R.boons||{}).sort().forEach(function(k){var h=R.boons[k]||{};rows.push('<div class="dmrow"><span class="nm">'+esc(k)+'</span><span class="meta">'+esc('boon · HD '+(h.hd||1)+'+ · '+(h.ap!=null?h.ap:0)+' AP')+'</span><span class="dmtag">'+esc(TAG[(R.source.boons||{})[k]]||'campaign')+'</span></div>');});
+  Object.keys(R.draws||{}).sort().forEach(function(k){var h=R.draws[k]||{};rows.push('<div class="dmrow"><span class="nm">'+esc(k)+'</span><span class="meta">'+esc('drawback · +'+(h.ap!=null?h.ap:0)+' AP')+'</span><span class="dmtag">'+esc(TAG[(R.source.draws||{})[k]]||'campaign')+'</span></div>');});
+  var A=R.dmAllows||{}, calls=[['bound','Bound'],['boons','Boons'],['drawbacks','Drawbacks'],['tasha','Non-core (XGtE/TCoE)']].map(function(c){return esc(c[1])+': <b>'+(A[c[0]]===false?'off':'on')+'</b>';}).join(' · ');
+  var nDis=((R.disabled&&R.disabled.boons)||[]).length+((R.disabled&&R.disabled.draws)||[]).length;
+  el.style.display='';
+  el.innerHTML='<div class="sublab" style="color:#b35a00">House rules set by your DM — read-only</div>'
+    +'<div class="hint">In a campaign your DM\u2019s rules price your boons and drawbacks. Your own customisations are kept unchanged and apply again if this character plays solo. Ask your DM to change these.</div>'
+    +'<div style="font-size:11px;margin:2px 0">'+calls+(nDis?(' · '+nDis+' not allowed in this campaign'):'')+'</div>'
+    +'<div style="font-size:11px;margin:2px 0 6px">'+(rows.length?rows.join(''):'<span class="hint">No custom or repriced boons or drawbacks.</span>')+'</div>';
+}
 function _bdFilter(id){const e=$(id);return e?(e.value||'').toLowerCase().trim():'';}
 const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
 const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
@@ -2268,7 +2334,7 @@ function buildArtGrid(){
 
 
 function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=bOverride||readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly. bOverride: applyBuild() passes the build being loaded (D-GH44 fix) so this doesn't filter against the stale pre-load LOG. */
-  const byCat={};Object.keys(B).forEach(k=>{if(isDisabled('boons',k)&&!chk.includes(k))return;
+  const byCat={};Object.keys(B).forEach(k=>{if(B[k].disabled&&!chk.includes(k))return;
     if(!chk.includes(k)&&cloudRuleBarred('boons',k))return;   // cloud campaign rules (D-GH44) — mirror Live Sheet's live-filter: remove, don't disable
     const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
@@ -2281,7 +2347,7 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
         '<span class="dsc">'+esc(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
-  const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
+  const byCat={};Object.keys(D).forEach(k=>{if(D[k].disabled&&!chk.includes(k))return;
     // Wound-only drawbacks (DATA.wounds[k].dmOnly — 19 entries, see DATA.wounds) are imposed
     // by a DM and never picked by a player, so they are not offered here. One the character ALREADY holds (a DM
     // imposed it) stays listed and checked, like every other held drawback. (feat/permanent-wounds)
@@ -2310,6 +2376,7 @@ function dmAdd(){if(_cgDmCustomRefuse())return;const kind=val('dmkind');const na
 // character once creation is finished. Returns '' when editable, else the reason.
 function _cgDmCustomReadOnly(){
   if(_cgCreationApIsDms()) return 'campaign';
+  if(_cgHrInCampaign()) return 'campaign';   // any campaign context (incl. an offline snapshot): the DM's rules apply, the own ones are never edited (U1)
   if(_cgIsLocked()) return 'locked';
   return '';
 }
@@ -2327,6 +2394,11 @@ function _cgSyncDmCustomUi(){
   ['dmCallsRow','dmCustomRow','dmlist'].forEach(function(id){var box=$(id);if(!box)return;
     box.querySelectorAll('input,select,button').forEach(function(e){e.disabled=ro;});});
   var n=$('dmRoNote'); if(n) n.textContent=ro?_cgDmCustomRoText(why):'';
+  // In a campaign the own controls are HIDDEN, not just disabled: they show the character's own rules, which do not
+  // apply there, and the read-only panel shows the ones that do (D-GH-2026-10-13-campaign-house-rules).
+  var _inC=_cgHrInCampaign();
+  ['dmCallsRow','dmCustomRow','dmlist','dmCustomHead','dmCustomHint'].forEach(function(id){var box=$(id);if(box)box.style.display=_inC?'none':'';});
+  _cgRenderEffPanel();
 }
 // Every DM house-rule edit lands in the LOG (the HOUSE_RULES patch slot), not only in the page's HOUSE
 // global — otherwise a custom/repriced/disabled boon or drawback was lost on save, reload and undo, and the
@@ -2580,8 +2652,9 @@ function buildForm(F){
       '<div class="bondcard"><h5>✦ Magically Bound</h5><div class="hint">Bind a Discipline: −1 AP on its Foundation, Rank, cantrips, slots &amp; spells; stacks with the origin discount. Grants 2 AP. Set it per discipline in <b>§12 Spellcasting</b> (the “Magically Bound” box).</div>'+
         '<div class="basics" id="mboundsummary" style="margin:4px 0 0">No disciplines bound.</div></div>'+
     '</div>'+
-    '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px;color:#b35a00">DM customisations — add, reprice, or disable boons & drawbacks</div>'+
-    '<div class="hint">Anything changed here is tagged <span class="dmtag">DM</span> and tinted orange, and is saved with the build. Re-add an existing name to reprice it.</div>'+
+    '<div id="dmEffPanel" style="display:none"></div>'+
+    '<div class="sublab" id="dmCustomHead" style="border-top:1px dashed var(--line);padding-top:6px;color:#b35a00">DM customisations — add, reprice, or disable boons & drawbacks</div>'+
+    '<div class="hint" id="dmCustomHint">Anything changed here is tagged <span class="dmtag">DM</span> and tinted orange, and is saved with the build. Re-add an existing name to reprice it.</div>'+
     '<div class="row" id="dmCustomRow" style="gap:5px;flex-wrap:wrap">'+
       '<select id="dmkind" onchange="dmPrefill()"><option value="boon">Boon</option><option value="draw">Drawback</option></select>'+
       '<input type="text" id="dmname" placeholder="name" style="min-width:120px" oninput="dmPrefill()" title="Type an existing name to reprice it — its current HD/AP/description load automatically">'+
@@ -2851,7 +2924,7 @@ function _histClone(x){return JSON.parse(JSON.stringify(x));}
 function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId,campaignId:_cgIsCampaignBound()?(window._cgCampaignId||_cgPendingCampaignId):null,copy:_cgCopyState()};}   // Step 5: name/budget live in the LOG now; campaignId/copy: see restoreFrame()
 // A DM copy's frozen source-AP display state (see the "Copy to CharGen" flow). Not in the LOG, so a frame
 // carries it for restoreFrame() — otherwise undo/redo back onto a DM copy reset it to a bare local build.
-function _cgCopyState(){return window._cgCopySourceIsCopy?{isCopy:true,ap:window._cgCopySourceAp||0,name:window._cgCopySourceName||'',ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,rules:window._cgCopySourceRules||null}:null;}
+function _cgCopyState(){return window._cgCopySourceIsCopy?{isCopy:true,ap:window._cgCopySourceAp||0,name:window._cgCopySourceName||'',ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,rules:window._cgCopySourceRules||null,campaignId:window._cgCopySourceCampaignId||null}:null;}
 function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
 function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
 // Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
@@ -2920,7 +2993,7 @@ function restoreFrame(f){
     if(String(__charId)!==String(_prevId)){
       _cgAdoptEnvelopeBinding({id:__charId,campaignId:f.campaignId||null});   // resets synchronously, then resolves async
       if(f.copy){ window._cgCopySourceIsCopy=true; window._cgCopySourceAp=f.copy.ap; window._cgCopySourceName=f.copy.name;
-        window._cgCopySourceIgnorePlayerAp=f.copy.ignorePlayerAp; window._cgCopySourceRules=f.copy.rules; }
+        window._cgCopySourceIgnorePlayerAp=f.copy.ignorePlayerAp; window._cgCopySourceRules=f.copy.rules; window._cgCopySourceCampaignId=f.copy.campaignId||null; }
     }
     render();
   }finally{_histSuspended=false;}
@@ -3166,7 +3239,7 @@ window.cgFinishCreating = cgFinishCreating;
 // isCreationDraft() false, which is what correctly stops any further repricing. Both live in here rather
 // than at each call site for the same reason the burst tags noLock uniformly — a future LOG-mutating path
 // cannot forget one.
-function _cgRepriceDraft(){LOG=repriceDraft(LOG);}   // no auto-lock: see the note above cgFinishCreating()
+function _cgRepriceDraft(){LOG=repriceDraft(LOG,{houseRulesCtx:_cgHrCtx(LOG)});}   // a campaign draft prices at the campaign's prices (null = solo, byte-identical to before)   // no auto-lock: see the note above cgFinishCreating()
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
@@ -3725,7 +3798,7 @@ function _cgPostLockAppend(steps){
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
   if(_histSuspended) return true;
-  var b=foldBuild(LOG), evs=[], total=0, charged=false;
+  var b=foldBuild(LOG), evs=[], total=0, charged=false, _spendUp=0;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
@@ -3755,10 +3828,10 @@ function _cgPostLockAppend(steps){
       if(q){ ev.gp=q.gp; ev.days=q.days; totalQ.gp+=q.gp; totalQ.days+=q.days; }
     }
     virt.push(Object.assign({},ev,{ts:stampTs}));
-    evs.push(ev); total+=cost; if(st.cat!=='drawback') charged=true; b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
+    evs.push(ev); total+=cost; if(st.cat!=='drawback'){ charged=true; _spendUp+=(Number(cost)||0); } b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
-  if(charged&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
+  if(charged&&_spendUp>0&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // V1: an edit that adds no spend (free purchases only) is never refused for AP, even below 0 — as the Live Sheet's buy()   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
   // Soft shortfall warning (never a block — a DM can waive or defer any cost, \u00a717): the TOTAL of this edit against the wallet as it stands now, asked once. The Live Sheet asks per purchase;
   // CharGen edits can be several purchases at once, so this is the same question for the whole edit. Cancel abandons the edit — nothing is appended.
   if(totalQ.gp||totalQ.days){
@@ -4000,7 +4073,7 @@ const _CG_UNORDERED_FIELDS=['saves','skills','expertise','toolExpertise','tools'
 // Fields _domReadBuild() never produces (engine-only replay bookkeeping) or that legitimately take an
 // "empty" shape from either side (missing key vs null vs '' vs [] vs an all-zero array — all mean the
 // same thing here) — stripped so a real divergence isn't buried under this noise.
-const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked'];
+const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked','_hrCtx'];
 function _cgIsEmptyish(v){
   if(v==null||v==='')return true;
   if(Array.isArray(v))return v.length===0||v.every(function(x){return x===0||_cgIsEmptyish(x);});
@@ -4515,7 +4588,10 @@ function readBuild(){
   return foldBuild(LOG);
 }
 
-function _domReadBuild(){
+// Stamped with the same house-rules context as every fold: the pre-lock checklist prices a purchase as
+// compute(cand).total - compute(dom).total, and the candidate is a JSON copy of this, so it carries the stamp too.
+function _domReadBuild(){ var _b=_domReadBuildRaw(); var f=window._cgHrCtx, H=window._engineHR; return (H&&typeof f==='function')?H.withHouseRulesCtx(_b,f(LOG)):_b; }
+function _domReadBuildRaw(){
   const stats={};for(const a of ABILS)stats[a]=+val('st_'+a);
   const wp={simple:chk('wp_simple'),martial:+val('wp_martial'),allMartial:chk('wp_all'),improvised:chk('wp_improv')};
   const trads=[...document.querySelectorAll('.tcard')].map(card=>{
@@ -4562,7 +4638,7 @@ function _domReadBuild(){
     size:(function(){var z=window.sizeOf({species:val('spec'),species2:val('spec2'),size:val('charsize')||'Small'});return z.choosable?(val('charsize')||'Small'):z.size;})(),
     houseRules:{...HOUSE,dmAllows:{bound:!($('dm_bound')&&!$('dm_bound').checked),boons:!($('dm_boons')&&!$('dm_boons').checked),drawbacks:!($('dm_draws')&&!$('dm_draws').checked),tasha:!($('dm_tasha')&&!$('dm_tasha').checked)}}, version:DATA.version, id:currentCharId()};
 }
-function _cgTashaAllowed(){return !($('dm_tasha')&&!$('dm_tasha').checked);}
+function _cgTashaAllowed(){if(_cgHrInCampaign())return window._engineHR.resolveHouseRules(readBuild()).dmAllows.tasha!==false;return !($('dm_tasha')&&!$('dm_tasha').checked);}   // the effective call in a campaign
 function _cgHasDisc(n){try{return (readBuild().traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name===n;});});}catch(e){return false;}}
 function _cgHasKi(){try{return (readBuild().ki||0)>=1;}catch(e){return false;}}
 function _cgHasWarlock(){try{return (readBuild().traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});}catch(e){return false;}}
@@ -5273,6 +5349,7 @@ async function _cgCloudPushOnce(){
     var doSave=function(){ return window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId}); };
     var res=await _cgKeepaliveWrap(doSave);
     if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+    if(res&&res.synced)_cgNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
     // A conflict is the one autosave outcome worth breaking the silence for. An offline or transient
     // failure fixes itself on the next retry; this one never will, and every further keystroke is being
     // typed into a copy that is already behind another device. Warn ONCE — the whole point of the silence
@@ -6385,6 +6462,7 @@ function annotate(b,r){
      if($('ap_height_info'))$('ap_height_info').textContent='PHB: '+fmtHeight(S.heightIn[0])+' – '+fmtHeight(S.heightIn[1]);}}
   if($('drawp')){
   const _D=effDraws();const _dks=ckVals('drawck');
+  if(_cgHrInCampaign())document.querySelectorAll('.drawck').forEach(e=>{const dr=_D[e.value];if(dr&&dr.allowed===false&&!e.checked)e.disabled=true;});   // the DM's Drawbacks call, in a campaign
   const _rawGain=_dks.reduce((s,k)=>s+((_D[k]&&_D[k].ap)||0),0);
   if($('drawp'))$('drawp').textContent='Drawbacks: +'+(-get('Drawbacks (refund)'))+' AP refunded';
   const _dc=$('drawcap');if(_dc){
@@ -6546,7 +6624,7 @@ function annotate(b,r){
   if($('innatep'))$('innatep').textContent='Innate spells: '+get('Innate spells (3×, 1/rest)')+' AP';
   // boons (v37): total + grey/disable ones whose HD requirement isn't met
   if($('boonsp'))$('boonsp').textContent='Boons total: '+get('Boons')+' AP';
-  {const EB=effBoons();document.querySelectorAll('.boonck').forEach(e=>{const bo=EB[e.value];if(!bo)return;const ok=b.hd>=bo.hd;
+  {const EB=effBoons(),_inC=_cgHrInCampaign();document.querySelectorAll('.boonck').forEach(e=>{const bo=EB[e.value];if(!bo)return;const ok=b.hd>=bo.hd&&!(_inC&&bo.allowed===false);   /* in a campaign a call switched off by the DM stops NEW picks (owned ones stay) */
     e.disabled=(!ok&&!e.checked);if(e.parentElement)e.parentElement.style.opacity=(ok||e.checked)?'1':'0.5';});}
   // feature/racial/draw row prices
   const fstep={};const _unlkR=new Set(b.unlockedClasses||[]);

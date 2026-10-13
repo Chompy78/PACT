@@ -547,7 +547,19 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 // (UI boot is gated on engine-ready).
 function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx); }
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
-function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
+function foldBuild(uptoIdx){ return _lsStampHr(window._engineFold.foldBuild(eventsUpTo(uptoIdx))); }
+// Campaign house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules): every fold carries the
+// context the engine prices with — the live campaign rules when they are confirmed ('active'), else the rules
+// snapshot this character carries in its LOG (offline / unavailable), else none (solo: its own house rules).
+// The same source resolveRules() uses for bans. Stamped on the build (derived, never saved), so every compute()/
+// priceOf()/purchaseLegality() call below sees it without being touched.
+function _lsHrCtx(){
+  var H=window._engineHR; if(!H) return null;
+  if(window._rulesStatus==='active') return H.houseRulesCtxFromRules(window._cloudCampaignRules||{}, window._lsCampaignId||null);
+  var s=H.latestRulesSnapshot(LOG);
+  return s ? H.houseRulesCtxFromRules(s.rules, s.campaignId||window._lsCampaignId||null) : null;
+}
+function _lsStampHr(b){ var H=window._engineHR; return H ? H.withHouseRulesCtx(b,_lsHrCtx()) : b; }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
 // feat/ap-model-reconcile: no index-scrubbing needed — operates on an already-computed economy() result.
 function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts); }
@@ -778,11 +790,20 @@ function _lsWallet(uptoIdx){
 // frozen ledger was never over budget, or silently pass one that was, in either direction — the same
 // class of bug feat/ap-model-reconcile tracks for display, now closed here for this gate too). Blocks
 // only the CLOUD save path, never local Save.
+// Owner decision V1 (D-GH-2026-10-13-campaign-house-rules): a character can be pushed below 0 by its DM (a T2
+// removal takes a drawback's grant back). The server refuses a save only when the spend INCREASED and exceeds the
+// budget, so this gate does the same: below 0, a save that adds no spend still goes to the cloud; only one that
+// spends more than the server's copy did is held back. The server's spend is the last one this page saw it hold
+// (_lsCloudSpentBase: a clean cloud load, or this page's own accepted push); unknown = treated as increased, the
+// old rule, because then there is nothing to compare with.
+var _lsCloudSpentBase=null;
+function _lsNoteCloudBase(log){ try{ _lsCloudSpentBase=Array.isArray(log)?window._engineFold.economy(log).spent:null; }catch(e){ _lsCloudSpentBase=null; } }
+function _lsSpendIncreased(){ return _lsCloudSpentBase==null || economy(null).spent > _lsCloudSpentBase; }
 function _lsOverApBudget(){
   if(!window._lsCampaignId) return false;
   var r = window._cloudCampaignRules;
   if(r && r.enforceApBudget === false) return false;
-  return apAvailable(null) < 0;
+  return apAvailable(null) < 0 && _lsSpendIncreased();
 }
 function apCeiling(uptoIdx){ return compute(foldBuild(uptoIdx),_dmOpts()).spendable; }
 // Pure formula (no I/O) — the one place "AP available" is defined, shared by apAvailable() below AND by
@@ -806,7 +827,7 @@ function apAvailable(uptoIdx){ return _apRemaining(apCeiling(uptoIdx),economy(up
 // cloud module (and 'sync-ready') has had a chance to load. Set by the cloud-load handler /
 // refreshCloudCampaignRules(); reset by every non-cloud load path.
 window._rulesStatus = window._rulesStatus || 'none';
-function _lsResetCloudApState(){window._dmAp=0;window._dmGold=0;window._dmWindow=null;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};
+function _lsResetCloudApState(){_lsCloudSpentBase=null;window._dmAp=0;window._dmGold=0;window._dmWindow=null;window._ignorePlayerAp=false;window._rulesStatus='none';window._lsCampaignId=null;window._lsVisibleCustomFields={};
   window._lsCampaignName=null;window._cloudCampaignRules=null;}   // fix/livesheet-state-glitches: Reset/Import left the old campaign's name in the header (every cloud loader re-sets both after this)
 // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up): this
 // character's DM-set custom field VALUES the campaign currently marks visible to players — the read-
@@ -991,7 +1012,7 @@ function buy(cat,payload,label){
   if(_lg.dup){
     alert('⛔ Already owned — "'+payload.v+'" can only be bought once.'); return; }
   const cost=priceOf(cat,payload,b0); const avail=_apRemaining(compute(b0,_dmOpts()).spendable,economy(null).spent);
-  if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
+  if(cat!=='drawback' && cost>0 && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }   // V1: a free purchase adds no spend, so it is never refused for AP, even below 0
   // (B1b) CREATION CEILING (feat/creation-ceiling, R3). While a character is still being built it may
   // not spend past the ceiling its DM assigned, plus whatever its drawbacks grant. This REPLACES the
   // old silent auto-lock: rather than letting the purchase through and quietly ending creation on the
@@ -1041,9 +1062,9 @@ function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
 // specific event's dmEdit/dmLocked/dmRemovalCost flags, not just DATA.drawbacks[v].
 function _openDrawbackEvent(v,ae){
-  const {evs,boughtOff}=ae||activeEvents(null);
+  const {evs,boughtOff,drawRemoved}=ae||activeEvents(null);
   for(let i=0;i<evs.length;i++){const e=evs[i];
-    if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i))return e;}
+    if(e.type==='buy'&&e.cat==='drawback'&&e.payload&&e.payload.v===v&&!boughtOff.has(i)&&!(drawRemoved&&drawRemoved.has(i)))return e;}
   return null;
 }
 // feat/dm-unlock-drawback: has a DM released this locked, imposed purchase? Returns the dmUnlockDrawback
@@ -1061,10 +1082,13 @@ function buyoffDrawback(v){
   // but priced and emitted against the present), and never without an open purchase to remove — that charged
   // 3x the refund and appended an orphan buyoff that cancelled nothing.
   if(viewAt!=null){flash('Return to the present to buy off a drawback.');return;}
-  const refund=DATA.drawbacks[v]||0;
   const _ae=activeEvents(null);   // folded ONCE per click; the open-purchase lookup and the unlock lookup share it
   const src=_openDrawbackEvent(v,_ae);
   if(!src){flash('There is no open "'+v+'" drawback to buy off.');return;}
+  // Owner decision W1: the base is the drawback's CURRENT EFFECTIVE value for this character (campaign value, DM
+  // override or pin, else its own house rule when solo, else the printed table) — DATA.drawbacks[v] alone made a
+  // custom drawback free to buy off. The rate below is unchanged.
+  const refund=window._engineHR.drawbackBuyoffQuote(foldBuild(null),v,src).base;
   // A DM-imposed drawback (dmEdit:true) carries its own removal rules; an ordinary player-taken one
   // keeps today's unconditional 3× — that deterrent doesn't apply when the player never took a loan.
   let cost, rateNote;
@@ -1093,7 +1117,9 @@ function buyoffDrawback(v){
     var _short=_lsWalletShort(_gt);
     if(_short && !confirm('Buying this off costs '+(_gt.gp?_gt.gp.toLocaleString()+' gp':'no gold')+' and '+(_gt.days?_gt.time:'no downtime')+', and you are '+_short+'.\n\nBuy off anyway? Your DM can waive or defer the cost — the shortfall will simply show on your sheet.')) return;
   }
-  emit(Object.assign({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}, _gt?{gp:_gt.gp,days:_gt.days}:{}));
+  // targetSeq names the purchase this cancels (plan addendum M4), so the server can net out that purchase's grant.
+  // The engine still resolves a buyoff FIFO by name; src IS that FIFO target (_openDrawbackEvent), so the two agree.
+  emit(Object.assign({type:'buyoff',refVal:v,cost,label:'Bought off — '+v}, src.seq!=null?{targetSeq:src.seq}:{}, _gt?{gp:_gt.gp,days:_gt.days}:{}));
 }
 // How many leading events the DATABASE will refuse to let us change (feat/session-seal). Mirrors
 // pact_enforce_locked_history(); the award half only applies to a campaign-bound character.
@@ -1317,6 +1343,7 @@ async function _lsCloudPushOnce(){
     var doSave=function(){ return window._syncBridge.saveCharacter({id:id,name:b.name||'Character',kind:'livesheet',stats:stats,campaignId:window._lsCampaignId||null}); };
     var res=await _lsKeepaliveWrap(doSave);
     if(res&&res.id) __charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+    if(res&&res.synced) _lsNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
     if(res&&res.conflict&&!_lsConflictWarned){
       _lsConflictWarned=true;
       if(typeof flash==='function')flash(res.staleCopy
@@ -1624,10 +1651,11 @@ function validate(){
      issues.push('Creation AP not confirmed — using '+(_tn?_tn+' ':'')+_cl.defaultThr+' AP, the budget for building a new character. While you stay under it you can change your mind freely; past it your character counts as finished. Change it any time until then. <a href="#" onclick="setCreationAp();return false;">Confirm or change</a>');}}
   if(loadedRules && loadedRules!==RULES) issues.push('Loaded under '+esc(loadedRules)+' rules; now running '+RULES+'. Past prices are frozen (kept); new buys use '+RULES+' prices. Any cost change shows as "locked / reprice" drift.');
   // committed items that no longer exist / are no longer buyable in current rules
+  const _vEB=window._engineHR.effectiveBoonTable(b), _vED=window._engineHR.effectiveDrawbackTable(b);   // incl. house-rule (custom) items
   LOG.filter(e=>e.type==='buy').forEach(e=>{
     if(e.cat==='feature'&&!DATA.features[e.payload.v]) issues.push('Feature no longer in rules: '+esc(e.payload.v));
-    if(e.cat==='boon'&&!DATA.boons[e.payload.v]) issues.push('Boon no longer in rules: '+esc(e.payload.v));
-    if(e.cat==='drawback'&&!(e.payload.v in DATA.drawbacks)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='boon'&&!Object.prototype.hasOwnProperty.call(_vEB,e.payload.v)) issues.push('Boon no longer in rules: '+esc(e.payload.v));
+    if(e.cat==='drawback'&&!Object.prototype.hasOwnProperty.call(_vED,e.payload.v)) issues.push('Drawback no longer in rules: '+esc(e.payload.v));
   });
   compute(b,_dmOpts()).warnings.filter(w=>!/^OVER BUDGET/.test(w)).forEach(w=>issues.push('Rule warning: '+esc(w)));   // with the campaign's settings, like the sheet
   // Toggle-flip grandfather notice (feat/campaign-ap-model, D-GH-2026-07-12-campaign-ap-model): if
@@ -1889,7 +1917,7 @@ function render(){
   // resolves cancellation per purchase EVENT, not per drawback/boon value, so a retaken drawback's (or
   // rebought boon's) row is not "dead" even though an earlier buyoff/removal for the same value exists
   // (D-GH-2026-08-06-buyoff-keyed-by-event; boonRemoved mirrors the same FIFO-by-purchase match).
-  const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved;
+  const _ae=activeEvents(idx), boff=_ae.boughtOff, bnr=_ae.boonRemoved, _dRem=_ae.drawRemoved||new Set(), _bRef=_ae.boonRefunded||new Set(), _dmOk=_ae.dmMatched||new Set();
   // Which still-open purchase of each drawback NAME a buy-off would actually remove: the OLDEST (the engine's
   // by-name FIFO — a buy-off event carries only the name). Only that row gets a buy-off button; showing one on a
   // newer same-named row promised a price (e.g. the DM's flat rate on an unlocked imposed drawback) that the
@@ -1897,7 +1925,7 @@ function render(){
   // feat/dm-unlock-drawback; the by-name FIFO itself is deliberately unchanged.)
   const _nextOpen={};
   _ae.evs.forEach((x,i)=>{
-    if(x&&x.type==='buy'&&x.cat==='drawback'&&x.payload&&x.payload.v!=null&&!boff.has(i)&&!(x.payload.v in _nextOpen)) _nextOpen[x.payload.v]=i;
+    if(x&&x.type==='buy'&&x.cat==='drawback'&&x.payload&&x.payload.v!=null&&!boff.has(i)&&!_dRem.has(i)&&!(x.payload.v in _nextOpen)) _nextOpen[x.payload.v]=i;
   });
   (idx==null?LOG:LOG.slice(0,idx)).forEach((e,_li)=>{
     if(e&&e.type==='rulesSnapshot')return;   // offline campaign-rules metadata — not an AP-ledger action (still audit-visible in the raw LOG/export)
@@ -1907,7 +1935,7 @@ function render(){
     if(e&&e.type==='econSetting')return;
     let ap='', cls='', act='', packNote='';
     if(e.type==='award'){ap='+'+e.amount;cls='aw';}
-    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&boff.has(_li))||(e.cat==='boon'&&bnr.has(_li));
+    else if(e.type==='buy'){ const dead=(e.cat==='drawback'&&(boff.has(_li)||_dRem.has(_li)))||(e.cat==='boon'&&(bnr.has(_li)||_bRef.has(_li)));
       ap=(e.cost<0?'+'+(-e.cost):'−'+e.cost); cls=dead?'dead':'';
       if(!dead && e.cat==='drawback' && idx==null){   // no buy-off controls in the time-travel view (fix/livesheet-state-glitches)
         // feat/dm-unlock-drawback: a locked imposed drawback the DM has since unlocked shows its buy-off
@@ -1932,18 +1960,25 @@ function render(){
       if((e.warns||[]).length) cls+=' warnrow'; }
     else if(e.type==='buyoff'){ap='−'+e.cost;cls='rfnd';}
     else if(e.type==='dmRemoveBoon'){ap='';cls='dead';}
+    // Campaign house rules (D-GH-2026-10-13-campaign-house-rules): the DM's AP-moving events. Each shows what it did to
+    // AP; one the engine did not apply (it matched no open purchase) is struck through with an AP of nothing.
+    else if(e.type==='dmRefundBoon'){ap=_dmOk.has(_li)?'+'+(-(Number(e.cost)||0)):'';cls=_dmOk.has(_li)?'rfnd':'dead';}
+    else if(e.type==='dmRemoveDrawback'){ap=_dmOk.has(_li)?'grant taken back':'';cls=_dmOk.has(_li)?'':'dead';}
+    else if(e.type==='dmRepriceDrawback'){const _d=Number(e.amount)||0;ap=_dmOk.has(_li)?((_d>=0?'+':'−')+Math.abs(_d)):'';cls=_dmOk.has(_li)?(_d>=0?'aw':''):'dead';}
     else if(e.type==='name'){ap='';}
     // feat/dm-edit-events: every DM-marked event renders distinctly — the whole point is that the
     // player can see exactly what their DM changed. A dmEdit event never moves economy().available
     // (the invariant this whole feature rests on), so this is a display cue only, never a cost.
     if(e.dmEdit) cls+=' dmedit';
-    const dmTag=e.dmEdit?' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>':'';
+    const _dmApEv=(e.type==='dmRefundBoon'||e.type==='dmRemoveDrawback'||e.type==='dmRepriceDrawback');
+    const dmTag=e.dmEdit?(_dmApEv?' <span class="dmtag" title="Your DM changed this under the campaign\'s house rules — it moves your AP as shown">🛡 DM</span>':' <span class="dmtag" title="This was a DM edit — it never changed your spendable AP">🛡 DM</span>'):'';
+    const _hrLbl=(e.type==='dmRefundBoon')?('Boon removed by your DM, refunded — '+(e.refVal||'')):(e.type==='dmRemoveDrawback')?('Drawback removed by your DM, its AP taken back — '+(e.refVal||'')):(e.type==='dmRepriceDrawback')?('Drawback repriced by your DM — '+(e.refVal||'')+(e.from!=null&&e.to!=null?(' ('+e.from+' → '+e.to+' AP)'):'')):(e.type==='dmHouseRules')?'Your DM set house rules for you':'';
     // What this purchase actually cost in coin and calendar, read from the event's own frozen gp/days
     // — never re-derived from today's band, so a DM waiver or a mid-campaign band change can't rewrite
     // history here either. Absent on creation purchases and on every character whose table plays with
     // the economy off, which is exactly when nothing should be shown.
     const _gtN=(e.gp||e.days)?(' <small class="gtnote" title="Gold and downtime paid for this purchase (Players Guide §16)">· '+(e.gp?Number(e.gp).toLocaleString()+' gp':'')+(e.gp&&e.days?' · ':'')+(e.days&&window._engineEcon?window._engineEcon.formatDowntime(e.days):'')+'</small>'):'';
-    led+='<tr class="'+cls+'"><td>'+esc(String(e.seq))+'</td><td>'+esc(e.label||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+esc(e.rules)+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+esc(ap)+'</td><td>'+act+'</td></tr>';
+    led+='<tr class="'+cls+'"><td>'+esc(String(e.seq))+'</td><td>'+esc(e.label||_hrLbl||e.type)+dmTag+packNote+_gtN+(e.rules?' <span class="vtag">'+esc(e.rules)+'</span>':'')+((e.type==='award'&&e.ts)?' <small style="color:var(--grey);font-weight:400">'+new Date(e.ts).toLocaleDateString()+'</small>':'')+'</td><td>'+esc(ap)+'</td><td>'+act+'</td></tr>';
   });
   led+='</table>'; $('ledger').innerHTML=led;
   // --- validation tray ---
@@ -1988,6 +2023,22 @@ function levelDelta(hd){return (DATA.levelAP[hd+1]||DATA.levelAP[hd]||0)-(DATA.l
 // sheet's own campaign test (_lsSelfAwardBlocked) and the engine's lock state. '' = the player may change it.
 function _lsTashaReadOnly(){ if(_lsSelfAwardBlocked()) return 'campaign'; try{ if(window._engineCreationLockState&&window._engineCreationLockState(LOG).locked) return 'locked'; }catch(e){} return ''; }
 function _lsTashaRoText(why){ return why==='campaign'?'\uD83D\uDD12 Your DM sets this for campaign characters.':(why==='locked'?'\uD83D\uDD12 Fixed once creation is finished \u2014 ask your DM.':''); }
+// Read-only "House rules (set by your DM)" panel (D-GH-2026-10-13-campaign-house-rules): in a campaign the DM's rules,
+// not this character's own, price its boons and drawbacks. Lists what differs from the printed rules and where it comes
+// from. Every name and text is DM- or player-typed, so all of it goes through esc(). '' when solo.
+function _lsHrPanelHtml(R){
+  if(!R||!R.inCampaign) return '';
+  var TAG={campaign:'campaign',override:'DM override for you',pin:'kept at your old value'};
+  var rows=[];
+  Object.keys(R.boons||{}).sort().forEach(function(k){var h=R.boons[k]||{};rows.push('<li>Boon <b>'+esc(k)+'</b> — '+esc(String(h.ap!=null?h.ap:0))+' AP, HD '+esc(String(h.hd||1))+'+ <small>('+esc(TAG[(R.source.boons||{})[k]]||'campaign')+')</small></li>');});
+  Object.keys(R.draws||{}).sort().forEach(function(k){var h=R.draws[k]||{};rows.push('<li>Drawback <b>'+esc(k)+'</b> — +'+esc(String(h.ap!=null?h.ap:0))+' AP <small>('+esc(TAG[(R.source.draws||{})[k]]||'campaign')+')</small></li>');});
+  var off=[]; var A=R.dmAllows||{}; if(A.boons===false)off.push('new boons'); if(A.drawbacks===false)off.push('new drawbacks'); if(A.tasha===false)off.push('non-core content'); if(A.bound===false)off.push('binding');
+  var nDis=((R.disabled&&R.disabled.boons)||[]).length+((R.disabled&&R.disabled.draws)||[]).length;
+  return '<div class="hint" id="lsHrPanel" style="width:100%"><b>House rules (set by your DM)</b> — these apply to everyone in your campaign; your own CharGen house rules apply only when you play solo.'
+    +(off.length?'<br>Switched off: '+esc(off.join(', '))+' (anything you already own is kept).':'')
+    +(nDis?'<br>'+nDis+' boon(s)/drawback(s) not allowed in this campaign.':'')
+    +(rows.length?'<ul style="margin:4px 0 0;padding-left:18px">'+rows.join('')+'</ul>':'<br>No custom or repriced boons or drawbacks.')+'</div>';
+}
 function toggleTasha(){var _ro=_lsTashaReadOnly();if(_ro){if(typeof flash==='function')flash(_lsTashaRoText(_ro));return;}var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function buildBuyPanel(b,r,eco,head){
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
@@ -2004,7 +2055,7 @@ function buildBuyPanel(b,r,eco,head){
     if(r.minHD&&b.hd<r.minHD)return 'needs '+r.minHD+' Hit Dice (level '+r.minHD+')';if(r.reqRace){var _o=DATA.racial[r.reqRace];var owns=b.racialTraits.indexOf(r.reqRace)>=0||!!(_o&&_o.pack&&(_o.race===b.species||_o.race===b.species2));if(!owns)return 'requires '+((r.reqRace.split(': ')[1])||r.reqRace);}return '';}function ib(label,cat,payload,reasonExtra,descr){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const cost=priceOf(cat,payload); const _lg=window._enginePurchaseLegality(foldBuild(null),cat,payload); const warns=_lg.warnings;
-    const unaff = cat!=='drawback' && cat!=='mbound' && cat!=='dbound' && cost>eco.available;
+    const unaff = cat!=='drawback' && cat!=='mbound' && cat!=='dbound' && cost>0 && cost>eco.available;   // V1: as buy()
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
@@ -2032,12 +2083,15 @@ function buildBuyPanel(b,r,eco,head){
     const _qlbl = !_q ? '' : (!_q.gp && !_q.days) ? 'free of coin and time'
                  : [ _q.gp?(_q.gp.toLocaleString()+' gp'):'', _q.days?_q.time:'' ].filter(Boolean).join(' · ');
     const _over = _q && _lsWalletShort(_q);
-    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+label+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
+    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+esc(label)+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
+  // Drawback tile: the EFFECTIVE value and text (campaign / DM override / own house rule — _EDT below), so a custom
+  // drawback shows what it really grants. Names are esc()'d: a custom one is DM- or player-typed.
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
-    var _bar=_lsBarGrant('drawback'); if(_bar&&hideUnavail) return '';
-    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" onclick="flash(&quot;'+esc(_bar)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
-    return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+name+' <em>+'+DATA.drawbacks[name]+'</em></span><small class="why" style="color:var(--bad)">'+esc((DATA.drawbackFx&&DATA.drawbackFx[name])||'')+'</small></button>';}
+    var _dr=_EDT[name]||{ap:DATA.drawbacks[name]||0,fx:''};
+    var _bar=_lsBarGrant('drawback')||(_dr.allowed===false?_dr.reason:''); if(_bar&&hideUnavail) return '';
+    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" onclick="flash(&quot;'+esc(_bar)+'&quot;)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
+    return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why" style="color:var(--bad)">'+esc(_dr.fx||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
   // A HELD purchase that the engine reports as blocked must not read as an ordinary holding: compute()
   // says "not counted, not owned" and charges 0 for it, so "Already purchased" is actively wrong. Show it
@@ -2056,9 +2110,12 @@ function buildBuyPanel(b,r,eco,head){
   function ibOwned(label,note){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const tt=note||'Already purchased';
-    return '<button class="ib dis" title="'+esc(tt)+'" onclick="flash(&quot;'+esc(tt)+'&quot;)" style="opacity:0.45;cursor:default">'+label+' <em>✓</em><small class="why">'+esc(note||'owned')+'</small></button>';}
+    return '<button class="ib dis" title="'+esc(tt)+'" onclick="flash(&quot;'+esc(tt)+'&quot;)" style="opacity:0.45;cursor:default">'+esc(label)+' <em>✓</em><small class="why">'+esc(note||'owned')+'</small></button>';}
   const wp=b.weaponProf||{};
-  const _tashaOK=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);
+  // The EFFECTIVE house rules (D-GH-2026-10-13-campaign-house-rules): in a campaign the DM's calls, custom and repriced
+  // boons/drawbacks and bans; solo, this character's own. b carries the context (foldBuild stamps it).
+  const _HRX=window._engineHR.resolveHouseRules(b), _EBT=window._engineHR.effectiveBoonTable(b), _EDT=window._engineHR.effectiveDrawbackTable(b);
+  const _tashaOK=!(_HRX.dmAllows.tasha===false);
   const _hasDisc=(n)=>(b.traditions||[]).some(t=>(t.disciplines||[]).some(d=>d&&d.name===n));
   const GROUPS=[
    ['Progress',()=>{const nd=levelDelta(b.hd);return ib('Level up → Hit Die '+(b.hd+1),'hd',{to:b.hd+1},nd<=0?'already at the top of the benchmark table (Hit Die 20)':'')+(b.profBonus<6?ib('Proficiency +'+(b.profBonus+1),'prof',{to:b.profBonus+1},(b.hd<(DATA.profGate[b.profBonus+1]||99))?('needs '+DATA.profGate[b.profBonus+1]+' HD'):''):'');}],
@@ -2085,7 +2142,7 @@ function buildBuyPanel(b,r,eco,head){
      return '<option value="'+an+'"'+(b.wornArmour===an?' selected':'')+_dis+'>'+an+' — AC '+aa.base+' ('+aa.cat+')'+(_reasons.length?' ⛔':'')+'</option>';}).join('')+'</select></div>'],
    ..._originClasses(b).map(oc=>[oc+' features',()=>Object.keys(DATA.features).filter(l=>DATA.features[l].cls===oc&&!DATA.features[l].inv&&!DATA.features[l].hidden&&!DATA.features[l].bar&&(_tashaOK||!DATA.features[l].noncore)).sort((a,c)=>DATA.features[a].tier-DATA.features[c].tier).map(l=>{const f=DATA.features[l];const need=requiredHD(f);if(ownsAbility(b,l))return ibOwned((l.split(': ')[1]||l)+' · T'+f.tier,_inertNote(f,l));var why=b.hd<need?('needs '+need+' HD (T'+f.tier+')'):(f.needsKi&&!((DATA.kiCum&&DATA.kiCum[b.ki||0])>=1))?'needs ≥1 Ki / Focus point':(f.needsSorc&&(b.sorcery||0)<1)?'needs ≥1 sorcery point (buy sorcery points)':((f.needsDisc&&!_hasDisc(f.needsDisc))?('needs '+f.needsDisc+' Discipline'):'');return ib((l.split(': ')[1]||l)+' · T'+f.tier,'feature',{v:l},why);}).join('')]),
    ['Eldritch Invocations',()=>{var hasWL=(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});if(!hasWL)return '<span class="hint">🔒 Eldritch Invocations require the <b>Warlock discipline</b> — open Arcane › Warlock in Spellcasting first.</span>';return Object.keys(DATA.features).filter(function(l){return DATA.features[l].inv;}).sort(function(a,c){return DATA.features[a].tier-DATA.features[c].tier;}).map(function(l){var f=DATA.features[l];var nm=(l.split(': ')[1]||l);if(b.features.includes(l))return ibOwned(nm+' · T'+f.tier,_inertNote(f,l));var need=requiredHD(f);var miss=(f.prereq||[]).filter(function(r){return !b.features.includes(r);}).map(function(r){return r.split(': ')[1]||r;});var why=b.hd<need?('needs Lv '+need):(miss.length?('needs '+miss.join(' + ')):'');return ib(nm+' · T'+f.tier,'feature',{v:l},why);}).join('');}],
-   ['DM house rules',()=>{var _ro=_lsTashaReadOnly();return _ro?('<span class="hint" id="lsTashaRo">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — '+_lsTashaRoText(_ro)+'</span>'):('<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>');}],
+   ['DM house rules',()=>{var _ro=_lsTashaReadOnly();return _lsHrPanelHtml(_HRX)+(_ro?('<span class="hint" id="lsTashaRo">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — '+_lsTashaRoText(_ro)+'</span>'):('<button class="ib" onclick="toggleTasha()" title="Allow or bar non-core (DM-gated) content — XGtE / TCoE items">🜂 Non-core content: <b>'+(_tashaOK?'Allowed':'Barred')+'</b> — click to '+(_tashaOK?'bar':'allow')+'</button>'));}],
    ['Arts \u0026 Techniques',()=>{
     const BAND_S={0:'Sit',1:'Per-Rest',2:'At-Will',3:'Passive',4:'Premium'};
     const CATORD=['Combat','Fighting Style','Magic','Utility','Social','Origin'];
@@ -2102,16 +2159,18 @@ function buildBuyPanel(b,r,eco,head){
     return cats.map(c=>{const items=byCat[c].slice().sort();return '<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+(c==='Fighting Style'?' \u2014 11 AP each (feature-granted ones are named free in the \u270E picker)':'')+'</div>'+items.map(renderArt).join('');}).join('') || '<span class="hint">No arts available.</span>';}],
    ['Boons',()=>{
      const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
-     const avail=DATA.boonList.filter(x=>(_tashaOK||!(DATA.boons[x]||{}).noncore)&&(b.boons.includes(x)||!cloudRuleBarred('boons',x)));
-     const byCat={};avail.forEach(x=>{const c=(DATA.boons[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
+     // From the effective table: custom (DM / house-rule) boons are listed, a repriced one shows its house HD, a disabled
+     // or banned one is hidden unless owned, and a switched-off Boons call greys the rest with the reason.
+     const avail=Object.keys(_EBT).filter(x=>b.boons.includes(x)||(!_EBT[x].disabled&&(_tashaOK||!_EBT[x].noncore)&&!cloudRuleBarred('boons',x)));
+     const byCat={};avail.forEach(x=>{const c=_EBT[x].cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=BOON_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>BOON_ORDER.indexOf(c)<0).sort());
      return cats.map(c=>{
-       const items=byCat[c].slice().sort((a,d)=>((DATA.boons[a].hd||1)-(DATA.boons[d].hd||1))||a.localeCompare(d));
+       const items=byCat[c].slice().sort((a,d)=>((_EBT[a].hd||1)-(_EBT[d].hd||1))||a.localeCompare(d));
        const html=items.map(x=>{
-         const lbl=x+' (HD '+DATA.boons[x].hd+'+)';
+         const B=_EBT[x], lbl=x+' (HD '+B.hd+'+)';   // ib()/ibOwned() esc() the label: a custom boon name is typed by a DM or player
          return b.boons.includes(x)
-           ? ibOwned(lbl, DATA.boons[x].fx)
-           : ib(lbl,'boon',{v:x}, b.hd<DATA.boons[x].hd?('needs '+DATA.boons[x].hd+' HD'):'', DATA.boons[x].fx);
+           ? ibOwned(lbl, B.fx)
+           : ib(lbl,'boon',{v:x}, b.hd<B.hd?('needs '+B.hd+' HD'):(B.allowed?'':B.reason), B.fx);
        }).join('');
        return html?('<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+'</div>'+html):'';
      }).join('') || '<span class="hint">No boons available.</span>';
@@ -2127,9 +2186,9 @@ function buildBuyPanel(b,r,eco,head){
      // again through the panel, regardless of what the build actually held.
      // A wound-only drawback a DM imposed is deliberately not in drawbackList (players cannot pick it), but a held one must
      // still show as an Active tile, as CharGen does — so add the held ones to the list this panel is built from.
-     const _heldWounds=b.drawbacks.filter((x,i,arr)=>arr.indexOf(x)===i&&DATA.wounds&&DATA.wounds[x]&&DATA.wounds[x].dmOnly&&DATA.drawbackList.indexOf(x)<0);
-     const avail=DATA.drawbackList.concat(_heldWounds).filter(x=>(b.drawbacks.includes(x)||!cloudRuleBarred('draws',x)));
-     const byCat={};avail.forEach(x=>{const c=(DATA.drawbackCat&&DATA.drawbackCat[x])||'Other';(byCat[c]=byCat[c]||[]).push(x);});
+     // The effective table lists every drawback incl. custom ones; a wound (dmOnly) or a disabled/banned one is listed only when held.
+     const avail=Object.keys(_EDT).filter(x=>b.drawbacks.includes(x)||(!_EDT[x].dmOnly&&!_EDT[x].disabled&&!cloudRuleBarred('draws',x)));
+     const byCat={};avail.forEach(x=>{const c=_EDT[x].cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
      const cats=DRAW_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>DRAW_ORDER.indexOf(c)<0).sort());
      const grid=cats.map(c=>{
        const items=byCat[c].slice().sort((a,d)=>a.localeCompare(d));
@@ -2787,8 +2846,8 @@ function _spbRender(){
 // skips every non-`buy` event, so it never affects AP, the folded build, or the creation-lock. It rides
 // along in the LOG/save/JSON-export like any other event.
 function _latestLogSnapshotRules(){
-  for(var i=LOG.length-1;i>=0;i--){ var e=LOG[i]; if(e&&e.type==='rulesSnapshot') return e.campRules||null; }
-  return null;
+  var s=window._engineHR.latestRulesSnapshot(LOG);   // the shared reader (js/campaign-rules.js)
+  return s?s.rules:null;
 }
 // The rules that apply RIGHT NOW: live cloud rules when online-in-campaign (authoritative — the player
 // can't edit them); otherwise the last snapshot carried in this character's LOG (offline, or rules
@@ -2804,7 +2863,10 @@ function resolveRules(){
 function _writeRulesSnapshot(campRules){
   var next = campRules || null;
   if(JSON.stringify(_latestLogSnapshotRules()) === JSON.stringify(next)) return false;   // unchanged — skip
-  LOG.push({type:'rulesSnapshot', campRules:next, seq:SEQ++, ts:Date.now()});
+  // campaignId: which campaign these rules belong to, so the house-rules context resolves a DM's per-character
+  // override offline too (feat/campaign-house-rules-tools). Not part of the dedupe: an existing snapshot without it is
+  // left alone rather than rewritten into every bound character's LOG.
+  LOG.push(Object.assign({type:'rulesSnapshot', campRules:next}, (next&&window._lsCampaignId)?{campaignId:window._lsCampaignId}:{}, {seq:SEQ++, ts:Date.now()}));
   if(typeof save==='function') save();
   return true;
 }
@@ -2980,8 +3042,13 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   import { validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, skillMods, weaponAttack, lineageSpellHD, lineageSpellLabel, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
+  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, drawbackBuyoffQuote } from '../js/engine.js';
+  import { houseRulesCtxFromRules, latestRulesSnapshot } from '../js/campaign-rules.js';
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
   window._engineBridge = { validate };
+  // Campaign house rules (feat/campaign-house-rules-tools): the engine's context/effective-table API and the pure
+  // campaign-rules readers, here in the ENGINE bridge so a fold has them from the first render and offline.
+  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, drawbackBuyoffQuote, houseRulesCtxFromRules, latestRulesSnapshot };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
@@ -3142,6 +3209,7 @@ document.addEventListener('sync-ready', function () {
       var _cid = (typeof window.peekCharId === 'function') ? window.peekCharId() : window.currentCharId();
       if(!_cid){ renderCloudStatusBadge(); return; }
       var rec = await S.loadCharacter(_cid);
+      _lsNoteCloudBase(rec&&!rec.dirty&&rec.stats?rec.stats.LOG:null);   // V1: a clean copy is what the server holds
       window._dmAp = rec ? (rec.ap || 0) : 0;
       // Same row, same server authority as `ap` — see js/sync.js applyServerMeta. `|| 0` because a
       // character row cached before this column existed comes back without it. Downtime carries no
@@ -3186,6 +3254,7 @@ document.addEventListener('sync-ready', function () {
                    + 'keep it, click Cancel first and use ⬇ Export to save a local copy before retrying.');
     } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
+    _lsNoteCloudBase(rec.dirty?null:rec.stats.LOG);   // V1: a clean copy is what the server holds
     window._dmAp = rec.ap || 0;
     window._dmGold = rec.gold || 0; window._dmWindow = null;
     window._ignorePlayerAp = false;
@@ -3404,7 +3473,7 @@ document.addEventListener('sync-ready', function () {
             // fixed at its second call site.
             if (camp && !(camp.rules && camp.rules.enforceApBudget === false) && window.compute) {
               var _rem = apAvailable(null);
-              if (_rem < 0) {
+              if (_rem < 0 && _lsSpendIncreased()) {   // V1: below 0, only a save that spends MORE is refused (as the server does)
                 btn.disabled = false; btn.textContent = '☁ Save to cloud';
                 alert('⛔ Not saved to the cloud — this character is ' + (-_rem) + ' AP over budget, and '
                     + 'your DM has AP-budget enforcement on for this campaign.\n\nSpend back under budget '
@@ -3474,6 +3543,7 @@ document.addEventListener('sync-ready', function () {
           alert('\u26A0 ' + window._syncBridge.DUPLICATE_NAME_MESSAGE);   // feat/unique-character-names: before the throw, same reason
         } else {
           if(res.error) throw res.error;
+          if(res.synced) _lsNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
           if(typeof window.flash === 'function') window.flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
         }
       } catch(err){ alert('Save failed: '+err.message); }
