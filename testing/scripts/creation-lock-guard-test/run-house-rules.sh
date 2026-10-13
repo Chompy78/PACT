@@ -59,9 +59,9 @@ else
 fi
 echo "=== grants ==="
 psqlc -At -c "select 'trigger functions callable by authenticated: ' || (has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_guard_char_house_rules()','EXECUTE'))
-  || ' · RPC callable by authenticated: ' || has_function_privilege('authenticated','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE')
-  || ' · RPC callable by anon: ' || has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE')"
-[ "$(psqlc -At -c "select has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_player_grants()','EXECUTE')")" = "f" ] || { echo "GRANTS WRONG"; exit 1; }
+  || ' · RPC callable by authenticated: ' || has_function_privilege('authenticated','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE')
+  || ' · RPC callable by anon: ' || has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE')"
+[ "$(psqlc -At -c "select has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_player_grants()','EXECUTE')")" = "f" ] || { echo "GRANTS WRONG"; exit 1; }
 
 echo "=== rollback: every redefined function byte-identical to BASE, every addition gone ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"

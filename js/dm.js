@@ -392,12 +392,16 @@ export async function dmEditCharacterLog(characterId, events) {
  *                    | {kind:'reprice', character, name, targetSeq, amount, from, to, label?}
  *                    | {kind:'refundBoon'|'removeDrawback', character, name, targetSeq, label?}]  — at most 500, in order;
  *                   the server stamps seq/ts/dmEdit/dmId/campaignId and the refund / grant-back amounts itself.
+ *   expectedChr     the campaign's charHouseRules as the caller LOADED them (null = none stored): the server refuses
+ *                   the call if another DM changed them since ("another DM changed …"). undefined = no check. An
+ *                   override action may likewise carry `expected` (the character's override snapshot it was built from).
  * Called with only a campaign id it changes nothing (DM Console uses that to detect an un-migrated server).
  * @returns {Promise<{charHouseRules:object|null, events:Array<{character:string, event:object}>}>}
  */
-export async function dmApplyHouseRulesChange(campaignId, charHouseRules, actions) {
+export async function dmApplyHouseRulesChange(campaignId, charHouseRules, actions, expectedChr) {
   const args = { p_campaign: campaignId, p_actions: Array.isArray(actions) ? actions : [] };
   if (charHouseRules !== undefined && charHouseRules !== null) args.p_char_house_rules = charHouseRules;
+  if (expectedChr !== undefined) args.p_expected = { charHouseRules: expectedChr === undefined ? null : expectedChr };
   const { data, error } = await supabase.rpc('dm_apply_house_rules_change', args);
   if (error) throw error;
   return data;

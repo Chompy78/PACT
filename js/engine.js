@@ -3313,8 +3313,9 @@ export function serverApLedger(events, opts) {
 //                per-event capped Δ would not (see the decision record).
 //   repriceEvent (changed, non-imposed drawbacks with a unique seq) the event body the RPC would stamp: {type, refVal,
 //                targetSeq, amount, from, to}
-//   ambiguousSeq the purchase has no seq, or shares seq+name with another purchase: no DM event can target it (it
-//                would match nothing), so the console must PIN it rather than offer a tick / refund / removal
+//   ambiguousSeq the purchase has no seq, a seq that is not a whole JSON number, a cost that is present but not a number,
+//                or shares seq+name with another purchase: no DM event can target it (it would match nothing, or the RPC
+//                refuses it), so the console must PIN it rather than offer a tick / refund / removal
 //   barredNew    allowed to be bought under the old rules but not under the new — the T2 candidates
 export function houseRulesImpact(rows, oldCtx, newCtx) {
   return (Array.isArray(rows) ? rows : []).filter(Boolean).map(row => {
@@ -3341,7 +3342,12 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
     // ambiguous seq, and the RPC must refuse it), so it gets no reprice event: the DM Console must PIN it instead.
     const _seqN = {};
     ae.evs.forEach(e => { if (e.type === 'buy' && e.seq != null && e.payload && e.payload.v != null) { const k = e.cat + '|' + e.seq + '|' + e.payload.v; _seqN[k] = (_seqN[k] || 0) + 1; } });
-    const _amb = e => e.seq == null || _seqN[e.cat + '|' + e.seq + '|' + e.payload.v] > 1;
+    // Not targetable either (PR #658 review): a seq that is not a whole JSON number (the RPC takes targetSeq only as one, so a
+    // string "4" is refused) or a cost that is present but not a number (the RPC refuses "cost is not a number") — the
+    // whole call would fail, so these are pinned / left alone like a shared seq.
+    const _targetable = e => typeof e.seq === 'number' && Number.isInteger(e.seq) && e.seq >= 0 && e.seq <= 999999999
+      && (e.cost == null || typeof e.cost === 'number');
+    const _amb = e => !_targetable(e) || _seqN[e.cat + '|' + e.seq + '|' + e.payload.v] > 1;
     ae.evs.forEach((e, i) => {
       if (e.type !== 'buy') return;
       const v = e.payload && e.payload.v;

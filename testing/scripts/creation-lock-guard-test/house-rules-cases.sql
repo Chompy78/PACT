@@ -713,4 +713,33 @@ select t('round 3: a stale (too low) SEQ can''t make the RPC reuse a seq the LOG
   select owner_upd('hold', $e$ jsonb_set(stats, '{SEQ}', '3') $e$);
   select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{}}')));
   select as_admin(); select ok(lastev('hold')->>'seq' = '10', 'seq ' || (lastev('hold')->>'seq')) $b$);
+-- =====================================================================================================================
+-- PR #658 review: two DMs at once — optimistic concurrency on the campaign rules and on a character's override snapshot
+-- =====================================================================================================================
+create or replace function hrx(p_camp int, p_chr jsonb, p_actions jsonb, p_expected jsonb) returns jsonb language plpgsql as $$
+begin
+  perform as_dm();
+  return dm_apply_house_rules_change(camp(p_camp), p_chr, p_actions, p_expected);
+end $$;
+select t('concurrency: expected = the stored rules is accepted', 'allowed', 'fail', $b$
+  select hr(1, '{"draws":{"Hexed":{"ap":3}}}', '[]');
+  select hrx(1, '{"draws":{"Hexed":{"ap":4}}}', '[]', '{"charHouseRules":{"draws":{"Hexed":{"ap":3}}}}');
+  select ok((select rules->'charHouseRules'->'draws'->'Hexed'->>'ap' = '4' from campaigns where id = camp(1)), 'stored') $b$);
+select t('concurrency: a stale expected (another DM saved meanwhile) is refused', 'refused', 'fail', $b$
+  select hr(1, '{"draws":{"Hexed":{"ap":5}}}', '[]');
+  select hrx(1, '{"draws":{"Hexed":{"ap":4}}}', '[]', '{"charHouseRules":{"draws":{"Hexed":{"ap":3}}}}') $b$, '%another DM changed this campaign%');
+select t('concurrency: expected null = "none stored yet" is accepted on a campaign without rules', 'allowed', 'fail', $b$
+  select hrx(1, '{"draws":{"Hexed":{"ap":4}}}', '[]', '{"charHouseRules":null}') $b$);
+select t('concurrency: expected null is refused once another DM stored rules', 'refused', 'fail', $b$
+  select hr(1, '{}', '[]'); select hrx(1, '{"draws":{"Hexed":{"ap":4}}}', '[]', '{"charHouseRules":null}') $b$, '%another DM changed this campaign%');
+select t('concurrency: a malformed expected is refused', 'refused', 'fail', $b$
+  select hrx(1, '{}', '[]', '{"rules":{}}') $b$, '%p_expected must be%');
+select t('concurrency: an override whose expected = the latest snapshot is accepted', 'allowed', 'fail', $b$
+  select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{"boons":{"Bulwark":{"hd":1,"ap":2}}}}')));
+  select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{"boons":{"Bulwark":{"hd":1,"ap":1}}},"expected":{"boons":{"Bulwark":{"ap":2,"hd":1}}}}'))) $b$);
+select t('concurrency: an override built from a stale snapshot is refused', 'refused', 'fail', $b$
+  select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{"boons":{"Bulwark":{"hd":1,"ap":2}}}}')));
+  select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{},"expected":{}}'))) $b$, '%another DM changed this character%');
+select t('concurrency: expected null on a character that has no override for this campaign is accepted', 'allowed', 'fail', $b$
+  select hr(1, null, jsonb_build_array(act('override', 'draft', '{"overrides":{},"expected":null}'))) $b$);
 select as_admin();

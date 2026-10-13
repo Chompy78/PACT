@@ -20,7 +20,7 @@ d.scenarios.forEach((s, n) => {
   s.chars0.forEach((c, i) => {
     out += `insert into characters(id, owner_id, campaign_id, name, kind, ap, stats) values ('${c.id}', '${owner(i)}', '${d.campaign}', ${"'" + c.name.replace(/'/g, "''") + "'"}, 'livesheet', ${Number(c.ap) || 0}, ${q({ SEQ: c.LOG.length + 1, LOG: c.LOG })});\n`;
   });
-  out += `select as_user('${DM}');\nselect dm_apply_house_rules_change('${d.campaign}', ${s.chr == null ? 'null' : q(s.chr)}, ${q(s.actions)}) is not null as applied;\n`;
+  out += `select as_user('${DM}');\nselect dm_apply_house_rules_change('${d.campaign}', ${s.chr == null ? 'null' : q(s.chr)}, ${q(s.actions)}, ${s.expected == null ? 'null' : q(s.expected)}) is not null as applied;\n`;
   s.dmEdits.forEach(e => { out += `select jsonb_array_length(dm_edit_character_log('${e.character}', ${q(e.events)})) as dm_edited;\n`; });
   out += `select as_admin();\n`;
   s.expect.forEach(x => {

@@ -992,7 +992,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 </div>
                 <div class="grantnote">To <b>disable</b> a boon or drawback for this campaign, tick it under <a href="#ruleBannedBoons" id="chrBansLink">Banned boons / Banned drawbacks</a> in Campaign Rules and press Save rules. A banned item can&rsquo;t be bought new; characters who already own it keep it.</div>
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
-                  <input type="checkbox" id="chrT2"> Also remove from characters who own it (refund) <button type="button" class="infobtn" title="Off (the default): a call you switch off, or a custom item you delete, only stops NEW picks — owners keep what they have. On: anything this save switches off is also taken away from characters who own it. A boon they paid for is refunded (its AP only — not any gold or downtime it cost); a drawback’s AP is taken back, which can leave a character below 0 AP. You see every holder before anything is saved. Characters still in creation are not touched.">&#9432;</button>
+                  <input type="checkbox" id="chrT2"> Also remove from characters who own it (refund) <button type="button" class="infobtn" title="Off (the default): a call you switch off, or a custom item you delete, only stops NEW picks — owners keep what they have. On: the BOONS and DRAWBACKS this save switches off are also taken away from characters who own them (Bound bindings are never removed — turning that call off only stops new ones). A boon they paid for is refunded (its AP only — not any gold or downtime it cost); a drawback’s AP is taken back, which can leave a character below 0 AP. You see every holder before anything is saved. Characters still in creation are not touched.">&#9432;</button>
                 </label>
                 <div style="display:flex;align-items:center;gap:8px;margin:2px 0 0">
                   <button type="button" class="btn sm" id="chrSaveBtn">Save character house rules</button>
@@ -1999,7 +1999,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       var row = _bt && _bt[n], ap = row ? (Number(row.ap) || 0) : ((DATA.boons[n]&&DATA.boons[n].ap)||0);
       var tag = row && !DATA.boons[n] ? ' — campaign boon' : (row && row.source && row.source !== 'printed' ? ' — house-ruled price' : '');
       var why = row && !row.allowed && row.reason ? ' — '+row.reason : '';
-      return '<option value="'+esc(n)+'" data-ap="'+esc(ap)+'">'+esc(n)+' ('+esc(ap)+' AP)'+esc(tag)+esc(why)+'</option>';
+      return '<option value="'+esc(n)+'" data-ap="'+esc(String(ap))+'">'+esc(n)+' ('+esc(String(ap))+' AP)'+esc(tag)+esc(why)+'</option>';
     }).join('');
     // feat/permanent-wounds / feat/dm-impose-picker: the impose control lists EVERY drawback — including the four
     // wound-only entries, which exist only for a DM to impose — in the pop-up picker (openDrawPicker), which owns the
@@ -2623,7 +2623,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var h = '<h4>'+esc(n)+'</h4><div>';
     if(W){ h += '<span class="dp-badge">Wound — '+esc(W.tier)+'</span>'; if(W.slot) h += '<span class="dp-badge">Place: '+esc(W.slot)+'</span>'; if(W.dmOnly) h += '<span class="dp-badge">Only a DM can impose this</span>'; }
     else h += '<span class="dp-badge">'+(er && DATA.drawbacks[n]===undefined ? 'Campaign drawback (house rules)' : 'Ordinary drawback')+'</span>';
-    if(er && er.source && er.source !== 'printed' && DATA.drawbacks[n]!==undefined) h += '<span class="dp-badge">House-ruled value (printed '+esc(DATA.drawbacks[n])+' AP)</span>';
+    if(er && er.source && er.source !== 'printed' && DATA.drawbacks[n]!==undefined) h += '<span class="dp-badge">House-ruled value (printed '+esc(String(DATA.drawbacks[n]))+' AP)</span>';
     h += '</div>';
     // An alias repeats another wound's effect under a different name (DATA.wounds[n].sameAs, display-only): say which, and whether
     // players can take the original, so the DM can see at a glance that the two differ only in the story they tell.
@@ -2732,7 +2732,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var _apOf = function(n){ return (eff && eff[n]) ? (Number(eff[n].ap) || 0) : (DATA.drawbacks[n]||0); };
     var list = _dpGroups(eff).map(function(g){
       return '<div class="dp-group"><div class="dp-grp">'+esc(g.label)+'</div>'+g.names.map(function(n){
-        return '<button type="button" class="dp-item" aria-pressed="false" data-name="'+esc(n)+'"><span>'+esc(n)+'</span><span class="dp-ap">'+esc(_apOf(n))+' AP</span></button>';
+        return '<button type="button" class="dp-item" aria-pressed="false" data-name="'+esc(n)+'"><span>'+esc(n)+'</span><span class="dp-ap">'+esc(String(_apOf(n)))+' AP</span></button>';
       }).join('')+'</div>';
     }).join('');
     ov.innerHTML = '<div class="ov-card dp-card" role="dialog" aria-modal="true" aria-labelledby="dpTitle" tabindex="-1">' +
@@ -3641,14 +3641,14 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // CLOUD BRIDGE — may fail (CDN/offline/blocked). A failure here costs campaigns and the roster, not the
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange, myProfile, logout, updatePassword } from '../js/auth.js';
-  import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
+  import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, getCampaign, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
   import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, dmApplyHouseRulesChange, getHouseRulesRoster, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE, listMyCharacters } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, dmApplyHouseRulesChange, getHouseRulesRoster, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, getCampaign, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, dmApplyHouseRulesChange, getHouseRulesRoster, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -4530,6 +4530,7 @@ document.addEventListener('campaign-ready', function () {
     ['tasha',     '🜂 Non-core (XGtE/TCoE)',      'non-core (XGtE / TCoE) items']];
   var _CHR_BAD_NAMES = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
   var _CHR_MISSING_MSG = 'The server has not been updated for campaign house rules yet. Ask the app owner to apply the latest database update (campaign-house-rules-server), then try again. Nothing was changed.';
+  var _CHR_STALE_MSG = 'Not saved \u2014 another DM changed these house rules (the campaign\u2019s, or a character\u2019s own) since you loaded them. Select the campaign again to load their version, then make your change again. Nothing was changed.';
   var _chrSaved = null, _chrDraft = null, _chrServerMissing = {}, _chrProbed = {};
   // The editable shape: every call as a boolean (absent = on), entries copied as they are (never clamped — _chrProblem()
   // names anything the server would refuse, so a stored value is never silently rewritten).
@@ -4608,15 +4609,15 @@ document.addEventListener('campaign-ready', function () {
     var rows = [];
     Object.keys(d.boons).sort().forEach(function(k){ var b = d.boons[k], bi = D.boons && D.boons[k];
       rows.push('<div class="chr-row" data-kind="boon" data-name="'+esc(k)+'">' +
-        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(bi ? 'repriced boon (printed '+esc(bi.ap)+' AP, HD '+esc(bi.hd)+'+)' : 'custom boon')+'</span></span>' +
-        '<label class="chr-f">HD <input type="number" class="field chr-hd" min="1" max="20" step="1" value="'+esc(b.hd)+'"></label>' +
-        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(b.ap)+'"></label>' +
+        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(bi ? 'repriced boon (printed '+esc(String(bi.ap))+' AP, HD '+esc(String(bi.hd))+'+)' : 'custom boon')+'</span></span>' +
+        '<label class="chr-f">HD <input type="number" class="field chr-hd" min="1" max="20" step="1" value="'+esc(String(b.hd))+'"></label>' +
+        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(String(b.ap))+'"></label>' +
         '<input type="text" class="field chr-fx" maxlength="500" placeholder="What it does" value="'+esc(b.fx)+'">' +
         '<button type="button" class="btn sm ghost chr-del">'+(bi ? 'Back to printed' : 'Delete')+'</button></div>'); });
     Object.keys(d.draws).sort().forEach(function(k){ var x = d.draws[k], pv = D.drawbacks ? D.drawbacks[k] : undefined;
       rows.push('<div class="chr-row" data-kind="draw" data-name="'+esc(k)+'">' +
-        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(pv !== undefined ? 'repriced drawback (printed '+esc(pv)+' AP)' : 'custom drawback')+'</span></span>' +
-        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(x.ap)+'"></label>' +
+        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(pv !== undefined ? 'repriced drawback (printed '+esc(String(pv))+' AP)' : 'custom drawback')+'</span></span>' +
+        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(String(x.ap))+'"></label>' +
         '<input type="text" class="field chr-fx" maxlength="500" placeholder="What it does" value="'+esc(x.fx)+'">' +
         '<button type="button" class="btn sm ghost chr-del">'+(pv !== undefined ? 'Back to printed' : 'Delete')+'</button></div>'); });
     tbl.innerHTML = rows.length ? rows.join('') : '<div style="font-size:11px;color:var(--muted)">No custom or repriced boons or drawbacks — everything is at its printed value.</div>';
@@ -4705,8 +4706,7 @@ document.addEventListener('campaign-ready', function () {
   })();
   // The creation-lock test the RPC applies to an AP-moving action: the LAST creationLocked after the last
   // creationUnlocked, on the raw log. Not a rules decision — the server's own precondition, mirrored so the preview
-  // never offers a tick or a removal the server would refuse. (The engine's creationLockState() also counts a
-  // threshold auto-lock; such a character is shown as finished-but-not-repriceable and pinned.)
+  // never offers a tick or a removal the server would refuse.
   function _chrExplicitLocked(log){
     var lk = 0, ul = 0;
     (log || []).forEach(function(e, i){ if(e && e.type === 'creationLocked') lk = i + 1; else if(e && e.type === 'creationUnlocked') ul = i + 1; });
@@ -4742,13 +4742,17 @@ document.addEventListener('campaign-ready', function () {
     imp.forEach(function(ir, hi){
       var r = live[hi], log = r.stats.LOG, inp = input[hi];
       var opts = { dmAp: inp.dmAp, ignorePlayerAp: ignore }; if(Number.isFinite(cap)) opts.drawbackCap = cap;
-      var explicit = _chrExplicitLocked(log), anyLock = !!ir.locked;
-      var state = r.archived ? 'archived' : !anyLock ? 'draft' : !explicit ? 'autolock' : 'locked';
+      // Finished = the RPC's own test (an explicit creationLocked after the last creationUnlocked). The engine's
+      // creationLockState() agrees since the automatic threshold lock was retired (feat/creation-ceiling), so there is no
+      // "finished, but not by Finish creating" state to handle.
+      var state = r.archived ? 'archived' : !_chrExplicitLocked(log) ? 'draft' : 'locked';
       var maxSeq = 0; log.forEach(function(e){ var s = Number(e && e.seq); if(Number.isFinite(s) && s > maxSeq) maxSeq = s; });
       var fold = null; try { fold = F.foldBuild(log); } catch(e){ fold = null; }
       var ovByC = fold && fold._dmHouseRulesByCampaign, curOv = (ovByC && Object.prototype.hasOwnProperty.call(ovByC, cid)) ? ovByC[cid] : null;
       var h = { id: r.id, name: (r.name || '').trim() || 'New Character', state: state, log: log, opts: opts, maxSeq: maxSeq,
-                override: curOv ? JSON.parse(JSON.stringify(curOv)) : null, before: ir.apLeft.before, s2: [], t2: [], kept: [] };
+                override: curOv ? JSON.parse(JSON.stringify(curOv)) : null, before: ir.apLeft.before, s2: [], t2: [], kept: [],
+                // the snapshot this was built from: the RPC refuses the override if another DM wrote a newer one meanwhile
+                expectedOverride: curOv ? JSON.parse(JSON.stringify(curOv)) : null };
       // ---- T2: what this save switches off, taken from its owners -------------------------------------------------
       var removing = {};   // purchase index -> true (excluded from S2)
       var barred = ir.purchases.filter(function(p){ return p.barredNew; });
@@ -4762,7 +4766,6 @@ document.addEventListener('campaign-ready', function () {
           if(p.kind === 'drawback' && p.imposed) row.why = 'imposed by you — kept (it gives no AP)';
           else if(state === 'archived') row.why = 'archived — not changed';
           else if(state === 'draft') row.why = 'still in character creation — not touched (they can rebuild without it; repeat this after they finish)';
-          else if(state === 'autolock') row.why = 'creation was finished by the AP threshold, not “Finish creating” — the server can’t take it back automatically';
           else if(p.ambiguousSeq) row.why = 'its event number is shared with another purchase — can’t be targeted; not touched';
           else if(p.kind === 'boon' && p.dmGranted){
             var older = (openCopies[p.name] || []).filter(function(q){ return q.index < p.index; });
@@ -4793,7 +4796,6 @@ document.addEventListener('campaign-ready', function () {
         if(state === 'archived'){ g.mode = 'none'; g.why = 'archived — not changed'; }
         else if(state === 'draft'){ g.mode = 'none'; g.why = 'still in character creation — their draft picks up the new value by itself'; }
         else if(!g.pinOk){ g.mode = 'none'; g.why = 'its old value can’t be kept (not a whole number 0–1000) — takes the new value'; }
-        else if(state === 'autolock'){ g.mode = 'pin'; g.why = 'creation was finished by the AP threshold, not “Finish creating” — the server can’t reprice it, so it keeps its old value'; }
         else if(g.purchases.some(function(p){ return p.ambiguousSeq; })){ g.mode = 'pin'; g.why = 'two purchases share an event number — it keeps its old value'; }
         else { g.mode = 'tick'; g.ticked = false;
                // ledgerDelta 0: the server already counts the new value — a tick records nothing (F5).
@@ -4846,7 +4848,7 @@ document.addEventListener('campaign-ready', function () {
   }
   function _chrApHTML(v){
     if(!Number.isFinite(v)) return '<span class="chr-neg">?</span>';
-    return v < 0 ? '<span class="chr-neg">' + esc(v) + ' — below 0</span>' : esc(v);
+    return v < 0 ? '<span class="chr-neg">' + esc(String(v)) + ' — below 0</span>' : esc(String(v));
   }
   function _chrReviewHTML(plan){
     var h = '<button type="button" class="ov-x" data-chr-act="cancel" title="Close" aria-label="Close">&#10005;</button>' +
@@ -4864,9 +4866,9 @@ document.addEventListener('campaign-ready', function () {
             ? '<input type="checkbox" class="chr-tick" data-h="' + hi + '" data-g="' + gi + '"' + (g.ticked ? ' checked' : '') + ' aria-label="Apply the new value">'
             : '<span class="chr-na" title="' + esc(g.why) + '">' + (g.mode === 'pin' ? 'keeps old' : '—') + '</span>';
           h += '<tr><td>' + cell + '</td><td>' + esc(x.name) + '</td><td>' + esc(g.name) +
-            ' <span class="chr-tag">event #' + g.purchases.map(function(p){ return esc(p.seq); }).join(', #') + '</span>' +
+            ' <span class="chr-tag">event #' + g.purchases.map(function(p){ return esc(String(p.seq)); }).join(', #') + '</span>' +
             (g.mode !== 'tick' ? '<div class="chr-why">' + esc(g.why) + '</div>' : (g.noEvent ? '<div class="chr-why">the server already counts the new value — ticking records nothing extra</div>' : '')) + '</td>' +
-            '<td>' + esc(g.oldEff) + ' → ' + esc(g.newEff) + ' AP</td>' +
+            '<td>' + esc(String(g.oldEff)) + ' → ' + esc(String(g.newEff)) + ' AP</td>' +
             '<td class="chr-ap" data-h="' + hi + '">' + _chrApHTML(x.before) + ' → <span class="chr-after">' + _chrApHTML(_chrAfter(plan, x)) + '</span></td></tr>';
         });
       });
@@ -4879,11 +4881,11 @@ document.addEventListener('campaign-ready', function () {
       plan.holders.forEach(function(x, hi){
         x.t2.forEach(function(r){
           var p = r.p, what;
-          if(r.action === 'refundBoon') what = '+' + esc(p.frozenCost) + ' refunded';
-          else if(r.action === 'removeDrawback') what = r.label ? '0 (a second copy gave nothing)' : '−' + esc(Math.max(0, Math.min(p.ledgerGrant, p.oldEffective))) + ' given back';
+          if(r.action === 'refundBoon') what = '+' + esc(String(p.frozenCost)) + ' refunded';
+          else if(r.action === 'removeDrawback') what = r.label ? '0 (a second copy gave nothing)' : '−' + esc(String(Math.max(0, Math.min(p.ledgerGrant, p.oldEffective)))) + ' given back';
           else if(r.action === 'dmRemoveBoon') what = 'removed, no refund (it was your grant)';
           else what = '<span class="chr-why">' + esc(r.why) + '</span>';
-          h += '<tr><td>' + esc(x.name) + '</td><td>' + esc(p.kind === 'boon' ? 'Boon' : 'Drawback') + ' — ' + esc(p.name) + ' <span class="chr-tag">event #' + esc(p.seq) + '</span></td>' +
+          h += '<tr><td>' + esc(x.name) + '</td><td>' + esc(p.kind === 'boon' ? 'Boon' : 'Drawback') + ' — ' + esc(p.name) + ' <span class="chr-tag">event #' + esc(String(p.seq)) + '</span></td>' +
             '<td>' + what + '</td><td class="chr-ap" data-h="' + hi + '"><span class="chr-after">' + _chrApHTML(_chrAfter(plan, x)) + '</span></td></tr>';
         });
       });
@@ -4892,7 +4894,7 @@ document.addEventListener('campaign-ready', function () {
         (anyRefund ? ' A refund returns the boon’s <b>AP only</b> — any gold or downtime it cost is not given back (award gold by hand if you want to).' : '') + '</div>';
     }
     if(keptn){
-      h += '<div class="grantnote" style="margin-top:10px">' + esc(keptn) + ' item' + (keptn === 1 ? '' : 's') + ' this switches off ' + (keptn === 1 ? 'is' : 'are') + ' owned by characters, who keep ' + (keptn === 1 ? 'it' : 'them') +
+      h += '<div class="grantnote" style="margin-top:10px">' + esc(String(keptn)) + ' item' + (keptn === 1 ? '' : 's') + ' this switches off ' + (keptn === 1 ? 'is' : 'are') + ' owned by characters, who keep ' + (keptn === 1 ? 'it' : 'them') +
         ' (' + plan.holders.filter(function(x){ return x.kept.length; }).map(function(x){ return esc(x.name) + ': ' + x.kept.map(function(p){ return esc(p.name); }).join(', '); }).join('; ') +
         '). To take them away with a refund, cancel and tick “Also remove from characters who own it”.</div>';
     }
@@ -4930,7 +4932,7 @@ document.addEventListener('campaign-ready', function () {
     var actions = [], dmRemove = [];
     plan.holders.forEach(function(h){
       var x = _chrHolderEvents(plan, h);
-      if(x.override) actions.push({ kind: 'override', character: h.id, overrides: x.override,
+      if(x.override) actions.push({ kind: 'override', character: h.id, overrides: x.override, expected: h.expectedOverride,
         label: ('DM house rules — kept at the old value: ' + x.pinNames.join(', ')).slice(0, 120) });
       x.reprices.forEach(function(r){ actions.push({ kind: 'reprice', character: h.id, name: r.refVal, targetSeq: r.targetSeq, amount: r.amount, from: r.from, to: r.to }); });
       x.removals.forEach(function(r){ var a = { kind: r.kind, character: h.id, name: r.name, targetSeq: r.targetSeq }; if(r.label) a.label = r.label; actions.push(a); });
@@ -4947,12 +4949,24 @@ document.addEventListener('campaign-ready', function () {
     if(problem){ alert('Not saved — ' + problem); return; }
     if(_chrSame(_chrDraft, _chrSaved)){ alert('Nothing to save — these are already this campaign’s character house rules.'); return; }
     var camp = currentCampaigns.find(function(c){ return c.id === cid; });
-    var rules = (camp && camp.rules) || {};
     var newChr = _chrForServer(_chrDraft), t2 = !!(document.getElementById('chrT2') || {}).checked;
     var busy = function(m){ if(st){ if(m){ st.setAttribute('data-busy', '1'); st.textContent = m; } else { st.removeAttribute('data-busy'); st.textContent = ''; } } };
     btn.disabled = true; busy('Checking who this affects…');
-    var plan;
+    var plan, rules, expected;
     try {
+      // Two DMs at once (PR #658 review): re-read the campaign, refuse if its character house rules changed since this
+      // editor loaded them, and send what was read as the RPC's expected value so the server refuses a race in between.
+      var fresh = await B.getCampaign(cid);
+      if(!_isCurrentCamp(cid)){ btn.disabled = false; busy(''); return; }
+      if(!fresh) throw new Error('the campaign could not be read');
+      rules = fresh.rules || {};
+      expected = Object.prototype.hasOwnProperty.call(rules, 'charHouseRules') ? rules.charHouseRules : null;
+      if(camp){ camp.rules = rules; if(window._dmCampaignApRules && window._dmCampaignApRules.campaignId === cid) window._dmCampaignApRules.rules = rules; }
+      if(!_chrSame(_chrNormalise(expected), _chrSaved)){
+        btn.disabled = false; busy('');
+        alert(_CHR_STALE_MSG);
+        return;
+      }
       var rows = await B.getHouseRulesRoster(cid);
       if(!_isCurrentCamp(cid)){ btn.disabled = false; busy(''); return; }   // the DM switched campaign meanwhile
       plan = _chrPlan(rows, rules, newChr, t2);
@@ -4968,10 +4982,11 @@ document.addEventListener('campaign-ready', function () {
     if(acts.actions.length > 500){ btn.disabled = false; alert('This change touches more than 500 purchases — too many for one save. Change fewer rules at a time.'); return; }
     busy('Saving…');
     var res;
-    try { res = await B.dmApplyHouseRulesChange(cid, newChr, acts.actions); }
+    try { res = await B.dmApplyHouseRulesChange(cid, newChr, acts.actions, expected); }
     catch(err){
       btn.disabled = false; busy('');
       if(_chrIsMissingFn(err)){ _chrServerMissing[cid] = true; _chrShowServerMsg(); alert(_CHR_MISSING_MSG); return; }
+      if(/another DM changed/i.test(String((err && err.message) || err))){ alert(_CHR_STALE_MSG); return; }
       var m = String((err && err.message) || err).replace(/^PACT house rules:\s*/, '');
       alert('Character house rules not saved — the server refused it (nothing was changed): ' + m + '\n\nReload the roster and try again.');
       return;

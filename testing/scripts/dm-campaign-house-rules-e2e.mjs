@@ -99,19 +99,30 @@ function _closeScenario() {
   dump.scenarios.push(_scn); _scn = null;
 }
 // ---- a small fake server: the RPC's stamping, plus the reprice checks it makes (M3) against the engine ------------
-const srv = { rules: JSON.parse(JSON.stringify(RULES0)), chars: JSON.parse(JSON.stringify(CHARS0)), calls: [], missing: false, refuse: null };
+const srv = { rules: JSON.parse(JSON.stringify(RULES0)), chars: JSON.parse(JSON.stringify(CHARS0)), calls: [], missing: false, refuse: null, staleRead: null };
+const sameJson = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+function canon(v) { if (Array.isArray(v)) return v.map(canon); if (v && typeof v === 'object') { const o = {}; Object.keys(v).sort().forEach(k => { o[k] = canon(v[k]); }); return o; } return v; }
 const nextSeq = log => log.reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0) + 1;
-function rpcApply(campaign, chr, actions) {
+function rpcApply(campaign, chr, actions, expected) {
   if (srv.missing) { const e = new Error('Could not find the function public.dm_apply_house_rules_change(p_actions, p_campaign, p_char_house_rules) in the schema cache'); e.code = 'PGRST202'; throw e; }
   if (srv.refuse) throw new Error(srv.refuse);
   if (campaign !== CAMP) throw new Error('Only a campaign DM can change its house rules');
+  // p_expected (PR #658 review): refuse when another DM changed the stored rules since the caller read them.
+  if (expected !== undefined && expected !== null && !sameJson(srv.rules.charHouseRules ?? null, expected.charHouseRules))
+    throw new Error('PACT house rules: another DM changed this campaign\'s character house rules since you loaded them — reload and make your change again');
   const rules = JSON.parse(JSON.stringify(srv.rules));
   if (chr !== undefined && chr !== null) rules.charHouseRules = chr;
   const chars = JSON.parse(JSON.stringify(srv.chars)), out = [];
   for (const a of actions || []) {
     const c = chars.find(x => x.id === a.character); if (!c) throw new Error('PACT house rules: action — that character is not in this campaign');
     let ev;
-    if (a.kind === 'override' || a.kind === 'pin') ev = { type: 'dmHouseRules', overrides: a.overrides, label: a.label || 'DM house rules for this character' };
+    if (a.kind === 'override' || a.kind === 'pin') {
+      if ('expected' in a) {
+        const by = E.foldBuild(c.LOG)._dmHouseRulesByCampaign, cur = by && Object.prototype.hasOwnProperty.call(by, CAMP) ? by[CAMP] : null;
+        if (!sameJson(cur, a.expected)) throw new Error('PACT house rules: action — another DM changed this character\'s house-rule overrides since you loaded them — reload and make your change again');
+      }
+      ev = { type: 'dmHouseRules', overrides: a.overrides, label: a.label || 'DM house rules for this character' };
+    }
     else {
       const lk = c.LOG.map(e => e.type).lastIndexOf('creationLocked'), ul = c.LOG.map(e => e.type).lastIndexOf('creationUnlocked');
       if (lk < 0 || ul > lk) throw new Error('PACT house rules: action — the character has not finished creation');
@@ -136,7 +147,7 @@ function rpcApply(campaign, chr, actions) {
   }
   if ((actions && actions.length) || (chr !== undefined && chr !== null)) {
     _closeScenario();
-    _scn = { rules0: JSON.parse(JSON.stringify(srv.rules)), chars0: JSON.parse(JSON.stringify(srv.chars)), chr, actions: JSON.parse(JSON.stringify(actions || [])), dmEdits: [] };
+    _scn = { rules0: JSON.parse(JSON.stringify(srv.rules)), chars0: JSON.parse(JSON.stringify(srv.chars)), chr, actions: JSON.parse(JSON.stringify(actions || [])), expected: expected ?? null, dmEdits: [] };
   }
   srv.rules = rules; srv.chars = chars;   // all or nothing
   return { charHouseRules: rules.charHouseRules ?? null, events: out };
@@ -158,7 +169,8 @@ async function openDm() {
     try {
       srv.calls.push({ op, a: JSON.parse(JSON.stringify(a || null)) });
       if (op === 'roster') return { ok: rosterRows() };
-      if (op === 'apply') return { ok: rpcApply(a.campaign, a.chr, a.actions) };
+      if (op === 'apply') return { ok: rpcApply(a.campaign, a.chr, a.actions, a.expected) };
+      if (op === 'campaign') return { ok: { id: CAMP, name: 'Camp', rules: srv.staleRead || srv.rules, ignore_player_ap: false } };
       if (op === 'dmEdit') return { ok: dmEdit(a.cid, a.events) };
       if (op === 'setRules') { srv.rules = a.rules; return { ok: null }; }
       return { ok: null };
@@ -175,7 +187,8 @@ async function openDm() {
     B.listCampaignInvites = () => Promise.resolve([]);
     B.getHouseRulesRoster = () => call('roster');
     B.getRoster = () => call('roster').then(rs => rs.map(r => Object.assign({ player: 'P', playerLabel: '', dmNotes: '', customFields: {} }, r)));
-    B.dmApplyHouseRulesChange = (c, chr, actions) => call('apply', { campaign: c, chr, actions: actions || [] });
+    B.dmApplyHouseRulesChange = (c, chr, actions, expected) => call('apply', { campaign: c, chr, actions: actions || [], expected: expected === undefined ? null : { charHouseRules: expected } });
+    B.getCampaign = () => call('campaign');
     B.dmEditCharacterLog = (cid, events) => call('dmEdit', { cid, events });
     B.setCampaignRules = (c, r) => call('setRules', { rules: r });
     window._dmSetCampaignsTest([{ id: camp, name: 'Camp', rules, isOwner: true, ignore_player_ap: false }]);
@@ -197,7 +210,7 @@ const setAp = (p, kind, name, ap) => p.evaluate(({ kind, name, ap }) => {
 const reviewOpen = p => p.waitForFunction(() => { const o = document.getElementById('chrReview'); return o && o.classList.contains('on'); }, { timeout: 8000 });
 const clickSave = p => p.evaluate(() => document.getElementById('chrSaveBtn').click());
 const applyCalls = () => srv.calls.filter(c => c.op === 'apply' && (c.a.actions.length || c.a.chr !== undefined && c.a.chr !== null));
-const reset = () => { _closeScenario(); srv.rules = JSON.parse(JSON.stringify(RULES0)); srv.chars = JSON.parse(JSON.stringify(CHARS0)); srv.calls.length = 0; srv.missing = false; srv.refuse = null; };
+const reset = () => { _closeScenario(); srv.staleRead = null; srv.rules = JSON.parse(JSON.stringify(RULES0)); srv.chars = JSON.parse(JSON.stringify(CHARS0)); srv.calls.length = 0; srv.missing = false; srv.refuse = null; };
 const apOpts = c => ({ dmAp: c.ap || 0 });
 const browserApLeft = (log, rules) => E.compute(E.withHouseRulesCtx(E.foldBuild(log), CR.houseRulesCtxFromRules(rules, CAMP)), {}).spendable - E.economy(log).spent;
 const serverApLeft = (log, rules) => E.serverApLedger(log, { houseRulesCtx: CR.houseRulesCtxFromRules(rules, CAMP) }).apLeft;
@@ -252,6 +265,7 @@ console.log('S2 — repricing a held drawback: tick / untick, one RPC call');
   check('Cy (finished, has an override) is listed with a tick', row('Cy') && row('Cy').tick);
   check('Bo (still in creation) is listed but NOT tickable, with the reason', row('Bo') && !row('Bo').tick && /creation/i.test(row('Bo').text), JSON.stringify(row('Bo')));
   check('the review escapes every name (no element from a name, nothing ran)', d.img === 0 && !d.xss);
+  check('a 0 is shown as 0, not blank (Neg: AP left "0 → 0")', row('Neg') && row('Neg').text.includes('0 → 0'), row('Neg') && row('Neg').text);
   const anaBefore = browserApLeft(ANA, RULES0);
   check(`Ana's AP left shows ${anaBefore} → ${anaBefore} while unticked (keeps the old value)`, row('Ana') && row('Ana').text.includes(`${anaBefore} → ${anaBefore}`), row('Ana') && row('Ana').text);
   // tick Ana
@@ -271,6 +285,8 @@ console.log('S2 — repricing a held drawback: tick / untick, one RPC call');
   check('Cy: one override snapshot pinning Moon-Hexed at 3 AND keeping its existing override',
     cy.length === 1 && cy[0].kind === 'override' && cy[0].overrides.pins.draws['Moon-Hexed'].ap === 3 && cy[0].overrides.boons['Star Ward'].ap === 2, JSON.stringify(cy));
   check('Bo (draft): nothing sent', bo.length === 0, JSON.stringify(bo));
+  check('the call carries the rules this save was previewed against (expected = the stored rules)', call && call.expected && JSON.stringify(call.expected.charHouseRules) === JSON.stringify(CHR0), JSON.stringify(call && call.expected));
+  check('...and Cy\'s override action the snapshot it was built from (expected = his existing override)', cy[0] && JSON.stringify(cy[0].expected) === JSON.stringify(CY_OV), JSON.stringify(cy[0] && cy[0].expected));
   check('the server accepted it (from/to/amount checked against the engine)', !(await p.evaluate(() => window.__alerts.some(m => /not saved/i.test(m)))), JSON.stringify(await p.evaluate(() => window.__alerts)));
   check('no generic rules save was made', !srv.calls.some(c => c.op === 'setRules'));
   const cached = await p.evaluate(() => window._dmCampaignApRules.rules.charHouseRules);
@@ -391,6 +407,53 @@ reset();
 await ctx.close();
 
 // ======================================================================================================================
+console.log('Two DMs at once: a stale editor is refused, by the console and by the server');
+reset();
+({ c: ctx, p, errs } = await openDm());
+{
+  await unlock(p);
+  await setAp(p, 'draw', 'Moon-Hexed', 7);
+  srv.rules.charHouseRules = { schema: 1, draws: { 'Moon-Hexed': { ap: 9 } } };   // another DM saved meanwhile
+  await p.evaluate(() => { window.__alerts.length = 0; });
+  await clickSave(p); await p.waitForTimeout(300);
+  const al = await p.evaluate(() => window.__alerts.slice(-1)[0] || '');
+  check('the console re-reads the campaign at save time and refuses: "another DM changed …", no dialog, nothing sent',
+    /another DM changed/.test(al) && applyCalls().length === 0 && !(await p.evaluate(() => { const o = document.getElementById('chrReview'); return !!(o && o.classList.contains('on')); })), al);
+  check('...and the other DM\'s rules are untouched', srv.rules.charHouseRules.draws['Moon-Hexed'].ap === 9);
+  await ctx.close();
+}
+reset();
+({ c: ctx, p, errs } = await openDm());
+{
+  await unlock(p);
+  await setAp(p, 'draw', 'Moon-Hexed', 7);
+  srv.staleRead = JSON.parse(JSON.stringify(RULES0));                                // the console reads the old rules…
+  srv.rules.charHouseRules = { schema: 1, draws: { 'Moon-Hexed': { ap: 9 } } };       // …and another DM saves just after
+  await clickSave(p); await reviewOpen(p);
+  await p.evaluate(() => { window.__alerts.length = 0; document.getElementById('chrReviewApply').click(); });
+  await p.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
+  const al = await p.evaluate(() => window.__alerts.slice(-1)[0]);
+  check('a race the console cannot see is refused by the SERVER (expected ≠ stored), in plain words', /another DM changed/.test(al) && !/PACT house rules:/.test(al), al);
+  check('...and nothing was written', srv.rules.charHouseRules.draws['Moon-Hexed'].ap === 9 && !srv.chars.some(c => c.LOG.some(e => e.type === 'dmRepriceDrawback')));
+  await ctx.close();
+}
+reset();
+({ c: ctx, p, errs } = await openDm());
+{
+  // a character's override written by another DM between the preview and the save
+  await unlock(p);
+  await setAp(p, 'draw', 'Moon-Hexed', 5);
+  await clickSave(p); await reviewOpen(p);
+  const cy = srv.chars.find(c => c.id === id(3));
+  cy.LOG.push({ type: 'dmHouseRules', overrides: { boons: {} }, campaignId: CAMP, seq: 99, ts: 9, dmEdit: true, dmId: 'dm2', label: 'other DM' });
+  await p.evaluate(() => { window.__alerts.length = 0; document.getElementById('chrReviewApply').click(); });
+  await p.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
+  const al = await p.evaluate(() => window.__alerts.slice(-1)[0]);
+  check('an override another DM wrote meanwhile is not overwritten: the server refuses (expected snapshot ≠ latest)', /another DM changed/.test(al) && srv.rules.charHouseRules.draws['Moon-Hexed'].ap === 3, al);
+  await ctx.close();
+}
+
+// ======================================================================================================================
 console.log('An un-migrated server');
 reset(); srv.missing = true;
 ({ c: ctx, p, errs } = await openDm());
@@ -495,6 +558,37 @@ console.log('Grant-boon / impose-drawback pickers use the effective tables');
     return res;
   }, id(1));
   check('the impose picker lists the campaign drawback in its own group at its campaign value', imp.has && imp.ap === '3 AP' && imp.grp.some(x => /Campaign drawbacks/.test(x)), JSON.stringify(imp));
+  // A 0 is a price, not a blank (PR #658 review: esc(0) was '' so data-ap="" and the grant fell back to the printed price).
+  srv.calls.length = 0;
+  await p.evaluate(() => {
+    const r = Object.assign({}, window._dmCampaignApRules.rules);
+    r.charHouseRules = Object.assign({}, r.charHouseRules, { boons: Object.assign({}, (r.charHouseRules || {}).boons, { Bulwark: { hd: 1, ap: 0 } }),
+      draws: Object.assign({}, (r.charHouseRules || {}).draws, { Lame: { ap: 0 } }) });
+    window._dmCampaignApRules.rules = r;
+  });
+  srv.rules = await p.evaluate(() => window._dmCampaignApRules.rules);
+  await p.evaluate(() => window._dmReloadRoster());
+  await p.waitForFunction(() => document.querySelectorAll('#campRoster .dm-grant-boon-sel').length >= 4, { timeout: 8000 }).catch(() => {});
+  const z = await p.evaluate((cid) => {
+    const sel = [...document.querySelectorAll('#campRoster .dm-grant-boon-sel')].find(s => s.getAttribute('data-cid') === cid);
+    const o = sel && [...sel.options].find(x => x.value === 'Bulwark');
+    sel.value = 'Bulwark';
+    document.querySelector('#campRoster .dm-grant-boon-btn[data-cid="' + cid + '"]').click();
+    document.querySelector('#campRoster .dm-impose-draw-open[data-cid="' + cid + '"]').click();
+    const it = [...document.querySelectorAll('#dmDrawPick .dp-item')].find(x => x.getAttribute('data-name') === 'Lame');
+    const res = { dataAp: o && o.getAttribute('data-ap'), text: o && o.textContent, imp: it && it.querySelector('.dp-ap').textContent };
+    document.getElementById('dpCancel').click();
+    return res;
+  }, id(1));
+  await p.waitForTimeout(300);
+  const zg = srv.calls.filter(c => c.op === 'dmEdit')[0];
+  check('a boon repriced to 0: the grant picker says "0 AP" (data-ap="0")', z.dataAp === '0' && /\(0 AP\)/.test(z.text), JSON.stringify(z));
+  check('...and the grant records cost 0 with a 0 award, not the printed price', zg && zg.a.events[0].cost === 0 && zg.a.events[1].amount === 0, JSON.stringify(zg && zg.a.events));
+  check('a drawback repriced to 0 shows "0 AP" in the impose picker', z.imp === '0 AP', z.imp);
+  check('the "Also remove" tooltip says only boons and drawbacks are removed (never Bound bindings)',
+    await p.evaluate(() => { const t = document.getElementById('chrT2').parentElement.querySelector('.infobtn').title; return /BOONS and DRAWBACKS/.test(t) && /Bound bindings are never removed/.test(t); }));
+  check('Live Sheet resolves a loaded cloud character\'s campaign with getCampaign (an archived campaign is not in listMyCampaigns)',
+    /async function loadCloudChar[\s\S]*?getCampaign\(rec\.campaign_id\)[\s\S]*?\} else \{/.test(fs.readFileSync(path.join(REPO, 'tools/PACT-Live-Char-Sheet.html'), 'utf8')));
 }
 check('no XSS fired anywhere in the console', !(await p.evaluate(() => !!window.__xss)));
 const fatal = errs.filter(e => !NOISE.test(e));

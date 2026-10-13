@@ -40,7 +40,10 @@
 --    own one UPDATE, then clears it). DM Console's whole-blob "Save rules" therefore can neither erase nor forge the key;
 --    it is silently carried over (the rest of the blob saves as before). Admin sessions (no JWT) may write it directly.
 --    A client cannot set the GUC: PostgREST exposes only functions in `public`, and set_config is in pg_catalog.
--- 2. dm_apply_house_rules_change(p_campaign, p_char_house_rules, p_actions) — the ONE validated writer (§6.2, M3, M4).
+-- 2. dm_apply_house_rules_change(p_campaign, p_char_house_rules, p_actions, p_expected) — the ONE validated writer (§6.2, M3, M4).
+--    Two DMs editing at once (PR #658 review): p_expected = {"charHouseRules": <the rules the caller loaded, or null>} makes
+--    the call refuse when the stored rules differ, and an override action may carry `expected` (the override snapshot the
+--    caller loaded for that character, or null) with the same effect — so a stale copy never silently overwrites a newer one.
 --    Writes rules.charHouseRules (validated) and appends, per action, one server-stamped DM event to a character's LOG:
 --      {kind:'override'|'pin', character, overrides}            -> {type:'dmHouseRules', overrides, campaignId}
 --      {kind:'reprice', character, name, targetSeq, amount, from, to} -> {type:'dmRepriceDrawback', ...}
@@ -1312,10 +1315,15 @@ $$;
 --                       no overrides) · an object = validated and stored whole.
 --   p_actions           a JSON array (may be empty), at most 500, processed IN ORDER, each against the log as the
 --                       earlier actions left it (two reprices of one purchase in one call chain their from/to).
+--   p_expected          SQL NULL = no check · {"charHouseRules": X} = refuse unless the stored charHouseRules is X (JSON null
+--                       = absent): optimistic concurrency between two DMs (PR #658 review). An `override` / `pin` action may
+--                       carry `expected` (the character's current override snapshot for this campaign as the caller saw it,
+--                       JSON null = none) — refused if the log's latest one differs.
 -- Returns {charHouseRules, events:[{character, event}]}.
 -- ---------------------------------------------------------------------------------------------------------------------
+drop function if exists public.dm_apply_house_rules_change(uuid, jsonb, jsonb);   -- the pre-review signature (never applied)
 create or replace function public.dm_apply_house_rules_change(p_campaign uuid, p_char_house_rules jsonb default null,
-                                                              p_actions jsonb default '[]'::jsonb)
+                                                              p_actions jsonb default '[]'::jsonb, p_expected jsonb default null)
 returns jsonb
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -1359,6 +1367,15 @@ begin
   select rules into v_rules from campaigns where id = p_campaign for update;
   if not found then
     raise exception 'Campaign not found';
+  end if;
+  -- Optimistic concurrency (PR #658 review): the rules the caller previewed against must still be the stored ones.
+  if p_expected is not null then
+    if jsonb_typeof(p_expected) <> 'object' or not (p_expected ? 'charHouseRules') then
+      raise exception 'PACT house rules: p_expected must be {"charHouseRules": <the rules you loaded, or null>}';
+    end if;
+    if coalesce(v_rules -> 'charHouseRules', 'null'::jsonb) is distinct from (p_expected -> 'charHouseRules') then
+      raise exception 'PACT house rules: another DM changed this campaign''s character house rules since you loaded them — reload and make your change again';
+    end if;
   end if;
 
   p_actions := coalesce(p_actions, '[]'::jsonb);
@@ -1418,6 +1435,17 @@ begin
 
     if v_kind in ('override', 'pin') then
       perform public.pact_hr_validate(v_act -> 'overrides', 'override');
+      if v_act ? 'expected' then   -- the override snapshot the caller built from must still be the latest one
+        select e -> 'overrides' into v_ov
+          from jsonb_array_elements(v_log) with ordinality as t(e, ord)
+         where jsonb_typeof(e) = 'object' and e->>'type' = 'dmHouseRules' and e->'dmEdit' = 'true'::jsonb
+           and jsonb_typeof(e->'campaignId') = 'string' and e->>'campaignId' = p_campaign::text
+           and jsonb_typeof(e->'overrides') = 'object'
+         order by ord desc limit 1;
+        if coalesce(v_ov, 'null'::jsonb) is distinct from (v_act -> 'expected') then
+          raise exception 'PACT house rules: action % — another DM changed this character''s house-rule overrides since you loaded them — reload and make your change again', v_idx;
+        end if;
+      end if;
       v_ev := jsonb_build_object('type', 'dmHouseRules', 'overrides', v_act -> 'overrides',
                                  'label', left(coalesce(v_label, 'DM house rules for this character'), 120));
     else
@@ -1551,10 +1579,10 @@ grant execute on function public.pact_ap_ledger_split(jsonb, jsonb, uuid) to aut
 grant execute on function public.pact_drawback_printed(text)          to authenticated;
 grant execute on function public.pact_hr_drawback_effective(text, jsonb, jsonb) to authenticated;
 grant execute on function public.pact_dm_family(jsonb)               to authenticated;
-revoke all on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb) from public, anon;
-grant execute on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb) to authenticated;
+revoke all on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb, jsonb) from public, anon;
+grant execute on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb, jsonb) to authenticated;
 
-comment on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb) is
+comment on function public.dm_apply_house_rules_change(uuid, jsonb, jsonb, jsonb) is
   'The one writer of campaigns.rules.charHouseRules and of the DM house-rules events (dmHouseRules, dmRefundBoon, dmRemoveDrawback, dmRepriceDrawback). D-GH-2026-10-13-campaign-house-rules.';
 comment on function public.pact_hr_drawback_cap(jsonb) is
   'Owner decision Z1: the drawback AP cap the budget check applies — js/campaign.js drawbackCapFromRules() exactly; NULL = no cap.';

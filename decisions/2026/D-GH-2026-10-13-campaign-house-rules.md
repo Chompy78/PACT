@@ -343,10 +343,10 @@ Technical choices (none owner-level unless listed under "Open"):
   removals, DM-grant removals), so it is the figure the player's tools will show.
 - **Ticks are per (character, drawback name), not per purchase.** A pin changes the effective value of every copy of that
   name for the character, so a name is either pinned or repriced as a whole; the RPC's M3 `to` check would refuse a mix.
-- **Who is tickable.** Explicit lock (the RPC's own test, mirrored as a raw-log scan — not a rule) and every copy uniquely
-  targetable. Drafts: listed, nothing sent (plan §5.4). Threshold-only lock (`creationLockState()` locked without an
-  explicit event — unreachable since the tripwire was retired, kept for safety) and a shared seq: pinned. A tick whose
-  `ledgerDelta` is 0 (`houseRulesImpact()` emits no event) records nothing — the server already counts the new value.
+- **Who is tickable.** Explicit lock (the RPC's own test, mirrored as a raw-log scan — not a rule; since the automatic
+  threshold lock was retired it is also exactly the engine's `creationLockState()`) and every copy uniquely targetable.
+  Drafts: listed, nothing sent (plan §5.4). A shared or non-targetable seq: pinned. A tick whose `ledgerDelta` is 0
+  (`houseRulesImpact()` emits no event) records nothing — the server already counts the new value.
 - **T2.** Applies to what THIS save switches off (`barredNew`: a call turned off, a custom entry deleted). Bans are edited by
   Save rules and keep their "stop new purchases only" behaviour. Order inside the RPC: override → reprices → refunds /
   removals; DM-granted boons go through `dm_edit_character_log` AFTER the RPC (a separate, non-atomic call; a failure is
@@ -376,4 +376,24 @@ Technical choices (none owner-level unless listed under "Open"):
    a draft's drawback (server change), (c) accept (as implemented, per the plan).
 2. **T2 and bans.** A newly banned item can't be taken away with refund (bans live in Save rules, which keeps "stop new
    purchases only"). Should Save rules offer T2 for newly banned items too?
+
+### PR #658 review — changes (2026-10-13)
+
+- **Two DMs at once (A2, deep fix).** `dm_apply_house_rules_change()` gains `p_expected` (`{"charHouseRules": X}`; JSON null =
+  none stored) and refuses "another DM changed this campaign's character house rules since you loaded them" when the stored
+  rules differ; an `override` action may carry `expected` (the snapshot it was built from) with the same effect for one
+  character. Edited in PR3's still-UNAPPLIED migration (signature now `(uuid, jsonb, jsonb, jsonb)`, the 3-argument one
+  dropped; rollback drops both); 8 new harness cases (199, before / after / rollback all as predicted). DM Console re-reads
+  the campaign (`getCampaign`) at save time, refuses if its rules differ from what the editor loaded, previews against the
+  fresh rules and sends them as `expected`; the campaign save's pin overrides carry `expected` too. `null`/absent = no check,
+  so the server stays callable by older clients; every console call sends it.
+- **Non-targetable purchases.** `houseRulesImpact()` flags a seq that is not a whole JSON number, or a cost present but not a
+  number, as `ambiguousSeq` (pinned / left alone) — the RPC would refuse it and fail the whole call. No `compute()` change.
+- **0 is a value.** The shared `esc()` blanks 0; the new console code now escapes numbers as `esc(String(n))` (review AP left 0,
+  "3 → 0", refund 0, the grant picker's `data-ap`, which made a boon repriced to 0 grant at its printed price).
+- **Live Sheet `loadCloudChar`** resolves the campaign with `getCampaign()` (as startup does): `listMyCampaigns()` leaves out
+  archived campaigns, which left such a character strict until a reload. (The read-only DM view path still uses the list; it
+  buys nothing.)
+- The "Also remove" tooltip now says only boons and drawbacks are removed (never Bound bindings). The unreachable
+  threshold-lock branch is removed.
 

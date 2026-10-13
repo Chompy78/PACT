@@ -3296,12 +3296,13 @@ document.addEventListener('sync-ready', function () {
     _campaignName = window._lsCampaignName = null; window._rulesStatus = rec.campaign_id ? 'unavailable' : 'none';
     if(rec.campaign_id && window._campaignBridge) {
       try {
-        var camps = await window._campaignBridge.listMyCampaigns();
-        var camp = (camps||[]).find(function(c){ return c.id === rec.campaign_id; });
+        // getCampaign, not listMyCampaigns(): the list leaves out ARCHIVED campaigns, so a character bound to one was left with
+        // unknown rules — and strict (no boons/drawbacks) — until a reload took the startup getCampaign() path (PR #658 review).
+        var camp = await window._campaignBridge.getCampaign(rec.campaign_id);
         if(camp) { window._ignorePlayerAp = !!camp.ignore_player_ap; window._cloudCampaignRules = camp.rules || null; _campaignName = window._lsCampaignName = camp.name; window._rulesStatus = 'active'; }
       } catch(e) { /* non-fatal — ignore_player_ap/campaign rules default to off until this succeeds; window._rulesStatus correctly stays 'unavailable', not silently 'none' */ }
       if(window._rulesStatus==='active') await _lsFetchDowntimeWindow(rec.campaign_id, id);
-      await _lsRefreshVisibleCustomFields(id);   // independent of whether the listMyCampaigns() lookup above succeeded — the RPC re-derives campaign membership itself
+      await _lsRefreshVisibleCustomFields(id);   // independent of whether the getCampaign() lookup above succeeded — the RPC re-derives campaign membership itself
     } else {
       window._lsVisibleCustomFields = {};
       _lsWarnIfUnbound();
