@@ -30,6 +30,8 @@ on:
       - "testing/scripts/ledger-xss-e2e.mjs"
       - "testing/scripts/dm-console-notes-e2e.mjs"
       - "testing/scripts/campaign-house-rules-tools-e2e.mjs"
+      - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "js/dm.js"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -108,3 +110,9 @@ jobs:
       # house rules; Live Sheet custom drawback + W1 buy-off; V1 below-zero saves; offline snapshot; CharGen's own patch untouched.
       - name: Campaign house rules — the same AP left in all three tools
         run: node testing/scripts/campaign-house-rules-tools-e2e.mjs
+
+      # feat/campaign-house-rules-dm-editor: the DM's Character house rules editor — S2 tick / untick, T2 refund / removal
+      # (below 0 shown, not refused), one RPC call, an un-migrated server's plain message, escaped names, the generic Save rules
+      # never sending charHouseRules, effective grant / impose pickers, and the player tools showing the new values.
+      - name: Campaign house rules — the DM's editor, S2 / T2 previews and one RPC call
+        run: node testing/scripts/dm-campaign-house-rules-e2e.mjs

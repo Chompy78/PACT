@@ -317,7 +317,10 @@ try {
       const stored=JSON.parse(localStorage.getItem(KEY));
       window._lsCampaignId=null; LOG.length=0; SEQ=1; __charId=null;   // as a fresh boot would
       load();
-      return [stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];})()`),
+      const r=[stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];
+      // Back to solo for the cases below: a BOUND character whose campaign rules are unknown (no cloud, no snapshot) may not
+      // buy boons or drawbacks at all (feat/campaign-house-rules-dm-editor), and they price a solo character.
+      window._lsCampaignId=null; return r;})()`),
     ['camp-test-1', 'camp-test-1', true]);
   // currentCharId() mints on read — right for a genuinely new character, a hazard in a lookup.
   check('peekCharId() answers "have we an id" without minting one',

@@ -2244,6 +2244,22 @@ function _cgHrCtx(ev){
   return H.houseRulesCtxFromRules((snap && (!snap.campaignId || !cid || snap.campaignId===cid)) ? snap.rules : {}, cid || (snap && snap.campaignId) || null);
 }
 window._cgHrCtx=_cgHrCtx;
+// Bound, but THIS campaign's rules are unknown here (feat/campaign-house-rules-dm-editor; PR #654 round-3 finding 4): not the
+// live rules of its campaign, and no snapshot of that campaign in the LOG. _cgHrCtx() then carries no campaign house rules,
+// so an in-play boon or drawback would be priced at its printed value and postLockAllowance(null) would allow a post-lock
+// drawback — and the server refuses that save. Strict instead: _cgGateRules() reads {} (refused) and _cgPostLockAppend()
+// refuses boons and drawbacks. (A draft re-prices its boons at the campaign's prices once the rules are known.)
+function _cgHrRulesUnknown(){
+  if(window._cgCopySourceIsCopy || !_cgIsCampaignBound()) return false;
+  var c=window._cloudCampaign, cid=window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'?_cgPendingCampaignId:null)||null;
+  if(c && (!c.id || c.id===window._cgCampaignId)) return false;   // its campaign's rules are loaded (the gates' own source)
+  var H=window._engineHR; if(!H) return true;
+  var snap=H.latestRulesSnapshot(LOG);
+  return !(snap && (!snap.campaignId || !cid || snap.campaignId===cid));
+}
+// The campaign rules the post-lock gates read: unchanged (the cached campaign rules, else none) unless the character is bound
+// and its rules are unknown — then {} so postLockAllowance() refuses instead of treating it as solo.
+function _cgGateRules(){ return _cgHrRulesUnknown() ? {} : ((window._cloudCampaign&&window._cloudCampaign.rules)||null); }
 function _cgHrInCampaign(){ return !!_cgHrCtx(LOG); }
 // The source the effective tables are read from: the stamped fold in a campaign; solo, the page's own HOUSE (which the
 // DM-customisation editor updates before it writes the LOG — the grids are rebuilt in between).
@@ -3800,7 +3816,7 @@ function _cgPostLockSteps(slot,patch,cur){
     var changed=function(key){ return !_cgDeepEq(N(cur[key]),N(patch[key])); };
     if(slot==='traditions'){
       if(patch.traditions!==undefined){
-        var rules=(window._cloudCampaign&&window._cloudCampaign.rules)||null;
+        var rules=_cgGateRules();
         var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false),window.postLockAllowance(rules).bindings);
         steps=tr.steps; refuse=tr.refuse;
         if(refuse) tail='Nothing you have bought can be removed or lowered once creation is finished. You can still add and raise things by spending AP.';
@@ -3808,7 +3824,7 @@ function _cgPostLockSteps(slot,patch,cur){
     }else if(slot==='innate'){
       if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='misc'){
-      var _al=window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null);
+      var _al=window.postLockAllowance(_cgGateRules());
       if(patch.martiallyBound!==undefined&&changed('martiallyBound')){
         // Martially Bound is a one-way +2 AP purchase for the origin class (the Live Sheet's tile); it is offered only when not yet taken, and only where the campaign allows it.
         if(_al.bindings&&N(cur.martiallyBound)===''&&patch.martiallyBound===cur.originClass) steps.push({cat:'mbound',payload:{v:cur.originClass},label:'Martially Bound: '+cur.originClass});
@@ -3836,6 +3852,7 @@ function _cgPostLockAppend(steps){
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
+    if((st.cat==='boon'||st.cat==='drawback')&&_cgHrRulesUnknown()){ alert('\u26D4 Your campaign\'s house rules haven\'t loaded on this device, so boons and drawbacks can\'t be priced yet. Connect and reload this character to buy or take one.'); _cgRepaint(); return false; }
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;
@@ -4178,7 +4195,7 @@ function onChecklistToggle(el){
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
-      if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
+      if(cat==='drawback'&&!window.postLockAllowance(_cgGateRules()).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
     }else{
     const before=compute(dom).total;
@@ -4326,7 +4343,7 @@ function _cgSyncFlatCategory(cat){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
       if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle; stop at the first refusal (it repaints every control)
-        if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ _cgRefuseNewDrawback(); break; }
+        if(cat==='drawback'&&!window.postLockAllowance(_cgGateRules()).drawbacks){ _cgRefuseNewDrawback(); break; }
         if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v}])) break;
         continue;
       }

@@ -28,6 +28,9 @@ on:
       - "js/engine-data.js"
       - "js/campaign.js"
       - "testing/scripts/gen-drawback-prices-sql.mjs"
+      - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "tools/DM-Console.html"
+      - "js/dm.js"
       - ".github/workflows/sql-guards.yml"
   workflow_dispatch:
 
@@ -115,3 +118,26 @@ jobs:
         run: node testing/scripts/gen-drawback-prices-sql.mjs --check
       - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
         run: testing/scripts/creation-lock-guard-test/run-house-rules.sh
+
+  # feat/campaign-house-rules-dm-editor: what DM Console's Character house rules editor SENDS (captured by its e2e with
+  # --dump-calls) is replayed against the real migration in Docker: every call must be accepted, and the server's AP left
+  # must equal the engine's for every finished character. Needs Chromium for the capture, so it is its own job.
+  dm-house-rules-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+      - name: DM Console house-rules calls replayed against the real RPC
+        run: testing/scripts/creation-lock-guard-test/run-dm-house-rules-replay.sh

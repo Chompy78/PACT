@@ -332,3 +332,48 @@ code. Follow-up on the board: count AP-moving DM events only when their stamped 
 `campaign_id` — on BOTH sides (the engine has no campaign in `economy()`, so doing it server-only would split browser and server
 for every legitimately moved character; not cheap, so not done here) — or have the RPC record the amounts in a server-side
 table that the ledger reads instead of the player-writable log.
+
+## Addendum 2026-10-13 — PR4, the DM Console campaign editor (`feat/campaign-house-rules-dm-editor`)
+
+Technical choices (none owner-level unless listed under "Open"):
+
+- **One review dialog, two sections.** S2 and T2 are one modal (old → new, AP left before → after per holder, recomputed per
+  tick) followed by ONE `dm_apply_house_rules_change()` call. "AP left after" is the engine's `compute().spendable −
+  economy().spent` over the log PLUS the events the server will stamp (override snapshot with pins, reprices, refunds,
+  removals, DM-grant removals), so it is the figure the player's tools will show.
+- **Ticks are per (character, drawback name), not per purchase.** A pin changes the effective value of every copy of that
+  name for the character, so a name is either pinned or repriced as a whole; the RPC's M3 `to` check would refuse a mix.
+- **Who is tickable.** Explicit lock (the RPC's own test, mirrored as a raw-log scan — not a rule) and every copy uniquely
+  targetable. Drafts: listed, nothing sent (plan §5.4). Threshold-only lock (`creationLockState()` locked without an
+  explicit event — unreachable since the tripwire was retired, kept for safety) and a shared seq: pinned. A tick whose
+  `ledgerDelta` is 0 (`houseRulesImpact()` emits no event) records nothing — the server already counts the new value.
+- **T2.** Applies to what THIS save switches off (`barredNew`: a call turned off, a custom entry deleted). Bans are edited by
+  Save rules and keep their "stop new purchases only" behaviour. Order inside the RPC: override → reprices → refunds /
+  removals; DM-granted boons go through `dm_edit_character_log` AFTER the RPC (a separate, non-atomic call; a failure is
+  reported and the rules stay saved), offered only when every older open copy of that name is being removed too
+  (`dmRemoveBoon` is FIFO by name). A second open copy of a drawback is removed with a "0 AP" label (F1).
+- **Server detection.** A no-op probe (campaign id only — the RPC changes nothing) when the section is first opened per
+  campaign, plus the same check on the save error (`PGRST202` / "could not find the function").
+- **`charHouseRules` is never sent by the whole-blob saves** (Save rules, Save notes, the enforce toggle): stripped before
+  sending and re-attached to the cached copy, so the roster keeps pricing with it.
+- **Effective pickers.** Grant-boon lists the character's effective boon table (campaign customs, override prices; a barred
+  item stays grantable but says why) and the grant's buy/award pair uses the effective cost; the impose picker lists the
+  effective drawback table with a "Campaign drawbacks" group.
+- **Client strictness (round-3 finding 4).** A bound character whose campaign rules are unknown (no live rules of ITS
+  campaign, no snapshot of it) is strict: Live Sheet `_lsBarGrant()` refuses boons, drawbacks and buy-offs; CharGen
+  `_cgPostLockAppend()` refuses in-play boons / drawbacks (a draft re-prices boons once the rules are known); both
+  tools' post-lock gates read `{}` instead of `null` ("solo").
+- **Proof against the real server.** `run-dm-house-rules-replay.sh` replays the e2e's captured calls on the PR3 migration
+  in Docker: every call accepted; server AP left = engine AP left for every finished holder.
+
+### Open (owner) — found while building PR4
+
+1. **Draft holders of a repriced drawback disagree with the server on an increase.** Plan §5.4 says a draft "picks up the
+   change by itself", but `repriceDraft()` never re-stamps drawback costs and the RPC refuses AP-moving events on drafts, so
+   when a held drawback's value RISES the draft's browser shows the new grant while the server credits
+   `least(−cost, effective)` = the old one (replay: Bo 15 vs 13) — a purchase spending the difference is refused on save.
+   On a decrease both agree. Options: (a) pin drafts too (agreement; the draft keeps the old value), (b) let the RPC reprice
+   a draft's drawback (server change), (c) accept (as implemented, per the plan).
+2. **T2 and bans.** A newly banned item can't be taken away with refund (bans live in Save rules, which keeps "stop new
+   purchases only"). Should Save rules offer T2 for newly banned items too?
+

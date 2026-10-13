@@ -370,6 +370,19 @@
   .dp-row{margin:6px 0;}
   .dp-warn{margin:8px 0;padding:6px 8px;border-radius:7px;background:rgba(200,120,0,.14);font-size:12px;}
   .dp-empty{color:var(--muted);}
+  /* feat/campaign-house-rules-dm-editor: the Character house rules editor and its review dialog. */
+  .chr-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;margin:3px 0;padding:3px 0;border-bottom:1px solid var(--line,rgba(0,0,0,.08));}
+  .chr-nm{flex:2 1 200px;min-width:0;overflow-wrap:anywhere;}
+  .chr-tag{color:var(--muted);font-size:11px;}
+  .chr-f{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:3px;}
+  .chr-f input{width:64px;}
+  .chr-row .chr-fx{flex:3 1 180px;min-width:0;}
+  .chr-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;}
+  .chr-tbl th{text-align:left;font-size:11px;color:var(--muted);font-weight:700;padding:4px 6px;border-bottom:1px solid var(--line,rgba(0,0,0,.12));}
+  .chr-tbl td{padding:4px 6px;vertical-align:top;border-bottom:1px solid var(--line,rgba(0,0,0,.06));overflow-wrap:anywhere;}
+  .chr-why{font-size:11px;color:var(--muted);}
+  .chr-na{font-size:11px;color:var(--muted);white-space:nowrap;}
+  .chr-neg{color:var(--bad,#b42318);font-weight:700;}
   .dp-msg{flex:1 1 100%;font-size:12px;color:#b00020;min-height:0;}
   .dp-msg:empty{display:none;}
   .dp-actions{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:14px;}
@@ -946,6 +959,46 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   </div>
                 </div>
                 <div class="grantnote">Read-only for players — they see these rules in the Live Sheet but can't change them.</div>
+              </div>
+            </details>
+          </div>
+
+          <!-- feat/campaign-house-rules-dm-editor (D-GH-2026-10-13-campaign-house-rules, PR4): the CHARACTER house rules
+               every character in this campaign is priced with — campaigns.rules.charHouseRules. Saved on its own button
+               through dm_apply_house_rules_change() (never by "Save rules": the server keeps that key out of the whole-blob
+               save), because a change can move AP for characters who hold an item, so it is previewed per holder first.
+               Shares the rules lock and the archived-campaign peek like the tiles around it. -->
+          <div class="subtile" id="campCharHouseRulesTile">
+            <details id="campCharHouseRulesDetails">
+              <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Character house rules <span class="dsum" id="chrSummary"></span></summary>
+              <div style="margin-top:8px">
+                <div id="chrServerMsg" class="dp-warn" role="status" hidden></div>
+                <div class="grantnote" style="margin-top:0">What CharGen calls the DM Calls and DM customisations, set once for the whole table. Every character in this campaign is priced with these; a character&rsquo;s own CharGen house rules apply only when it is not in a campaign.</div>
+                <div class="ruleblock">
+                  <div class="lbl">DM Calls <button type="button" class="infobtn" title="Untick a call to stop players taking that kind of option NEW. It never takes away anything a character already owns — unless you tick “Also remove from characters who own it” below before saving.">&#9432;</button></div>
+                  <div id="chrCalls" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"></div>
+                </div>
+                <div class="ruleblock">
+                  <div class="lbl">Custom &amp; repriced boons and drawbacks <button type="button" class="infobtn" title="A new name adds a custom boon or drawback for this campaign; a built-in name reprices it. A boon a character already bought keeps the price they paid. A drawback is different: what it gives is worked out from its CURRENT value, so changing one that characters hold changes their AP — when you save, you choose who it applies to (the others keep their old value).">&#9432;</button></div>
+                  <div id="chrTable"></div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                    <select class="field" id="chrAddKind" style="flex:0 0 auto"><option value="boon">Boon</option><option value="draw">Drawback</option></select>
+                    <input type="text" class="field" id="chrAddName" maxlength="80" placeholder="Name (a built-in name reprices it)" style="flex:2 1 180px">
+                    <input type="number" class="field" id="chrAddHd" min="1" max="20" step="1" placeholder="HD" title="Hit Dice needed (boons only; blank = the built-in's, or 1)" style="flex:0 1 64px">
+                    <input type="number" class="field" id="chrAddAp" min="0" max="1000" step="1" placeholder="AP" title="AP it costs (boon) or gives (drawback)" style="flex:0 1 70px">
+                    <input type="text" class="field" id="chrAddFx" maxlength="500" placeholder="What it does (optional)" style="flex:3 1 200px">
+                    <button type="button" class="btn sm ghost" id="chrAddBtn">Add / reprice</button>
+                  </div>
+                </div>
+                <div class="grantnote">To <b>disable</b> a boon or drawback for this campaign, tick it under <a href="#ruleBannedBoons" id="chrBansLink">Banned boons / Banned drawbacks</a> in Campaign Rules and press Save rules. A banned item can&rsquo;t be bought new; characters who already own it keep it.</div>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="chrT2"> Also remove from characters who own it (refund) <button type="button" class="infobtn" title="Off (the default): a call you switch off, or a custom item you delete, only stops NEW picks — owners keep what they have. On: anything this save switches off is also taken away from characters who own it. A boon they paid for is refunded (its AP only — not any gold or downtime it cost); a drawback’s AP is taken back, which can leave a character below 0 AP. You see every holder before anything is saved. Characters still in creation are not touched.">&#9432;</button>
+                </label>
+                <div style="display:flex;align-items:center;gap:8px;margin:2px 0 0">
+                  <button type="button" class="btn sm" id="chrSaveBtn">Save character house rules</button>
+                  <span id="chrSaveStatus" style="font-size:11px;color:var(--muted)"></span>
+                </div>
+                <div class="grantnote">Saved on its own button, not with Save rules: you see who it affects before anything is written.</div>
               </div>
             </details>
           </div>
@@ -1763,7 +1816,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
          '<span class="dm-notes-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
-    h += dmEditBody(id, curBoons, lockedDraws, heldDraws);
+    h += dmEditBody(id, curBoons, lockedDraws, heldDraws, dm && dm.log);
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -1921,9 +1974,32 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // Every write goes through dm_edit_character_log (SECURITY DEFINER) — this UI never touches
   // characters.stats directly. Scope: boons and drawbacks only (owner, 2026-08-05 — "not a general
   // editor"); the server enforces the same allowlist independently.
-  function dmEditBody(id, curBoons, lockedDraws, heldDraws){
-    var boonOpts = DATA.boonList.map(function(n){
-      return '<option value="'+esc(n)+'">'+esc(n)+' ('+((DATA.boons[n]&&DATA.boons[n].ap)||0)+' AP)</option>';
+  // Campaign house rules (feat/campaign-house-rules-dm-editor): the boon / drawback tables THIS character prices
+  // with — the selected campaign's charHouseRules, its ban lists and the DM's per-character override for it — from the
+  // engine (effectiveBoonTable / effectiveDrawbackTable over the same stamped fold cloudAnalyze() prices the card
+  // with). null when there is no log or no engine bridge: callers then fall back to the printed DATA tables.
+  function _dmRowEffTables(log){
+    var H = window._engineHR, F = window._engineFold, apr = window._dmCampaignApRules || {};
+    if(!H || !F || !Array.isArray(log)) return null;
+    try {
+      var b = H.withHouseRulesCtx(F.foldBuild(log), apr.rules ? H.houseRulesCtxFromRules(apr.rules, apr.campaignId || null) : null);
+      return { boons: H.effectiveBoonTable(b), draws: H.effectiveDrawbackTable(b) };
+    } catch(e){ return null; }
+  }
+  function dmEditBody(id, curBoons, lockedDraws, heldDraws, log){
+    // The grant-boon picker lists the EFFECTIVE boons (campaign custom ones included) at their effective price — the
+    // cost the grant records, so the buy/award pair stays matched at what this character's tools charge for it. An
+    // item players may not buy new here is still grantable (the DM decides), and says why it is barred for players.
+    var _et = _dmRowEffTables(log);
+    var _bt = _et ? _et.boons : null;
+    var _bNames = _bt ? DATA.boonList.filter(function(n){ return !!_bt[n]; })
+      .concat(Object.keys(_bt).filter(function(n){ return !DATA.boons[n]; }).sort(function(a,b){ return a.localeCompare(b); }))
+      : DATA.boonList;
+    var boonOpts = _bNames.map(function(n){
+      var row = _bt && _bt[n], ap = row ? (Number(row.ap) || 0) : ((DATA.boons[n]&&DATA.boons[n].ap)||0);
+      var tag = row && !DATA.boons[n] ? ' — campaign boon' : (row && row.source && row.source !== 'printed' ? ' — house-ruled price' : '');
+      var why = row && !row.allowed && row.reason ? ' — '+row.reason : '';
+      return '<option value="'+esc(n)+'" data-ap="'+esc(ap)+'">'+esc(n)+' ('+esc(ap)+' AP)'+esc(tag)+esc(why)+'</option>';
     }).join('');
     // feat/permanent-wounds / feat/dm-impose-picker: the impose control lists EVERY drawback — including the four
     // wound-only entries, which exist only for a DM to impose — in the pop-up picker (openDrawPicker), which owns the
@@ -2522,22 +2598,32 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     for(var i=0;i<all.length;i++) if(all[i].getAttribute('data-cid')===cid) return all[i];
     return null;
   }
-  function _dpGroups(){
+  // The drawback value / text the picker shows: the character's EFFECTIVE table when the card carried one
+  // (feat/campaign-house-rules-dm-editor — campaign values, the DM's per-character override, campaign custom
+  // drawbacks), else the printed DATA tables.
+  function _dpAp(n){ var T = _dp && _dp.eff; return (T && T[n]) ? (Number(T[n].ap) || 0) : (DATA.drawbacks[n]||0); }
+  function _dpGroups(T){
     var W = DATA.wounds || {}, out = [];
+    var ap = function(n){ return (T && T[n]) ? (Number(T[n].ap) || 0) : (DATA.drawbacks[n]||0); };
     [['minor','Wounds — minor'],['moderate','Wounds — moderate']].forEach(function(g){
       var names = Object.keys(W).filter(function(n){ return W[n].tier===g[0] && DATA.drawbacks[n]!==undefined; })
-        .sort(function(a,b){ return (DATA.drawbacks[a]-DATA.drawbacks[b]) || a.localeCompare(b); });
+        .sort(function(a,b){ return (ap(a)-ap(b)) || a.localeCompare(b); });
       if(names.length) out.push({label:g[1], names:names});
     });
     var others = Object.keys(DATA.drawbacks).filter(function(n){ return !W[n]; }).sort(function(a,b){ return a.localeCompare(b); });
+    // Campaign custom drawbacks (not in the printed table) get their own group, first after the wounds.
+    var customs = T ? Object.keys(T).filter(function(n){ return DATA.drawbacks[n]===undefined; }).sort(function(a,b){ return a.localeCompare(b); }) : [];
+    if(customs.length) out.push({label:'Campaign drawbacks (house rules)', names:customs});
     out.push({label:'Other drawbacks', names:others});
     return out;
   }
   function _dpDetailHTML(n, held){
-    var W = (DATA.wounds||{})[n], ap = DATA.drawbacks[n]||0, fx = (DATA.drawbackFx||{})[n];
+    var T = _dp && _dp.eff, er = T && T[n];
+    var W = (DATA.wounds||{})[n], ap = _dpAp(n), fx = (er && er.fx) || (DATA.drawbackFx||{})[n];
     var h = '<h4>'+esc(n)+'</h4><div>';
     if(W){ h += '<span class="dp-badge">Wound — '+esc(W.tier)+'</span>'; if(W.slot) h += '<span class="dp-badge">Place: '+esc(W.slot)+'</span>'; if(W.dmOnly) h += '<span class="dp-badge">Only a DM can impose this</span>'; }
-    else h += '<span class="dp-badge">Ordinary drawback</span>';
+    else h += '<span class="dp-badge">'+(er && DATA.drawbacks[n]===undefined ? 'Campaign drawback (house rules)' : 'Ordinary drawback')+'</span>';
+    if(er && er.source && er.source !== 'printed' && DATA.drawbacks[n]!==undefined) h += '<span class="dp-badge">House-ruled value (printed '+esc(DATA.drawbacks[n])+' AP)</span>';
     h += '</div>';
     // An alias repeats another wound's effect under a different name (DATA.wounds[n].sameAs, display-only): say which, and whether
     // players can take the original, so the DM can see at a glance that the two differ only in the story they tell.
@@ -2630,8 +2716,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     }
   }
   function openDrawPicker(opener){
-    var cid = opener.getAttribute('data-cid'), held = [];
+    var cid = opener.getAttribute('data-cid'), held = [], eff = null;
     try{ held = JSON.parse(opener.getAttribute('data-held')||'[]'); }catch(e){}
+    // This character's effective drawback table (campaign values / custom drawbacks / the DM's override for them).
+    var _ent = _cloudEntry(cid), _et = _dmRowEffTables(_ent && _ent.dm && _ent.dm.log); eff = _et ? _et.draws : null;
     var lockedEl = _dpByCid('.dm-impose-draw-locked', cid), rateEl = _dpByCid('.dm-impose-draw-rate', cid);
     var ov = $('dmDrawPick');
     if(!ov){
@@ -2641,9 +2729,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       ov.addEventListener('keydown', _dpOnKey);
       ov.addEventListener('input', function(e){ if(_dp && e.target && e.target.id==='dpSearch') _dpFilter(); });
     }
-    var list = _dpGroups().map(function(g){
+    var _apOf = function(n){ return (eff && eff[n]) ? (Number(eff[n].ap) || 0) : (DATA.drawbacks[n]||0); };
+    var list = _dpGroups(eff).map(function(g){
       return '<div class="dp-group"><div class="dp-grp">'+esc(g.label)+'</div>'+g.names.map(function(n){
-        return '<button type="button" class="dp-item" aria-pressed="false" data-name="'+esc(n)+'"><span>'+esc(n)+'</span><span class="dp-ap">'+(DATA.drawbacks[n]||0)+' AP</span></button>';
+        return '<button type="button" class="dp-item" aria-pressed="false" data-name="'+esc(n)+'"><span>'+esc(n)+'</span><span class="dp-ap">'+esc(_apOf(n))+' AP</span></button>';
       }).join('')+'</div>';
     }).join('');
     ov.innerHTML = '<div class="ov-card dp-card" role="dialog" aria-modal="true" aria-labelledby="dpTitle" tabindex="-1">' +
@@ -2664,7 +2753,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     // aria-modal alone does not stop assistive tech or Tab reaching the page behind, so make the rest of the page inert.
     var inerted = [];
     Array.prototype.forEach.call(document.body.children, function(c){ if(c!==ov && !c.inert){ c.inert = true; inerted.push(c); } });
-    _dp = { cid: cid, held: held, sel: '', wasWound: false, opener: opener, inerted: inerted };
+    _dp = { cid: cid, held: held, eff: eff, sel: '', wasWound: false, opener: opener, inerted: inerted };
     $('dpLocked').checked = !!(lockedEl && lockedEl.checked);
     $('dpRate').value = (rateEl && rateEl.value) || 'flat';
     ov.classList.add('on');
@@ -3105,7 +3194,11 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         var gbStatus = card.querySelector('.dm-status[data-cid="'+gbcid+'"][data-kind="grant-boon"]');
         var boonName = gbSel && gbSel.value;
         if(!boonName){ alert('Choose a boon first.'); return; }
-        var boonCost = (DATA.boons[boonName] && DATA.boons[boonName].ap) || 0;
+        // The effective price this character's tools charge (the option's data-ap, from _dmRowEffTables), so the
+        // buy/award pair stays matched; the printed price only when the card had no house-rules table.
+        var _gbOpt = gbSel.options[gbSel.selectedIndex];
+        var _gbAp = _gbOpt ? _gbOpt.getAttribute('data-ap') : null;
+        var boonCost = (_gbAp != null && _gbAp !== '' && Number.isFinite(Number(_gbAp))) ? Number(_gbAp) : ((DATA.boons[boonName] && DATA.boons[boonName].ap) || 0);
         grantBoonBtn.disabled = true; if(gbStatus) gbStatus.textContent = 'Granting…';
         B.dmEditCharacterLog(gbcid, [
           {type:'buy', cat:'boon', payload:{v:boonName}, cost:boonCost, label:'Boon — '+boonName+' (DM granted)'},
@@ -3530,10 +3623,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
   import { apEncodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with Live Sheet (fixed 2026-09-10 — see that file's header)
-  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable } from '../js/engine.js';
+  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesImpact } from '../js/engine.js';
   import { houseRulesCtxFromRules, latestRulesSnapshot } from '../js/campaign-rules.js';
   // Campaign house rules (feat/campaign-house-rules-tools): in the ENGINE bridge so the fold stamp works offline too.
-  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesCtxFromRules, latestRulesSnapshot };
+  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesImpact, houseRulesCtxFromRules, latestRulesSnapshot };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window.apEncodeGrant = apEncodeGrant; window.makeGrantId = makeGrantId;
@@ -3549,13 +3642,13 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // whole console: campaign-ready simply never fires and window._campBridge stays undefined.
   import { currentSession, onSessionChange, myProfile, logout, updatePassword } from '../js/auth.js';
   import { drawbackCapFromRules, drawbackCountAdviceFromRules, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm } from '../js/campaign.js';
-  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
+  import { getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, dmApplyHouseRulesChange, getHouseRulesRoster, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer } from '../js/dm.js';
   // Only the pure state->presentation mapping (feat/shared-sync-chip) -- DM Console never holds a
   // single character's build open the way the editor tools do, so it only ever needs the signed-out/
   // signed-in subset, not getSyncState()/noteEdit()/checkFreshness(). No new CDN liability: js/auth.js
   // above already pulls in js/supabase-client.js, so this adds no additional network dependency.
   import { chipPresentation, SIGNED_OUT, IDLE, listMyCharacters } from '../js/sync.js';
-  window._campBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
+  window._campBridge = { drawbackCapFromRules, drawbackCountAdviceFromRules, currentSession, onSessionChange, myProfile, logout, updatePassword, listMyCampaigns, setIgnorePlayerAp, setCampaignRules, getRoster, awardAp, awardGold, sealHistory, awardApAndSeal, getGoldHistory, declareDowntime, getDowntimeWindow, getDowntimeHistory, dmEditCharacterLog, dmApplyHouseRulesChange, getHouseRulesRoster, getAwardHistory, getPartyAwardHistory, editApAward, getAwardEditHistory, unbindCharacter, bindNpc, listMyCharacters, setCharacterDmNotes, setCharacterCustomFields, setCreationCeiling, reopenCreation, zeroPlayerAp, setBasicMode, unsetBasicModeForPlayer, createPlayerInvite, createDmInvite, redeemDmInvite, listCampaignInvites, setInviteRevoked, createCampaign, archiveCampaign, unarchiveCampaign, getCampaignDms, removeDm };
   window._chipPresentation = chipPresentation; window._SIGNED_OUT = SIGNED_OUT; window._IDLE = IDLE;
   document.dispatchEvent(new Event('campaign-ready'));
 </script>
@@ -3713,7 +3806,7 @@ document.addEventListener('campaign-ready', function () {
   // Campaign-scoped controls only. #campManageTile is deliberately absent — "+ Create campaign" and
   // the Unarchive buttons belong to the DM, not to the campaign being peeked, and locking the way
   // back out would be a trap.
-  var _PEEK_SCOPES = ['campAwardApTile','campDowntimeTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
+  var _PEEK_SCOPES = ['campAwardApTile','campDowntimeTile','campOwnerTile','campInviteTile','campDmInviteTile','campRulesTile','campCharHouseRulesTile','campAdvancementTile','campCustomFieldsTile','dmNotesTile','campRoster'];
 
   /* Shared by _peekLockEls() and _ruleLockEls() below: both are "every input/select/textarea/button
      under these tile ids, plus these extra elements that live outside any tile, minus the ⓘ info
@@ -3937,6 +4030,7 @@ document.addEventListener('campaign-ready', function () {
     _renderEconomyRowGrid();
     currentHouseRules = Object.assign({}, r.houseRules || {});
     renderHouseRules();
+    _chrLoad(r.charHouseRules);   // feat/campaign-house-rules-dm-editor: the character house rules editor (its own save)
     loadCustomFieldDefsIntoPanel(r.customFields);
     ruleSaveStatus.textContent = '';
     renderRulesSummary(r);
@@ -4411,6 +4505,508 @@ document.addEventListener('campaign-ready', function () {
     ruleHouseRuleName.value = '';
     renderHouseRules();
   });
+  /* ---- Character house rules (feat/campaign-house-rules-dm-editor — PR4 of D-GH-2026-10-13-campaign-house-rules) ----
+     campaigns.rules.charHouseRules: the DM Calls and the custom / repriced boons and drawbacks every character in this
+     campaign is priced with (owner decision P2). Its ONE writer is dm_apply_house_rules_change() — the server's guard
+     keeps the key out of the whole-blob "Save rules" (_rulesBlobForSave below never sends it either) — and a save goes
+     through a per-holder preview first:
+       S2  a held drawback whose value changes: each holder is listed with its AP left before -> after and a tick;
+           ticked = the change applies to them (a dmRepriceDrawback the server records too, so browser and server move
+           together); unticked (the default) = they keep the old value (a pin in their per-character override).
+           Not tickable: a character still in creation (its draft picks the change up by itself — listed only), one whose
+           creation was finished by the AP threshold rather than "Finish creating" (the server only reprices an explicit
+           creationLocked — pinned), and a purchase whose event number is shared (nothing can target it — pinned).
+       T2  "Also remove from characters who own it (refund)" (default off): what this save switches off is taken away
+           from its owners — a paid boon refunded (dmRefundBoon), a drawback's grant taken back (dmRemoveDrawback), a
+           DM-granted boon removed without refund (dmRemoveBoon, only when it is the oldest open copy, since that event
+           is FIFO by name). V1: a character may end below 0 AP; shown in red, not refused.
+     All the arithmetic is the engine's (houseRulesImpact, compute, economy over the log plus the events the server will
+     stamp); nothing here prices anything itself. Every name is DM- or player-typed: esc() in HTML, data-* attributes for
+     identity (indices, never names inside handlers). */
+  var _CHR_CALLS = [
+    ['bound',     '⚔✦ Bound (martial & magical)', 'Martially Bound and Magically Bound'],
+    ['boons',     '✦ Boons',                           'buying boons'],
+    ['drawbacks', '✗ Drawbacks',                       'taking drawbacks'],
+    ['tasha',     '🜂 Non-core (XGtE/TCoE)',      'non-core (XGtE / TCoE) items']];
+  var _CHR_BAD_NAMES = { '__proto__': 1, 'constructor': 1, 'prototype': 1 };
+  var _CHR_MISSING_MSG = 'The server has not been updated for campaign house rules yet. Ask the app owner to apply the latest database update (campaign-house-rules-server), then try again. Nothing was changed.';
+  var _chrSaved = null, _chrDraft = null, _chrServerMissing = {}, _chrProbed = {};
+  // The editable shape: every call as a boolean (absent = on), entries copied as they are (never clamped — _chrProblem()
+  // names anything the server would refuse, so a stored value is never silently rewritten).
+  function _chrNormalise(hr){
+    hr = (hr && typeof hr === 'object' && !Array.isArray(hr)) ? hr : {};
+    var out = { dmAllows: {}, boons: {}, draws: {} };
+    var num = function(v, dflt){ return (v == null || v === '') ? dflt : Number(v); };
+    var da = (hr.dmAllows && typeof hr.dmAllows === 'object') ? hr.dmAllows : {};
+    _CHR_CALLS.forEach(function(c){ out.dmAllows[c[0]] = da[c[0]] !== false; });
+    var bo = (hr.boons && typeof hr.boons === 'object') ? hr.boons : {};
+    Object.keys(bo).forEach(function(k){ var b = bo[k] || {}; out.boons[k] = { hd: num(b.hd, 1), ap: num(b.ap, 0), fx: b.fx == null ? '' : String(b.fx) }; });
+    var dr = (hr.draws && typeof hr.draws === 'object') ? hr.draws : {};
+    Object.keys(dr).forEach(function(k){ var d = dr[k] || {}; out.draws[k] = { ap: num(d.ap, 0), fx: d.fx == null ? '' : String(d.fx) }; });
+    return out;
+  }
+  // What the server stores: {schema:1} plus only what differs from "all calls on, nothing custom" — keys sorted so two
+  // equal rule sets serialise identically (the "nothing changed" test).
+  function _chrForServer(d){
+    var out = { schema: 1 };
+    if(_CHR_CALLS.some(function(c){ return d.dmAllows[c[0]] === false; })){
+      out.dmAllows = {}; _CHR_CALLS.forEach(function(c){ out.dmAllows[c[0]] = d.dmAllows[c[0]] !== false; });
+    }
+    var bk = Object.keys(d.boons).sort(), dk = Object.keys(d.draws).sort();
+    if(bk.length){ out.boons = {}; bk.forEach(function(k){ var b = d.boons[k]; out.boons[k] = { hd: b.hd, ap: b.ap }; if(b.fx) out.boons[k].fx = b.fx; }); }
+    if(dk.length){ out.draws = {}; dk.forEach(function(k){ var x = d.draws[k]; out.draws[k] = { ap: x.ap }; if(x.fx) out.draws[k].fx = x.fx; }); }
+    return out;
+  }
+  function _chrSame(a, b){ return JSON.stringify(_chrForServer(a)) === JSON.stringify(_chrForServer(b)); }
+  // The first entry the server would refuse, in plain words ('' = none). Checked on the WHOLE set before sending.
+  function _chrProblem(d){
+    var whole = function(v, lo, hi){ return typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi; };
+    var nameBad = function(k){ return !k.trim() || k.length > 80 || _CHR_BAD_NAMES[k] === 1; };
+    var k;
+    for(k in d.boons){ var b = d.boons[k];
+      if(nameBad(k)) return 'the boon name “'+k.slice(0, 40)+'” is blank, longer than 80 characters, or a reserved word.';
+      if(!whole(b.ap, 0, 1000)) return 'the boon “'+k+'” needs its AP as a whole number from 0 to 1000.';
+      if(!whole(b.hd, 1, 20)) return 'the boon “'+k+'” needs its Hit Dice as a whole number from 1 to 20.';
+      if(b.fx.length > 500) return 'the description of the boon “'+k+'” is longer than 500 characters.';
+    }
+    for(k in d.draws){ var x = d.draws[k];
+      if(nameBad(k)) return 'the drawback name “'+k.slice(0, 40)+'” is blank, longer than 80 characters, or a reserved word.';
+      if(!whole(x.ap, 0, 1000)) return 'the drawback “'+k+'” needs its AP as a whole number from 0 to 1000.';
+      if(x.fx.length > 500) return 'the description of the drawback “'+k+'” is longer than 500 characters.';
+    }
+    if(JSON.stringify(_chrForServer(d)).length > 30000) return 'the house rules are too large (the server keeps 32 KB at most) — shorten some descriptions.';
+    return '';
+  }
+  function _chrIsMissingFn(err){
+    var m = String((err && err.message) || err || ''), c = String((err && err.code) || '');
+    return c === 'PGRST202' || (/dm_apply_house_rules_change/i.test(m) && /could not find|does not exist|schema cache/i.test(m));
+  }
+  function _chrShowServerMsg(){
+    var el = document.getElementById('chrServerMsg'); if(!el) return;
+    var missing = !!(currentCampId && _chrServerMissing[currentCampId]);
+    el.hidden = !missing; el.textContent = missing ? _CHR_MISSING_MSG : '';
+  }
+  function _chrLocked(){ return !!(ruleMultiDisc && ruleMultiDisc.disabled) || !!peekCamp; }
+  function _chrSummary(d){
+    var off = _CHR_CALLS.filter(function(c){ return d.dmAllows[c[0]] === false; }).length;
+    var n = Object.keys(d.boons).length + Object.keys(d.draws).length;
+    return (off ? off + ' call' + (off === 1 ? '' : 's') + ' off' : 'all calls on') + ' · ' + (n ? n + ' custom/repriced' : 'nothing custom');
+  }
+  function _chrRefreshStatus(){
+    var st = document.getElementById('chrSaveStatus'), sm = document.getElementById('chrSummary');
+    if(sm && _chrSaved) sm.textContent = _chrSummary(_chrSaved);
+    if(st && _chrDraft && _chrSaved && !st.getAttribute('data-busy')) st.textContent = _chrSame(_chrDraft, _chrSaved) ? '' : 'Unsaved changes.';
+  }
+  function _chrRender(){
+    var calls = document.getElementById('chrCalls'), tbl = document.getElementById('chrTable');
+    if(!calls || !tbl || !_chrDraft) return;
+    var d = _chrDraft, D = window.DATA || {};
+    calls.innerHTML = _CHR_CALLS.map(function(c){
+      return '<label style="font-size:12px;display:flex;align-items:center;gap:4px" title="Allow '+esc(c[2])+'">' +
+        '<input type="checkbox" class="chr-call" data-key="'+esc(c[0])+'"'+(d.dmAllows[c[0]] !== false ? ' checked' : '')+'> '+esc(c[1])+'</label>';
+    }).join('');
+    var rows = [];
+    Object.keys(d.boons).sort().forEach(function(k){ var b = d.boons[k], bi = D.boons && D.boons[k];
+      rows.push('<div class="chr-row" data-kind="boon" data-name="'+esc(k)+'">' +
+        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(bi ? 'repriced boon (printed '+esc(bi.ap)+' AP, HD '+esc(bi.hd)+'+)' : 'custom boon')+'</span></span>' +
+        '<label class="chr-f">HD <input type="number" class="field chr-hd" min="1" max="20" step="1" value="'+esc(b.hd)+'"></label>' +
+        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(b.ap)+'"></label>' +
+        '<input type="text" class="field chr-fx" maxlength="500" placeholder="What it does" value="'+esc(b.fx)+'">' +
+        '<button type="button" class="btn sm ghost chr-del">'+(bi ? 'Back to printed' : 'Delete')+'</button></div>'); });
+    Object.keys(d.draws).sort().forEach(function(k){ var x = d.draws[k], pv = D.drawbacks ? D.drawbacks[k] : undefined;
+      rows.push('<div class="chr-row" data-kind="draw" data-name="'+esc(k)+'">' +
+        '<span class="chr-nm"><b>'+esc(k)+'</b> <span class="chr-tag">'+(pv !== undefined ? 'repriced drawback (printed '+esc(pv)+' AP)' : 'custom drawback')+'</span></span>' +
+        '<label class="chr-f">AP <input type="number" class="field chr-ap" min="0" max="1000" step="1" value="'+esc(x.ap)+'"></label>' +
+        '<input type="text" class="field chr-fx" maxlength="500" placeholder="What it does" value="'+esc(x.fx)+'">' +
+        '<button type="button" class="btn sm ghost chr-del">'+(pv !== undefined ? 'Back to printed' : 'Delete')+'</button></div>'); });
+    tbl.innerHTML = rows.length ? rows.join('') : '<div style="font-size:11px;color:var(--muted)">No custom or repriced boons or drawbacks — everything is at its printed value.</div>';
+    // A re-render makes fresh controls: give them the lock / peek state the rest of the panel is in.
+    var lk = _chrLocked();
+    document.querySelectorAll('#campCharHouseRulesTile input, #campCharHouseRulesTile select, #campCharHouseRulesTile button').forEach(function(el){
+      if(!el.classList.contains('infobtn')) el.disabled = lk;
+    });
+    _chrShowServerMsg();
+    _chrRefreshStatus();
+  }
+  // draftRules: what the editor shows (the campaign's own, or a "Copy rules from another campaign" source). The SAVED
+  // set is always the selected campaign's — the preview diffs against what the server holds.
+  function _chrLoad(draftRules){
+    var camp = currentCampaigns.find(function(c){ return c.id === currentCampId; }) || ((peekCamp && peekCamp.id === currentCampId) ? peekCamp : null);
+    _chrSaved = _chrNormalise(camp && camp.rules && camp.rules.charHouseRules);
+    _chrDraft = _chrNormalise(draftRules);
+    var t2 = document.getElementById('chrT2'); if(t2) t2.checked = false;
+    var st = document.getElementById('chrSaveStatus'); if(st){ st.removeAttribute('data-busy'); st.textContent = ''; }
+    _chrRender();
+  }
+  (function _wireCharHouseRules(){
+    var tile = document.getElementById('campCharHouseRulesTile'); if(!tile) return;
+    tile.addEventListener('change', function(e){
+      var t = e.target; if(!_chrDraft || !t) return;
+      if(t.classList.contains('chr-call')){ _chrDraft.dmAllows[t.getAttribute('data-key')] = !!t.checked; _chrRefreshStatus(); }
+    });
+    tile.addEventListener('input', function(e){
+      var t = e.target, row = t && t.closest ? t.closest('.chr-row') : null; if(!_chrDraft || !row) return;
+      var kind = row.getAttribute('data-kind'), name = row.getAttribute('data-name');
+      var ent = (kind === 'boon' ? _chrDraft.boons : _chrDraft.draws)[name]; if(!ent) return;
+      var n = function(v){ return v === '' ? NaN : Number(v); };
+      if(t.classList.contains('chr-hd')) ent.hd = n(t.value);
+      else if(t.classList.contains('chr-ap')) ent.ap = n(t.value);
+      else if(t.classList.contains('chr-fx')) ent.fx = String(t.value || '').slice(0, 500);
+      _chrRefreshStatus();
+    });
+    tile.addEventListener('click', function(e){
+      var t = e.target; if(!t || !t.closest) return;
+      var del = t.closest('.chr-del');
+      if(del && _chrDraft){
+        var row = del.closest('.chr-row'), kind = row && row.getAttribute('data-kind'), name = row && row.getAttribute('data-name');
+        if(kind === 'boon') delete _chrDraft.boons[name]; else if(kind === 'draw') delete _chrDraft.draws[name];
+        _chrRender(); return;
+      }
+      if(t.id === 'chrAddBtn' && _chrDraft){
+        var D = window.DATA || {};
+        var kind2 = document.getElementById('chrAddKind').value === 'draw' ? 'draw' : 'boon';
+        var name2 = (document.getElementById('chrAddName').value || '').replace(/\s+/g, ' ').trim();
+        var apRaw = (document.getElementById('chrAddAp').value || '').trim(), ap = Number(apRaw);
+        var hdRaw = (document.getElementById('chrAddHd').value || '').trim();
+        var fx = (document.getElementById('chrAddFx').value || '').trim().slice(0, 500);
+        if(!name2 || name2.length > 80 || _CHR_BAD_NAMES[name2] === 1){ alert('Enter a name (up to 80 characters).'); return; }
+        // 0 to 1000 whole AP: a negative boon would be a hidden AP grant, so it is not offered.
+        if(apRaw === '' || !Number.isInteger(ap) || ap < 0 || ap > 1000){ alert('Enter the AP as a whole number from 0 to 1000.'); return; }
+        if(kind2 === 'boon'){
+          var bi = D.boons && D.boons[name2], hd = hdRaw === '' ? Number((bi && bi.hd) || 1) : Number(hdRaw);
+          if(!Number.isInteger(hd) || hd < 1 || hd > 20){ alert('Hit Dice must be a whole number from 1 to 20.'); return; }
+          _chrDraft.boons[name2] = { hd: hd, ap: ap, fx: fx };
+        } else {
+          _chrDraft.draws[name2] = { ap: ap, fx: fx };
+        }
+        ['chrAddName','chrAddHd','chrAddAp','chrAddFx'].forEach(function(id){ document.getElementById(id).value = ''; });
+        _chrRender(); return;
+      }
+      if(t.id === 'chrBansLink'){
+        e.preventDefault();
+        var det = document.getElementById('campRulesDetails'); if(det) det.open = true;
+        var g = document.getElementById('ruleBannedBoons'); if(g && g.scrollIntoView) g.scrollIntoView({ block: 'center' });
+        return;
+      }
+      if(t.id === 'chrSaveBtn'){ _chrSave(); return; }
+    });
+    // Feature-detect the server once per campaign when the DM first opens this section: called with only a campaign id
+    // the RPC changes nothing, and an un-migrated server answers "could not find the function". Anything else (an
+    // archived campaign, a network blip) is not taken as "missing" — the save path reports it.
+    var det = document.getElementById('campCharHouseRulesDetails');
+    if(det) det.addEventListener('toggle', function(){
+      var cid = currentCampId;
+      if(!det.open || !cid || _chrProbed[cid] || peekCamp || !B || typeof B.dmApplyHouseRulesChange !== 'function') return;
+      _chrProbed[cid] = true;
+      B.dmApplyHouseRulesChange(cid).catch(function(err){
+        if(_chrIsMissingFn(err)){ _chrServerMissing[cid] = true; if(_isCurrentCamp(cid)) _chrShowServerMsg(); }
+      });
+    });
+  })();
+  // The creation-lock test the RPC applies to an AP-moving action: the LAST creationLocked after the last
+  // creationUnlocked, on the raw log. Not a rules decision — the server's own precondition, mirrored so the preview
+  // never offers a tick or a removal the server would refuse. (The engine's creationLockState() also counts a
+  // threshold auto-lock; such a character is shown as finished-but-not-repriceable and pinned.)
+  function _chrExplicitLocked(log){
+    var lk = 0, ul = 0;
+    (log || []).forEach(function(e, i){ if(e && e.type === 'creationLocked') lk = i + 1; else if(e && e.type === 'creationUnlocked') ul = i + 1; });
+    return lk > 0 && ul <= lk;
+  }
+  function _chrRuleDiff(a, b){
+    var out = [], D = window.DATA || {};
+    _CHR_CALLS.forEach(function(c){ if((a.dmAllows[c[0]] !== false) !== (b.dmAllows[c[0]] !== false)) out.push(c[1] + ': ' + (b.dmAllows[c[0]] !== false ? 'on' : 'OFF')); });
+    var tbl = function(kind, A, B2, printed){
+      Object.keys(Object.assign({}, A, B2)).sort().forEach(function(k){
+        var x = A[k], y = B2[k], lab = kind === 'boon' ? 'Boon' : 'Drawback';
+        if(x && !y) out.push(lab + ' ' + k + ': ' + (printed(k) !== undefined ? 'back to the printed ' + printed(k) + ' AP' : 'deleted'));
+        else if(!x && y) out.push(lab + ' ' + k + ': ' + (printed(k) !== undefined ? 'repriced to ' : 'new, ') + y.ap + ' AP' + (kind === 'boon' ? ' (HD ' + y.hd + '+)' : ''));
+        else if(x && y && JSON.stringify(x) !== JSON.stringify(y)) out.push(lab + ' ' + k + ': ' + (x.ap !== y.ap ? x.ap + ' → ' + y.ap + ' AP' : '') + (kind === 'boon' && x.hd !== y.hd ? ' HD ' + x.hd + ' → ' + y.hd : '') + (x.fx !== y.fx ? ' (description changed)' : ''));
+      });
+    };
+    tbl('boon', a.boons, b.boons, function(k){ return D.boons && D.boons[k] ? D.boons[k].ap : undefined; });
+    tbl('draw', a.draws, b.draws, function(k){ return D.drawbacks ? D.drawbacks[k] : undefined; });
+    return out;
+  }
+  // The preview: per holder, what this change does, what can be applied, and the AP left the engine computes for the
+  // log PLUS the events the server would stamp (so "after" is exactly what the player's tools will show).
+  function _chrPlan(rows, rules, newChr, t2){
+    var H = window._engineHR, F = window._engineFold, cid = currentCampId;
+    var oldCtx = H.houseRulesCtxFromRules(rules || {}, cid);
+    var newCtx = H.houseRulesCtxFromRules(Object.assign({}, rules || {}, { charHouseRules: newChr }), cid);
+    var apr = window._dmCampaignApRules || {}, ignore = !!apr.ignorePlayerAp;
+    var cap = (B && B.drawbackCapFromRules) ? B.drawbackCapFromRules(rules || {}) : undefined;
+    var live = (rows || []).filter(function(r){ return r && r.stats && Array.isArray(r.stats.LOG) && r.stats.LOG.some(function(e){ return e && e.type === 'buy'; }); });
+    var input = live.map(function(r){ return { id: r.id, LOG: r.stats.LOG, dmAp: Number(r.ap) || 0, ignorePlayerAp: ignore, drawbackCap: cap }; });
+    var imp = H.houseRulesImpact(input, oldCtx, newCtx);
+    var holders = [];
+    imp.forEach(function(ir, hi){
+      var r = live[hi], log = r.stats.LOG, inp = input[hi];
+      var opts = { dmAp: inp.dmAp, ignorePlayerAp: ignore }; if(Number.isFinite(cap)) opts.drawbackCap = cap;
+      var explicit = _chrExplicitLocked(log), anyLock = !!ir.locked;
+      var state = r.archived ? 'archived' : !anyLock ? 'draft' : !explicit ? 'autolock' : 'locked';
+      var maxSeq = 0; log.forEach(function(e){ var s = Number(e && e.seq); if(Number.isFinite(s) && s > maxSeq) maxSeq = s; });
+      var fold = null; try { fold = F.foldBuild(log); } catch(e){ fold = null; }
+      var ovByC = fold && fold._dmHouseRulesByCampaign, curOv = (ovByC && Object.prototype.hasOwnProperty.call(ovByC, cid)) ? ovByC[cid] : null;
+      var h = { id: r.id, name: (r.name || '').trim() || 'New Character', state: state, log: log, opts: opts, maxSeq: maxSeq,
+                override: curOv ? JSON.parse(JSON.stringify(curOv)) : null, before: ir.apLeft.before, s2: [], t2: [], kept: [] };
+      // ---- T2: what this save switches off, taken from its owners -------------------------------------------------
+      var removing = {};   // purchase index -> true (excluded from S2)
+      var barred = ir.purchases.filter(function(p){ return p.barredNew; });
+      if(barred.length && !t2) h.kept = barred.filter(function(p){ return !p.imposed; });
+      if(t2){
+        var handled = {};   // name -> every earlier open copy handled (dmRemoveBoon is FIFO by name)
+        var openCopies = {}; ir.purchases.forEach(function(p){ if(p.kind === 'boon') (openCopies[p.name] = openCopies[p.name] || []).push(p); });
+        var drawSeen = {};
+        barred.forEach(function(p){
+          var row = { p: p, action: null, why: '', label: '' };
+          if(p.kind === 'drawback' && p.imposed) row.why = 'imposed by you — kept (it gives no AP)';
+          else if(state === 'archived') row.why = 'archived — not changed';
+          else if(state === 'draft') row.why = 'still in character creation — not touched (they can rebuild without it; repeat this after they finish)';
+          else if(state === 'autolock') row.why = 'creation was finished by the AP threshold, not “Finish creating” — the server can’t take it back automatically';
+          else if(p.ambiguousSeq) row.why = 'its event number is shared with another purchase — can’t be targeted; not touched';
+          else if(p.kind === 'boon' && p.dmGranted){
+            var older = (openCopies[p.name] || []).filter(function(q){ return q.index < p.index; });
+            if(older.every(function(q){ return handled[q.index]; })) row.action = 'dmRemoveBoon';
+            else row.why = 'your grant, but an older copy of it stays — remove it by hand from the card (DM edit — remove a boon)';
+          }
+          else if(p.kind === 'boon' && p.frozenCost < 0) row.why = 'recorded at a negative cost — not touched';
+          else if(p.kind === 'boon') row.action = 'refundBoon';
+          else row.action = 'removeDrawback';
+          if(row.action){ handled[p.index] = true; removing[p.index] = true; }
+          if(row.action === 'removeDrawback'){
+            // F1: of two open player copies of one drawback only the oldest gives AP — a later copy's removal moves 0.
+            if(drawSeen[p.name]) row.label = ('DM removed drawback — ' + p.name + ' (a second copy: it gave nothing, 0 AP)').slice(0, 120);
+            drawSeen[p.name] = true;
+          }
+          h.t2.push(row);
+        });
+      }
+      // ---- S2: held drawbacks whose value changes, one tick per (character, drawback name) ------------------------
+      var groups = {};
+      ir.purchases.forEach(function(p){
+        if(p.kind !== 'drawback' || !p.changed || removing[p.index]) return;
+        (groups[p.name] = groups[p.name] || { name: p.name, purchases: [], oldEff: p.oldEffective, newEff: p.newEffective }).purchases.push(p);
+      });
+      Object.keys(groups).forEach(function(n){
+        var g = groups[n];
+        g.pinOk = Number.isInteger(g.oldEff) && g.oldEff >= 0 && g.oldEff <= 1000;
+        if(state === 'archived'){ g.mode = 'none'; g.why = 'archived — not changed'; }
+        else if(state === 'draft'){ g.mode = 'none'; g.why = 'still in character creation — their draft picks up the new value by itself'; }
+        else if(!g.pinOk){ g.mode = 'none'; g.why = 'its old value can’t be kept (not a whole number 0–1000) — takes the new value'; }
+        else if(state === 'autolock'){ g.mode = 'pin'; g.why = 'creation was finished by the AP threshold, not “Finish creating” — the server can’t reprice it, so it keeps its old value'; }
+        else if(g.purchases.some(function(p){ return p.ambiguousSeq; })){ g.mode = 'pin'; g.why = 'two purchases share an event number — it keeps its old value'; }
+        else { g.mode = 'tick'; g.ticked = false;
+               // ledgerDelta 0: the server already counts the new value — a tick records nothing (F5).
+               g.noEvent = g.purchases.every(function(p){ return !p.repriceEvent; }); }
+        h.s2.push(g);
+      });
+      if(h.s2.length || h.t2.length || h.kept.length) holders.push(h);
+    });
+    return { cid: cid, newCtx: newCtx, newChr: newChr, holders: holders, t2: !!t2, diff: _chrRuleDiff(_chrSaved, _chrDraft),
+             skipped: (rows || []).length - live.length };
+  }
+  // The events this holder gets, in the order the RPC appends them: the override snapshot with any pins, the ticked
+  // reprices, the T2 refunds / removals; then (a separate dm_edit_character_log call) DM-granted boon removals.
+  function _chrHolderEvents(plan, h){
+    var pins = {}, rep = [], rem = [], dmRem = [];
+    h.s2.forEach(function(g){
+      if(g.mode === 'pin' || (g.mode === 'tick' && !g.ticked)) pins[g.name] = g.oldEff;
+      else if(g.mode === 'tick' && g.ticked) g.purchases.forEach(function(p){ if(p.repriceEvent) rep.push(p.repriceEvent); });
+    });
+    h.t2.forEach(function(row){
+      var p = row.p;
+      if(row.action === 'refundBoon') rem.push({ kind: 'refundBoon', name: p.name, targetSeq: p.seq, ev: { type: 'dmRefundBoon', refVal: p.name, targetSeq: p.seq, cost: -p.frozenCost }, label: row.label });
+      else if(row.action === 'removeDrawback') rem.push({ kind: 'removeDrawback', name: p.name, targetSeq: p.seq, ev: { type: 'dmRemoveDrawback', refVal: p.name, targetSeq: p.seq, grantBack: p.ledgerGrant }, label: row.label });
+      else if(row.action === 'dmRemoveBoon') dmRem.push(p.name);
+    });
+    var override = null, pinNames = Object.keys(pins);
+    if(pinNames.length){
+      override = h.override ? JSON.parse(JSON.stringify(h.override)) : {};
+      override.pins = (override.pins && typeof override.pins === 'object') ? override.pins : {};
+      override.pins.draws = (override.pins.draws && typeof override.pins.draws === 'object') ? override.pins.draws : {};
+      var today = new Date().toISOString().slice(0, 10);
+      pinNames.forEach(function(n){
+        var g = h.s2.filter(function(x){ return x.name === n; })[0];
+        override.pins.draws[n] = { ap: pins[n], reason: ('Kept at ' + pins[n] + ' AP when the campaign changed it to ' + g.newEff + ' AP').slice(0, 200), at: today };
+      });
+    }
+    return { override: override, pinNames: pinNames, reprices: rep, removals: rem, dmRemoveBoons: dmRem };
+  }
+  function _chrAfter(plan, h){
+    var H = window._engineHR, F = window._engineFold, x = _chrHolderEvents(plan, h), seq = h.maxSeq + 1, cid = plan.cid;
+    var st = function(o){ return Object.assign({ dmEdit: true, campaignId: cid, seq: seq++ }, o); };
+    var synth = [];
+    if(x.override) synth.push(st({ type: 'dmHouseRules', overrides: x.override }));
+    x.reprices.forEach(function(r){ synth.push(st(r)); });
+    x.removals.forEach(function(r){ synth.push(st(r.ev)); });
+    x.dmRemoveBoons.forEach(function(n){ synth.push(st({ type: 'dmRemoveBoon', refVal: n, cost: 0 })); });
+    var L2 = h.log.concat(synth);
+    try { return compute(H.withHouseRulesCtx(F.foldBuild(L2), plan.newCtx), h.opts).spendable - F.economy(L2).spent; }
+    catch(e){ return NaN; }
+  }
+  function _chrApHTML(v){
+    if(!Number.isFinite(v)) return '<span class="chr-neg">?</span>';
+    return v < 0 ? '<span class="chr-neg">' + esc(v) + ' — below 0</span>' : esc(v);
+  }
+  function _chrReviewHTML(plan){
+    var h = '<button type="button" class="ov-x" data-chr-act="cancel" title="Close" aria-label="Close">&#10005;</button>' +
+      '<h3 class="ov-h" id="chrReviewTitle">Save character house rules?</h3>';
+    h += '<div class="ov-sub">' + (plan.diff.length ? plan.diff.map(function(l){ return esc(l); }).join('<br>') : 'Only the description text changes.') + '</div>';
+    var s2n = 0, t2n = 0, keptn = 0;
+    plan.holders.forEach(function(x){ s2n += x.s2.length; t2n += x.t2.length; keptn += x.kept.length; });
+    if(s2n){
+      h += '<div class="lbl" style="margin-top:6px">Drawbacks characters hold whose value changes</div>' +
+        '<div class="grantnote" style="margin-top:2px">What a drawback gives is worked out from its current value, so this moves their AP. <b>Tick</b> a character to apply the new value to them; leave it unticked to let them keep the old value (recorded for that character only).</div>' +
+        '<table class="chr-tbl"><thead><tr><th>Apply</th><th>Character</th><th>Drawback</th><th>Value</th><th>AP left</th></tr></thead><tbody>';
+      plan.holders.forEach(function(x, hi){
+        x.s2.forEach(function(g, gi){
+          var cell = g.mode === 'tick'
+            ? '<input type="checkbox" class="chr-tick" data-h="' + hi + '" data-g="' + gi + '"' + (g.ticked ? ' checked' : '') + ' aria-label="Apply the new value">'
+            : '<span class="chr-na" title="' + esc(g.why) + '">' + (g.mode === 'pin' ? 'keeps old' : '—') + '</span>';
+          h += '<tr><td>' + cell + '</td><td>' + esc(x.name) + '</td><td>' + esc(g.name) +
+            ' <span class="chr-tag">event #' + g.purchases.map(function(p){ return esc(p.seq); }).join(', #') + '</span>' +
+            (g.mode !== 'tick' ? '<div class="chr-why">' + esc(g.why) + '</div>' : (g.noEvent ? '<div class="chr-why">the server already counts the new value — ticking records nothing extra</div>' : '')) + '</td>' +
+            '<td>' + esc(g.oldEff) + ' → ' + esc(g.newEff) + ' AP</td>' +
+            '<td class="chr-ap" data-h="' + hi + '">' + _chrApHTML(x.before) + ' → <span class="chr-after">' + _chrApHTML(_chrAfter(plan, x)) + '</span></td></tr>';
+        });
+      });
+      h += '</tbody></table>';
+    }
+    if(t2n){
+      var anyRefund = plan.holders.some(function(x){ return x.t2.some(function(r){ return r.action === 'refundBoon'; }); });
+      h += '<div class="lbl" style="margin-top:12px">Taken away from owners (you ticked “Also remove”)</div>' +
+        '<table class="chr-tbl"><thead><tr><th>Character</th><th>Item</th><th>AP</th><th>AP left after</th></tr></thead><tbody>';
+      plan.holders.forEach(function(x, hi){
+        x.t2.forEach(function(r){
+          var p = r.p, what;
+          if(r.action === 'refundBoon') what = '+' + esc(p.frozenCost) + ' refunded';
+          else if(r.action === 'removeDrawback') what = r.label ? '0 (a second copy gave nothing)' : '−' + esc(Math.max(0, Math.min(p.ledgerGrant, p.oldEffective))) + ' given back';
+          else if(r.action === 'dmRemoveBoon') what = 'removed, no refund (it was your grant)';
+          else what = '<span class="chr-why">' + esc(r.why) + '</span>';
+          h += '<tr><td>' + esc(x.name) + '</td><td>' + esc(p.kind === 'boon' ? 'Boon' : 'Drawback') + ' — ' + esc(p.name) + ' <span class="chr-tag">event #' + esc(p.seq) + '</span></td>' +
+            '<td>' + what + '</td><td class="chr-ap" data-h="' + hi + '"><span class="chr-after">' + _chrApHTML(_chrAfter(plan, x)) + '</span></td></tr>';
+        });
+      });
+      h += '</tbody></table>';
+      h += '<div class="grantnote">A character can end <b>below 0 AP</b>: they keep playing and saving, but can’t buy anything until you award AP.' +
+        (anyRefund ? ' A refund returns the boon’s <b>AP only</b> — any gold or downtime it cost is not given back (award gold by hand if you want to).' : '') + '</div>';
+    }
+    if(keptn){
+      h += '<div class="grantnote" style="margin-top:10px">' + esc(keptn) + ' item' + (keptn === 1 ? '' : 's') + ' this switches off ' + (keptn === 1 ? 'is' : 'are') + ' owned by characters, who keep ' + (keptn === 1 ? 'it' : 'them') +
+        ' (' + plan.holders.filter(function(x){ return x.kept.length; }).map(function(x){ return esc(x.name) + ': ' + x.kept.map(function(p){ return esc(p.name); }).join(', '); }).join('; ') +
+        '). To take them away with a refund, cancel and tick “Also remove from characters who own it”.</div>';
+    }
+    if(!s2n && !t2n && !keptn) h += '<div class="grantnote">No character holds anything this changes the value of.</div>';
+    h += '<div style="display:flex;gap:8px;margin-top:14px"><button type="button" class="btn sm" data-chr-act="apply" id="chrReviewApply">Save</button>' +
+         '<button type="button" class="btn sm ghost" data-chr-act="cancel">Cancel</button></div>';
+    return h;
+  }
+  // The review dialog. Resolves true (Save) or false (Cancel / Escape / ✕). Ticks update the plan in place.
+  function _chrReview(plan){
+    return new Promise(function(resolve){
+      var ov = document.getElementById('chrReview');
+      if(!ov){ ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'chrReview'; document.body.appendChild(ov); }
+      ov.innerHTML = '<div class="ov-card" role="dialog" aria-modal="true" aria-labelledby="chrReviewTitle" tabindex="-1">' + _chrReviewHTML(plan) + '</div>';
+      ov.classList.add('on');
+      var done = function(v){ ov.classList.remove('on'); ov.innerHTML = ''; ov.onclick = ov.onchange = ov.onkeydown = null; resolve(v); };
+      ov.onclick = function(e){
+        var a = e.target && e.target.closest ? e.target.closest('[data-chr-act]') : null;
+        if(a) done(a.getAttribute('data-chr-act') === 'apply');
+        else if(e.target === ov) done(false);
+      };
+      ov.onchange = function(e){
+        var t = e.target; if(!t || !t.classList.contains('chr-tick')) return;
+        var hi = Number(t.getAttribute('data-h')), gi = Number(t.getAttribute('data-g')), x = plan.holders[hi], g = x && x.s2[gi];
+        if(!g) return;
+        g.ticked = !!t.checked;
+        var html = _chrApHTML(_chrAfter(plan, x));
+        ov.querySelectorAll('.chr-ap[data-h="' + hi + '"] .chr-after').forEach(function(el){ el.innerHTML = html; });
+      };
+      ov.onkeydown = function(e){ if(e.key === 'Escape'){ e.preventDefault(); done(false); } };
+      var card = ov.querySelector('.ov-card'); if(card) card.focus();
+    });
+  }
+  function _chrActions(plan){
+    var actions = [], dmRemove = [];
+    plan.holders.forEach(function(h){
+      var x = _chrHolderEvents(plan, h);
+      if(x.override) actions.push({ kind: 'override', character: h.id, overrides: x.override,
+        label: ('DM house rules — kept at the old value: ' + x.pinNames.join(', ')).slice(0, 120) });
+      x.reprices.forEach(function(r){ actions.push({ kind: 'reprice', character: h.id, name: r.refVal, targetSeq: r.targetSeq, amount: r.amount, from: r.from, to: r.to }); });
+      x.removals.forEach(function(r){ var a = { kind: r.kind, character: h.id, name: r.name, targetSeq: r.targetSeq }; if(r.label) a.label = r.label; actions.push(a); });
+      if(x.dmRemoveBoons.length) dmRemove.push({ id: h.id, name: h.name, boons: x.dmRemoveBoons });
+    });
+    return { actions: actions, dmRemove: dmRemove };
+  }
+  async function _chrSave(){
+    var st = document.getElementById('chrSaveStatus'), btn = document.getElementById('chrSaveBtn');
+    var cid = currentCampId;
+    if(!cid || !_chrDraft || _peekBlocks()) return;
+    if(_chrServerMissing[cid]){ _chrShowServerMsg(); alert(_CHR_MISSING_MSG); return; }
+    var problem = _chrProblem(_chrDraft);
+    if(problem){ alert('Not saved — ' + problem); return; }
+    if(_chrSame(_chrDraft, _chrSaved)){ alert('Nothing to save — these are already this campaign’s character house rules.'); return; }
+    var camp = currentCampaigns.find(function(c){ return c.id === cid; });
+    var rules = (camp && camp.rules) || {};
+    var newChr = _chrForServer(_chrDraft), t2 = !!(document.getElementById('chrT2') || {}).checked;
+    var busy = function(m){ if(st){ if(m){ st.setAttribute('data-busy', '1'); st.textContent = m; } else { st.removeAttribute('data-busy'); st.textContent = ''; } } };
+    btn.disabled = true; busy('Checking who this affects…');
+    var plan;
+    try {
+      var rows = await B.getHouseRulesRoster(cid);
+      if(!_isCurrentCamp(cid)){ btn.disabled = false; busy(''); return; }   // the DM switched campaign meanwhile
+      plan = _chrPlan(rows, rules, newChr, t2);
+    } catch(err){
+      btn.disabled = false; busy('');
+      alert('Could not check who this affects, so nothing was saved: ' + ((err && err.message) || err));
+      return;
+    }
+    busy('');
+    var ok = await _chrReview(plan);
+    if(!ok || !_isCurrentCamp(cid)){ btn.disabled = false; _chrRefreshStatus(); return; }
+    var acts = _chrActions(plan);
+    if(acts.actions.length > 500){ btn.disabled = false; alert('This change touches more than 500 purchases — too many for one save. Change fewer rules at a time.'); return; }
+    busy('Saving…');
+    var res;
+    try { res = await B.dmApplyHouseRulesChange(cid, newChr, acts.actions); }
+    catch(err){
+      btn.disabled = false; busy('');
+      if(_chrIsMissingFn(err)){ _chrServerMissing[cid] = true; _chrShowServerMsg(); alert(_CHR_MISSING_MSG); return; }
+      var m = String((err && err.message) || err).replace(/^PACT house rules:\s*/, '');
+      alert('Character house rules not saved — the server refused it (nothing was changed): ' + m + '\n\nReload the roster and try again.');
+      return;
+    }
+    // Saved. Keep the local campaign record in step (the roster prices with it) — the server's own copy of what it stored.
+    var stored = (res && Object.prototype.hasOwnProperty.call(res, 'charHouseRules')) ? res.charHouseRules : newChr;
+    if(camp){ camp.rules = Object.assign({}, camp.rules || {}); if(stored == null) delete camp.rules.charHouseRules; else camp.rules.charHouseRules = stored; }
+    if(window._dmCampaignApRules && window._dmCampaignApRules.campaignId === cid && camp) window._dmCampaignApRules.rules = camp.rules;
+    // DM-granted boons are removed without refund through dm_edit_character_log (the RPC refunds only what the player
+    // paid for) — after the RPC, so the FIFO match lands on the copy the preview showed.
+    var errs = [];
+    for(var i = 0; i < acts.dmRemove.length; i++){
+      var dr = acts.dmRemove[i];
+      try {
+        await B.dmEditCharacterLog(dr.id, dr.boons.map(function(n){ return { type: 'dmRemoveBoon', refVal: n, cost: 0,
+          label: ('DM removed boon — ' + n + ' (switched off for the campaign; your grant, no refund)').slice(0, 120) }; }));
+      } catch(err){ errs.push(dr.name + ': ' + ((err && err.message) || err)); }
+    }
+    _chrLoad(camp && camp.rules ? camp.rules.charHouseRules : stored);
+    btn.disabled = false;
+    if(st) st.textContent = 'Saved.';
+    _setRulesLocked(true);
+    loadRoster(cid);
+    if(errs.length) alert('The house rules were saved, but these boons you had granted could not be removed (remove them from the card by hand):\n\n' + errs.join('\n'));
+  }
+  // charHouseRules has ONE writer (above). The whole-blob rules saves below never SEND it — the migrated server would
+  // carry it over anyway, but nothing should rely on that silently — and keep the cached copy, so the roster keeps
+  // pricing with the campaign's house rules after an unrelated save.
+  function _rulesBlobForSave(rules){ var o = Object.assign({}, rules || {}); delete o.charHouseRules; return o; }
+  function _rulesKeepChr(sent, camp){
+    var o = Object.assign({}, sent || {});
+    if(camp && camp.rules && camp.rules.charHouseRules !== undefined) o.charHouseRules = camp.rules.charHouseRules; else delete o.charHouseRules;
+    return o;
+  }
+  window._dmCharHouseRulesTest = { load: function(r){ _chrLoad(r); }, draft: function(){ return _chrDraft; } };
   /* parseInt(x,10)||fallback silently rewrites a deliberate 0, because 0 is falsy. Harmless for the
      display-only curve dials, but startingTier.ap is REAL: bind_character_to_campaign pays it into
      characters.ap when a player joins, so a DM who sets it to 0 ("this campaign grants nothing on
@@ -4486,8 +5082,9 @@ document.addEventListener('campaign-ready', function () {
     if(_peekBlocks()) return;
     ruleSaveStatus.textContent = 'Saving…';
     try {
-      await B.setCampaignRules(currentCampId, rules);
+      await B.setCampaignRules(currentCampId, _rulesBlobForSave(rules));
       var camp = currentCampaigns.find(function(c){return c.id===currentCampId;});
+      rules = _rulesKeepChr(rules, camp);   // charHouseRules is not this button's to write — keep the cached copy
       if(camp) camp.rules = rules;
       ruleSaveStatus.textContent = 'Saved.';
       _renderPlayerCodeGrant();   // the code's advertised grant must follow the save that changed it
@@ -4518,7 +5115,7 @@ document.addEventListener('campaign-ready', function () {
     var rules = Object.assign({}, (camp && camp.rules) || {}, { dmNotes: dmNotesText.value });
     dmNotesStatus.textContent = 'Saving…';
     try {
-      await B.setCampaignRules(currentCampId, rules);
+      await B.setCampaignRules(currentCampId, _rulesBlobForSave(rules));
       if(camp) camp.rules = rules;
       dmNotesStatus.textContent = 'Saved.';
     } catch(err){
@@ -5201,7 +5798,7 @@ document.addEventListener('campaign-ready', function () {
     // disabling it when locked would disable the one control whose whole job is unlocking. Still swept
     // by the SEPARATE archived-peek lock (_peekLockEls() sweeps it explicitly, same as ruleLockBtn) —
     // peeking a read-only archived campaign must still make it inert.
-    return _scopedControlEls(['campRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
+    return _scopedControlEls(['campRulesTile', 'campCharHouseRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'], [document.getElementById('ruleSaveBtn')]);
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
@@ -5276,7 +5873,7 @@ document.addEventListener('campaign-ready', function () {
     var _c = currentCampaigns.find(function(c){ return c.id === currentCampId; });
     var rules = Object.assign({}, (_c && _c.rules) || {}, { enforceApBudget: enforceChk.checked });
     try {
-      await B.setCampaignRules(currentCampId, rules);
+      await B.setCampaignRules(currentCampId, _rulesBlobForSave(rules));
       if(_c) _c.rules = rules;   // so a re-select doesn't revert to the old value
     } catch(err){
       enforceChk.checked = !turningOn;          // put the box back if the write failed
