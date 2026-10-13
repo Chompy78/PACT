@@ -45,6 +45,14 @@ const namesOpen = p => p.evaluate(() => { const b=document.getElementById('names
   check('DM: strict box ticked', await page.isChecked('#ruleLanguagesStrict'));
   check('DM: count line', /5 languages/.test(await page.textContent('#ruleLanguagesCount')));
   check('DM: controls start locked', await page.isDisabled('#ruleLanguages'));
+  // fix/dm-language-lock-note: the locked box says so, right where the DM is looking, and the note unlocks it.
+  const noteShown = () => page.evaluate(() => getComputedStyle(document.getElementById('ruleLanguagesLockNote')).display !== 'none');
+  check('DM: a 🔒 note sits on the locked language box', await noteShown());
+  await page.evaluate(() => document.getElementById('ruleLanguagesLockNote').click());
+  check('DM: clicking the note unlocks the box', !(await page.isDisabled('#ruleLanguages')) && !(await page.isDisabled('#ruleLanguagesStrict')));
+  check('DM: …and the note goes away once unlocked', !(await noteShown()));
+  await page.evaluate(() => document.getElementById('ruleLockBtn').click());
+  check('DM: re-locking brings the note back', await noteShown() && await page.isDisabled('#ruleLanguages'));
   await page.evaluate(() => window._dmRulesPanel.load({}));
   check('DM: untouched campaign = empty box + standard note', (await page.inputValue('#ruleLanguages')) === '' &&
         /standard list/.test(await page.textContent('#ruleLanguagesCount')) && !(await page.isChecked('#ruleLanguagesStrict')));

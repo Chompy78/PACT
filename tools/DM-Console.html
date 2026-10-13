@@ -928,6 +928,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <!-- Campaign language list (feat/campaign-language-list) — saved as rules.languages {list, strict}. -->
                 <div class="ruleblock">
                   <div class="lbl">🗣 Languages <button type="button" class="infobtn" title="The language names your players pick from when they name their languages (✎ Name spells & languages). Leave the box empty to use the standard Players Handbook list. Buying languages still costs the same AP — this only changes which names are on offer.">&#9432;</button></div>
+                  <!-- fix/dm-language-lock-note: the box is greyed out while Campaign Rules are locked, and the unlock controls are
+                       far above/below it — say so right here. A span, not a button: the lock disables every button in this tile. -->
+                  <span id="ruleLanguagesLockNote" role="button" tabindex="0" style="display:none;margin:0 0 5px;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;cursor:pointer">🔒 Locked — Campaign Rules are locked so a stray click can't change them. <u>Click here to unlock</u>, edit, then <b>Save rules</b>.</span>
                   <textarea class="field" id="ruleLanguages" rows="5" style="width:100%;resize:vertical;font-family:inherit" placeholder="One language per line — leave empty for the standard list"></textarea>
                   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
                     <button type="button" class="btn sm ghost" id="ruleLanguagesStandard">Fill with standard list</button>
@@ -5181,6 +5184,7 @@ document.addEventListener('campaign-ready', function () {
   }
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
+    var _lln = document.getElementById('ruleLanguagesLockNote'); if(_lln) _lln.style.display = locked ? 'block' : 'none';
     if(ruleLockHint){
       ruleLockHint.innerHTML = locked
         ? '🔒 <b>Campaign Rules are locked</b> — including the economy band, banned lists, and everything else below. Click here to unlock them (or use "Locked" next to Save rules at the bottom).'
@@ -5196,6 +5200,12 @@ document.addEventListener('campaign-ready', function () {
   function _toggleRulesLock(){ _setRulesLocked(!ruleMultiDisc.disabled); }
   if(ruleLockBtn) ruleLockBtn.addEventListener('click', _toggleRulesLock);
   if(ruleLockHint) ruleLockHint.addEventListener('click', _toggleRulesLock);
+  (function(n){ if(!n) return;
+    // Same way out as ruleLockHint, and inert whenever that is (the archived-campaign peek disables ruleLockHint).
+    var go = function(){ if(ruleLockHint && ruleLockHint.disabled) return; _setRulesLocked(false); var t = document.getElementById('ruleLanguages'); if(t) t.focus(); };
+    n.addEventListener('click', go);
+    n.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  })(document.getElementById('ruleLanguagesLockNote'));
   if(document.getElementById('ruleLockInfo'))
     document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
   _setRulesLocked(true);   // initial state, before any campaign is even selected
