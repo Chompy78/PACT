@@ -1487,7 +1487,10 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
         discount on that target, mirrored in the server ledger (PR3).
       - parity fixture id EV-034 is used by both — renumber one.
       - the Live Sheet ledger's dmTag / else-if chain needs both PRs' branches.
-  PR4 feat/campaign-house-rules-dm-editor: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
+  PR4 feat/campaign-house-rules-dm-editor — PR OPEN (2026-10-13, see CHANGELOG): editor, S2/T2 review, one RPC call,
+      un-migrated-server message, effective grant/impose pickers, the client strictness below and the second-copy label are
+      in; real-RPC replay in CI. Owner questions answered and deferred: AC -> feat/house-rules-draft-reprice, AD1 (opt-in
+      removal on bans) -> feat/house-rules-ban-removal. Original brief: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
       houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does. The RPC (PR3):
       dm_apply_house_rules_change(p_campaign, p_char_house_rules [SQL null = unchanged, JSON null = remove], p_actions[]) with
       actions {kind:'override'|'pin', character, overrides} · {kind:'reprice', character, name, targetSeq, amount, from, to} ·

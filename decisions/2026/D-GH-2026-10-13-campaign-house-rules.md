@@ -332,3 +332,68 @@ code. Follow-up on the board: count AP-moving DM events only when their stamped 
 `campaign_id` — on BOTH sides (the engine has no campaign in `economy()`, so doing it server-only would split browser and server
 for every legitimately moved character; not cheap, so not done here) — or have the RPC record the amounts in a server-side
 table that the ledger reads instead of the player-writable log.
+
+## Addendum 2026-10-13 — PR4, the DM Console campaign editor (`feat/campaign-house-rules-dm-editor`)
+
+Technical choices (none owner-level unless listed under "Open"):
+
+- **One review dialog, two sections.** S2 and T2 are one modal (old → new, AP left before → after per holder, recomputed per
+  tick) followed by ONE `dm_apply_house_rules_change()` call. "AP left after" is the engine's `compute().spendable −
+  economy().spent` over the log PLUS the events the server will stamp (override snapshot with pins, reprices, refunds,
+  removals, DM-grant removals), so it is the figure the player's tools will show.
+- **Ticks are per (character, drawback name), not per purchase.** A pin changes the effective value of every copy of that
+  name for the character, so a name is either pinned or repriced as a whole; the RPC's M3 `to` check would refuse a mix.
+- **Who is tickable.** Explicit lock (the RPC's own test, mirrored as a raw-log scan — not a rule; since the automatic
+  threshold lock was retired it is also exactly the engine's `creationLockState()`) and every copy uniquely targetable.
+  Drafts: listed, nothing sent (plan §5.4). A shared or non-targetable seq: pinned. A tick whose `ledgerDelta` is 0
+  (`houseRulesImpact()` emits no event) records nothing — the server already counts the new value.
+- **T2.** Applies to what THIS save switches off (`barredNew`: a call turned off, a custom entry deleted). Bans are edited by
+  Save rules and keep their "stop new purchases only" behaviour. Order inside the RPC: override → reprices → refunds /
+  removals; DM-granted boons go through `dm_edit_character_log` AFTER the RPC (a separate, non-atomic call; a failure is
+  reported and the rules stay saved), offered only when every older open copy of that name is being removed too
+  (`dmRemoveBoon` is FIFO by name). A second open copy of a drawback is removed with a "0 AP" label (F1).
+- **Server detection.** A no-op probe (campaign id only — the RPC changes nothing) when the section is first opened per
+  campaign, plus the same check on the save error (`PGRST202` / "could not find the function").
+- **`charHouseRules` is never sent by the whole-blob saves** (Save rules, Save notes, the enforce toggle): stripped before
+  sending and re-attached to the cached copy, so the roster keeps pricing with it.
+- **Effective pickers.** Grant-boon lists the character's effective boon table (campaign customs, override prices; a barred
+  item stays grantable but says why) and the grant's buy/award pair uses the effective cost; the impose picker lists the
+  effective drawback table with a "Campaign drawbacks" group.
+- **Client strictness (round-3 finding 4).** A bound character whose campaign rules are unknown (no live rules of ITS
+  campaign, no snapshot of it) is strict: Live Sheet `_lsBarGrant()` refuses boons, drawbacks and buy-offs; CharGen
+  `_cgPostLockAppend()` refuses in-play boons / drawbacks (a draft re-prices boons once the rules are known); both
+  tools' post-lock gates read `{}` instead of `null` ("solo").
+- **Proof against the real server.** `run-dm-house-rules-replay.sh` replays the e2e's captured calls on the PR3 migration
+  in Docker: every call accepted; server AP left = engine AP left for every finished holder.
+
+### Owner questions from PR4 — answered 2026-10-13 (both DEFERRED to board tasks)
+
+1. **AC — draft holders of a repriced drawback** (found while building PR4): `repriceDraft()` never re-stamps drawback costs
+   and the RPC refuses AP-moving events on drafts, so when a held drawback's value RISES a draft's browser shows the new grant
+   while the server credits the old one (replay: Bo 15 vs 13). **Deferred** to the board task `feat/house-rules-draft-reprice`;
+   until then PR4 keeps the plan's behaviour (drafts listed, not tickable, nothing sent).
+2. **AD1 — T2 for bans:** the owner chose to offer the same opt-in "Also remove from characters who own it (refund)" when the
+   DM saves campaign BANS (default off; the same review, V1 below 0 allowed, refunds / removals through the RPC and
+   `dmRemoveBoon` for DM-granted oldest copies). **Deferred** to the board task `feat/house-rules-ban-removal`; not built in
+   PR4 — a ban still only stops new purchases.
+
+### PR #658 review — changes (2026-10-13)
+
+- **Two DMs at once (A2, deep fix).** `dm_apply_house_rules_change()` gains `p_expected` (`{"charHouseRules": X}`; JSON null =
+  none stored) and refuses "another DM changed this campaign's character house rules since you loaded them" when the stored
+  rules differ; an `override` action may carry `expected` (the snapshot it was built from) with the same effect for one
+  character. Edited in PR3's still-UNAPPLIED migration (signature now `(uuid, jsonb, jsonb, jsonb)`, the 3-argument one
+  dropped; rollback drops both); 8 new harness cases (199, before / after / rollback all as predicted). DM Console re-reads
+  the campaign (`getCampaign`) at save time, refuses if its rules differ from what the editor loaded, previews against the
+  fresh rules and sends them as `expected`; the campaign save's pin overrides carry `expected` too. `null`/absent = no check,
+  so the server stays callable by older clients; every console call sends it.
+- **Non-targetable purchases.** `houseRulesImpact()` flags a seq that is not a whole JSON number, or a cost present but not a
+  number, as `ambiguousSeq` (pinned / left alone) — the RPC would refuse it and fail the whole call. No `compute()` change.
+- **0 is a value.** The shared `esc()` blanks 0; the new console code now escapes numbers as `esc(String(n))` (review AP left 0,
+  "3 → 0", refund 0, the grant picker's `data-ap`, which made a boon repriced to 0 grant at its printed price).
+- **Live Sheet `loadCloudChar`** resolves the campaign with `getCampaign()` (as startup does): `listMyCampaigns()` leaves out
+  archived campaigns, which left such a character strict until a reload. (The read-only DM view path still uses the list; it
+  buys nothing.)
+- The "Also remove" tooltip now says only boons and drawbacks are removed (never Bound bindings). The unreachable
+  threshold-lock branch is removed.
+

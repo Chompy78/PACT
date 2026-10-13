@@ -381,6 +381,7 @@ drop trigger if exists trg_pact_dm_family_guard on public.characters;
 drop trigger if exists trg_pact_player_grants_guard on public.characters;
 drop trigger if exists trg_pact_guard_char_house_rules on public.campaigns;
 drop function if exists public.dm_apply_house_rules_change(uuid, jsonb, jsonb);
+drop function if exists public.dm_apply_house_rules_change(uuid, jsonb, jsonb, jsonb);
 drop function if exists public.pact_enforce_dm_family();
 drop function if exists public.pact_enforce_player_grants();
 drop function if exists public.pact_guard_char_house_rules();

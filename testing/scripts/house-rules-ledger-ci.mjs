@@ -390,6 +390,17 @@ section('houseRulesImpact — S2 preview (plan §7.1) and drawbackCap (M5)');
     { type: 'buy', cat: 'drawback', payload: { v: STM }, cost: -3, seq: 4 }, { type: 'buy', cat: 'drawback', payload: { v: STM }, cost: -3, seq: 4 }];
   const [r3] = houseRulesImpact([{ id: 'dup', LOG: L3 }], oldC, newC);
   t('a duplicated seq: both copies flagged ambiguousSeq and offered no reprice event (must be pinned)', r3.purchases.map(p => [p.ambiguousSeq, 'repriceEvent' in p]), [[true, false], [true, false]]);
+  // PR #658 review: a seq the RPC can't take as targetSeq (a string, a fraction) or a cost that isn't a number is not targetable.
+  const L4 = [award(79, 1), fighter, { type: 'creationLocked', seq: 3 },
+    { type: 'buy', cat: 'drawback', payload: { v: STM }, cost: -3, seq: '4' },
+    { type: 'buy', cat: 'drawback', payload: { v: 'Lame' }, cost: '-3', seq: 5 },
+    { type: 'buy', cat: 'boon', payload: { v: 'Bulwark' }, cost: 6, seq: 6.5 },
+    { type: 'buy', cat: 'boon', payload: { v: 'Alertness' }, cost: 6, seq: 7 }];
+  const [r4] = houseRulesImpact([{ id: 'odd', LOG: L4 }], ctx({ draws: { [STM]: { ap: 3 }, Lame: { ap: 3 } } }), ctx({ draws: { [STM]: { ap: 5 }, Lame: { ap: 5 } } }));
+  const by4 = n => r4.purchases.find(x => x.name === n);
+  t('a string seq, a string cost and a fractional seq are flagged ambiguousSeq; a normal purchase is not',
+    [by4(STM).ambiguousSeq, by4('Lame').ambiguousSeq, by4('Bulwark').ambiguousSeq, by4('Alertness').ambiguousSeq], [true, true, true, false]);
+  t('...and get no reprice event (the RPC would refuse it and fail the whole call)', ['repriceEvent' in by4(STM), 'repriceEvent' in by4('Lame')], [false, false]);
 }
 
 // ================================================================================================================
