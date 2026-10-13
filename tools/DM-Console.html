@@ -1293,6 +1293,23 @@ function dmAnalyze(exported, apOpts){
       });
       return out;
     })(),
+    // feat/dm-ap-discount: every purchase a DM may discount — the same set js/engine.js's activeEvents() will
+    // honour a dmDiscount against (a buy that is not a drawback, a buy-off or a names event, costing AP, with a
+    // seq), plus what each already has off. `discounted` comes from the engine's own resolution (ae.discounts),
+    // never a second sum here. `cat` is what the dmDiscount event must name as targetCat.
+    discountable: (function(){
+      var ae = activeEvents(null), out = [];
+      ae.evs.forEach(function(e, i){
+        var cat = e.type==='buy' ? e.cat : e.type, cost = Number(e.cost)||0;
+        if(e.seq==null || !(cost>0)) return;
+        if(!((e.type==='buy' && e.cat!=='drawback') || e.type==='buyoff' || e.type==='names')) return;
+        out.push({seq:e.seq, cat:cat, label:e.label||cat, cost:cost, discounted:(ae.discounts&&ae.discounts.get(i))||0});
+      });
+      return out;
+    })(),
+    discountEvents: LOG.filter(function(e){ return e.type==='dmDiscount' && e.dmEdit===true; })
+      .map(function(e){ return {targetSeq:e.targetSeq, amount:Number(e.amount)||0, note:e.note||'', ts:e.ts||0}; }),
+    dmDiscounted: eco.discounted||0, apValue: eco.apValue!=null?eco.apValue:eco.spent, apPaid: eco.apPaid!=null?eco.apPaid:eco.spent,
     features: (b.features||[]).map(function(l){
       var _a=(typeof FEAT_ALIAS==='function')?FEAT_ALIAS(l):l, _f=DATA.features&&DATA.features[_a];
       return (_f&&typeof requiredHD==='function'&&(b.hd||1)<requiredHD(_f))?(l+' ⛔ blocked'):l;}),
@@ -1729,7 +1746,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   // {ap, player, playerLabel, dmNotes} — see cloudRoster in loadRoster(). `curBoons` (feat/dm-edit-events)
   // is the character's currently-held boon names, for the remove dropdown — omitted/empty for the
   // no-build-data-yet placeholder card, where there is nothing to remove.
-  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp, lockedDraws, heldDraws){
+  function dmToolsBody(id, dm, curBoons, lock, playerAp, ignoredPlayerAp, lockedDraws, heldDraws, s){
     var h = '<div class="kvs"><div class="kvrow"><span class="kk">Player (account)</span><span class="vv">'+esc(dm.player||'—')+'</span></div>' +
             '<div class="kvrow"><span class="kk">DM-granted AP <button type="button" class="infobtn" title="AP you have granted this character (the characters.ap column). This is PART OF their spendable total, not extra on top of it — the strip above shows what they can actually spend. Labelled &quot;Bonus DM AP&quot; until 2026-08-04, which read as a spendable figure and was mistaken for one.">&#9432;</button></span><span class="vv">'+(dm.ap||0)+'</span></div></div>';
     // ---- Basic mode (feat/player-basic-mode, D-GH-2026-09-05-player-basic-mode) -----------------
@@ -1760,6 +1777,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     h += customFieldValuesBody(id, dm);
     h += awardBody(id, dm);
     h += dmEditBody(id, curBoons, lockedDraws, heldDraws);
+    h += dmDiscountBody(id, s || {});
     // ---- Creation limit (feat/dm-creation-ceiling-controls) --------------------------------------
     // The DM half of the creation ceiling. `lock` is creationLockState()'s answer for this character,
     // passed in from the card so this never re-derives it (the engine owns that rule — see
@@ -1969,6 +1987,56 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     }
     return h;
   }
+  // feat/dm-ap-discount (D-GH-2026-10-13-dm-ap-discount): take AP off one purchase. Writes ONE dmDiscount event
+  // through dm_edit_character_log, which re-validates everything (target seq + category, whole AP, 0..cost).
+  // A negative amount corrects an earlier discount; nothing is ever deleted. The purchase keeps its full price
+  // as "AP value" (equivalent level reads it, owner decision B1); "AP paid" is what the player actually spent.
+  // Every label and note here was written by a player or a DM and is shown to the other — esc() all of it.
+  function dmDiscountBody(id, s){
+    var items = s.discountable || [], bySeq = {};
+    items.forEach(function(p){ bySeq[p.seq] = p; });
+    var h = '<div class="ruleblock"><div class="lbl">DM edit — discount a purchase <button type="button" class="infobtn" title="Takes AP off one thing this character has already bought, for a story reason (a teacher, a found scroll, a gift). The purchase still counts its FULL price toward their level and creation limit; the discount is given back as AP they can spend. Type a negative amount to undo a mistake. Your note is shown to the player.">ⓘ</button></div>';
+    h += '<div class="kvs" style="margin-bottom:6px">' +
+         '<div class="kvrow"><span class="kk">DM discounts given</span><span class="vv dm-discount-total" data-cid="'+esc(id)+'">'+esc(s.dmDiscounted||0)+' AP</span></div>' +
+         '<div class="kvrow"><span class="kk">AP value / AP paid</span><span class="vv">'+esc(s.apValue||0)+' / '+esc(s.apPaid||0)+'</span></div></div>';
+    if(!items.length){
+      return h + '<div class="grantnote" style="margin-top:0">Nothing this character bought costs AP yet, so there is nothing to discount.</div></div>';
+    }
+    h += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
+      '<select class="field dm-discount-sel" data-cid="'+esc(id)+'" style="flex:2 1 240px">' +
+        items.map(function(p){
+          return '<option value="'+esc(p.seq)+'" data-cat="'+esc(p.cat)+'" data-cost="'+esc(p.cost)+'" data-done="'+esc(p.discounted)+'">'+
+            esc(p.label)+' · '+esc(p.cost)+' AP'+(p.discounted?(' (−'+esc(p.discounted)+' already)'):'')+'</option>';
+        }).join('') +
+      '</select>' +
+      '<input type="number" step="1" class="field dm-discount-amt" data-cid="'+esc(id)+'" placeholder="Amount" style="flex:0 1 90px">' +
+      '<select class="field dm-discount-mode" data-cid="'+esc(id)+'" style="flex:0 1 80px"><option value="ap">AP</option><option value="pct">%</option></select>' +
+      '<input type="text" class="field dm-discount-note" data-cid="'+esc(id)+'" maxlength="200" placeholder="Why (required) — e.g. taught by the guild" style="flex:2 1 220px">' +
+      '<button type="button" class="btn sm dm-discount-btn" data-cid="'+esc(id)+'">Discount</button>' +
+      '</div><span class="dm-status" data-cid="'+esc(id)+'" data-kind="discount" style="font-size:11px;color:var(--muted)"></span>';
+    var evs = s.discountEvents || [];
+    if(evs.length){
+      h += '<div class="grantnote">History: ' + evs.map(function(d){
+        var p = bySeq[d.targetSeq];
+        return esc((d.amount>0?'−':'+')+Math.abs(d.amount)+' AP')+' on '+esc(p?p.label:('event #'+d.targetSeq))+(d.note?(' — '+esc(d.note)):'');
+      }).join(' · ') + '</div>';
+    }
+    return h + '</div>';
+  }
+  // dmDiscountAmount(mode, raw, cost, done): the whole-AP amount the form means. Percentages are of the full
+  // price, rounded to the nearest AP, at least 1; a positive amount never exceeds what is left to discount and
+  // a negative one never takes the discount below 0 (the server refuses both anyway — this keeps the message
+  // friendly). Returns null for an empty or zero entry.
+  function dmDiscountAmount(mode, raw, cost, done){
+    var v = Number(raw);
+    if(!isFinite(v) || v === 0) return null;
+    var amt = (mode === 'pct') ? (v > 0 ? 1 : -1) * Math.max(1, Math.round(cost * Math.abs(v) / 100)) : Math.trunc(v);
+    if(amt === 0) return null;
+    if(amt > 0) amt = Math.min(amt, cost - done);
+    else amt = Math.max(amt, -done);
+    return amt === 0 ? 0 : amt;
+  }
+  window._dmDiscountAmount = dmDiscountAmount;   // test seam (dm-ap-discount-e2e.mjs)
   // Heritage-pack traits are owned by virtue of species and are NOT in s.racialTraits (they are derived,
   // never stored — see D-GH-2026-08-19-heritage-pack-visibility). Without this the DM Console showed a
   // Dwarf with no traits at all, the same blindness the two player tools had.
@@ -1987,7 +2055,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   }
   function buildSections(s, id, dm){
     var h = '';
-    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks));
+    if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks, s));
     h += secBlock('Appearance & backstory', appearanceBody(s.appearance));   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
@@ -2863,7 +2931,15 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var hidden = cloudRoster.concat(cloudNpcs).filter(function(r){ return hiddenCards.has(String(r.id)); });
     var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
     if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every player character in this campaign is hidden. Use Show all above to bring them back.</div>' + npcs; return; }
-    container.innerHTML = strip + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
+    container.innerHTML = strip + campDiscountHTML() + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
+  }
+  // feat/dm-ap-discount: the campaign's running total of DM discounts, across EVERY player character (hidden
+  // ones too — hiding is display-only, see above). Shown only once something has been discounted.
+  function campDiscountHTML(){
+    var total = 0, n = 0;
+    cloudRoster.forEach(function(r){ var d = (r.summary && r.summary.dmDiscounted) || 0; if(d > 0){ total += d; n++; } });
+    if(!total) return '';
+    return '<div class="grantnote" id="campDiscountTotal" style="margin:0 0 8px">DM discounts in this campaign: <b>'+esc(total)+' AP</b> across '+esc(n)+' character'+(n===1?'':'s')+'.</div>';
   }
   // feat/dm-custom-character-fields (D-GH-2026-08-10): the Customisable card view — a lean header plus
   // the DM's own box layout (see wireCustomize()/loadXLayout() above), with the same collapsible "DM
@@ -2974,7 +3050,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') || t.closest('.dm-discount-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.dm-basicmode-btn') || t.closest('.npc-add-go') ||
           t.closest('.cf-val-save'))){
@@ -3156,6 +3232,41 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         }).catch(function(err){
           imposeDrawBtn.disabled = false; if(idStatus) idStatus.textContent = '';
           alert('Impose failed: '+err.message);
+        });
+        return;
+      }
+
+      // feat/dm-ap-discount: one dmDiscount event through dm_edit_character_log, then a full roster reload
+      // (the discount moves AP, so the card's AP strip and totals must be re-analysed, not patched).
+      var discountBtn = t.closest ? t.closest('.dm-discount-btn') : null;
+      if(discountBtn && card){
+        var dccid = discountBtn.getAttribute('data-cid');
+        var dcSel = card.querySelector('.dm-discount-sel[data-cid="'+dccid+'"]');
+        var dcAmt = card.querySelector('.dm-discount-amt[data-cid="'+dccid+'"]');
+        var dcMode = card.querySelector('.dm-discount-mode[data-cid="'+dccid+'"]');
+        var dcNote = card.querySelector('.dm-discount-note[data-cid="'+dccid+'"]');
+        var dcStatus = card.querySelector('.dm-status[data-cid="'+dccid+'"][data-kind="discount"]');
+        var dcOpt = dcSel && dcSel.options[dcSel.selectedIndex];
+        if(!dcOpt){ alert('Choose a purchase first.'); return; }
+        var dcSeq = Number(dcOpt.value), dcCat = dcOpt.getAttribute('data-cat');
+        var dcCost = Number(dcOpt.getAttribute('data-cost'))||0, dcDone = Number(dcOpt.getAttribute('data-done'))||0;
+        var dcText = dcNote ? dcNote.value.replace(/\s+/g,' ').trim() : '';
+        var dcAmount = dmDiscountAmount(dcMode ? dcMode.value : 'ap', dcAmt ? dcAmt.value : '', dcCost, dcDone);
+        if(dcAmount == null){ alert('Enter an amount (a negative amount undoes part of an earlier discount).'); return; }
+        if(dcAmount === 0){ alert(dcDone >= dcCost ? 'That purchase is already fully discounted.' : 'There is no discount on that purchase to undo.'); return; }
+        if(!dcText){ alert('Say why — the note is recorded in the player\'s history.'); return; }
+        if(dcText.length > 200){ alert('Keep the note to 200 characters or fewer.'); return; }
+        discountBtn.disabled = true; if(dcStatus) dcStatus.textContent = 'Saving…';
+        B.dmEditCharacterLog(dccid, [
+          {type:'dmDiscount', targetSeq:dcSeq, targetCat:dcCat, amount:dcAmount, note:dcText,
+           label:'DM discount — '+(dcAmount>0?dcAmount+' AP off':(-dcAmount)+' AP discount undone')}
+        ]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          discountBtn.disabled = false; if(dcStatus) dcStatus.textContent = '';
+          var dcMsg = String(err && err.message || err);
+          if(/unsupported event type/i.test(dcMsg)) dcMsg = 'The server has not been updated to support discounts yet. Ask the app owner to apply the latest database update, then try again.';
+          alert('Discount failed: '+dcMsg);
         });
         return;
       }
