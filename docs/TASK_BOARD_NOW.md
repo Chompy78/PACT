@@ -27,6 +27,26 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
+## feat/heroic-inspiration-boons — boons for 2 and 3 Heroic Inspiration; Blazing Moment triggers on 18+ (rules change) — TODO
+Branch feat/heroic-inspiration-boons. **Effort:** medium · **Risk:** medium — a mechanics change: new priced boons and a changed one (prices are an owner call; live characters may own Blazing Moment).
+
+```text
+Owner request 2026-10-14. Three rules changes, one DATA.version bump, engine AND Players Guide (AGENTS.md: a mechanics change
+isn't done until both land).
+  1. New boon: hold up to 2 Heroic Inspiration at once (instead of 1).
+  2. New boon: hold up to 3 Heroic Inspiration at once — prereq the 2-point boon (like the Bard Inspiration die ladder:
+     "prereq":[...]), so it can't be bought first.
+  3. Change "Blazing Moment" (js/engine-data.js DATA.boons, hd 9, ap 14, cat Magic): fx "When you spend Heroic Inspiration and
+     roll 19 or higher on the reroll, regain it immediately" -> "18 or higher". An fx text change alone is display-only, but
+     ask the owner whether the stronger effect should be repriced (if the AP changes, it is a compute() change).
+DO: propose hd/ap/cat/fx for the two new boons (compare: "Human: Heroic Inspiration" T1 Per-Rest, Blazing Moment 9/14,
+the Bard die ladder) and GET OWNER APPROVAL of the prices before building. Then: add to DATA.boons, bump DATA.version once,
+add parity fixtures + testing/expected rows, update every display site per docs/VERSION-SYNC.md, update the Players Guide
+(master in pact-guide, then the served copy; run verify-guide.mjs and guide-price-check.mjs), CHANGELOG + DECISIONS.
+Measure first (owner-approved read): how many live characters own Blazing Moment — a reprice would change their AP.
+```
+**Done when:** both new boons are buyable in CharGen and the Live Sheet at the owner-approved prices (3-point one needs the 2-point one); Blazing Moment reads 18+ in both tools and the guide; parity 0 failed with new fixtures; guide-price-check clean; DATA.version bumped once.
+
 ## Creation-lock integrity — server guard, stale-copy bug, Amble repair — TODO
 ```
 Continue the creation-lock work handed over on 2026-10-04. Read

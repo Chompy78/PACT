@@ -1599,21 +1599,3 @@ DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed 
 Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
-
-## feat/npc-duplicate-version — DM Console: duplicate an NPC as a new version — TODO
-Branch feat/npc-duplicate-version. **Effort:** medium · **Risk:** medium — creates a new cloud character row and binds it as an NPC (server RPCs; the copy's AP/history handling decides what the DM can do with it).
-
-```text
-Owner request 2026-10-14 (decision AF3). OWNER ANSWER 2026-10-14: the copy KEEPS its AP — everything is identical to the
-source apart from the name (whole LOG copied: awards, seals, DM events, build, appearance). Verify every server guard accepts
-that (DM-family forgery guard: the copy is written by the DM, so DM events are legitimately DM-stamped).
- In DM Console's NPC section, add "Duplicate as a new version" on an NPC's card:
-asks for the new name (prefilled, e.g. "Bram Cotter" -> "Bram Cotter (copy)"; the DM edits it to e.g. "Bram Cotter Ch8-12"),
-creates a NEW cloud character owned by the DM (fresh id) whose LOG is a copy of the source NPC's, then binds it to the same
-campaign as an NPC via dm_bind_npc (no starting AP, as for any NPC). Decide and record: whether the copy keeps the source's AP
-awards / seals / DM events (copying a whole ledger copies AP the DM gave the original — likely strip DM-family and award
-events and keep the build + appearance, or let the DM choose); names must stay unique (2026-10-11-unique-character-names);
-check every server guard (blank-row guard, creation-lock guard, DM-family forgery guard if campaign house rules have shipped)
-accepts the new row. Escape every name (esc() rule).
-```
-**Done when:** e2e: duplicating an NPC gives a second NPC in the same campaign with a new id and the chosen name, the same build and appearance, and the recorded choice on AP/history; the original is unchanged; duplicate names are refused with a clear message; `engine-parity-ci` 0 failed.
