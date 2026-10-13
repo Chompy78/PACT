@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
+- The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
+  Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one
+  lookup, `_lsFx()`: rules-data text where it exists, otherwise a PHB page, never ad-hoc rules text (the ~600 missing
+  summaries are `feat/feature-effect-text`). Display-only; released in `v1.657`.
+  Full record: `decisions/2026/D-GH-2026-10-13-livesheet-sheet-view-desc.md`.
 ## D-GH-2026-10-13-dm-ap-discount — a DM can take AP off any purchase, and the total given is recorded
 - A `dmDiscount` event {targetSeq, targetCat, amount, note}, DM-only through `dm_edit_character_log`, tied to one purchase
   by seq + category. The purchase keeps its full price as "AP value" (`spent` — equivalent level, creation threshold;
