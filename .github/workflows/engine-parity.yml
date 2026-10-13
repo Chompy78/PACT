@@ -21,6 +21,7 @@ on:
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
+      - "testing/scripts/dm-ap-discount-ci.mjs"
       - "testing/scripts/imposed-drawback-grants-ci.mjs"
       - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/subclass-double-purchase-ci.mjs"
@@ -119,6 +120,9 @@ jobs:
 
       - name: Run the DM unlock-drawback gate
         run: node testing/scripts/dm-unlock-drawback-ci.mjs
+
+      - name: Run the DM AP discount gate
+        run: node testing/scripts/dm-ap-discount-ci.mjs
 
       - name: Run the engine priceOf extraction gate
         run: node testing/scripts/engine-priceof-ci.mjs

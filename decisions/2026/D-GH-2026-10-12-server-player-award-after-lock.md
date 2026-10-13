@@ -89,8 +89,10 @@ award route without refusing any save the live data contains, and moving the DM 
 makes the existing rule honest too.
 
 **Status.** Provisional — owner away, taken under standing instruction H2, reversible. The migration
-(`sql/migrations/2026-10-12-server-player-award-after-lock.sql`, rollback beside it) is **NOT APPLIED**: the owner applies it
-and runs `get_advisors`. Before applying, confirm the live `pact_enforce_player_ap_ceiling()` still matches
+(`sql/migrations/2026-10-12-server-player-award-after-lock.sql`, rollback beside it) was **APPLIED to production on
+2026-10-13** (migration `server_player_award_after_lock`, owner decision N1 — found still unapplied while building
+`feat/dm-ap-discount`). Pre-checks passed (below); afterwards the new version is live and `authenticated` can no longer execute
+the trigger function. Before applying, confirm the live `pact_enforce_player_ap_ceiling()` still matches
 `2026-09-03-dm-zero-player-ap.sql`, so the rollback is exact. Rehearsed by
 `testing/scripts/creation-lock-guard-test/run-award.sh` (39 cases; 17 attacks allowed today, all 39 pass after, rollback
 byte-identical).

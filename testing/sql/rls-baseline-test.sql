@@ -657,6 +657,126 @@ begin
   perform set_config('pact.test_uid', '', false);
 end $$;
 \echo ''
+\echo 'DM AP discount — dmDiscount (feat/dm-ap-discount)'
+-- A DM takes AP off one earlier priced purchase. Keyed by seq + category; whole, non-zero AP; the purchase's net
+-- discount stays between 0 and its cost; a negative amount corrects. Only a DM can add, change or remove one —
+-- the authorship trigger refuses a player-forged discount, by WHO writes, not by a flag in the event.
+do $$
+declare
+  c  constant uuid := '00000000-0000-0000-0000-0000000000d1';
+  c2 constant uuid := '00000000-0000-0000-0000-0000000000d2';
+  v_dm uuid; v_dm2 uuid; v_player uuid; v_camp uuid; v_camp2 uuid; v_res jsonb; v_log jsonb;
+  v_call text := 'select public.dm_edit_character_log(%L, %L::jsonb)';
+begin
+  insert into auth.users (email) values ('dd-dm@example.test') returning id into v_dm;
+  insert into auth.users (email) values ('dd-dm2@example.test') returning id into v_dm2;
+  insert into auth.users (email) values ('dd-player@example.test') returning id into v_player;
+  perform set_config('pact.test_uid', v_dm::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm, 'Discount probe') returning id into v_camp;
+  perform set_config('pact.test_uid', v_dm2::text, false);
+  insert into public.campaigns (dm_id, name) values (v_dm2, 'Discount probe — another table') returning id into v_camp2;
+
+  perform set_config('pact.test_uid', v_player::text, false);
+  insert into public.characters (id, owner_id, name, campaign_id, stats) values (c, v_player, 'Discount probe', v_camp,
+    jsonb_build_object('schema','pact-character/1','rules','v0.364','SEQ',5,'LOG', jsonb_build_array(
+      jsonb_build_object('seq',1,'ts',1,'type','buy','cat','oclass','cost',0,'payload',jsonb_build_object('v','Fighter')),
+      jsonb_build_object('seq',2,'ts',2,'type','buy','cat','skill','cost',4,'payload',jsonb_build_object('v','Perception')),
+      jsonb_build_object('seq',3,'ts',3,'type','buy','cat','save','cost',8,'payload',jsonb_build_object('v','CON')),
+      jsonb_build_object('seq',4,'ts',4,'type','buy','cat','drawback','cost',-4,'payload',jsonb_build_object('v','Lame')))));
+
+  -- ---- refusals, as the right DM ---------------------------------------------------------------------
+  perform set_config('pact.test_uid', v_dm::text, false);
+  perform pg_temp.rejects('refuses a missing targetSeq',
+    format(v_call, c, '[{"type":"dmDiscount","targetCat":"skill","amount":1,"note":"x"}]'), 'dm_edit_character_log: dmDiscount needs targetSeq%');
+  perform pg_temp.rejects('refuses a missing targetCat',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"amount":1,"note":"x"}]'), 'dm_edit_character_log: dmDiscount needs targetCat%');
+  perform pg_temp.rejects('refuses an amount sent as a string',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":"1","note":"x"}]'), 'dm_edit_character_log: dmDiscount needs a whole%');
+  perform pg_temp.rejects('refuses a zero amount',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":0,"note":"x"}]'), 'dm_edit_character_log: dmDiscount needs a whole%');
+  perform pg_temp.rejects('refuses a fractional amount',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":1.5,"note":"x"}]'), 'dm_edit_character_log: dmDiscount needs a whole%');
+  perform pg_temp.rejects('refuses an empty note',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":1,"note":"  "}]'), 'dm_edit_character_log: dmDiscount needs a note%');
+  perform pg_temp.rejects('refuses the right seq under the wrong category',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"save","amount":1,"note":"x"}]'), 'dm_edit_character_log: no single priced%');
+  perform pg_temp.rejects('refuses a drawback as the target',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":4,"targetCat":"drawback","amount":1,"note":"x"}]'), 'dm_edit_character_log: no single priced%');
+  perform pg_temp.rejects('refuses a free purchase (cost 0) as the target',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":1,"targetCat":"oclass","amount":1,"note":"x"}]'), 'dm_edit_character_log: no single priced%');
+  perform pg_temp.rejects('refuses a seq that is not in the log',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":99,"targetCat":"skill","amount":1,"note":"x"}]'), 'dm_edit_character_log: no single priced%');
+  perform pg_temp.rejects('refuses more than the purchase cost',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":5,"note":"x"}]'), 'dm_edit_character_log: a discount of%');
+  perform pg_temp.rejects('refuses a correction below zero',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":-1,"note":"x"}]'), 'dm_edit_character_log: a discount of%');
+  perform pg_temp.rejects('two discounts in ONE call are checked together (3 + 3 > 4)',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":3,"note":"a"},{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":3,"note":"b"}]'),
+    'dm_edit_character_log: a discount of%');
+  perform pg_temp.ok('...and the stored log is untouched by every refusal above',
+    jsonb_array_length((select stats->'LOG' from public.characters where id = c)) = 4);
+
+  -- ---- the wrong caller ------------------------------------------------------------------------------
+  perform set_config('pact.test_uid', v_player::text, false);
+  perform pg_temp.rejects('the character''s OWNER cannot use the RPC to discount their own purchase',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":1,"note":"x"}]'), 'Only a campaign DM can edit this character');
+  perform set_config('pact.test_uid', v_dm2::text, false);
+  perform pg_temp.rejects('a DM of a DIFFERENT campaign cannot either',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":1,"note":"x"}]'), 'Only a campaign DM can edit this character');
+
+  -- ---- the happy path, with junk the client should not be able to smuggle in -------------------------
+  perform set_config('pact.test_uid', v_dm::text, false);
+  v_res := public.dm_edit_character_log(c, jsonb_build_array(jsonb_build_object(
+    'type','dmDiscount','targetSeq',2,'targetCat','skill','amount',3,'note','  taught by the guild  ',
+    'cost',-50,'payload',jsonb_build_object('v','x'),'dmLocked',true)));
+  perform pg_temp.ok('a DM can discount a purchase (one event, seq 5, DM-stamped)',
+    jsonb_array_length(v_res) = 1 and v_res->0->>'type' = 'dmDiscount' and (v_res->0->>'seq') = '5'
+    and (v_res->0->'dmEdit') = 'true'::jsonb and (v_res->0->>'dmId') = v_dm::text);
+  perform pg_temp.ok('...keeps target, category, amount (a JSON number) and the trimmed note',
+    (v_res->0->>'targetSeq') = '2' and v_res->0->>'targetCat' = 'skill' and v_res->0->'amount' = '3'::jsonb
+    and v_res->0->>'note' = 'taught by the guild');
+  perform pg_temp.ok('...and nothing else the client sent rode along (no cost, payload, dmLocked)',
+    not (v_res->0 ? 'cost') and not (v_res->0 ? 'payload') and not (v_res->0 ? 'dmLocked'));
+  perform public.dm_edit_character_log(c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":-1,"note":"too generous"}]'::jsonb);
+  perform pg_temp.ok('a negative amount corrects it (3 - 1 = 2 AP back)',
+    public.pact_ap_ledger_discount((select stats->'LOG' from public.characters where id = c)) = 2);
+  perform pg_temp.rejects('...and the cap counts the correction (2 + 3 > 4)',
+    format(v_call, c, '[{"type":"dmDiscount","targetSeq":2,"targetCat":"skill","amount":3,"note":"x"}]'), 'dm_edit_character_log: a discount of%');
+  perform pg_temp.ok('the discount does not change the spend the server counts (AP value)',
+    (select spent from public.pact_ap_ledger_spend((select stats->'LOG' from public.characters where id = c))) = 12);
+
+  -- ---- forgery: the owner writing their own row --------------------------------------------------------
+  perform set_config('pact.test_uid', v_player::text, false);
+  v_log := (select stats->'LOG' from public.characters where id = c);
+  perform pg_temp.rejects('a player cannot APPEND a forged discount (even DM-stamped)',
+    format('update public.characters set stats = jsonb_set(stats, ''{LOG}'', %L::jsonb) where id = %L',
+      v_log || jsonb_build_array(jsonb_build_object('type','dmDiscount','targetSeq',3,'targetCat','save','amount',8,'note','x','seq',9,'dmEdit',true)), c),
+    'PACT: only the campaign''s DM%');
+  perform pg_temp.rejects('a player cannot CHANGE an existing discount''s amount',
+    format('update public.characters set stats = jsonb_set(stats, ''{LOG,4,amount}'', ''4''::jsonb) where id = %L', c),
+    'PACT: only the campaign''s DM%');
+  perform pg_temp.rejects('a player cannot REMOVE a discount',
+    format('update public.characters set stats = jsonb_set(stats, ''{LOG}'', (stats->''LOG'') - 5) where id = %L', c),
+    'PACT: only the campaign''s DM%');
+  update public.characters set stats = jsonb_set(stats, '{LOG}', v_log || jsonb_build_array(
+    jsonb_build_object('type','name','name','Renamed','seq',8))) where id = c;
+  perform pg_temp.ok('a normal player save that leaves the discounts alone still works',
+    jsonb_array_length((select stats->'LOG' from public.characters where id = c)) = 7);
+  perform pg_temp.rejects('a player cannot INSERT a campaign character that already carries a discount',
+    format('insert into public.characters (id, owner_id, name, campaign_id, stats) values (gen_random_uuid(), %L, ''Forged import'', %L, %L::jsonb)',
+      v_player, v_camp, jsonb_build_object('LOG', v_log)),
+    'PACT: a character cannot join a campaign carrying%');
+  insert into public.characters (id, owner_id, name, stats) values (c2, v_player, 'Solo with a discount', jsonb_build_object('LOG', v_log));
+  perform pg_temp.rejects('...nor bind a solo character carrying one to a campaign',
+    format('update public.characters set campaign_id = %L where id = %L', v_camp, c2),
+    'PACT: a character cannot join a campaign carrying%');
+  update public.characters set campaign_id = null where id = c;
+  perform pg_temp.ok('leaving the campaign keeps the discounts (unchanged log)',
+    public.pact_ap_ledger_discount((select stats->'LOG' from public.characters where id = c)) = 2);
+  perform set_config('pact.test_uid', '', false);
+end $$;
+
+\echo ''
 \echo 'The baseline and the MIGRATIONS agree — the anti-drift guard'
 -- This is the check that makes the whole file un-rottable, and it needs no access to production.
 -- Snapshot every function body as built from the BASELINE, then load the forward migrations over the
@@ -693,7 +813,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'pact_enforce_basic_mode','set_basic_mode','unset_basic_mode','is_dm_of_player',
                   'pact_refuse_blank_solo_character','pact_purge_blank_characters',
                   'redeem_player_invite','redeem_character_claim',
-                  'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind');
+                  'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind',
+                  'pact_ap_ledger_discount','pact_enforce_dm_discount_authorship','pact_enforce_ap_budget_consistency');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -701,8 +822,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 18 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 18);
+  perform pg_temp.ok('all 21 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 21);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -723,6 +844,7 @@ end $$;
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 \ir ../../sql/migrations/2026-10-11-campaign-npcs.sql
+\ir ../../sql/migrations/2026-10-13-dm-ap-discount.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -742,8 +864,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 18 functions (saw ' || v_n || ')',
-    v_n = 18);
+  perform pg_temp.ok('the drift comparison actually covered all 21 functions (saw ' || v_n || ')',
+    v_n = 21);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

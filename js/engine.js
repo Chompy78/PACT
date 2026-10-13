@@ -12,7 +12,7 @@
  *                       `DATA.version` is the rules version — bump ONLY on a mechanics/compute() change.
  * Pricing / derivation:
  *   compute(b, opts?) — price a build & derive the sheet. opts:{dmAp?, ignorePlayerAp?}. Returns
- *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, warnings,
+ *                       {total, spendable, remaining, budget(=spendable), playerAp, dmAp, drawbackAp, dmDiscountAp, warnings,
  *                        lines, itemize, hp, baseHP, prof, tier, mods, effScore, size, …}. Pure over
  *                       (b, opts). Reads b._lostPurchases (stamped by _replay/foldBuild — see below) to
  *                       itemize a "Lost purchases" ledger line for bought-off drawbacks/DM-removed
@@ -44,6 +44,8 @@
  *   creationCeiling(events, opts?) — {enforced, base, drawbackBonus, ceiling, spent, remaining, locked}.
  *   wouldExceedCeiling(events, cost, opts?) — may this purchase be made while still in creation?
  *   economy(events)      — {earned, spent, available, drawbackEarned}: AP tally from a LOG (no fold/compute).
+ *                       Also {discounted, apValue(=spent), apPaid(=spent−discounted), discounts[]}: DM discounts
+ *                       (feat/dm-ap-discount) — earned AP tied to one purchase; `spent` keeps the full price.
  *   earnedWithDm(eco, opts?) — eco.earned composed with DM AP (opts:{dmAp?, ignorePlayerAp?}), mirroring
  *                       compute()'s own spendable formula — feeds Track-Level in both tools
  *                       (feat/ap-model-reconcile). Pure; does not change economy() itself.
@@ -76,7 +78,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.657";
+export const BUILD = "v1.660";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -1083,7 +1085,11 @@ export function compute(b, opts){
   // earnedWithDm() — the frozen-ledger AP ceiling the Live Sheet displays — carves the drawback portion
   // out of the same bracket, or the two would report different totals for one character.
   const playerAp=Math.max(0,b.budget||0); const _opts=opts||{}; const dmAp=Number(_opts.dmAp)||0;
-  const spendable=(_opts.ignorePlayerAp?0:playerAp)+_dGranted+dmAp; const remaining=spendable-total;
+  // DM discounts (feat/dm-ap-discount): their own pool, stamped on the build by foldBuild() (CharGen, which
+  // does not fold, sets it from economy(LOG).discounted). Outside the ignorePlayerAp bracket like the
+  // drawback grant — a discount is DM-given, not a player award.
+  const dmDiscountAp=Math.max(0,Number(b.dmDiscount)||0);
+  const spendable=(_opts.ignorePlayerAp?0:playerAp)+_dGranted+dmAp+dmDiscountAp; const remaining=spendable-total;
   if(remaining<0) W.unshift("OVER BUDGET by "+(-remaining)+" AP");
   // sheet — apply drawback stat effects (#7) and the Initiative skill (#8)
   const dset={};for(const x of (b.drawbacks||[]))dset[x]=1;
@@ -1100,7 +1106,7 @@ export function compute(b, opts){
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
   const {size, choosable:sizeChoosable}=sizeOf(b);
-  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
+  return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
     ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
@@ -1273,7 +1279,41 @@ export function activeEvents(events) {
       if (q && q.length) { const _idx = q.shift(); boonRemoved.add(_idx); const _orig = evs[_idx]; lost.push({ kind: 'boon', label: e.refVal, cost: Number(_orig && _orig.cost) || 0 }); }
     }
   });
-  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy };
+  // discounts (feat/dm-ap-discount, D-GH-2026-10-13-dm-ap-discount): a DM can take AP off one earlier
+  // priced purchase with a `dmDiscount` event {targetSeq, targetCat, amount}. Keyed by `seq`, like the
+  // unlock above, because a purchase has no other stable identity (payloads differ by category and many
+  // carry no name at all). `targetCat` is the target's own category ('buyoff'/'names' for those types),
+  // a cross-check so a wrong seq cannot land on an unrelated event. A discount counts only when:
+  //   * it is DM-stamped (dmEdit === true, set server-side by dm_edit_character_log);
+  //   * exactly ONE earlier event carries that seq (ambiguous -> nothing, fail-safe), its category
+  //     matches, and it still costs AP (_spendCost > 0).
+  // A purchase's net discount is the sum of its discounts — a NEGATIVE amount is how a DM corrects a
+  // mistake, nothing is ever deleted — clamped to [0, the purchase's frozen cost]. A boon the DM later
+  // removes keeps its discount: removal refunds nothing, so its cost still counts as spend, and the
+  // discount against that spend stands with it. Moves AP only; never alters the build.
+  const discounts = new Map();      // target index -> net discounted AP (already clamped)
+  const _discRaw = new Map();       // target index -> raw sum before clamping
+  const _bySeq = new Map();         // seq -> index, or -1 when more than one event carries it
+  evs.forEach((e, i) => {
+    if (e.type === 'dmDiscount') {
+      if (e.dmEdit !== true || e.targetSeq == null) return;
+      const amt = Number(e.amount);
+      if (!Number.isFinite(amt)) return;
+      const j = _bySeq.get(e.targetSeq);
+      if (j == null || j < 0) return;
+      const t = evs[j];
+      const cat = t.type === 'buy' ? t.cat : t.type;
+      if (cat !== e.targetCat || !(_spendCost(t) > 0)) return;
+      _discRaw.set(j, (_discRaw.get(j) || 0) + amt);
+      return;
+    }
+    if (e.seq != null) _bySeq.set(e.seq, _bySeq.has(e.seq) ? -1 : i);
+  });
+  _discRaw.forEach((raw, j) => {
+    const net = Math.min(_spendCost(evs[j]), Math.max(0, raw));
+    if (net > 0) discounts.set(j, net);
+  });
+  return { evs, boughtOff, boonRemoved, lost, unlocked, unlockedBy, discounts };
 }
 
 // AP-spend contribution of a single event — 0 for anything that isn't a spend-bearing buy/buyoff/names
@@ -1302,7 +1342,7 @@ function _spendCost(e) {
 // log array — it only reads event fields and mutates the build `b`. boughtOff depends solely on
 // e.type/e.refVal, and this tally solely on e.type/e.amount/e.cat/e.cost/e.payload.v, so a snapshot
 // resolved before the replay is identical to one resolved after it.
-function _economyFrom(evs, boughtOff) {
+function _economyFrom(evs, boughtOff, discounts) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   evs.forEach((e, i) => {
     if (e.type === 'award') earned += Number(e.amount) || 0;
@@ -1323,15 +1363,28 @@ function _economyFrom(evs, boughtOff) {
     else spent += _spendCost(e);
   });
   earned += drawbackEarned;
+  // DM discounts (feat/dm-ap-discount). Owner decision B1: a discounted purchase keeps its FULL price in
+  // `spent` (= "AP value", what equivalent level and the creation threshold read), and the discount is
+  // AP the character EARNED — so `available` comes out as what the player actually paid, and equivalent
+  // level (read from earned) rises as if the AP had been awarded. apPaid = spent − discounted.
+  let discounted = 0;
+  const discountList = [];
+  if (discounts) discounts.forEach((amt, j) => {
+    discounted += amt;
+    const t = evs[j];
+    discountList.push({ index: j, seq: t.seq, cat: t.type === 'buy' ? t.cat : t.type, label: t.label || '', cost: _spendCost(t), discount: amt });
+  });
+  earned += discounted;
   // drawbackEarned exposed (D-GH41) so a caller can isolate "raw award total" from "total earned" without
   // re-deriving drawback-bought-off filtering itself — purely additive, existing {earned,spent,available}
   // destructuring is unaffected.
-  return { earned, spent, available: earned - spent, drawbackEarned };
+  return { earned, spent, available: earned - spent, drawbackEarned,
+           discounted, apValue: spent, apPaid: spent - discounted, discounts: discountList };
 }
 
 export function economy(events) {
-  const { evs, boughtOff } = activeEvents(events);
-  return _economyFrom(evs, boughtOff);
+  const { evs, boughtOff, discounts } = activeEvents(events);
+  return _economyFrom(evs, boughtOff, discounts);
 }
 
 // feat/ap-model-reconcile (D-GH-2026-08-10-ap-model-reconcile): a DM-funded character read "Earned Lv 0"
@@ -1359,7 +1412,9 @@ export function earnedWithDm(eco, opts) {
   // compute()'s spendable disagree by exactly the grant for every character in such a campaign, which
   // is the D-GH30 display-divergence failure mode all over again.
   const drawbackEarned = (eco && Number(eco.drawbackEarned)) || 0;
-  return (_opts.ignorePlayerAp ? drawbackEarned : playerEarned) + dmAp;
+  // A DM discount survives the toggle too (feat/dm-ap-discount): it is DM-given, not a player award.
+  const discounted = (eco && Number(eco.discounted)) || 0;
+  return (_opts.ignorePlayerAp ? drawbackEarned + discounted : playerEarned) + dmAp;
 }
 
 /* creationLocked timeline — for each event in an already-resolved activeEvents() list, was the
@@ -2297,8 +2352,11 @@ export function foldBuild(events) {
   // drawback grant itself from b.drawbacks — so handing it `earned` would grant every drawback twice.
   // Subtract here rather than teaching economy() a second "earned" figure: the frozen ledger's `earned`
   // is what the DM Console and Live Sheet display and must keep meaning "everything this LOG earned".
-  const _eco = _economyFrom(ae.evs, ae.boughtOff);
-  b.budget = _eco.earned - _eco.drawbackEarned;
+  const _eco = _economyFrom(ae.evs, ae.boughtOff, ae.discounts);
+  // DM discounts are their own pool (b.dmDiscount), like the drawback grant: compute() adds it to
+  // spendable OUTSIDE the ignorePlayerAp bracket, so it must not ride in on the awards-only budget.
+  b.budget = _eco.earned - _eco.drawbackEarned - _eco.discounted;
+  b.dmDiscount = _eco.discounted;
   return b;
 }
 
@@ -2459,12 +2517,16 @@ export function creationCeiling(events, opts) {
   const o = opts || {};
   const st = creationLockState(events);
   const drawbackBonus = Math.max(0, Number(o.drawbackAp) || 0);
+  // Owner decision F1 (feat/dm-ap-discount): a DM discount raises the ceiling by its amount, the way a
+  // drawback grant does, so a DM's gift never uses up the player's own creation budget.
+  const _eco = economy(events);
+  const discountBonus = _eco.discounted;
   const base = st.threshold;
-  const ceiling = base + drawbackBonus;
-  const spent = Number.isFinite(Number(o.spent)) ? Number(o.spent) : economy(events).spent;
+  const ceiling = base + drawbackBonus + discountBonus;
+  const spent = Number.isFinite(Number(o.spent)) ? Number(o.spent) : _eco.spent;
   return {
     enforced: st.confirmed,   // no explicit threshold stamped -> no ceiling, see above
-    base, drawbackBonus, ceiling, spent,
+    base, drawbackBonus, discountBonus, ceiling, spent,
     remaining: ceiling - spent,
     locked: st.locked,
   };
@@ -2906,7 +2968,7 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
   }
   const b = seedBuild(base);
   const ae = _replay(b, log);        // reuse _replay's snapshot instead of re-deriving it via economy(log)
-  const eco = _economyFrom(ae.evs, ae.boughtOff);
+  const eco = _economyFrom(ae.evs, ae.boughtOff, ae.discounts);
   // budget = whatever the base build started with, plus all AP AWARDED through the log — awards only,
   // the same meaning foldBuild() gives it (v0.355). economy().earned also carries drawback grants, and
   // compute() derives those itself from b.drawbacks, so passing `earned` straight through would grant
@@ -2915,7 +2977,8 @@ export function rebuildStateFromEvents(baseSnapshot, events, opts) {
   // A base snapshot's own `budget` is awards-only under the same rule (a CharGen export's award field,
   // or a previous fold), and any drawbacks it carries are granted by compute() off b.drawbacks.
   const baseBudget = Number(base && base.budget) || 0;
-  b.budget = baseBudget + eco.earned - eco.drawbackEarned;
+  b.budget = baseBudget + eco.earned - eco.drawbackEarned - eco.discounted;
+  b.dmDiscount = (Number(base && base.dmDiscount) || 0) + eco.discounted;
 
   const result = compute(b, opts);
   return {
