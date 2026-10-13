@@ -43,6 +43,8 @@ const truthy = v => !(v === undefined || v === null || v === false || v === 0 ||
 const family = log => (log || []).filter(e => e && typeof e === 'object' && !Array.isArray(e) && (truthy(e.dmEdit) || DM_TYPES.has(e.type)));
 const canon = v => Array.isArray(v) ? v.map(canon) : (v && typeof v === 'object') ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v;
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+// buy / buyoff seq is protected too (PR #654 review): no tool may renumber an existing purchase or buy-off.
+const seqs = log => (log || []).filter(e => e && (e.type === 'buy' && e.cat !== 'patch' || e.type === 'buyoff')).map(e => [e.type, e.cat || '', e.seq]);
 const firstDiff = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) if (!same(a[i], b[i])) return `#${i}: ${JSON.stringify(a[i]).slice(0, 140)} -> ${JSON.stringify(b[i]).slice(0, 140)}`; return ''; };
 
 // ---- the characters ----
@@ -81,7 +83,16 @@ const IMPORTED = [
   { seq: 0, ts: 1, type: 'award', amount: 79, note: 'Imported budget', label: 'Starting creation budget (79 AP)', noLock: true },
 ].concat(LOCKED.slice(1));
 
+// A draft whose ONLY DM entries are an override and an imposed drawback: no award, no seal, no lock — nothing but the DM
+// family guard protects them, so CharGen's own refusals must come from the M1 check (PR #654 review item 2).
+const DRAFT_NOFLOOR = [
+  { seq: 1, ts: 1, type: 'award', amount: 79, note: 'Budget', noLock: true, label: 'Award — budget (79 AP)' },
+  { seq: 2, ts: 2, type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0, level: 1, label: 'Origin class — Fighter' },
+  dm({ seq: 3, ts: 3, type: 'buy', cat: 'drawback', payload: { v: 'Peg Leg' }, cost: 0, level: 1, dmLocked: true, dmRemovalCost: 'flat', label: 'Drawback — Peg Leg (DM imposed)' }),
+  dm({ seq: 4, ts: 4, type: 'dmHouseRules', campaignId: CAMP, overrides: {}, label: 'DM house rules for this character' }),
+];
 const SUBJECTS = [
+  { name: 'creation draft whose only DM entries are an override and an imposed drawback', LOG: DRAFT_NOFLOOR, dmMsg: true, retract: ['drawback', 'Peg Leg'] },
   { name: 'locked campaign character with every DM-family type', LOG: LOCKED, buyoff: 'Slow to Mend' },
   { name: 'creation draft with a DM-granted boon and an override', LOG: DRAFT },
   { name: 'Live-Sheet-origin (Imported budget) locked character', LOG: IMPORTED, buyoff: 'Peg Leg' },
@@ -106,6 +117,7 @@ try {
       let out = await p.evaluate(() => JSON.parse(localStorage.getItem('pactLiveSheet') || 'null'));
       const f1 = family(out && out.LOG);
       check('Live Sheet load + save: DM family unchanged', same(fam0, f1), firstDiff(fam0, f1));
+      check('Live Sheet load + save: every purchase/buy-off keeps its seq', same(seqs(s.LOG), seqs(out && out.LOG)));
       if (s.buyoff) {
         const n0 = await p.evaluate(() => LOG.length);
         await p.evaluate(v => buyoffDrawback(v), s.buyoff);
@@ -132,12 +144,35 @@ try {
       let out = await p.evaluate(() => JSON.parse(localStorage.getItem('pactCharGenAutosaveV2') || 'null'));
       const f1 = family(out && out.LOG);
       check('CharGen load + autosave: DM family unchanged', same(fam0, f1), firstDiff(fam0, f1));
+      check('CharGen load + autosave: every purchase/buy-off keeps its seq', same(seqs(s.LOG), seqs(out && out.LOG)));
       await p.evaluate(() => { const el = document.querySelector('[id^="ap_"]:not([id$="_lock"])'); if (el) { el.value = (el.value || '') + ' tall'; el.dispatchEvent(new Event('change', { bubbles: true })); } });
       await p.waitForTimeout(300);
       await p.evaluate(() => _cgAutosave());
       out = await p.evaluate(() => JSON.parse(localStorage.getItem('pactCharGenAutosaveV2') || 'null'));
       const f2 = family(out && out.LOG);
       check('CharGen harmless edit + autosave: DM family unchanged', same(fam0, f2), firstDiff(fam0, f2));
+      // A whole-history rebuild (🎲 Randomise) must refuse, with a message, while DM entries exist — the server would refuse
+      // the save that followed, and the player would be stuck.
+      {
+        const msgs = []; p.removeAllListeners('dialog'); p.on('dialog', d => { msgs.push(d.message()); d.accept(); });
+        const before = await p.evaluate(() => JSON.stringify(LOG));
+        await p.evaluate(() => { try { randomizeRoll(); } catch (e) {} });
+        await p.waitForTimeout(300);
+        const after = await p.evaluate(() => JSON.stringify(LOG));
+        check('CharGen 🎲 Randomise is refused while DM entries exist (log unchanged)', before === after);
+        if (s.dmMsg) check('…with a message naming the DM', msgs.some(m => /Your DM has made changes/.test(m)), msgs.join(' | ').slice(0, 120));
+        else check('…with a message', msgs.length > 0);
+      }
+      // Unticking a purchase the DM made (a granted boon) must not retract the DM's event.
+      {
+        const dmBuy = s.retract || (s.LOG.find(e => e.type === 'buy' && e.cat === 'boon' && e.dmEdit) ? ['boon', s.LOG.find(e => e.type === 'buy' && e.cat === 'boon' && e.dmEdit).payload.v] : null);
+        if (dmBuy) {
+          const before = await p.evaluate(() => JSON.stringify(LOG));
+          const r = await p.evaluate(([c, v]) => retractFlatEvent(c, e => e.payload && e.payload.v === v), dmBuy);
+          const after = await p.evaluate(() => JSON.stringify(LOG));
+          check(`CharGen: unticking the DM's ${dmBuy[1]} is refused (DM event kept)`, r === false && before === after, `returned ${r}`);
+        }
+      }
       check('CharGen: no page errors', errs.length === 0, errs.join(' | ').slice(0, 200));
       await ctx.close();
     }

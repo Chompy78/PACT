@@ -8,9 +8,14 @@
 --   * campaigns.rules.charHouseRules — inert to the database again; the tools still read it (and DM Console's whole-blob
 --     save can then overwrite it, as before the guard).
 --   * dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events in a LOG — the restored ledger ignores
---     them, so a refunded boon counts as spent again and a reprice / removal stops moving the server's grant: the server
---     becomes STRICTER than the browser for those characters (a purchase can be refused on save). A DM award_ap() for the
---     difference restores agreement.
+--     them, while the browser keeps counting them. The two sides then move in BOTH directions: a refund or a POSITIVE reprice
+--     stops counting, so the server becomes STRICTER (a purchase the browser allows can be refused on save; a DM award_ap()
+--     for the difference restores agreement); a dmRemoveDrawback or a NEGATIVE reprice stops counting too, so the server gives
+--     the grant back and becomes MORE LENIENT than the browser — the player could spend AP their DM took away, server-side.
+--     Before rolling back on a database where DMs have used the RPC, list those characters
+--     (select id from characters, jsonb_array_elements(stats->'LOG') e where e->>'type' in ('dmRemoveDrawback','dmRepriceDrawback'))
+--     and have their DM settle the difference with award_ap() (a negative amount takes AP back).
+--   * Apply this file single-transaction too (`psql -1`), like the migration.
 --   * buyoff targetSeq — ignored again (the old approximation: the bought-off grant stays).
 --   * dm_edit_character_log refuses dmHouseRules again; the tools must feature-detect that refusal.
 
@@ -383,5 +388,6 @@ drop function if exists public.pact_hr_resolve(jsonb);
 drop function if exists public.pact_hr_validate(jsonb, text);
 drop function if exists public.pact_hr_entry_ok(text, jsonb, text);
 drop function if exists public.pact_hr_drawback_cap(jsonb);
+drop function if exists public.pact_num(jsonb);
 drop function if exists public.pact_js_number(jsonb);
 drop function if exists public.pact_js_truthy(jsonb);

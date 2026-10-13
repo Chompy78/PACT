@@ -12,6 +12,10 @@
 -- cases fail on today's definitions; AFTER: every case passes; rollback: every changed definition byte-identical).
 -- Rollback: 2026-10-13-campaign-house-rules-server-rollback.sql.
 --
+-- APPLY ATOMICALLY. Neither file carries BEGIN/COMMIT: the Supabase apply_migration path already runs a migration in one
+-- transaction, and an explicit COMMIT inside it would end that transaction early. A MANUAL apply must be single-transaction:
+-- `psql -1 -v ON_ERROR_STOP=1 -f <file>` (run-house-rules.sh applies both files exactly that way).
+--
 -- BASE OF THE REDEFINED FUNCTIONS. Each `create or replace` below of an EXISTING function was generated on 2026-10-13
 -- from sql/rls-policies.sql (stage 1 + stage 2 of the server freeze are folded there and recorded as applied; the
 -- 2026-10-04 dm-unlock-drawback header records dm_edit_character_log as hash-equal to production). RE-VERIFY against
@@ -41,11 +45,12 @@
 --      {kind:'refundBoon', character, name, targetSeq}          -> {type:'dmRefundBoon', cost: -target.cost}
 --      {kind:'removeDrawback', character, name, targetSeq}      -> {type:'dmRemoveDrawback', grantBack: -target.cost + ΣΔ}
 --    All in one transaction; any refusal rolls back everything. The three AP-moving kinds are refused unless the target is
---    exactly what js/engine.js activeEvents() would match — the server counts these events UNCONDITIONALLY (dmEdit only),
---    so it must never accept one the engine would ignore (decision record, "What PR3's RPC must refuse"):
+--    exactly what js/engine.js activeEvents() would match (decision record, "What PR3's RPC must refuse") — and, since the
+--    PR #654 review, the ledger ALSO counts such an event only when it matches (item 4), so the two checks back each other:
 --      unknown targetSeq · wrong type or name · two purchases sharing seq+name (ambiguous) · already bought off / removed /
 --      refunded / DM-removed · a non-finite or non-integer amount · DM-imposed drawback / DM-granted boon · a character
---      not currently creation-locked · not in this campaign. A target always PRECEDES the event (it is appended).
+--      not currently creation-locked · not in this campaign · an archived character. A target always PRECEDES the event
+--    (it is appended). A DM's own NPC is accepted, like every other DM write path (dm_edit_character_log, award_ap).
 --    M3: a reprice's `from` must equal the target's ledger grant (−cost + ΣΔ of earlier matched reprices) and `to` its new
 --    effective value (DM pin > DM override > campaign charHouseRules); when none of those names it, the effective value is
 --    the PRINTED one, which this database cannot know (it has no copy of js/engine-data.js and must not get one), so `to`
@@ -54,13 +59,17 @@
 --    on a creation draft (it is not a buy, so repriceDraft never touches it). The three AP-moving types stay refused there:
 --    they are RPC-only (orchestrator decision).
 -- 4. Ledger (§6.4 + M1 + M4 + X1 + Z1). New pact_ap_ledger_split(log) -> (spent, award_earned, drawback_earned):
---      spent           buy (non-patch, non-drawback) + buyoff + names costs (unchanged) + dmRefundBoon.cost   (dmEdit only)
+--      spent           buy (non-patch, non-drawback) + buyoff + names costs (unchanged) + dmRefundBoon.cost (matched)
 --      award_earned    award amounts (unchanged)
 --      drawback_earned −cost of every drawback buy (unchanged) + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack
---                      (dmEdit only) − M4: the grant (−cost + ΣΔ) of each purchase a buyoff provably cancelled — a buyoff
+--                      (matched) − M4: the grant (−cost + ΣΔ) of each purchase a buyoff provably cancelled — a buyoff
 --                      whose `targetSeq` equals the seq of the purchase js/engine.js's FIFO match cancels. A buyoff
 --                      without one keeps the old approximation (its grant stays): more lenient, never a mint, since the
 --                      buy-off itself cost 3x the value. The Live Sheet starts stamping targetSeq in PR2.
+--    "matched" = DM-stamped (dmEdit = true) AND resolved to its target exactly as js/engine.js activeEvents().dmMatched
+--    resolves it (pact_hr_resolve: by targetSeq + name, unique, still held, finite amount) — PR #654 review. Every amount is
+--    read as Number(x) || 0 (pact_num), as the engine reads it, so a malformed cost string counts 0 instead of raising
+--    (a raise blocked every save of that character, by anyone).
 --    pact_ap_ledger_spend(log) keeps its signature (clients may call it) and returns award_earned + drawback_earned.
 --    pact_enforce_ap_budget_consistency() now uses
 --      spendable = ap + (ignore_player_ap ? 0 : award_earned) + capped(drawback_earned)
@@ -69,13 +78,19 @@
 --    js/campaign.js drawbackCapFromRules(): the DM's rules.drawbackCap.ap when the drawbackCap object is present and not
 --    enabled:false (Number() of it, at least 0), and NO cap when the DM switched it off or never set it.
 -- 5. History protection. pact_ap_ledger_protected() gains dmHouseRules / dmRefundBoon / dmRemoveDrawback /
---    dmRepriceDrawback; pact_enforce_locked_history() also freezes, for a campaign character, everything up to its LAST
+--    dmRepriceDrawback, and keeps the `seq` of buy and buyoff events (PR #654 review: renumbering a frozen purchase would
+--    un-match the DM event aimed at it; no client renumbers one — dm-family-roundtrip-e2e.mjs checks both tools, and
+--    roundtrip-audit.mjs now checks it on a live export); pact_enforce_locked_history() also freezes, for a campaign character, everything up to its LAST
 --    DM-stamped AP-moving event (§6.5) — the client's undo barrier, now server-side.
 -- 6. M1 forgery guard: pact_enforce_dm_family() (trigger trg_pact_dm_family_guard). On a campaign character, a writer who
 --    is neither a DM of its (old or new) campaign nor an admin session may not add, change, remove or reorder any event in
 --    its "DM family": every event with a truthy dmEdit, and every event of a DM-only type — dmHouseRules, dmRefundBoon,
 --    dmRemoveDrawback, dmRepriceDrawback, dmRemoveBoon, dmUnlockDrawback, sessionSeal — whatever its flags. The ledger
---    counts the AP-moving types only when dmEdit = true, and nothing but a DM can now put one there.
+--    counts the AP-moving types only when DM-stamped and matched, and nothing but a DM can now put one there.
+--    One relaxation: in a creation DRAFT a DM-stamped boon buy's cost may be raised (never lowered, nothing else changed) —
+--    the engine on `main` before rules v0.377 re-prices DM buys in a draft. In practice a DM boon GRANT is followed by its
+--    matched award, a locked-history boundary that already freezes the buy today, so this only covers a DM buy with no
+--    award after it.
 --
 -- WHAT IT DELIBERATELY LEAVES ALONE
 --   * pact_patch_exempt_keys(): houseRules stays exempt. Under owner decision U1 a campaign character's own houseRules
@@ -85,11 +100,14 @@
 --     dm_zero_player_ap(), seal_character_history(): unchanged, and each still works with the guard on (all are DMs).
 --   * Every GRANT on a redefined function: `create or replace` keeps them.
 --
--- KNOWN RESIDUAL RISK (plan §6.7, unchanged by this file). The forgery guard covers CAMPAIGN characters. A player can leave
--- a campaign (solo: no guard, no budget), forge DM events, and join a campaign again with them; the join does not change
--- `stats`, so nothing compares them. The ledger would then count forged dmEdit AP events. Joining needs that campaign's
--- invite code. Mitigation is a follow-up on the board (a server-side table of RPC-issued adjustments the ledger reads instead
--- of the player-writable log); see the decision record's PR3 addendum.
+-- KNOWN RESIDUAL RISK (plan §6.7, corrected by the PR #654 review). The forgery guard covers CAMPAIGN characters, and a
+-- player cannot leave a campaign (dm_unbind_character is the only way out). The two real paths into campaign X with DM-stamped
+-- AP events no DM of X wrote: (1) forge them on a SOLO character (no guard) before its first join; (2) create a campaign Y
+-- (anyone can), dm_bind_npc their own character into it, write the events as Y's DM, dm_unbind_character it, and join X.
+-- Joining X needs X's invite code; the join does not change `stats`, so nothing compares the events. Follow-up on the board:
+-- count AP-moving DM events only when their stamped campaignId equals the character's current campaign_id (the engine must
+-- do the same so browser and server keep agreeing — that is why it is not done here), or move the counted amounts into a
+-- server-side table the RPC writes.
 --
 -- =====================================================================================================================
 -- BLAST RADIUS — measured NOTHING live (this session cannot reach the database). Run these READ-ONLY queries before
@@ -336,6 +354,7 @@ $$;
 --   delta   ΣΔ of the dmRepriceDrawback events matched to it
 --   dmap / bmap  'seq|name' -> n, or -1 when two drawback (resp. boon) purchases share it (as of the END of the log)
 --   buyoffs      'ord of a buyoff' -> n of the purchase it cancelled
+--   matched      'ord of a DM-stamped refund / removal / reprice' -> n of the purchase it matched (js/engine.js dmMatched)
 -- ---------------------------------------------------------------------------------------------------------------------
 create or replace function public.pact_hr_resolve(p_log jsonb)
 returns jsonb language plpgsql immutable set search_path = public, pg_temp as $$
@@ -344,7 +363,7 @@ declare
   n int := 0;
   a_ord bigint[] := '{}'; a_cat text[] := '{}'; a_name text[] := '{}'; a_seq text[] := '{}';
   a_cost jsonb[] := '{}'; a_dm jsonb[] := '{}'; a_status text[] := '{}'; a_delta numeric[] := '{}';
-  dq jsonb := '{}'; bq jsonb := '{}'; dmap jsonb := '{}'; bmap jsonb := '{}'; bo jsonb := '{}';
+  dq jsonb := '{}'; bq jsonb := '{}'; dmap jsonb := '{}'; bmap jsonb := '{}'; bo jsonb := '{}'; mt jsonb := '{}';
   out jsonb := '[]'; i int;
 begin
   for ev, o in select e, x.ord from jsonb_array_elements(case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end) with ordinality as x(e, ord) loop
@@ -379,6 +398,7 @@ begin
       k := (ev ->> 'targetSeq') || '|' || (ev ->> 'refVal');
       j := case when t = 'dmRefundBoon' then (bmap ->> k)::int else (dmap ->> k)::int end;
       if j is null or j < 0 or a_status[j] <> 'open' then continue; end if;
+      mt := mt || jsonb_build_object(o::text, j);
       if t = 'dmRepriceDrawback' then
         a_delta[j] := a_delta[j] + public.pact_js_number(amt);
       elsif t = 'dmRemoveDrawback' then
@@ -413,13 +433,20 @@ begin
     out := out || jsonb_build_array(jsonb_build_object('n', i, 'ord', a_ord[i], 'cat', a_cat[i], 'name', a_name[i], 'seq', a_seq[i],
       'cost', a_cost[i], 'dmEdit', a_dm[i], 'status', a_status[i], 'delta', a_delta[i]));
   end loop;
-  return jsonb_build_object('purchases', out, 'dmap', dmap, 'bmap', bmap, 'buyoffs', bo);
+  return jsonb_build_object('purchases', out, 'dmap', dmap, 'bmap', bmap, 'buyoffs', bo, 'matched', mt);
 end;
 $$;
 
 -- ---------------------------------------------------------------------------------------------------------------------
--- The ledger (plan §6.4, M1, M4). See the header for the sums. The original sums are kept line for line.
+-- The ledger (plan §6.4, M1, M4). See the header for the sums.
+-- pact_num(v): Number(v) || 0, as js/engine.js reads every frozen amount — a malformed string counts 0 instead of raising
+-- (a raise here would block every save of that character, by anyone, until an admin repaired the row).
 -- ---------------------------------------------------------------------------------------------------------------------
+create or replace function public.pact_num(p jsonb)
+returns numeric language sql immutable set search_path = public, pg_temp as $$
+  select coalesce(public.pact_js_number(p), 0);
+$$;
+
 create or replace function public.pact_ap_ledger_split(p_log jsonb)
 returns table(spent numeric, award_earned numeric, drawback_earned numeric)
 language plpgsql stable set search_path = public, pg_temp as $$
@@ -429,42 +456,45 @@ declare
   v_spent numeric := 0;
   v_award numeric := 0;
   v_draw numeric := 0;
-  v_targeted boolean := false;
-  r jsonb; b record; p jsonb; v_d numeric;
+  v_need boolean := false;
+  r jsonb; b record; p jsonb;
 begin
-  for ev in select * from jsonb_array_elements(coalesce(p_log, '[]'::jsonb)) loop
+  for ev in select * from jsonb_array_elements(case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end) loop
     if (ev->>'type') = 'award' then
-      v_award := v_award + coalesce((ev->>'amount')::numeric, 0);
+      v_award := v_award + public.pact_num(ev->'amount');
     elsif (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'drawback' then
       -- drawback cost is stored negative (a refund); js/engine.js's economy() negates it into earned.
-      v_draw := v_draw + (coalesce((ev->>'cost')::numeric, 0) * -1);
+      v_draw := v_draw - public.pact_num(ev->'cost');
     elsif (ev->>'type') in ('buyoff','names') or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch') then
-      v_spent := v_spent + coalesce((ev->>'cost')::numeric, 0);
-      if (ev->>'type') = 'buyoff' and (ev->>'targetSeq') is not null then v_targeted := true; end if;
-    -- M1: the house-rules DM events count ONLY when DM-stamped (dmEdit = true). Since trg_pact_dm_family_guard only a DM
-    -- (dm_apply_house_rules_change) can put one into a campaign character's log.
-    elsif (ev->>'type') = 'dmRefundBoon' and ev->'dmEdit' = 'true'::jsonb then
-      v_spent := v_spent + coalesce((ev->>'cost')::numeric, 0);
-    elsif (ev->>'type') = 'dmRemoveDrawback' and ev->'dmEdit' = 'true'::jsonb then
-      v_draw := v_draw - coalesce((ev->>'grantBack')::numeric, 0);
-    elsif (ev->>'type') = 'dmRepriceDrawback' and ev->'dmEdit' = 'true'::jsonb then
-      v_draw := v_draw + coalesce((ev->>'amount')::numeric, 0);
+      v_spent := v_spent + public.pact_num(ev->'cost');
+      if (ev->>'type') = 'buyoff' and (ev->>'targetSeq') is not null then v_need := true; end if;
+    elsif (ev->>'type') in ('dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback') and ev->'dmEdit' = 'true'::jsonb then
+      v_need := true;
     end if;
   end loop;
 
-  -- M4: a buyoff that names (targetSeq) the purchase js/engine.js's FIFO match cancels takes that purchase's grant back
-  -- out: −cost + ΣΔ of the DM reprices aimed at it before the buyoff — exactly what this ledger credited for it.
-  if v_targeted then
+  if v_need then
     r := public.pact_hr_resolve(p_log);
+    -- M1 + the PR #654 review: a DM house-rules AP event counts ONLY when it is DM-stamped AND resolves to its target exactly
+    -- as js/engine.js activeEvents() resolves it (dmMatched) — never unconditionally. Otherwise a player who managed to
+    -- un-match one (e.g. by renumbering its target) would keep a refund the browser no longer shows.
+    for b in select key::bigint as ord from jsonb_each(r -> 'matched') loop
+      ev := p_log -> (b.ord::int - 1);
+      if (ev->>'type') = 'dmRefundBoon' then
+        v_spent := v_spent + public.pact_num(ev->'cost');
+      elsif (ev->>'type') = 'dmRemoveDrawback' then
+        v_draw := v_draw - public.pact_num(ev->'grantBack');
+      else
+        v_draw := v_draw + public.pact_num(ev->'amount');
+      end if;
+    end loop;
+    -- M4: a buyoff that names (targetSeq) the purchase js/engine.js's FIFO match cancels takes that purchase's grant back
+    -- out: −cost + ΣΔ of the matched DM reprices of it (all of which precede the buyoff — a reprice after it matches nothing).
     for b in select key::bigint as ord, value::int as n from jsonb_each_text(r -> 'buyoffs') loop
       ev := p_log -> (b.ord::int - 1);
       p := r -> 'purchases' -> (b.n - 1);
       if (ev->>'targetSeq') is null or (p->>'seq') is null or (p->>'seq') <> (ev->>'targetSeq') then continue; end if;
-      select coalesce(sum(coalesce((e->>'amount')::numeric, 0)), 0) into v_d
-        from jsonb_array_elements(p_log) with ordinality as x(e, ord)
-       where x.ord < b.ord and e->>'type' = 'dmRepriceDrawback' and e->'dmEdit' = 'true'::jsonb
-         and (e->>'targetSeq') = (p->>'seq') and (e->>'refVal') = (p->>'name');
-      v_draw := v_draw - ((coalesce((p->>'cost')::numeric, 0) * -1) + v_d);
+      v_draw := v_draw - (-public.pact_num(p->'cost') + (p->>'delta')::numeric);
     end loop;
   end if;
 
@@ -540,9 +570,14 @@ create or replace function public.pact_ap_ledger_protected(p_log jsonb)
  immutable
  set search_path = public, pg_temp
 as $function$
+  -- [HR] A purchase's and a buyoff's `seq` is protected too (PR #654 review): the DM's house-rules events and M4's
+  -- buy-off netting name their target BY seq, so renumbering a frozen purchase would un-match a DM refund in the browser.
+  -- No client rewrites the seq of an existing buy/buyoff (verified in both tools, 2026-10-13; dm-family-roundtrip-e2e).
   select coalesce(jsonb_agg(
            case when (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch'
                 then public.pact_patch_protected_projection(ev)
+                when (ev->>'type') in ('buy', 'buyoff')
+                then (ev - 'ts' - 'rules' - 'label')
                 else (ev - 'seq' - 'ts' - 'rules' - 'label') end
            order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
@@ -690,6 +725,8 @@ $$;
 
 create or replace function public.pact_enforce_dm_family()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old jsonb; v_new jsonb; v_draft boolean; v_ok boolean; i int; v_o jsonb; v_n jsonb;
 begin
   if NEW.stats is not distinct from OLD.stats then return NEW; end if;
   if OLD.campaign_id is null and NEW.campaign_id is null then return NEW; end if;            -- solo (residual risk: header)
@@ -698,11 +735,32 @@ begin
      or (NEW.campaign_id is not null and public.is_campaign_dm(NEW.campaign_id)) then
     return NEW;
   end if;
-  if public.pact_dm_family(OLD.stats->'LOG') is distinct from public.pact_dm_family(NEW.stats->'LOG') then
-    raise exception 'PACT: only your DM can add, change or remove a DM entry in this character''s history'
-      using hint = 'Reload the character — your DM has changed it since this copy was loaded.';
+  v_old := public.pact_dm_family(OLD.stats->'LOG');
+  v_new := public.pact_dm_family(NEW.stats->'LOG');
+  if v_old is not distinct from v_new then return NEW; end if;
+  -- One relaxation (PR #654 review): while the character is still a creation DRAFT (no creationLocked after its last
+  -- creationUnlocked), the engine on `main` before rules v0.377 re-prices a DM-granted boon's cost to today's price on every
+  -- CharGen save. Accept that re-pricing only when it does NOT lower the cost — a higher cost is more spend, never AP for
+  -- the player — and nothing else about the event changes.
+  v_draft := coalesce((select max(ord) from jsonb_array_elements(coalesce(OLD.stats->'LOG', '[]'::jsonb)) with ordinality as t(e, ord)
+                        where e->>'type' = 'creationLocked'), 0)
+          <= coalesce((select max(ord) from jsonb_array_elements(coalesce(OLD.stats->'LOG', '[]'::jsonb)) with ordinality as t(e, ord)
+                        where e->>'type' = 'creationUnlocked'), 0);
+  if v_draft and jsonb_array_length(v_old) = jsonb_array_length(v_new) then
+    v_ok := true;
+    for i in 0 .. jsonb_array_length(v_old) - 1 loop
+      v_o := v_old -> i; v_n := v_new -> i;
+      if v_o is not distinct from v_n then continue; end if;
+      if not (v_o->>'type' = 'buy' and v_o->>'cat' = 'boon' and (v_o - 'cost') = (v_n - 'cost')
+              and jsonb_typeof(v_n->'cost') = 'number' and public.pact_num(v_n->'cost') >= public.pact_num(v_o->'cost')) then
+        v_ok := false;
+        exit;
+      end if;
+    end loop;
+    if v_ok then return NEW; end if;
   end if;
-  return NEW;
+  raise exception 'PACT: only your DM can add, change or remove a DM entry in this character''s history'
+    using hint = 'Reload the character — your DM has changed it since this copy was loaded.';
 end;
 $$;
 
@@ -959,6 +1017,7 @@ declare
   v_last_lock int;
   v_last_unlk int;
   v_label    text;
+  v_arch     boolean;
 begin
   if auth.uid() is null then
     raise exception 'PACT: not signed in';
@@ -1011,9 +1070,14 @@ begin
       raise exception 'PACT house rules: action % needs a character id', v_idx;
     end if;
     v_char := (v_act ->> 'character')::uuid;
-    select campaign_id, stats into v_ccamp, v_stats from characters where id = v_char for update;
+    select campaign_id, stats, archived_at is not null into v_ccamp, v_stats, v_arch from characters where id = v_char for update;
     if not found or v_ccamp is distinct from p_campaign then
       raise exception 'PACT house rules: action % — that character is not in this campaign', v_idx;
+    end if;
+    -- An archived (soft-deleted) character is read-only here, as dm_bind_npc treats it. A DM's own NPC (is_npc) is accepted,
+    -- like every other DM write path (dm_edit_character_log, award_ap): house rules apply to it as to any campaign character.
+    if v_arch then
+      raise exception 'PACT house rules: action % — that character is archived; un-archive it first', v_idx;
     end if;
     if v_stats is null or jsonb_typeof(v_stats -> 'LOG') is distinct from 'array' then
       raise exception 'PACT house rules: action % — the character has no log', v_idx;
@@ -1059,7 +1123,7 @@ begin
       if jsonb_typeof(v_p -> 'cost') not in ('number', 'null') then
         raise exception 'PACT house rules: action % — the purchase''s cost is not a number', v_idx;
       end if;
-      v_cost := coalesce((v_p ->> 'cost')::numeric, 0);
+      v_cost := public.pact_num(v_p -> 'cost');
       if v_kind = 'refundBoon' then
         if public.pact_js_truthy(v_p -> 'dmEdit') then
           raise exception 'PACT house rules: action % — "%" was granted by a DM; remove it without a refund', v_idx, v_name;
@@ -1139,6 +1203,7 @@ revoke execute on function public.pact_enforce_dm_family()        from public, a
 revoke execute on function public.pact_guard_char_house_rules()   from public, anon, authenticated;
 revoke all on function public.pact_js_truthy(jsonb)               from public, anon;
 revoke all on function public.pact_js_number(jsonb)               from public, anon;
+revoke all on function public.pact_num(jsonb)                     from public, anon;
 revoke all on function public.pact_hr_drawback_cap(jsonb)         from public, anon;
 revoke all on function public.pact_hr_entry_ok(text, jsonb, text) from public, anon;
 revoke all on function public.pact_hr_validate(jsonb, text)       from public, anon;
@@ -1147,6 +1212,7 @@ revoke all on function public.pact_ap_ledger_split(jsonb)         from public, a
 revoke all on function public.pact_dm_family(jsonb)               from public, anon;
 grant execute on function public.pact_js_truthy(jsonb)               to authenticated;
 grant execute on function public.pact_js_number(jsonb)               to authenticated;
+grant execute on function public.pact_num(jsonb)                     to authenticated;
 grant execute on function public.pact_hr_drawback_cap(jsonb)         to authenticated;
 grant execute on function public.pact_hr_entry_ok(text, jsonb, text) to authenticated;
 grant execute on function public.pact_hr_validate(jsonb, text)       to authenticated;

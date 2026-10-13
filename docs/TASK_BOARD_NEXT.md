@@ -1465,14 +1465,16 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
   PR2 feat/campaign-house-rules-tools — DONE (2026-10-13, see CHANGELOG): ctx stamped in all three tools' folds, js/campaign-rules.js
       (houseRulesCtxFromRules / latestRulesSnapshot, re-exported by campaign.js), Live Sheet effective pickers + W1 buy-off + buyoff
       targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
-  PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR OPEN, NOT APPLIED: migration
+  PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR #654 OPEN, NOT APPLIED: migration
       sql/migrations/2026-10-13-campaign-house-rules-server.sql + rollback, Docker harness run-house-rules.sh (in sql-guards CI).
-      Owner applies it TOGETHER with the preview -> main promotion that carries PR1's engine (main's repriceDraft re-costs a
-      DM-granted boon in a draft, which the M1 guard refuses — see the decision record's PR3 addendum for the pre-check query),
-      after the header's read-only queries Q1-Q4 and roundtrip-audit.mjs on a fresh export; then get_advisors + logs, then a
-      follow-up PR folds it into sql/rls-policies.sql and the baseline tests. Owner decision Z1 resolved the cap question.
-      PR3 follow-up (residual risk, plan §6.7): a player can leave, forge DM events while solo and rejoin; have
-      dm_apply_house_rules_change() record each AP-moving adjustment in a server-side table the ledger reads instead of the log.
+      Blocked on owner decision AB (forged drawback grants in ignore-mode campaigns, X1+Z1). Then: the header's read-only
+      queries Q1-Q4, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
+      follow-up PR folds it into sql/rls-policies.sql and the baseline tests. It may be applied BEFORE the promotion (the PR
+      #654 review withdrew the "apply together" constraint: main's re-costing of a DM grant is already refused today).
+      PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
+      (dm_bind_npc, then dm_unbind_character) or on a solo character before joining, and bring them into campaign X. Count
+      AP-moving DM events only when their campaignId equals the character's current campaign_id — engine AND server, so
+      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads.
   MERGE WITH #649 (feat/dm-ap-discount) — whichever lands second must reconcile:
       - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
         inside it; mixing the two signatures fails silently (wrong tally, no error).
@@ -1493,8 +1495,7 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
       merge BEFORE preview is promoted to main.
 SECURITY GATE: PR1's engine counts dmEdit-flagged events that a PLAYER can still write until PR3's DM-family guard is applied
-(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration — and PR3 must not be
-applied while main still runs the pre-PR1 engine (see PR3 above): apply and promote together.
+(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration.
 ```
 **Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
 server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;

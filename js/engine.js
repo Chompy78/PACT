@@ -3212,13 +3212,13 @@ export function repriceDraft(events, opts) {
 // (D-GH-2026-10-13-campaign-house-rules, PR3: sql/migrations/2026-10-13-campaign-house-rules-server.sql) leaves it:
 // pact_ap_ledger_split()'s sums and pact_enforce_ap_budget_consistency()'s spendable. It reads ONLY frozen numbers on
 // the log — never a price — exactly like the SQL, so it is the yardstick for "do browser and server agree on AP left?".
-//   spent          buy (non-patch, non-drawback) + buyoff + names costs, + a DM-stamped dmRefundBoon's (negative) cost
+//   spent          buy (non-patch, non-drawback) + buyoff + names costs, + a matched dmRefundBoon's (negative) cost
 //   awardEarned    award amounts
-//   drawbackEarned −cost of every drawback buy, + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack (DM-stamped
-//                  only, owner/orchestrator M1), − the grant of each purchase a buyoff provably cancelled (M4): a
-//                  buyoff carrying `targetSeq` equal to the seq of the purchase the FIFO match cancels (activeEvents()
-//                  .buyoffTarget) nets out that purchase's −cost + ΣΔ of the DM reprices aimed at it before the
-//                  buyoff. A buyoff WITHOUT a matching targetSeq keeps the old approximation (the grant stays) — more
+//   drawbackEarned −cost of every drawback buy, + dmRepriceDrawback.amount − dmRemoveDrawback.grantBack (DM-stamped AND
+//                  matched to their target, activeEvents().dmMatched — M1 + the PR #654 review), − the grant of each
+//                  purchase a buyoff provably cancelled (M4): a buyoff carrying `targetSeq` equal to the seq of the
+//                  purchase the FIFO match cancels (activeEvents().buyoffTarget) nets out that purchase's −cost + ΣΔ of
+//                  its matched DM reprices. A buyoff WITHOUT a matching targetSeq keeps the old approximation (the grant stays) — more
 //                  lenient, never a mint: the buyoff itself cost 3× the value.
 //   drawbackGranted min(cap, drawbackEarned); cap = opts.drawbackCap when it is a finite number (max 0), else NO cap
 //                  (owner decision Z1, 2026-10-13: the same rule js/campaign.js drawbackCapFromRules() gives compute())
@@ -3237,25 +3237,23 @@ export function serverApLedger(events, opts) {
     if (t === 'award') awardEarned += n(ev.amount);
     else if (t === 'buy' && cat === 'drawback') drawbackEarned -= n(ev.cost);
     else if (t === 'buyoff' || t === 'names' || (t === 'buy' && cat !== 'patch')) spent += n(ev.cost);
-    else if (ev.dmEdit === true && t === 'dmRefundBoon') spent += n(ev.cost);
-    else if (ev.dmEdit === true && t === 'dmRemoveDrawback') drawbackEarned -= n(ev.grantBack);
-    else if (ev.dmEdit === true && t === 'dmRepriceDrawback') drawbackEarned += n(ev.amount);
   }
-  // M4: net out the grant of a purchase a targeted buyoff cancelled.
+  // The DM house-rules AP events count only when they MATCH their target (activeEvents().dmMatched) — the server does the
+  // same through pact_hr_resolve(), so a mis-aimed or un-matched one moves neither side (PR #654 review).
+  evs.forEach((ev, i) => {
+    if (!ae.dmMatched.has(i)) return;
+    if (ev.type === 'dmRefundBoon') spent += n(ev.cost);
+    else if (ev.type === 'dmRemoveDrawback') drawbackEarned -= n(ev.grantBack);
+    else if (ev.type === 'dmRepriceDrawback') drawbackEarned += n(ev.amount);
+  });
+  // M4: net out the grant (−cost + ΣΔ of its matched reprices) of a purchase a targeted buyoff cancelled.
   evs.forEach((ev, i) => {
     if (ev.type !== 'buyoff' || ev.targetSeq == null) return;
     const j = ae.buyoffTarget.get(i);
     if (j == null) return;
     const p = evs[j];
     if (p.seq == null || String(p.seq) !== String(ev.targetSeq)) return;
-    const name = String(p.payload && p.payload.v);
-    let d = 0;
-    for (let k = 0; k < i; k++) {
-      const r = evs[k];
-      if (r.type === 'dmRepriceDrawback' && r.dmEdit === true && r.targetSeq != null && r.refVal != null
-          && String(r.targetSeq) === String(p.seq) && String(r.refVal) === name) d += n(r.amount);
-    }
-    drawbackEarned -= (-n(p.cost) + d);
+    drawbackEarned -= (-n(p.cost) + (ae.drawRepriced.get(j) || 0));
   });
   const capped = Number.isFinite(o.drawbackCap);
   const cap = capped ? Math.max(0, o.drawbackCap) : null;

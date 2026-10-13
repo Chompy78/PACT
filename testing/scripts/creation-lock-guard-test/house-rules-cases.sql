@@ -169,6 +169,21 @@ insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
    {"seq":1,"type":"award","amount":10,"note":"Budget","noLock":true},
    {"seq":2,"type":"buy","cat":"drawback","cost":-5,"payload":{"v":"Slow to Mend"}},
    {"seq":3,"type":"creationLocked"}]}'),
+-- IG2 / IG3 / DRHR: the PR #654 security review's fixtures (ATK1, ATK2, ATK5, ATK6).
+ ('a0000000-0000-0000-0000-000000000015', camp(2), 'ig2', 'livesheet', 10, '{"SEQ":4,"LOG":[
+   {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
+   {"seq":2,"type":"buy","cat":"boon","cost":10,"payload":{"v":"Bulwark"}},
+   {"seq":3,"type":"creationLocked"}]}'),
+ ('a0000000-0000-0000-0000-000000000016', camp(2), 'ig3', 'livesheet', 10, '{"SEQ":3,"LOG":[
+   {"seq":1,"type":"award","amount":0,"note":"Budget","noLock":true},
+   {"seq":2,"type":"creationLocked"}]}'),
+ ('a0000000-0000-0000-0000-000000000017', camp(1), 'drhr', 'chargen', 0, '{"SEQ":3,"LOG":[
+   {"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},
+   {"seq":2,"type":"buy","cat":"boon","cost":6,"payload":{"v":"Alertness"}}]}'),
+-- DRG: a draft with a DM-stamped boon buy and NO award after it (the shape the guard's draft re-price relaxation is for).
+ ('a0000000-0000-0000-0000-000000000019', camp(1), 'drg', 'chargen', 0, '{"SEQ":3,"LOG":[
+   {"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},
+   {"seq":2,"type":"buy","cat":"boon","cost":12,"payload":{"v":"Lucky"},"dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}]}'),
 -- SOLO: not in a campaign.
  ('a0000000-0000-0000-0000-000000000014', null, 'solo', 'livesheet', 0, '{"SEQ":3,"LOG":[
    {"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},
@@ -496,8 +511,55 @@ select t('history: a buy AFTER the DM refund on a reopened character is still th
 select t('history: a non-DM-stamped refund is no boundary', 'allowed', 'pass', $b$
   select as_admin();
   insert into characters(owner_id, campaign_id, name, kind, ap, stats)
-    select 'a0000000-0000-0000-0000-000000000015', campaign_id, 'reopen2', kind, ap, jsonb_set(stats, '{LOG,4,dmEdit}', 'false') from characters where name = 'reopen';
+    select 'a0000000-0000-0000-0000-000000000018', campaign_id, 'reopen2', kind, ap, jsonb_set(stats, '{LOG,4,dmEdit}', 'false') from characters where name = 'reopen';
   select owner_upd('reopen2', $e$ jsonb_set(stats, '{LOG,3,cost}', '0') $e$) $b$);
 select t('history: an admin cannot quietly un-stamp a DM refund either (it is protected)', 'refused', 'fail', $b$
   select as_admin(); update characters set stats = jsonb_set(stats, '{LOG,4,dmEdit}', 'false') where name = 'reopen' $b$, 'PACT: locked character history%');
+-- =====================================================================================================================
+-- 9. The PR #654 security review (ATK1, ATK2, ATK5, ATK6, ATK7) and its follow-ups
+-- =====================================================================================================================
+select t('ATK1 (a): renumbering a refunded purchase (to un-match the DM refund) is refused — seq is protected', 'refused', 'fail', $b$
+  select hr(2, null, jsonb_build_array(act('refundBoon', 'ig2', '{"name":"Bulwark","targetSeq":2}')));
+  select owner_upd('ig2', $e$ jsonb_set(stats, '{LOG,1,seq}', '200') $e$) $b$, 'PACT: locked character history%');
+select t('ATK1 (b): an un-matched DM refund counts NOTHING in the server ledger (only matched events count)', 'allowed', 'fail', $b$
+  select ok(split('[{"type":"award","amount":10},{"type":"buy","cat":"boon","payload":{"v":"Bulwark"},"cost":10,"seq":200},
+    {"type":"dmRefundBoon","refVal":"Bulwark","targetSeq":2,"cost":-10,"dmEdit":true}]') = '[10, 10, 0]', 'refund not counted');
+  select ok(split('[{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},{"type":"buy","cat":"drawback","payload":{"v":"A"},"cost":-5,"seq":1},
+    {"type":"dmRepriceDrawback","refVal":"A","targetSeq":1,"amount":9,"dmEdit":true}]') = '[0, 0, 10]', 'ambiguous reprice not counted');
+  select ok(split('[{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4,"seq":1},{"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":"Infinity","dmEdit":true}]') = '[4, 0, 0]', 'non-finite not counted');
+  select ok(split('[{"type":"buy","cat":"boon","payload":{"v":"B"},"cost":4,"seq":1},{"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":-4,"dmEdit":true},
+    {"type":"dmRefundBoon","refVal":"B","targetSeq":1,"cost":-4,"dmEdit":true}]') = '[0, 0, 0]', 'a second refund of one purchase not counted') $b$);
+select t('ATK7: renumbering a purchase inside the frozen prefix (before an award) is refused', 'refused', 'fail', $b$
+  select owner_upd('hold', $e$ jsonb_set(stats, '{LOG,1,seq}', '555') $e$) $b$, 'PACT: locked character history%');
+select t('ATK7: …a buyoff''s seq too', 'refused', 'fail', $b$
+  select as_admin(); update characters set stats = jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":9,"type":"award","amount":1}]'::jsonb) || '{"SEQ":10}' where name = 'boff';
+  select owner_upd('boff', $e$ jsonb_set(stats, '{LOG,3,seq}', '444') $e$) $b$, 'PACT: locked character history%');
+select t('KNOWN GAP — owner decision AB pending (ATK2): ignore-mode player appends a -1000 drawback and spends it', 'allowed', 'fail', $b$
+  select owner_append('ig3', '{"seq":3,"type":"buy","cat":"drawback","cost":-1000,"payload":{"v":"Fake"}}');
+  select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$);
+select t('ATK5: a draft rebuild that drops a DM override (CharGen Randomise shape) is refused', 'refused', 'fail', $b$
+  select as_dm(); select dm_edit_character_log(chid('drhr'), '[{"type":"dmHouseRules","overrides":{}}]');
+  select owner_upd('drhr', $e$ jsonb_set(stats, '{LOG}', '[{"seq":1,"type":"award","amount":79,"note":"Budget","noLock":true},{"seq":2,"type":"buy","cat":"boon","cost":7,"payload":{"v":"Bulwark"}}]') $e$) $b$, 'PACT: only your DM%');
+select t('ATK6: a DM boon GRANT (buy + award pair) is already frozen by its own award today — main''s re-pricing is refused either way', 'refused', 'pass', $b$
+  select as_dm(); select dm_edit_character_log(chid('drhr'), '[{"type":"buy","cat":"boon","cost":12,"payload":{"v":"Lucky"}},{"type":"award","amount":12}]');
+  select owner_upd('drhr', $e$ jsonb_set(stats, '{LOG,2,cost}', '14') $e$) $b$, 'PACT: locked character history%');
+select t('ATK6 relaxation: a DM-stamped boon buy with no award after it, in a DRAFT, may be re-priced UP', 'allowed', 'pass', $b$
+  select owner_upd('drg', $e$ jsonb_set(stats, '{LOG,1,cost}', '14') $e$) $b$);
+select t('ATK6 relaxation: …but never DOWN', 'refused', 'fail', $b$
+  select owner_upd('drg', $e$ jsonb_set(stats, '{LOG,1,cost}', '10') $e$) $b$, 'PACT: only your DM%');
+select t('ATK6 relaxation: …and nothing else about the DM event may change with it', 'refused', 'fail', $b$
+  select owner_upd('drg', $e$ jsonb_set(jsonb_set(stats, '{LOG,1,cost}', '14'), '{LOG,1,payload,v}', '"Bulwark"') $e$) $b$, 'PACT: only your DM%');
+select t('ATK6 relaxation: …and only in a draft', 'refused', 'fail', $b$
+  select as_admin(); insert into characters(owner_id, campaign_id, name, kind, ap, stats)
+    select 'a0000000-0000-0000-0000-000000000020', campaign_id, 'drg2', kind, ap, jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":9,"type":"creationLocked"},{"seq":10,"type":"creationUnlocked"},{"seq":11,"type":"creationLocked"},{"seq":12,"type":"buy","cat":"boon","cost":12,"payload":{"v":"Bulwark"},"dmEdit":true}]'::jsonb) from characters where name = 'drg';
+  select owner_upd('drg2', $e$ jsonb_set(stats, '{LOG,5,cost}', '14') $e$) $b$, 'PACT: only your DM%');
+select t('RPC: an archived character is refused', 'refused', 'fail', $b$
+  select as_admin(); update characters set archived_at = now() where name = 'nocap';
+  select hr(1, null, jsonb_build_array(act('pin', 'nocap', '{"overrides":{}}'))) $b$, '%archived%');
+select t('RPC: a DM''s own NPC is accepted, like every other DM write path', 'allowed', 'fail', $b$
+  select as_admin(); update characters set is_npc = true, owner_id = 'd0000000-0000-0000-0000-000000000001' where name = 'tb';
+  select hr(1, null, jsonb_build_array(act('pin', 'tb', '{"overrides":{}}'))) $b$);
+select t('a malformed cost string counts 0 instead of blocking every save (Number(x)||0, as the engine reads it)', 'allowed', 'fail', $b$
+  select owner_append('tb', '{"seq":4,"type":"buy","cat":"skill","cost":"abc","payload":{"v":"Arcana"}}');
+  select owner_upd('tb', $e$ stats || '{"name":"again"}'::jsonb $e$) $b$);
 select as_admin();

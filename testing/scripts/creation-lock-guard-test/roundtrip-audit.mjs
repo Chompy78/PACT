@@ -37,7 +37,8 @@ const exp = JSON.parse(fs.readFileSync(exportPath, 'utf8'));
 const EXEMPT = new Set(['appearance', 'houseRules', 'gold']);
 const TEMP_EXEMPT = new Set(STAGE2 ? [] : ['traditions', 'innate', 'dabblerCantrips', 'martiallyBound', 'originClass', 'originClass2', 'species', 'species2', 'size', 'lineage']);
 const PROT_TYPES = new Set(['buyoff', 'names', 'award', 'sessionSeal', 'dmRemoveBoon', 'dmUnlockDrawback']);
-const strip = e => { const x = { ...e }; for (const k of ['seq', 'ts', 'rules', 'label']) delete x[k]; return x; };
+// seq stays on buy/buyoff events: 2026-10-13-campaign-house-rules-server.sql protects it (DM events and M4 target BY seq).
+const strip = e => { const x = { ...e }; for (const k of ['seq', 'ts', 'rules', 'label']) if (!(k === 'seq' && (e.type === 'buy' || e.type === 'buyoff'))) delete x[k]; return x; };
 const patchProj = e => {
   const p = e.payload && typeof e.payload.patch === 'object' && e.payload.patch && !Array.isArray(e.payload.patch) ? e.payload.patch : {};
   const q = {}; for (const [k, v] of Object.entries(p)) if (!EXEMPT.has(k) && !TEMP_EXEMPT.has(k)) q[k] = v;

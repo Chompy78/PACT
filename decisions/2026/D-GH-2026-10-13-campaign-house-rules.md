@@ -113,7 +113,7 @@ is the backstop; a DM-RPC vs stale player save race surfaces as a sync.js optimi
 
 ### What PR3's RPC must refuse (so the server never counts what the engine ignores)
 
-The server ledger counts a DM-stamped AP event UNCONDITIONALLY; the engine counts it only when it matches. The RPC must therefore
+*(PR3, after the PR #654 review: the server ledger now ALSO counts such an event only when it matches — see the PR3 addendum; the RPC refusals below stay as a second line.)* The server ledger counts a DM-stamped AP event UNCONDITIONALLY; the engine counts it only when it matches. The RPC must therefore
 refuse exactly the events the engine ignores, or the two diverge: a `targetSeq` no purchase has; a target of the wrong type or name
 (a boon event at a drawback purchase and vice versa); a target already bought off, removed (dmRemoveDrawback / dmRemoveBoon) or
 refunded; a target whose seq+name is shared with another purchase (ambiguous — `houseRulesImpact` flags it `ambiguousSeq` and the
@@ -169,7 +169,7 @@ Technical choices made while wiring the context into the three tools (none is an
 ## Addendum 2026-10-13 — PR3, the server half (`feat/campaign-house-rules-server`)
 
 Migration `sql/migrations/2026-10-13-campaign-house-rules-server.sql` + `-rollback.sql`, rehearsed in Docker by
-`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (137 cases). **NOT applied** to the live database by merging;
+`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (151 cases). **NOT applied** to the live database by merging;
 `sql/rls-policies.sql` and the baseline tests are deliberately unchanged until it is (sql/migrations/README.md; precedents
 #580 -> #598, #600 -> #608).
 
@@ -218,22 +218,49 @@ FIFO purchase in `_openDrawbackEvent()`); nothing else needs to change for M4.
   every family type into the real Live Sheet and CharGen and proves an honest save (and a buy-off / a harmless edit) leaves
   the family byte-identical; `roundtrip-audit.mjs` now checks the same on a live export.
 
+### PR #654 security review — changes (2026-10-13)
+
+- **BLOCKING 1 (seq rewrite):** a player could renumber a purchase inside the frozen prefix (the protected projection
+  stripped `seq`), so the engine stopped matching a DM refund while the SQL still counted it — refund kept AND boon kept.
+  Fixed both ways: (a) `pact_ap_ledger_protected()` keeps `seq` on buy and buyoff events (no client renumbers one — checked in
+  both tools by `dm-family-roundtrip-e2e.mjs`, and on live data by `roundtrip-audit.mjs`, which now mirrors the rule); (b) the
+  SQL ledger counts a DM AP event only when `pact_hr_resolve()` matches it to its target exactly as `activeEvents()` does
+  (`dmMatched`), and the engine's `serverApLedger()` model and the CI port do the same. The CI fuzz no longer leaves
+  non-matching or duplicate-seq histories out of the browser-vs-server comparison: they are compared strictly.
+- **CharGen dead-end:** 🎲 Randomise and loading a file over the character now refuse, with a message naming the DM, while the
+  log holds any DM-family event; unticking a purchase the DM made (a granted boon, an imposed drawback) is refused instead of
+  retracting the DM's event. A small CharGen hunk (`_cgIsDmFamily`, `_cgBlockedBySeal`, `retractFlatEvent`).
+- **Draft re-price relaxation:** in a creation draft the guard lets a DM-stamped boon buy's cost RISE (never fall, nothing else
+  changed). Finding while testing it: a DM boon GRANT is always followed by its matched `award`, which is a locked-history
+  boundary TODAY — so `main`'s CharGen re-costing a DM grant in a draft is already refused by the live database (a
+  pre-existing stuck-save, fixed by PR1's engine), and this migration adds no new refusal there. **The "apply together with
+  the promotion" constraint is withdrawn**: the migration may be applied before the promotion, which PR1's security gate
+  requires anyway.
+- **RPC:** archived characters are refused (as `dm_bind_npc` treats them); a DM's own NPC is accepted, like
+  `dm_edit_character_log` and `award_ap`. Ledger and RPC amounts read as `Number(x) || 0` (`pact_num`), so a malformed cost
+  string counts 0 instead of raising and blocking every save of that character.
+- **Atomic apply:** neither file carries BEGIN/COMMIT (Supabase `apply_migration` already runs one transaction, and a COMMIT
+  inside would end it early); a manual apply must use `psql -1`, which the harness now does.
+- **Rollback header corrected:** after a rollback the server ignores the DM events while the browser counts them — STRICTER
+  for refunds and positive reprices, but MORE LENIENT for a removal or a negative reprice.
+- **Open, owner decision AB (BLOCKING 2):** with X1 + Z1 an ignore-player-AP player can append a forged
+  `{buy, drawback, cost:-1000}` and spend it (the server has no drawback price table). Pinned as a "KNOWN GAP" case in the
+  harness; X1/Z1 behaviour unchanged pending the owner's answer.
+
 ### Constraints for applying it (owner)
 
-1. **Apply together with the `preview` → `main` promotion that carries PR1's engine.** The engine on `main` today re-costs a
-   DM-granted boon in a creation draft (`repriceDraft()` before §6.5(a)); with the M1 guard on, such a save is refused. The
-   e2e above fails exactly there against the old engine. Before applying, list the campaign characters that are creation
-   drafts (no `creationLocked` after their last `creationUnlocked`) and carry a DM-stamped non-drawback buy — each one's next
-   CharGen save would be refused if its DM buy's cost is not today's price. Expect none; if any, promote first:
-   `select c.id, c.name from characters c where c.campaign_id is not null and exists (select 1 from
-   jsonb_array_elements(c.stats->'LOG') e where e->>'type' = 'buy' and e->'dmEdit' = 'true' and e->>'cat' <> 'drawback') and
-   coalesce((select max(o) from jsonb_array_elements(c.stats->'LOG') with ordinality x(e, o) where e->>'type' = 'creationLocked'), 0)
-   <= coalesce((select max(o) from jsonb_array_elements(c.stats->'LOG') with ordinality x(e, o) where e->>'type' = 'creationUnlocked'), 0);`
-2. The read-only blast-radius queries in the migration header (Q1–Q4), and `roundtrip-audit.mjs` on a fresh export.
-3. Then `get_advisors` (security + performance) and `get_logs`; then fold into `sql/rls-policies.sql` and the baseline tests.
+1. The read-only blast-radius queries in the migration header (Q1–Q4), and `roundtrip-audit.mjs` on a fresh export (it now
+   checks the DM family and buy/buyoff `seq`, which this migration freezes).
+2. Owner decision AB (above) first, if it changes the migration.
+3. Apply with `apply_migration` (or `psql -1`), then `get_advisors` (security + performance) and `get_logs`; then fold into
+   `sql/rls-policies.sql` and the baseline tests.
 
-### Residual risk (unchanged, plan §6.7)
+### Residual risk (plan §6.7, corrected by the review)
 
-A player can leave a campaign, forge DM events while solo (no guard, no budget) and rejoin with an invite code; the join does
-not change `stats`, so nothing compares them, and the ledger would count forged `dmEdit` AP events. Follow-up on the board:
-have the RPC record each AP-moving adjustment in a server-side table that the ledger reads instead of the player-writable log.
+A player cannot leave a campaign (`dm_unbind_character` is the only way out). The real paths into campaign X with DM-stamped AP
+events no DM of X wrote: (1) forge them on a solo character (no guard) before its first join; (2) create a campaign Y, bind
+their own character to it with `dm_bind_npc`, write the events as Y's DM, `dm_unbind_character` it, then join X with X's invite
+code. Follow-up on the board: count AP-moving DM events only when their stamped `campaignId` equals the character's current
+`campaign_id` — on BOTH sides (the engine has no campaign in `economy()`, so doing it server-only would split browser and server
+for every legitimately moved character; not cheap, so not done here) — or have the RPC record the amounts in a server-side
+table that the ledger reads instead of the player-writable log.
