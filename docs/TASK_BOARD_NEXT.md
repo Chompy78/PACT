@@ -1659,3 +1659,25 @@ After approval: migration (bucket + storage policies, NOT applied until the owne
 replace/remove UI in both player tools, display in DM Console, e2e.
 ```
 **Done when:** a signed-in player can upload, replace and remove up to 2 images on a character; a third is refused; the images show on the Live Sheet, CharGen and the DM's card; another user who is not the owner or the campaign's DM cannot read them (tested); storage policies applied with owner approval and advisors clean.
+
+## feat/boon-drawback-notes — compulsory description on certain boons/drawbacks, locked once the DM approves it — TODO
+Branch feat/boon-drawback-notes. **Effort:** medium–high · **Risk:** medium — new DM approval state that must be server-enforced (a player-written LOG), and touches buy/save flows in all three tools.
+
+```text
+Owner request 2026-10-14. Some boons and drawbacks only make sense with a player-written description — e.g. the drawback
+"Code of Honour" (js/engine-data.js) needs the actual code spelled out. For those:
+  1. Data: mark them in DATA (e.g. a `needsNote:true` flag + a prompt such as "Write your code of honour"); display-only, so
+     no DATA.version bump unless pricing changes. Owner to list which boons/drawbacks get the flag (start: Code of Honour;
+     candidates: Oath of Poverty, vows/obligations, Enemy, Dependent…).
+  2. Player: buying a flagged item asks for the description (required, non-empty, length cap); it's stored on the purchase
+     (a note on the buy event, or a cost-0 note event that references the purchase by seq). The player can edit it until
+     approved. Shown on the Live Sheet, the 📋 Sheet, CharGen and the DM's card — escaped (esc() rule).
+  3. DM: DM Console lists notes awaiting approval; the DM approves (or asks for changes). Approval is a DM-stamped event via
+     dm_edit_character_log (new allow-listed type, e.g. {type:'dmApproveNote', targetSeq}); after it the note is LOCKED —
+     both tools refuse edits, and the server refuses a player change to an approved note (extend the DM-family / locked-
+     history guards). A DM can unlock it again (story beat), mirroring dmUnlockDrawback.
+  4. Solo characters (no DM): decide — no approval step (note always editable), or self-approve.
+Plan + cold review first (server guard + new event type). Migration NOT applied until the owner approves; get_advisors.
+Coordinate with feat/campaign-house-rules (its DM-family forgery guard must freeze the new approval event too).
+```
+**Done when:** buying Code of Honour requires a description; the DM sees and approves it in DM Console; after approval the player can't change it in either tool and a direct server write changing it is refused (tested); a DM unlock re-opens it; names/notes escaped; `engine-parity-ci` 0 failed.
