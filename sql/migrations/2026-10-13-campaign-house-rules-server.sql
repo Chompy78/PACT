@@ -756,6 +756,43 @@ begin
 end;
 $$;
 
+-- pact_ap_ledger_discount(log) — REDEFINED (live since 2026-10-13-dm-ap-discount.sql, a plain sum of every dmDiscount amount
+-- that is a JSON number). Merge of #649 with campaign house rules (D-GH-2026-10-13-campaign-house-rules addendum): unchanged,
+-- EXCEPT that a discount aimed (targetSeq) at a boon a MATCHED dmRefundBoon refunded no longer counts. The refund's cost is
+-- −(the boon's full frozen cost), so without this the refund would hand back the discounted AP a second time; with it the
+-- refund nets to frozen cost MINUS the discount, whichever of the two came first. js/engine.js activeEvents() drops the
+-- discount the same way, and serverApLedger() / house-rules-ledger-ci.mjs model this function. "Matched" is
+-- pact_hr_resolve()'s, the same match the ledger uses for the refund itself; a log with no DM-stamped refund skips it.
+create or replace function public.pact_ap_ledger_discount(p_log jsonb)
+ returns numeric
+ language plpgsql
+ stable
+ set search_path = public, pg_temp
+as $function$
+declare
+  v_log jsonb := case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end;
+  v_refunded jsonb := '{}'::jsonb;
+  v_sum numeric;
+  r jsonb; b record; ev jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements(v_log) as t(e)
+              where jsonb_typeof(e) = 'object' and e->>'type' = 'dmRefundBoon' and e->'dmEdit' = 'true'::jsonb) then
+    r := public.pact_hr_resolve(v_log);
+    for b in select key::bigint as ord from jsonb_each(r -> 'matched') loop
+      ev := v_log -> (b.ord::int - 1);
+      if (ev->>'type') = 'dmRefundBoon' and public.pact_js_key(ev->'targetSeq') is not null then
+        v_refunded := v_refunded || jsonb_build_object(public.pact_js_key(ev->'targetSeq'), true);
+      end if;
+    end loop;
+  end if;
+  select coalesce(sum((e->>'amount')::numeric), 0) into v_sum
+    from jsonb_array_elements(v_log) as t(e)
+   where jsonb_typeof(e) = 'object' and e->>'type' = 'dmDiscount' and jsonb_typeof(e->'amount') = 'number'
+     and not (v_refunded ? coalesce(public.pact_js_key(e->'targetSeq'), ''));
+  return v_sum;
+end;
+$function$;
+
 create or replace function public.pact_enforce_ap_budget_consistency()
 returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -791,7 +828,11 @@ begin
   -- X1: a drawback's grant counts whether or not the campaign ignores player AP (only AWARDS are the player's to ignore).
   -- Z1: capped at the DM's drawback cap when they set one (js/campaign.js drawbackCapFromRules), uncapped otherwise.
   v_cap := public.pact_hr_drawback_cap(v_campaign.rules);
-  v_spendable := NEW.ap + (case when v_campaign.ignore_player_ap then 0 else v_new_award end)
+  -- feat/dm-ap-discount (2026-10-13-dm-ap-discount.sql, APPLIED — kept here, or applying this file would silently undo it):
+  -- a DM discount is DM-given AP, so it counts whether or not the campaign ignores player AP (js/engine.js keeps it outside
+  -- the same bracket). pact_ap_ledger_discount() is redefined above to leave out a refunded boon's discount.
+  v_spendable := NEW.ap + public.pact_ap_ledger_discount(NEW.stats->'LOG')
+               + (case when v_campaign.ignore_player_ap then 0 else v_new_award end)
                + (case when v_cap is null then v_new_draw else least(v_cap, v_new_draw) end);
 
   if v_new_spent > v_old_spent and v_new_spent > v_spendable then
@@ -815,6 +856,8 @@ as $function$
   -- [HR] A purchase's and a buyoff's `seq` is protected too (PR #654 review): the DM's house-rules events and M4's
   -- buy-off netting name their target BY seq, so renumbering a frozen purchase would un-match a DM refund in the browser.
   -- No client rewrites the seq of an existing buy/buyoff (verified in both tools, 2026-10-13; dm-family-roundtrip-e2e).
+  -- [DISCOUNT] 'dmDiscount' is protected as 2026-10-13-dm-ap-discount.sql (APPLIED) made it — kept here, or applying this
+  -- file would silently un-freeze the discounts #649 froze.
   select coalesce(jsonb_agg(
            case when (ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch'
                 then public.pact_patch_protected_projection(ev)
@@ -823,7 +866,7 @@ as $function$
                 else (ev - 'seq' - 'ts' - 'rules' - 'label') end
            order by ord), '[]'::jsonb)
   from jsonb_array_elements(coalesce(p_log,'[]'::jsonb)) with ordinality as t(ev, ord)
-  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback',
+  where (ev->>'type') in ('buyoff','names','award','sessionSeal','dmRemoveBoon','dmUnlockDrawback','dmDiscount',
                           'dmHouseRules','dmRefundBoon','dmRemoveDrawback','dmRepriceDrawback')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') <> 'patch')
      or ((ev->>'type') = 'buy' and coalesce(ev->>'cat','') = 'patch' and public.pact_patch_protected_projection(ev) is not null);
@@ -1163,6 +1206,11 @@ declare
   v_target     integer;
   v_note       text;
   v_matches    integer;
+  -- feat/dm-ap-discount (D-GH-2026-10-13-dm-ap-discount): scratch for validating 'dmDiscount'.
+  v_tcat       text;
+  v_amount     numeric;
+  v_cost       numeric;
+  v_prior      numeric;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -1203,7 +1251,9 @@ begin
     -- [HR] 'dmHouseRules' added by 2026-10-13-campaign-house-rules-server.sql: a DM's per-character house-rule override
     -- snapshot for THIS campaign. Validated and rebuilt below. The three AP-moving house-rules events are NOT accepted
     -- here: dm_apply_house_rules_change() is their only writer (it validates the target and stamps the amounts).
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmHouseRules') then
+    -- [DISCOUNT] 'dmDiscount' added by 2026-10-13-dm-ap-discount.sql: a DM takes AP off one earlier priced
+    -- purchase. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmHouseRules', 'dmDiscount') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -1271,6 +1321,67 @@ begin
       perform public.pact_hr_validate(v_ev->'overrides', 'override');
       v_ev := jsonb_build_object('type', 'dmHouseRules', 'overrides', v_ev->'overrides', 'campaignId', v_campaign::text,
                                  'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM house rules for this character'), 120));
+    end if;
+
+    -- [DISCOUNT] A discount names ONE earlier purchase by its seq plus its category (`targetCat`: the buy's
+    -- `cat`, or 'buyoff' / 'names' for those types) — the same identity js/engine.js's activeEvents() resolves.
+    -- The target is looked up in the stored log plus this call's earlier events, so a grant and its discount
+    -- can be sent together. It must be the only event with that seq, a priced purchase (not a drawback), and
+    -- the purchase's net discount after this one must stay between 0 and its frozen cost: a negative amount is
+    -- how a DM corrects a mistake, and nothing is ever deleted. Amounts are whole AP and must be JSON numbers.
+    -- Not checked: whether the purchase is still owned — js/engine.js decides that (owner decision I1).
+    if v_type = 'dmDiscount' then
+      v_tcat := btrim(coalesce(v_ev->>'targetCat', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if coalesce(v_ev->>'targetSeq', '') !~ '^[0-9]{1,9}$' then
+        raise exception 'dm_edit_character_log: dmDiscount needs targetSeq (the integer seq of the purchase)';
+      end if;
+      v_target := (v_ev->>'targetSeq')::integer;
+      if v_tcat = '' then
+        raise exception 'dm_edit_character_log: dmDiscount needs targetCat (the purchase''s category)';
+      end if;
+      if jsonb_typeof(v_ev->'amount') is distinct from 'number' then
+        raise exception 'dm_edit_character_log: dmDiscount needs a whole, non-zero amount of AP';
+      end if;
+      v_amount := (v_ev->>'amount')::numeric;
+      if v_amount = 0 or v_amount <> trunc(v_amount) then
+        raise exception 'dm_edit_character_log: dmDiscount needs a whole, non-zero amount of AP';
+      end if;
+      if v_note = '' or char_length(v_note) > 200 then
+        raise exception 'dm_edit_character_log: dmDiscount needs a note of 1 to 200 characters';
+      end if;
+      select count(*),
+             max(case when e->>'type' = 'buy' then coalesce(e->>'cat', '') else e->>'type' end),
+             max(case when jsonb_typeof(e->'cost') = 'number' then (e->>'cost')::numeric else 0 end)
+        into v_matches, v_cat, v_cost
+        from jsonb_array_elements(v_log || v_new) as t(e)
+       where e->>'seq' = v_target::text and coalesce(e->>'type', '') <> 'dmDiscount';
+      if v_matches <> 1 or v_cat is distinct from v_tcat or v_cat = 'drawback'
+         or not exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                         where e->>'seq' = v_target::text and e->>'type' in ('buy', 'buyoff', 'names'))
+         or coalesce(v_cost, 0) <= 0 then
+        raise exception 'dm_edit_character_log: no single priced % purchase at seq % to discount (found %)', v_tcat, v_target, v_matches;
+      end if;
+      -- [HR x DISCOUNT] (merge of the two 2026-10-13 migrations, D-GH-2026-10-13-campaign-house-rules addendum): a boon the
+      -- DM refunded (dm_apply_house_rules_change, dmRefundBoon) is gone, and its refund already returned its full price, so
+      -- js/engine.js and the ledger (pact_ap_ledger_split's discount column) drop a refunded boon's discount. Refuse a new one
+      -- (or a correction) on it rather than record AP that never moves.
+      if exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                  where e->>'type' = 'dmRefundBoon' and e->'dmEdit' = 'true'::jsonb
+                    and public.pact_js_key(e->'targetSeq') = v_target::text) then
+        raise exception 'dm_edit_character_log: seq % was refunded by the DM — there is nothing left to discount', v_target;
+      end if;
+      select coalesce(sum((e->>'amount')::numeric), 0) into v_prior
+        from jsonb_array_elements(v_log || v_new) as t(e)
+       where e->>'type' = 'dmDiscount' and e->>'targetSeq' = v_target::text and jsonb_typeof(e->'amount') = 'number';
+      if v_prior + v_amount < 0 or v_prior + v_amount > v_cost then
+        raise exception 'dm_edit_character_log: a discount of % would take seq % to % AP off a % AP purchase (allowed 0 to %)',
+          v_amount, v_target, v_prior + v_amount, v_cost, v_cost;
+      end if;
+      -- Rebuild from a whitelist, like the unlock: no cost, payload or other field the client sent rides along.
+      v_ev := jsonb_build_object('type', 'dmDiscount', 'targetSeq', v_target, 'targetCat', v_tcat,
+                                 'amount', v_amount::integer, 'note', v_note,
+                                 'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM discount — ' || v_amount::integer || ' AP'), 120));
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -1553,6 +1664,7 @@ $$;
 revoke execute on function public.pact_enforce_dm_family()        from public, anon, authenticated;
 revoke execute on function public.pact_guard_char_house_rules()   from public, anon, authenticated;
 revoke execute on function public.pact_enforce_player_grants()    from public, anon, authenticated;
+revoke execute on function public.pact_ap_ledger_discount(jsonb)   from public, anon, authenticated;   -- as 2026-10-13-dm-ap-discount.sql left it
 revoke all on function public.pact_js_truthy(jsonb)               from public, anon;
 revoke all on function public.pact_js_number(jsonb)               from public, anon;
 revoke all on function public.pact_num(jsonb)                     from public, anon;

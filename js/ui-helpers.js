@@ -220,3 +220,48 @@ function pactNotesCopyInPlan(appearance, localCurrent, localOther, otherToolName
   });
   return n ? out : null;
 }
+
+/* The one-paragraph description writer, shared by both tools (feat/livesheet-centre-columns — moved out of CharGen's
+   genDescription(), which read its form fields directly, so Live Sheet's "Regenerate paragraph" writes the exact same
+   text). Pure: `ap` is an appearance object (b.appearance, or CharGen's form values in the same keys), `who` is
+   {name, species, originClass}. Returns the paragraph; writes nothing. */
+function _pactArtyc(s){s=(s||'').trim();
+  // numbers that READ with a leading vowel sound take "an": 8/80s/800s (eight…), 11 (eleven), 18 (eighteen)
+  if(/^[0-9]/.test(s)){var d=String(parseInt(s,10));return (/^8/.test(d)||d==='11'||d==='18')?'an':'a';}
+  return /^[aeiou]/i.test(s)?'an':'a';}  // a / an
+function _pactJoinList(a){a=a.filter(Boolean);if(a.length<=1)return a.join('');if(a.length===2)return a[0]+' and '+a[1];return a.slice(0,-1).join(', ')+', and '+a[a.length-1];}
+function pactComposeDescription(ap, who){
+  ap=ap||{}; who=who||{};
+  var v=function(k){var x=ap[k];return x==null?'':String(x);};
+  var name=who.name||'This character';
+  var pcs=[];
+  // sentence 1 — identity; gender (female/male/non-binary) reads as an adjective, a/an correct
+  var core=[v('age')?(v('age')+'-year-old'):'',v('gender'),who.species,who.originClass].filter(Boolean).join(' ');
+  pcs.push(name+' is '+_pactArtyc(core)+' '+core+(v('hometown')?(' from '+v('hometown')):'')+'.');
+  // physique — "are"; colouring/features — "have"
+  var are=[v('build'),v('height')&&('about '+v('height')+' tall')].filter(Boolean);
+  if(are.length)pcs.push('They are '+_pactJoinList(are)+'.');
+  var have=[v('hair')&&v('hair').indexOf('none')<0&&(v('hair')+' hair'),v('eyes')&&(v('eyes')+' eyes'),v('skin'),v('nose')&&(_pactArtyc(v('nose'))+' '+v('nose')+' nose'),v('marks')&&v('marks').indexOf('no distinguishing')<0&&v('marks')].filter(Boolean);
+  if(have.length)pcs.push('They have '+_pactJoinList(have)+'.');
+  // manner: demeanour (are) · voice (speak) · quirk (own clause, avoids subject-verb clash)
+  if(v('demeanour'))pcs.push('By temperament they are '+v('demeanour')+'.');
+  if(v('voice'))pcs.push('They speak with '+_pactArtyc(v('voice'))+' '+v('voice')+' voice.');
+  if(v('quirk'))pcs.push('A characteristic habit: '+v('quirk')+'.');
+  // past — fix "They was" -> "They were"
+  var past=[v('profession')&&('They '+v('profession').replace(/^was /,'were ')),v('famevent')].filter(Boolean);
+  if(past.length)pcs.push(past.join('. ')+'.');
+  // family
+  var parents=[v('father'),v('mother')].filter(Boolean).join(' and ');
+  var fam=[parents&&('Born to '+parents),v('familyfor')&&('a family known for '+v('familyfor'))].filter(Boolean);
+  if(fam.length)pcs.push(fam.join(', ')+(v('secret')?('. The family secret: '+v('secret')):'')+'.');
+  // tastes — likes / dislikes / drink
+  var tastes=[v('likes')&&('they favour '+v('likes')),v('dislikes')&&('cannot abide '+v('dislikes')),v('drink')&&('always take '+v('drink'))].filter(Boolean);
+  if(tastes.length)pcs.push('Given the choice, '+_pactJoinList(tastes)+'.');
+  // drive
+  var drive=[v('ambition')&&('driven '+v('ambition')),v('fear')&&('haunted by a fear of '+v('fear')),v('faith')&&('keeping faith with '+v('faith'))].filter(Boolean);
+  if(drive.length)pcs.push('They are '+_pactJoinList(drive)+'.');
+  // belongings / companion
+  var misc=[v('prized')&&('carry '+v('prized')),v('companion')&&v('companion').indexOf('no companion')<0&&('are accompanied by '+v('companion'))].filter(Boolean);
+  if(misc.length)pcs.push('They '+_pactJoinList(misc)+'.');
+  return pcs.join(' ');
+}

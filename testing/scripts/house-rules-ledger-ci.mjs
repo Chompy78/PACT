@@ -3,7 +3,7 @@
  * house-rules-ledger-ci.mjs — the engine gate for CAMPAIGN-WIDE HOUSE RULES (feat/campaign-house-rules-engine,
  * D-GH-2026-10-13-campaign-house-rules, plan §12 (e)(f)(g)(h) + addendum M5/M6/W1).
  *
- * The parity fixtures CG-071..075 / EV-034..039 pin what compute() and economy() say for one log each. This gate
+ * The parity fixtures CG-071..075 / EV-035..040 pin what compute() and economy() say for one log each. This gate
  * covers what a fixture cannot:
  *   (e)  priceOf()'s drawback pricer returns the EFFECTIVE value (own / campaign / override / pin), and (M6) that a
  *        SOLO character's own house-ruled drawback is now stamped at its own value — a behaviour change, on purpose.
@@ -211,6 +211,22 @@ section('M4 — a targeted buyoff nets out exactly the purchase FIFO cancels');
     dmE({ type: 'dmRefundBoon', refVal: 'B', targetSeq: 1, cost: -6, seq: 2 }), { type: 'buy', cat: 'skill', payload: { v: 'Arcana' }, cost: 1, seq: 3 }]), 2);
   t('sealedFloor: an unstamped (no dmEdit) refund is no floor', E.sealedFloor([{ type: 'buy', cat: 'boon', payload: { v: 'B' }, cost: 6, seq: 1 },
     { type: 'dmRefundBoon', refVal: 'B', targetSeq: 1, cost: -6, seq: 2 }]), 0);
+}
+
+// ================================================================================================================
+section('#649 merge — a DM discount and a DM refund on the same boon never credit twice');
+{
+  const buy = { type: 'buy', cat: 'boon', payload: { v: 'B' }, cost: 6, seq: 1 };
+  const disc = dmE({ type: 'dmDiscount', targetSeq: 1, targetCat: 'boon', amount: 2, note: 'n', seq: 2 });
+  const refund = (seq) => dmE({ type: 'dmRefundBoon', refVal: 'B', targetSeq: 1, cost: -6, seq });
+  const only = [buy, disc];
+  t('discount alone: economy() discounts 2 and the server model agrees', [E.economy(only).discounted, serverApLedger(only).discount], [2, 2]);
+  const dThenR = [buy, disc, refund(3)];
+  t('discount then refund: the discount drops out (engine, server model)', [E.economy(dThenR).discounted, serverApLedger(dThenR).discount], [0, 0]);
+  t('discount then refund: the refund nets the full cost back, so the player gets 6 - 2 = 4 net of the discount', E.economy(dThenR).spent, 0);
+  const rThenD = [buy, refund(2), Object.assign({}, disc, { seq: 3 })];
+  t('refund then discount: a discount on a refunded boon is inert too', [E.economy(rThenD).discounted, serverApLedger(rThenD).discount], [0, 0]);
+  t('activeEvents().refundDiscount records the dropped discount', [...E.activeEvents(dThenR).refundDiscount], [[0, 2]]);
 }
 
 // ================================================================================================================

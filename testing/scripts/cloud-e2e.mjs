@@ -523,13 +523,14 @@ async function run() {
       await pB.goto(`${base}/tools/PACT-Live-Char-Sheet.html?cloudChar=${id}`, { waitUntil: 'load' });
       await pB.waitForFunction(() => window.foldBuild && foldBuild(null).name === 'Notes Carrier', null, { timeout: 30000 }).catch(() => {});
       await pB.waitForTimeout(800);
-      const desc = await pB.textContent('#sheet .lsdesc').catch(() => '');
+      const desc = await pB.$eval('#sheet .lsdesc', el => [...el.querySelectorAll('input,textarea')].map(e => e.value).join(' | ')).catch(() => '');   // editable fields since feat/livesheet-centre-columns
       check('a clean browser shows the cloud character\'s Backstory and Alignment on the Character panel',
             /Typed on browser A/.test(desc) && /NG/.test(desc), (desc || '').slice(0, 160));
       await pB.evaluate(() => toggleSheet());
-      check('…and in the Sheet\'s Backstory field', await pB.inputValue('#sheetbody [data-mf="notes"]').catch(() => '') === 'Typed on browser A');
-      await pB.fill('#sheetbody [data-mf="notes"]', 'Edited on browser B');
-      await pB.dispatchEvent('#sheetbody [data-mf="notes"]', 'input');
+      check('…and in the Sheet\'s Backstory field', await pB.inputValue('#sheetbody .lsdesc [data-lsd="backstory"]').catch(() => '') === 'Typed on browser A');
+      // feat/livesheet-sheet-view-desc: the field is in the collapsed block and commits on change
+      await pB.evaluate(() => { const t = document.querySelector('#sheetbody .lsdesc [data-lsd="backstory"]'); t.value = 'Edited on browser B'; t.dispatchEvent(new Event('change', { bubbles: true })); });
+      await pB.waitForTimeout(300);
       await pB.evaluate(() => toggleSheet());              // close the Sheet, then save explicitly (autosave may be off)
       await pB.click('#sheet .shname .shrename').catch(() => {});   // rename from the character card
       await pB.waitForTimeout(800);

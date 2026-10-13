@@ -1480,7 +1480,8 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       server grants 1000. The campaignId filter alone does not stop it (the forger used X's id); it needs the adjustments
       table, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
       campaign_dms for X) — see PR #654's body.
-  MERGE WITH #649 (feat/dm-ap-discount) — whichever lands second must reconcile:
+  MERGE WITH #649 (feat/dm-ap-discount) — DONE 2026-10-13 (sync of the integration branch with preview; see CHANGELOG and the
+      decision record's "Merge with preview / #649" addendum). Reconciled as listed below:
       - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
         inside it; mixing the two signatures fails silently (wrong tally, no error).
       - a boon refunded by dmRefundBoon after a #649 discount must not be credited twice: the refund = frozen cost MINUS the
@@ -1544,43 +1545,8 @@ and drop the post-await writes when it has moved, like _cgAdoptEnvelopeBinding d
 ```
 **Done when:** an e2e that switches character during a stubbed slow join shows the newly loaded character unbound and the joined character bound; `engine-parity-ci` 0 failed.
 
-## feat/dm-ap-discount — a DM can discount any purchase's AP, and the total discounted is recorded — TODO
-Branch feat/dm-ap-discount. **Effort:** high · **Risk:** high — damage scale: it changes the AP economy that `economy()` freezes and every "AP left" reads, on a live table with real characters. Build this first: feat/dm-grant-purchase and feat/wizard-scribe both use it.
-
-```text
-Owner request 2026-10-13: "the DM can somehow assign a discount to any purchase for a player. and also for the total
-discounts for AP to be recorded." Today the only tool is Award AP with a note — the AP isn't tied to the purchase, so the
-player can spend it on anything, and nothing adds up how much a DM has given away. (The boon grant in DM Console ~line 3084
-writes a buy plus a matching `award`; that's the same untied AP.)
-
-SCOPE: AP only. docs/TASK_BOARD_LATER.md "Investigate a DM-side per-purchase discount or waiver" (feat/economy-purchase-discount)
-covers GOLD/DOWNTIME and keeps its own decision; read its design notes first — its rules apply here too:
-  - Do NOT edit the purchase event (the LOG is append-only). Add a LATER event that points at the earlier purchase, the way
-    buyoff / dmRemoveBoon / dmUnlockDrawback already do, resolved in activeEvents()/economy().
-  - dm_edit_character_log is deliberately not a general editor: add exactly one new allowlisted type (e.g. `dmDiscount`
-    {targetSeq, refVal, amount, note}), validated server-side (the target must exist, be a priced buy, and the total discounted
-    can't exceed what it cost). dmEdit is stamped server-side, so a player can't forge one.
-
-DO:
-  1. Engine: economy() treats a dmDiscount as AP returned FOR THAT PURCHASE — if the target is undone, bought off or removed,
-     the discount goes with it (this is the difference from a plain award). Expose a running total (e.g. economy().dmDiscounted,
-     plus per-purchase entries). Public API additive only.
-  2. OWNER DECISION B1 (2026-10-13): a discounted purchase counts its FULL price toward equivalent level (track level) and the
-     creation lock. So carry TWO totals with clear names, e.g. "AP value" (full list price of everything owned — drives track
-     level, creation-lock threshold) and "AP paid" (what the player actually spent — drives AP left). Their difference is the
-     DM-discount total. Check every reader of "AP spent" (track level, creation lock, drawback/creation ceilings, DM Console
-     roster, Live Sheet header) and point each at the right one; record the mapping in the D-GH decision.
-  3. Migration extending the allowlist; run get_advisors + get_logs afterwards (AGENTS.md checklist step 4).
-  4. DM Console: on the character card, "DM edit — discount a purchase": pick a purchase from that character's log, enter AP
-     or a %, note required; show the campaign/character total discounted. All player text through esc().
-  5. Live Sheet + CharGen ledgers: show "paid X AP (list Y, DM discount Z)" on the line, and the total somewhere visible.
-  6. MEASURE the live characters table first (AGENTS.md: no longer pre-launch) — this should not move any existing character's
-     AP; prove it with a before/after over every live character.
-```
-**Done when:** engine-parity fixtures cover a discount, a discount on an undone purchase (gone), and an over-discount (refused); `expected-results.csv` updated if compute() output moved (bump `DATA.version` only then); an e2e drives the DM Console discount and the Live Sheet shows the line and the total; the before/after over the live characters shows no unintended change; the AP value / AP paid split is recorded in a D-GH decision with every reader mapped.
-
 ## feat/dm-grant-purchase — DM Console "grant a spell / skill" (any purchase, free to the player) — TODO
-Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low once feat/dm-ap-discount exists; damage scale is a priced write to a live character. Depends on feat/dm-ap-discount.
+Branch feat/dm-grant-purchase. **Effort:** medium · **Risk:** medium — ambiguity is low now feat/dm-ap-discount exists (D-GH-2026-10-13-dm-ap-discount; its RPC already accepts a discount whose target is in the same call); damage scale is a priced write to a live character.
 
 ```text
 Owner request 2026-10-13 (a wizard learns a spell in the story, without paying AP): the DM can give a character a spell
@@ -1628,3 +1594,73 @@ campaign-house-rules engine PR reads the effective value); (3) decide with the o
 (a DM-run correction RPC or a one-off migration) — measure first.
 ```
 **Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
+
+## feat/dm-rules-lock-bars — every locked Campaign Rules section says it is locked, right where the DM is looking — TODO
+Branch feat/dm-rules-lock-bars. **Effort:** low · **Risk:** low — DM-Console-only UI on the existing lock (`_setRulesLocked`); nothing saved changes (damage scale low).
+
+```text
+Found 2026-10-13 (owner: "i found [the languages] but can't see how to edit it"). Campaign Rules, the advancement tile and the
+custom-fields tile start LOCKED (every control disabled by _setRulesLocked(true)), and the only ways out are ruleLockHint at the
+top of the rules group and ruleLockBtn beside "Save rules" — both out of sight while a DM scrolls a long section. #651 fixed this
+for the 🗣 Languages box only (a 🔒 note on the box, ruleLanguagesLockNote — owner choice C2). The 11 "Banned …" lists, the
+economy band and the advancement/curve fields still look simply greyed out.
+
+DO (owner's option C1 from that session): a bar pinned to the top of each locked section while it scrolls —
+"🔒 Locked — Unlock to edit" with the unlock action right there — shown only while locked, hidden once unlocked. It must NOT be
+a <button> inside the swept tiles (_scopedControlEls disables every button there) — use the same span role="button" pattern as
+ruleLanguagesLockNote, and stay inert during an archived-campaign peek (check ruleLockHint.disabled, as that note does).
+Consider replacing the languages-only note with the general bar so there is one mechanism.
+```
+**Done when:** with rules locked, every rules section (including the Banned lists and the curve) shows the bar at its top while scrolled; clicking it unlocks all of them; it hides once unlocked and does nothing during an archived peek; `campaign-language-list-e2e` and `dm-console-ui-e2e` pass with new checks for this.
+
+## feat/feature-effect-text — class features, subclass abilities and racial traits get real ⓘ effect text — TODO
+Branch feat/feature-effect-text. **Effort:** high · **Risk:** medium — ~600 short rules summaries must agree with the Players Guide (ambiguity drives it); display-only, so no pricing can break.
+
+```text
+#653 (2026-10-13) gave every effect on the Live Sheet's Character panel and 📋 Sheet an ⓘ, from one lookup: _lsFx() in
+tools/PACT-Live-Char-Sheet.html. Boons, arts, masteries, drawbacks, maneuvers and metamagic have effect text in DATA, but the
+364 class features (DATA.features), 192 subclass abilities (DATA.subAbilMap) and most of the 38 racial traits (DATA.racial —
+only 4 are covered by the display-only DATA.racialFx) have none, so their ⓘ falls back to "See the Players Handbook, p.N"
+(FEAT_PG) or is absent.
+
+DO:
+  1. Add a display-only effect map (same shape and status as racialFx/masteryFx: never read by compute(), so NO DATA.version
+     bump — log it in CHANGELOG.md as a docs change). Decide with the owner whether it lives in js/engine-data.js or a separate
+     display-data file; it is ~600 entries.
+  2. Write each entry as a one- or two-sentence summary of what the ability does in play, taken from the Players Guide's own
+     wording (the guide master lives in pact-guide — see AGENTS.md "A mechanics change isn't finished…" and VERSION-SYNC.md).
+     Where the guide and the PHB differ, the guide wins; where the guide is silent, flag it rather than inventing rules text.
+  3. Point _lsFx() at the new map, keeping the PHB-page fallback for anything still unwritten.
+  4. Consider batching by class (one PR per class or two) so each is reviewable.
+```
+**Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
+
+## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
+Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
+
+```text
+Depends on feat/campaign-house-rules (integration branch; not yet in preview). Owner deferred this decision (AC) on 2026-10-13.
+When a DM raises a campaign drawback's price (S2 review), characters still in creation (no creationLocked) that hold it can't
+be ticked: the server only moves AP on finished characters, and repriceDraft() never re-stamps drawback costs. As built, the
+draft's browser shows the NEW value while the server credits the OLD one, so the player sees AP they can't spend and a
+purchase using it is refused on save (replay example: Bo 15 vs 13). A price DROP is fine.
+Options put to the owner: AC1 pin drafts at the old value like unticked holders (DM applies the new price after Finish
+creating) — recommended; AC2 let the RPC reprice drafts too (loosens "AP only moves on finished characters"); AC3 leave as is.
+DO: get the owner's choice, then implement in DM Console's S2 review (and the RPC if AC2), with replay + e2e coverage.
+```
+**Done when:** the owner has chosen; a draft holding a repriced drawback shows the same AP in the browser and on the server; replay harness covers it.
+
+## feat/house-rules-ban-removal — a DM banning an item can opt in to removing it from owners, with refund — TODO
+Branch feat/house-rules-ban-removal. **Effort:** medium · **Risk:** medium — moves AP on live characters (damage scale), but only when the DM opts in.
+
+```text
+Depends on feat/campaign-house-rules (integration branch; not yet in preview). Owner decision AD1, 2026-10-13.
+Today a campaign ban (rules.bannedBoons / bannedDrawbacks, saved by DM Console's Save rules) only stops new purchases; owners
+keep the item. AD1: when the DM saves a ban, offer the same opt-in checkbox as T2 — "Also remove from characters who own it
+(refund)", default OFF. If ticked: run houseRulesImpact over the roster and show the review (each owner, item, refund for a
+paid boon / grant taken back for a drawback, AP left after; V1: going below 0 is allowed and shown), then apply in ONE
+dm_apply_house_rules_change call (refundBoon / removeDrawback actions), plus dmRemoveBoon via dm_edit_character_log for a
+DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed but not touched. Unticked = today's behaviour.
+Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
+```
+**Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.

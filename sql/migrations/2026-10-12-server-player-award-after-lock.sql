@@ -1,6 +1,7 @@
 -- PACT — a player can no longer add AP to a finished campaign character by appending an `award`.
 -- fix/server-player-award-after-lock (D-GH-2026-10-12-server-player-award-after-lock).
--- NOT APPLIED to the live database by merging this file. The owner applies it, then runs get_advisors.
+-- APPLIED to the live database on 2026-10-13 (migration `server_player_award_after_lock`, owner decision N1), after both
+-- pre-checks below passed: the live function matched the 2026-09-03 definition, and 0 campaign award amounts were not numbers.
 --
 -- THE GAP. pact_enforce_locked_history() only freezes history that already exists; anything may be APPENDED
 -- after the lock/seal boundary. pact_enforce_ap_budget_consistency() then counts every `award` in the LOG as

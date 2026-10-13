@@ -1964,11 +1964,16 @@ try {
     const ecoLine = setup => lsd.evaluate(`(()=>{${'$'}{S}render();
       const e=document.querySelector('.ecoline'); return e?e.innerText.replace(/\\s+/g,' ').trim():'';})()`.replace('${S}', setup));
     check('the Live Sheet shows the DM figure for a campaign character',
-      /54 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
+      /\+ 54 DM \+/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`)), true);
     check('...and still shows it at ZERO rather than omitting the chip entirely',
-      /0 from DM/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=0;window._ignorePlayerAp=false;`)), true);
+      /\+ 0 DM \+/.test(await ecoLine(`window._rulesStatus='active';window._dmAp=0;window._ignorePlayerAp=false;`)), true);
     check('...but stays quiet for a character with no campaign at all',
-      /from DM/.test(await ecoLine(`window._rulesStatus='none';window._dmAp=0;`)), false);
+      /\bDM\b/.test(await ecoLine(`window._rulesStatus='none';window._dmAp=0;`)), false);
+    // feat/livesheet-centre-columns: the line is one sum — AP left = player + DM + drawbacks − spent — and it must add up.
+    const sum = await ecoLine(`window._rulesStatus='active';window._dmAp=54;window._ignorePlayerAp=false;`);
+    const mm = sum.match(/(-?\d+) AP left = (\d+) player \+ (\d+) DM \+ (\d+) drawbacks − (\d+) spent/);
+    check('the AP line spells out player + DM + drawbacks − spent, and the parts add up to AP left',
+      !!mm && (+mm[2] + +mm[3] + +mm[4] - +mm[5]) === +mm[1], true);
     await lsd.close();
   }
 

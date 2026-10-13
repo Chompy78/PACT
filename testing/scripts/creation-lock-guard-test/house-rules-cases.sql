@@ -560,7 +560,10 @@ select t('ATK1 (b): an un-matched DM refund counts NOTHING in the server ledger 
 select t('ATK7: renumbering a purchase inside the frozen prefix (before an award) is refused', 'refused', 'fail', $b$
   select owner_upd('hold', $e$ jsonb_set(stats, '{LOG,1,seq}', '555') $e$) $b$, 'PACT: locked character history%');
 select t('ATK7: …a buyoff''s seq too', 'refused', 'fail', $b$
-  select as_admin(); update characters set stats = jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":9,"type":"award","amount":1}]'::jsonb) || '{"SEQ":10}' where name = 'boff';
+  -- setup only: #644's award ceiling deliberately does not exempt admin sessions, so plant the award with triggers off
+  select as_admin(); set local session_replication_role = replica;
+  update characters set stats = jsonb_set(stats, '{LOG}', (stats->'LOG') || '[{"seq":9,"type":"award","amount":1}]'::jsonb) || '{"SEQ":10}' where name = 'boff';
+  set local session_replication_role = origin;
   select owner_upd('boff', $e$ jsonb_set(stats, '{LOG,3,seq}', '444') $e$) $b$, 'PACT: locked character history%');
 select t('ATK2 / AB1: an ignore-mode player''s forged -1000 drawback (made-up name) grants nothing', 'refused', 'pass', $b$
   select allow_post_lock(2);
@@ -742,4 +745,51 @@ select t('concurrency: an override built from a stale snapshot is refused', 'ref
   select hr(1, null, jsonb_build_array(act('override', 'hold', '{"overrides":{},"expected":{}}'))) $b$, '%another DM changed this character%');
 select t('concurrency: expected null on a character that has no override for this campaign is accepted', 'allowed', 'fail', $b$
   select hr(1, null, jsonb_build_array(act('override', 'draft', '{"overrides":{},"expected":null}'))) $b$);
+select as_admin();
+-- =====================================================================================================================
+-- Merge with #649 (feat/dm-ap-discount, 2026-10-13-dm-ap-discount.sql — APPLIED). This migration redefines three functions
+-- #649 changed (dm_edit_character_log, pact_ap_ledger_protected, pact_enforce_ap_budget_consistency) plus #649's
+-- pact_ap_ledger_discount; each must keep #649's discount handling, or applying it would silently undo #649. And a boon
+-- refunded after a discount must not be credited twice: the refund nets to frozen cost MINUS the discount.
+-- 'hold': awards 79+12, drawbacks 5+2 => spendable 98 (ap 0); spent 6 (Alertness, seq 2) + 12 + 1 = 19.
+-- =====================================================================================================================
+create or replace function disc(p_char text, p_seq int, p_cat text, p_amt int) returns jsonb language plpgsql as $$
+begin
+  perform as_dm();
+  return dm_edit_character_log(chid(p_char), jsonb_build_array(jsonb_build_object('type', 'dmDiscount', 'targetSeq', p_seq,
+    'targetCat', p_cat, 'amount', p_amt, 'note', 'merge case')));
+end $$;
+select t('#649 kept: a DM discount is still written through dm_edit_character_log', 'allowed', 'pass', $b$
+  select disc('hold', 2, 'boon', 2);
+  select ok(lastev('hold')->>'type' = 'dmDiscount' and lastev('hold')->'dmEdit' = 'true'::jsonb and (lastev('hold')->>'amount')::int = 2, 'stamped') $b$);
+select t('#649 kept: dm_edit_character_log still refuses a discount above the purchase''s cost', 'refused', 'pass', $b$
+  select disc('hold', 2, 'boon', 7) $b$, '%allowed 0 to%');
+select t('#649 kept: dmDiscount is still a protected (frozen) type', 'allowed', 'pass', $b$
+  select ok(jsonb_array_length(pact_ap_ledger_protected('[{"type":"dmDiscount","targetSeq":2,"targetCat":"boon","amount":1}]')) = 1, 'protected') $b$);
+select t('#649 kept: the budget check counts a DM discount (an 80 AP buy fits only with the 2 AP discount)', 'allowed', 'pass', $b$
+  select disc('hold', 2, 'boon', 2);
+  select owner_append('hold', '{"seq":20,"type":"buy","cat":"skill","cost":80,"payload":{"v":"Arcana"}}') $b$);
+select t('#649 kept: …and without the discount the same 80 AP buy is over budget', 'refused', 'pass', $b$
+  select owner_append('hold', '{"seq":20,"type":"buy","cat":"skill","cost":80,"payload":{"v":"Arcana"}}') $b$, '%over AP budget%');
+select t('discount x refund: the refunded boon''s discount stops counting (refund nets 6 - 2 = 4)', 'allowed', 'fail', $b$
+  select disc('hold', 2, 'boon', 2);
+  select ok(pact_ap_ledger_discount(logof('hold')) = 2, 'discount before');
+  select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
+  select ok(pact_ap_ledger_discount(logof('hold')) = 0, 'discount after the refund');
+  select ok((splitc('hold')->>0)::numeric = 13, 'spent 19 - 6') $b$);
+select t('discount x refund: no double credit at the budget check (an 87 AP buy is over by 2)', 'refused', 'fail', $b$
+  select disc('hold', 2, 'boon', 2);
+  select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
+  select owner_append('hold', '{"seq":30,"type":"buy","cat":"skill","cost":87,"payload":{"v":"Arcana"}}') $b$, '%over AP budget%');
+select t('discount x refund: …an 85 AP buy fits exactly (98 spendable, 13 + 85 spent)', 'allowed', 'fail', $b$
+  select disc('hold', 2, 'boon', 2);
+  select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
+  select owner_append('hold', '{"seq":30,"type":"buy","cat":"skill","cost":85,"payload":{"v":"Arcana"}}') $b$);
+select t('discount x refund: a discount on a boon the DM already refunded is refused', 'refused', 'fail', $b$
+  select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
+  select disc('hold', 2, 'boon', 1) $b$, '%was refunded by the DM%');
+select t('discount x refund: …a correction (negative) on it is refused too', 'refused', 'fail', $b$
+  select disc('hold', 2, 'boon', 2);
+  select hr(1, null, jsonb_build_array(act('refundBoon', 'hold', '{"name":"Alertness","targetSeq":2}')));
+  select disc('hold', 2, 'boon', -2) $b$, '%was refunded by the DM%');
 select as_admin();

@@ -25,6 +25,7 @@ on:
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
       - "testing/scripts/live-sheet-subclass-owned-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
+      - "testing/scripts/dm-ap-discount-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
       - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/scripts/ledger-xss-e2e.mjs"
@@ -82,6 +83,10 @@ jobs:
 
       - name: DM Console — the Unlock control offers the right drawbacks and sends the right event
         run: node testing/scripts/dm-console-unlock-e2e.mjs
+
+      # feat/dm-ap-discount: the DM Console control, the Live Sheet display and CharGen's spendable, in one script.
+      - name: DM AP discount — DM Console sends it, Live Sheet and CharGen count it
+        run: node testing/scripts/dm-ap-discount-e2e.mjs
 
       # feat/permanent-wounds: players can't pick the four wound-only drawbacks in CharGen or the Live Sheet, and a DM can
       # impose all of them (grouped, defaulting to Locked + flat) from the DM Console. Same cost profile as the steps above.
