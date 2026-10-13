@@ -1639,3 +1639,23 @@ Owner request 2026-10-14. In the Live Sheet's weapons panel (centre panel / play
 Check whether attack bonus/damage should come from compute() (proficiency, ability mod) — reuse the engine, don't re-derive.
 ```
 **Done when:** a player can pick any standard weapon; a DM-added custom weapon appears for that campaign's characters (and is escaped); each weapon renders on one line at desktop width; e2e covers all three; `engine-parity-ci` 0 failed.
+
+## feat/character-images — upload up to 2 images per character — TODO
+Branch feat/character-images. **Effort:** medium–high · **Risk:** medium — new server storage + access rules (security), files cross users (DM / campaign).
+
+```text
+Owner request 2026-10-14. A spot on the character (Live Sheet Character panel / 📋 Sheet, and CharGen's appearance area) to
+upload character images — at most 2 per character — shown on the sheet and on the DM Console card.
+Decide with the owner first (plan + cold review — this adds backend storage):
+  - Storage: Supabase Storage bucket (e.g. `character-images/<owner_id>/<character_id>/<n>.webp`) with RLS: the owner can
+    write/delete their own; the owner and the DMs of the character's campaign can read; nobody else. Never put the image
+    bytes in stats/LOG (bloats every save and sync). Store only the 2 object paths (e.g. as appearance keys or a small
+    column) — and remember appearance copy/paste (#662) copies text fields: decide whether image paths travel.
+  - Limits: max 2 per character, file types (jpg/png/webp), max size (e.g. 2 MB), resize/compress in the browser before upload.
+  - Signed-out / local-only characters: no upload (or local-only data URL kept out of the LOG) — decide.
+  - Deleting/archiving a character and DM copies/NPC duplicates (#665): what happens to the files.
+  - Serve via short-lived signed URLs; never render a user-supplied URL unescaped (esc() rule).
+After approval: migration (bucket + storage policies, NOT applied until the owner approves; run get_advisors), client upload/
+replace/remove UI in both player tools, display in DM Console, e2e.
+```
+**Done when:** a signed-in player can upload, replace and remove up to 2 images on a character; a third is refused; the images show on the Live Sheet, CharGen and the DM's card; another user who is not the owner or the campaign's DM cannot read them (tested); storage policies applied with owner approval and advisors clean.
