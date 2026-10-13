@@ -31,6 +31,8 @@ on:
       - "testing/scripts/dm-console-notes-e2e.mjs"
       - "testing/scripts/campaign-house-rules-tools-e2e.mjs"
       - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "testing/scripts/dm-house-rules-e2e.mjs"
+      - "testing/scripts/lib/house-rules-fake-server.mjs"
       - "js/dm.js"
       - "testing/package.json"
       - "testing/package-lock.json"
@@ -116,3 +118,9 @@ jobs:
       # never sending charHouseRules, effective grant / impose pickers, and the player tools showing the new values.
       - name: Campaign house rules — the DM's editor, S2 / T2 previews and one RPC call
         run: node testing/scripts/dm-campaign-house-rules-e2e.mjs
+
+      # feat/campaign-house-rules-overrides (reworks #642): one character's house-rule overrides — a whole dmHouseRules snapshot
+      # per change, the single-holder S2 tick / pin / "apply the current value", drafts editable, escaped names, server messages,
+      # the archived peek, and CharGen seeing the override with the own patch untouched.
+      - name: Campaign house rules — the per-character override editor
+        run: node testing/scripts/dm-house-rules-e2e.mjs

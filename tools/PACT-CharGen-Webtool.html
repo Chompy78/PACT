@@ -2413,7 +2413,7 @@ function _cgDmCustomRoText(why){
 }
 function _cgDmCustomRefuse(){
   var why=_cgDmCustomReadOnly(); if(!why) return false;
-  flash(_cgDmCustomRoText(why)+(why==='campaign'?' There is no DM editor for these yet \u2014 tell your DM if one needs to change.':''),'error');
+  flash(_cgDmCustomRoText(why)+(why==='campaign'?' Your DM sets them in DM Console \u2014 for the whole campaign (Campaign Rules \u2192 Character house rules) or for this character on its card.':''),'error');
   return true;
 }
 // Every render: disable (not hide) the controls, so the table's rules stay readable. Follows a binding that confirms late.

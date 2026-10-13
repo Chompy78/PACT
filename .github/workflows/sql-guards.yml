@@ -29,6 +29,8 @@ on:
       - "js/campaign.js"
       - "testing/scripts/gen-drawback-prices-sql.mjs"
       - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "testing/scripts/dm-house-rules-e2e.mjs"
+      - "testing/scripts/lib/house-rules-fake-server.mjs"
       - "tools/DM-Console.html"
       - "js/dm.js"
       - ".github/workflows/sql-guards.yml"
@@ -119,7 +121,8 @@ jobs:
       - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
         run: testing/scripts/creation-lock-guard-test/run-house-rules.sh
 
-  # feat/campaign-house-rules-dm-editor: what DM Console's Character house rules editor SENDS (captured by its e2e with
+  # feat/campaign-house-rules-dm-editor / -overrides: what DM Console's Character house rules editor and its per-character
+  # override editor SEND (captured by their e2e with
   # --dump-calls) is replayed against the real migration in Docker: every call must be accepted, and the server's AP left
   # must equal the engine's for every finished character. Needs Chromium for the capture, so it is its own job.
   dm-house-rules-replay:

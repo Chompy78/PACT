@@ -401,6 +401,15 @@ section('houseRulesImpact — S2 preview (plan §7.1) and drawbackCap (M5)');
   t('a string seq, a string cost and a fractional seq are flagged ambiguousSeq; a normal purchase is not',
     [by4(STM).ambiguousSeq, by4('Lame').ambiguousSeq, by4('Bulwark').ambiguousSeq, by4('Alertness').ambiguousSeq], [true, true, true, false]);
   t('...and get no reprice event (the RPC would refuse it and fail the whole call)', ['repriceEvent' in by4(STM), 'repriceEvent' in by4('Lame')], [false, false]);
+  // row.overrides (feat/campaign-house-rules-overrides): a per-character override about to be written, same ctx both sides.
+  const sameC = ctx({ draws: { [STM]: { ap: 3 } } });
+  const [ro] = houseRulesImpact([{ id: 'ana', LOG, overrides: { draws: { [STM]: { ap: 6 } } } }], sameC, sameC);
+  t('override preview: 3 → 6 for this character, with the reprice event the RPC would check', [ro.purchases[0].newEffective, ro.purchases[0].repriceEvent && ro.purchases[0].repriceEvent.to, ro.apLeft.after - ro.apLeft.before], [6, 6, 3]);
+  t('override preview: server after (override + reprice applied) == browser after', ro.serverApLeft.afterIfApplied, ro.apLeft.after);
+  const [rp] = houseRulesImpact([{ id: 'ana', LOG, overrides: { draws: { [STM]: { ap: 6 } }, pins: { draws: { [STM]: { ap: 3 } } } } }], sameC, sameC);
+  t('override preview: a pin in the snapshot keeps the old value (no change, no event)', [rp.purchases[0].changed, 'repriceEvent' in rp.purchases[0], rp.apLeft.after], [false, false, rp.apLeft.before]);
+  const [rn] = houseRulesImpact([{ id: 'ana', LOG }], sameC, sameC);
+  t('no overrides key: nothing changes', [rn.purchases[0].changed, rn.apLeft.after === rn.apLeft.before], [false, true]);
 }
 
 // ================================================================================================================
