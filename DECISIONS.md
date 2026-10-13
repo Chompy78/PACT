@@ -15,14 +15,14 @@
   by seq + category. The purchase keeps its full price as "AP value" (`spent` — equivalent level, creation threshold;
   owner B1); the discount is earned AP, so "AP left" reflects "AP paid". Ceiling raised by the discount (F1). A negative
   amount corrects; nothing is deleted. Database refuses any non-DM change to discounts (by identity, not the forgeable
-  flag). Server sum does not check the purchase is still owned (I1, accepted). Migration NOT APPLIED; no `DATA.version` bump.
+  flag). Server sum does not check the purchase is still owned (I1, accepted). Migration APPLIED 2026-10-13; no `DATA.version` bump.
   Full record: `decisions/2026/D-GH-2026-10-13-dm-ap-discount.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
   `dmEdit` flag), and refuses any campaign award whose amount is not a JSON number. Sum-shaped so CharGen's Budget singleton
   relocation keeps working. A redeemed AP code counts as a player award there (Live Sheet refuses Redeem first). Closes the award
-  route only (negative costs remain a board task). Migration NOT APPLIED — owner applies + runs get_advisors.
+  route only (negative costs remain a board task). Migration APPLIED 2026-10-13 (owner decision N1).
   Full record: `decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md`.
 ## D-GH-2026-10-12-audit-fix-followups-2026-10-12 — Randomise keeps the id; creation AP refused while confirming; Live Sheet Tasha lock
 - H2 (owner away), provisional. A CharGen re-roll is the same character, so it keeps its id (no second cloud row). CharGen's

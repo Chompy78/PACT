@@ -1,8 +1,9 @@
 # D-GH-2026-10-13-dm-ap-discount — a DM can take AP off any purchase, and the total given is recorded
 
-**Status:** code DONE on the branch. **The SQL migration is NOT applied** — the owner applies
-`sql/migrations/2026-10-13-dm-ap-discount.sql`, then runs `get_advisors`. Apply it **before** the client reaches
-`main` (see *Deploy order*). `DATA.version` **not** bumped (see *Why no rules-version bump*). Plan, cold review and owner
+**Status:** code DONE (PR #649). **The SQL migration was APPLIED to production on 2026-10-13** (migration
+`dm_ap_discount`, owner decision L1) after re-checking the three live functions were unchanged; verified afterwards
+(new functions not callable by `authenticated`/`anon`, trigger present, `dm_edit_character_log` guards intact,
+`get_advisors` nothing new, no database errors). The client has not reached `main` — the safe order (see *Deploy order*). `DATA.version` **not** bumped (see *Why no rules-version bump*). Plan, cold review and owner
 decisions: `docs/plans/2026-10-13-dm-ap-discount.md`.
 
 ## Context

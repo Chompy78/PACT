@@ -1,6 +1,7 @@
 -- PACT — a DM can take AP off any priced purchase (`dmDiscount`), and only a DM can.
 -- feat/dm-ap-discount (D-GH-2026-10-13-dm-ap-discount). Plan: docs/plans/2026-10-13-dm-ap-discount.md (cold-reviewed).
--- NOT APPLIED to the live database by merging this file. The owner applies it, then runs get_advisors.
+-- APPLIED to the live database on 2026-10-13 (migration `dm_ap_discount`, owner-approved decision L1), after re-checking
+-- that the three live functions still matched the definitions this file was built from. get_advisors: nothing new.
 -- Rollback: sql/migrations/2026-10-13-dm-ap-discount-rollback.sql.
 --
 -- BASE OF THESE DEFINITIONS. The three replaced functions were read back from the LIVE database on 2026-10-13
