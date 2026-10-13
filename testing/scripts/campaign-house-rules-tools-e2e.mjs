@@ -183,34 +183,51 @@ console.log('Live Sheet: campaign custom drawback');
 
 // ---- 3. V1: below 0, keep saving while spend has not increased --------------------------------------------------------
 console.log('V1: a campaign character below 0 AP');
-// Over budget by construction: 3 AP spent, nothing earned but a 2 AP drawback (no DM AP, player AP ignored).
+// Over budget by construction: 3 AP spent, nothing earned (no DM AP).
 const NEG = [
   { type: 'buy', cat: 'oclass', payload: { v: 'Fighter' }, cost: 0, level: 1, seq: 1, label: 'Fighter' },
   { type: 'buy', cat: 'skill', payload: { v: 'Athletics' }, cost: 3, level: 1, seq: 2, label: 'Skill — Athletics' },
   { type: 'creationLocked', seq: 3, ts: 1 },
 ];
+const SET_NEG_LS = `window.alert=()=>{}; window._cloudCampaignRules={}; window._rulesStatus='active'; window._dmAp=0;
+  window.__calls=[]; window._syncBridge=Object.assign({}, window._syncBridge||{}, { saveCharacter:(a)=>{ window.__calls.push(a); return Promise.resolve({ id:a.id, synced:true }); } });`;
 {
   const { c, p, errs } = await openLs(env(NEG, { campaignId: CAMP }));
-  const r = await p.evaluate(async ({ camp }) => {
-    window.alert = () => {};
-    window._lsCampaignId = camp; window._cloudCampaignRules = {}; window._rulesStatus = 'active'; window._dmAp = 0;
-    const calls = [];
-    window._syncBridge = Object.assign({}, window._syncBridge || {}, { saveCharacter: (a) => { calls.push(a); return Promise.resolve({ id: a.id, synced: true }); } });
-    const out = { avail: apAvailable(null) };
+  const r = await p.evaluate(async (set) => {
+    eval(set);
+    const out = { avail: apAvailable(null), bound: window._lsCampaignId };
+    // The restored local copy is the base when the server's spend is unknown: a push that adds nothing goes through.
+    out.restoredAllows = !_lsOverApBudget();
+    _lsLocalSpentBase = null;                    // truly nothing known (no persisted spend, no restored copy)
     out.unknownBlocks = _lsOverApBudget();
-    _lsNoteCloudBase(LOG);                       // as a clean cloud load does
+    _lsNoteCloudBase(LOG);                       // as a clean cloud load does — and it is persisted for a reload
+    out.persisted = localStorage.getItem('pactCloudSpent:' + __charId);
     out.cleanAllows = !_lsOverApBudget();
-    _lsBudgetWarned = false; await _lsCloudPushOnce(); out.pushed = calls.length;
+    _lsBudgetWarned = false; await _lsCloudPushOnce(); out.pushed = window.__calls.length;
     LOG.push({ type: 'buy', cat: 'skill', payload: { v: 'Arcana' }, cost: 2, level: 1, seq: SEQ++, label: 'Skill — Arcana' });   // a spend increase
     out.increaseBlocks = _lsOverApBudget();
-    await _lsCloudPushOnce(); out.pushedAfter = calls.length;
+    await _lsCloudPushOnce(); out.pushedAfter = window.__calls.length;
     return out;
-  }, { camp: CAMP });
-  check('CONTROL: the character really is below 0', r.avail < 0, String(r.avail));
-  check('Live Sheet: with the server\'s spend unknown, below 0 still holds the save back (the old rule)', r.unknownBlocks === true);
+  }, SET_NEG_LS);
+  check('CONTROL: the character really is below 0, and bound', r.avail < 0 && r.bound === CAMP, JSON.stringify(r));
+  check('Live Sheet: server spend unknown, but the restored local copy adds nothing — not refused (review item 4)', r.restoredAllows === true);
+  check('Live Sheet: with nothing known at all, below 0 still holds the save back (the old rule)', r.unknownBlocks === true);
+  check('Live Sheet: a learned server spend is persisted with the character', r.persisted === '3', String(r.persisted));
   check('Live Sheet: below 0 with no spend increase since the server\'s copy, the cloud save is NOT refused (V1)', r.cleanAllows === true);
   check('...and the autosave really pushes it', r.pushed === 1, String(r.pushed));
   check('Live Sheet: a save that spends MORE while below 0 is still held back (as the server would)', r.increaseBlocks === true && r.pushedAfter === 1, JSON.stringify(r));
+  // A reload: the persisted server spend survives, even with the local copy dirty and no cloud load yet.
+  await p.evaluate(() => { _lsLocalSpentBase = null; });
+  await p.reload({ waitUntil: 'load' });
+  await p.waitForFunction(() => window.DATA && window._engineFold && document.body.textContent.length > 2000, { timeout: 25000 });
+  await p.waitForTimeout(800);
+  const r2 = await p.evaluate((set) => { eval(set); _lsLocalSpentBase = null;   // prove it is the PERSISTED base that answers
+    const o = { base: _lsSpendBase(), spent: economy(null).spent };
+    o.allows = !_lsOverApBudget();               // the reloaded copy spends what the server holds
+    LOG.push({ type: 'buy', cat: 'skill', payload: { v: 'Arcana' }, cost: 2, level: 1, seq: SEQ++, label: 'Skill — Arcana' });
+    o.blocks = _lsOverApBudget();                // one that spends more is still refused
+    return o; }, SET_NEG_LS);
+  check('after a reload the persisted server spend (3) is the base: the extra spend is still refused, none extra is allowed', r2.base === 3 && r2.blocks === true && r2.allows === true, JSON.stringify(r2));
   check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
   await c.close();
 }
@@ -218,6 +235,7 @@ const NEG = [
   const { c, p, errs } = await openCg();
   const r = await p.evaluate(async ({ log, id, camp }) => {
     window.alert = () => {};
+    try { localStorage.removeItem('pactCloudSpent:' + id); } catch (e) {}
     window._cgApplyEnvelope({ schema: 'pact-character/1', rules: window.DATA.version, name: 'Neg', LOG: log, SEQ: log.length + 1, id }, { clearHistory: true });
     window._cgCampaignId = camp; window._cgCampaignBound = true; window._cgBindingConfirmed = true; window._cgEnforceApBudget = true;
     window._dmApStatus = 'active'; window._dmAp = 0; window._cloudCampaign = { id: camp, name: 'Camp', rules: {} };
@@ -225,7 +243,12 @@ const NEG = [
     window._syncBridge = Object.assign({}, window._syncBridge || {}, { saveCharacter: (a) => { calls.push(a); return Promise.resolve({ id: a.id, synced: true }); } });
     const out = { avail: compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent };
     out.unknownBlocks = _cgOverApBudget();
+    _cgLocalSpentBase = { id: __charId, spent: economy(LOG).spent };   // as _cgRestoreAutosave() records it
+    out.restoredAllows = !_cgOverApBudget();
+    _cgLocalSpentBase = null;
     _cgNoteCloudBase(LOG);
+    out.persisted = localStorage.getItem('pactCloudSpent:' + __charId);
+    _cgCloudSpentBase = null;                    // as after a reload: only the persisted value is left
     out.cleanAllows = !_cgOverApBudget();
     _cgBudgetWarned = false; await _cgCloudPushOnce(); out.pushed = calls.length;
     LOG.push({ type: 'buy', cat: 'skill', payload: { v: 'Arcana' }, cost: 2, level: 1, seq: SEQ++, label: 'Skill — Arcana' });
@@ -233,41 +256,122 @@ const NEG = [
     return out;
   }, { log: NEG, id: ID, camp: CAMP });
   check('CONTROL: the CharGen character really is below 0', r.avail < 0, String(r.avail));
-  check('CharGen: unknown server spend still holds the save back', r.unknownBlocks === true);
-  check('CharGen: below 0 with no spend increase, the cloud save is NOT refused (V1) and is pushed', r.cleanAllows === true && r.pushed === 1, JSON.stringify(r));
+  check('CharGen: nothing known — the save is held back', r.unknownBlocks === true);
+  check('CharGen: the restored local copy\'s spend is the base when the server\'s is unknown', r.restoredAllows === true);
+  check('CharGen: the learned server spend is persisted and answers on its own (a reload)', r.persisted === '3' && r.cleanAllows === true && r.pushed === 1, JSON.stringify(r));
   check('CharGen: a spend increase while below 0 is still held back', r.increaseBlocks === true);
   check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
   await c.close();
 }
 
-// ---- 4. offline: the LOG's rules snapshot prices the character --------------------------------------------------------
-console.log('Offline: the rules snapshot');
+// ---- 4. offline / unconfirmed: which context a character gets ---------------------------------------------------------
+console.log('Offline: the rules snapshot, and a bound character without one');
 const SNAP_LOG = LOG.concat([{ type: 'rulesSnapshot', campRules: RULES, campaignId: CAMP, seq: 7, ts: 2 }]);
-{
-  const { c, p, errs } = await openLs(env(SNAP_LOG, { campaignId: CAMP }));
+const NULLCTX = { campaignId: CAMP, rules: null, bans: { boons: [], draws: [] } };
+const EXPECT_BOUND_NOSNAP = E.compute(E.withHouseRulesCtx(E.foldBuild(LOG), NULLCTX), {}).spendable - spent;
+const EXPECT_SOLO_NODM = E.compute(E.foldBuild(LOG), {}).spendable - spent;
+console.log(`engine: bound-without-snapshot ${EXPECT_BOUND_NOSNAP}, solo ${EXPECT_SOLO_NODM}`);
+const lsCase = async (envelope) => { const { c, p, errs } = await openLs(envelope);
   const r = await p.evaluate(() => ({ status: window._rulesStatus, avail: apAvailable(null), ctx: foldBuild(null)._hrCtx || null }));
-  check('Live Sheet (signed out): the context comes from the snapshot, with its campaign id', !!r.ctx && r.ctx.campaignId === 'camp-1' && r.status !== 'active', JSON.stringify(r));
-  check(`Live Sheet (signed out): AP left = the engine's campaign figure without DM AP (${EXPECT_OFFLINE})`, r.avail === EXPECT_OFFLINE, String(r.avail));
+  await c.close(); return { r, errs }; };
+const cgCase = async (d, adopt) => { const { c, p, errs } = await openCg();
+  await p.evaluate(({ d, adopt }) => { d.rules = window.DATA.version; window._cgApplyEnvelope(d, { clearHistory: true }); if (adopt) _cgAdoptEnvelopeBinding(d); }, { d, adopt });
+  await p.waitForTimeout(1200);   // the binding adopt resolves (signed out: unconfirmed, rules unavailable)
+  const r = await p.evaluate((expr) => ({ status: window._dmApStatus, ap: eval(expr), ctx: readBuild()._hrCtx || null,
+    ownHidden: (document.getElementById('dmCustomRow') || {style:{}}).style.display === 'none' }), cgApLeft);
+  await c.close(); return { r, errs }; };
+const cgEnv = (log, extra) => Object.assign({ schema: 'pact-character/1', name: 'Off', LOG: log, SEQ: log.length + 1, id: ID }, extra || {});
+{
+  const { r, errs } = await lsCase(env(SNAP_LOG, { campaignId: CAMP }));
+  check('Live Sheet (signed out, bound, snapshot): the context comes from the snapshot, with its campaign id', !!r.ctx && r.ctx.campaignId === CAMP && r.status !== 'active' && !!r.ctx.rules, JSON.stringify(r).slice(0, 200));
+  check(`Live Sheet (signed out, bound, snapshot): AP left = the campaign figure without DM AP (${EXPECT_OFFLINE})`, r.avail === EXPECT_OFFLINE, String(r.avail));
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+{
+  const { r, errs } = await lsCase(env(LOG, { campaignId: CAMP }));
+  check('Live Sheet (bound, NO snapshot): a campaign context with no house rules — own rules still ignored (review item 2)', !!r.ctx && r.ctx.campaignId === CAMP && r.ctx.rules === null, JSON.stringify(r));
+  check(`...AP left ${EXPECT_BOUND_NOSNAP} (the printed drawback value, not the own 20)`, r.avail === EXPECT_BOUND_NOSNAP, String(r.avail));
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+{
+  const { r, errs } = await lsCase(env(SNAP_LOG));
+  check('Live Sheet (UNBOUND, old snapshot in the LOG): solo — the snapshot is ignored (review item 3)', r.ctx === null && r.avail === EXPECT_SOLO_NODM, JSON.stringify(r));
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+{
+  const { r, errs } = await cgCase(cgEnv(SNAP_LOG, { campaignId: CAMP }), true);
+  check('CharGen (signed out, bound, snapshot): the context comes from the snapshot', !!r.ctx && r.ctx.campaignId === CAMP && r.status !== 'active' && !!r.ctx.rules, JSON.stringify(r).slice(0, 200));
+  check(`CharGen (signed out, bound, snapshot): AP left = the campaign figure without DM AP (${EXPECT_OFFLINE})`, r.ap === EXPECT_OFFLINE, String(r.ap));
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+{
+  const { r, errs } = await cgCase(cgEnv(LOG, { campaignId: CAMP }), true);
+  check('CharGen (bound, NO snapshot): a campaign context with no house rules, the same as the Live Sheet', !!r.ctx && r.ctx.campaignId === CAMP && r.ctx.rules === null && r.ap === EXPECT_BOUND_NOSNAP, JSON.stringify(r));
+  check('...and the own house-rules editor stays hidden (U1)', r.ownHidden === true);
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+{
+  const { r, errs } = await cgCase(cgEnv(SNAP_LOG), true);
+  check('CharGen (UNBOUND, old snapshot): solo, the same answer as the Live Sheet', r.ctx === null && r.ap === EXPECT_SOLO_NODM, JSON.stringify(r));
+  check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
+}
+
+// ---- 6. no DM-typed text inside an onclick handler ---------------------------------------------------------------------
+console.log('Live Sheet: DM-typed names never reach handler JavaScript');
+{
+  const EVIL = 'Moon");window.__xss=1;//', EVIL2 = "Moon');window.__xss=2;//", TRAIL = 'Trailing\\', HONEST_Q = 'Say "Ni"', HONEST_B = 'Back\\slash';
+  const EVIL_FX = 'x");window.__xss=3;//';
+  const rules = { charHouseRules: {
+    draws: { [EVIL]: { ap: 1 }, [EVIL2]: { ap: 1 }, [TRAIL]: { ap: 1 }, [HONEST_Q]: { ap: 2 }, [HONEST_B]: { ap: 2 }, [XSS]: { ap: 1 } },
+    boons: { [EVIL]: { hd: 1, ap: 1, fx: EVIL_FX }, [HONEST_Q]: { hd: 1, ap: 1, fx: 'quoted "fx" \\ here' }, [HONEST_B]: { hd: 1, ap: 1 } } } };
+  const draft = LOG.filter(e => e.type !== 'creationLocked').concat([{ type: 'buy', cat: 'boon', payload: { v: EVIL }, cost: 1, level: 1, seq: 8, label: 'Boon' }]);
+  const { c, p, errs } = await openLs(env(draft, { campaignId: CAMP }));
+  const r = await p.evaluate(({ rules, names }) => {
+    window.confirm = () => true; window.alert = () => {}; window.__flashed = [];
+    const _f = window.flash; window.flash = function (m) { window.__flashed.push(String(m)); };
+    window._cloudCampaignRules = rules; window._rulesStatus = 'active'; window._dmAp = 50;
+    Object.keys(catOpen).forEach(k => { catOpen[k] = 1; }); grpOpen['Drawbacks (gain AP)'] = 1; grpOpen['Boons'] = 1;
+    window.render(); refreshBuy();
+    const tileFor = (sel, n) => [...document.querySelectorAll('#buy ' + sel)].find(t => t.querySelector('.ibhead') && t.querySelector('.ibhead').textContent.startsWith(n + ' '));
+    const out = { handlers: [...document.querySelectorAll('#buy [onclick]')].filter(b => names.some(n => (b.getAttribute('onclick') || '').includes(n.slice(0, 6)))).length };
+    for (const n of names) { const t = tileFor('button.ib.draw', n); if (t) t.click(); }
+    out.xssAfterDrawClicks = window.__xss || 0;
+    out.drawsBought = LOG.filter(e => e.type === 'buy' && e.cat === 'drawback').map(e => e.payload.v);
+    refreshBuy();
+    const boonTile = n => [...document.querySelectorAll('#buy button.ib')].find(t => t.querySelector('.ibhead') && t.querySelector('.ibhead').textContent.startsWith(n + ' (HD'));
+    const tq = boonTile(names[3]), tb = boonTile(names[4]);
+    const owned = [...document.querySelectorAll('#buy button.ib.dis')].find(t => t.textContent.startsWith(names[0] + ' (HD'));   // ibOwned() tile
+    if (tq) tq.click(); if (tb) tb.click(); if (owned) owned.click();
+    out.boonsBought = LOG.filter(e => e.type === 'buy' && e.cat === 'boon').map(e => e.payload.v);
+    out.ownedFlash = window.__flashed.slice(-1)[0] || '';
+    out.xss = window.__xss || 0; out.img = !!document.querySelector('img[src="x"]');
+    window.flash = _f;
+    return out;
+  }, { rules, names: [EVIL, EVIL2, TRAIL, HONEST_Q, HONEST_B, XSS] });
+  check('no buy-panel handler carries a DM-typed name (values ride in data-* attributes)', r.handlers === 0, String(r.handlers));
+  check('quote breakouts ("…" and \'…\'), a trailing backslash and an <img> run nothing when rendered or clicked', r.xss === 0 && r.xssAfterDrawClicks === 0 && !r.img, JSON.stringify(r));
+  check('clicking each drawback tile buys exactly that name — including the hostile ones, as plain text', [EVIL, EVIL2, TRAIL, HONEST_Q, HONEST_B, XSS].every(n => r.drawsBought.includes(n)), JSON.stringify(r.drawsBought));
+  check('honest boon names with " and \\ still buy (ib() round-trips the payload)', r.boonsBought.includes(HONEST_Q) && r.boonsBought.includes(HONEST_B), JSON.stringify(r.boonsBought));
+  check('an owned boon\'s hostile fx text is flashed as text by its tile, never run', r.ownedFlash === EVIL_FX && r.xss === 0, JSON.stringify(r.ownedFlash));
   check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
   await c.close();
 }
+
+// ---- 7. CharGen share link carries no derived keys --------------------------------------------------------------------
+console.log('CharGen: share link');
 {
   const { c, p, errs } = await openCg();
-  await p.evaluate(({ log, id, camp }) => {
-    // The autosave-restore path: apply the envelope, then adopt the campaign binding it names.
-    const d = { schema: 'pact-character/1', rules: window.DATA.version, name: 'Off', LOG: log, SEQ: log.length + 1, id, campaignId: camp };
-    window._cgApplyEnvelope(d, { clearHistory: true }); _cgAdoptEnvelopeBinding(d);
-  }, { log: SNAP_LOG, id: ID, camp: CAMP });
-  await p.waitForTimeout(1200);   // the binding adopt resolves (signed out: unconfirmed, rules unavailable)
-  const r = await p.evaluate((expr) => ({ status: window._dmApStatus, ap: eval(expr), ctx: readBuild()._hrCtx || null }), cgApLeft);
-  check('CharGen (signed out): the context comes from the snapshot', !!r.ctx && r.ctx.campaignId === 'camp-1' && r.status !== 'active', JSON.stringify(r));
-  check(`CharGen (signed out): AP left = the engine's campaign figure without DM AP (${EXPECT_OFFLINE})`, r.ap === EXPECT_OFFLINE, String(r.ap));
-  const solo = await p.evaluate(({ log, id }) => {
-    _cgResetCloudApState();   // a local load with no campaign id, as every non-cloud load path does first
-    window._cgApplyEnvelope({ schema: 'pact-character/1', rules: window.DATA.version, name: 'Solo', LOG: log, SEQ: log.length + 1, id: '99999999-2222-4333-8444-555555555555' }, { clearHistory: true });
-    return { ctx: readBuild()._hrCtx || null };
-  }, { log: SNAP_LOG, id: ID });
-  check('CharGen: a character that is NOT campaign-bound ignores an old snapshot in its LOG (it may have left) — solo', solo.ctx === null, JSON.stringify(solo));
+  const r = await p.evaluate(({ log, id, camp, rules }) => {
+    window._cgApplyEnvelope({ schema: 'pact-character/1', rules: window.DATA.version, name: 'Share', LOG: log, SEQ: log.length + 1, id }, { clearHistory: true });
+    window._cgCampaignId = camp; window._cgCampaignBound = true; window._cgBindingConfirmed = true;
+    window._dmApStatus = 'active'; window._cloudCampaign = { id: camp, name: 'Camp', rules };
+    const hadCtx = !!readBuild()._hrCtx;
+    window._copyText = () => true; shareLink();
+    const b = _decB(location.hash.slice(3));
+    return { hadCtx, under: Object.keys(b).filter(k => k.charAt(0) === '_'), name: b.name };
+  }, { log: LOG, id: ID, camp: CAMP, rules: RULES });
+  check('CONTROL: the build being shared carries a house-rules context', r.hadCtx);
+  check('the #b= link has no _-prefixed key (no _hrCtx / _dmHouseRulesByCampaign)', r.under.length === 0 && r.name === 'Share', JSON.stringify(r));
   check('no page errors', errs.filter(e => !NOISE.test(e)).length === 0, errs.join(' | '));
   await c.close();
 }

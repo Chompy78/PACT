@@ -156,5 +156,13 @@ Technical choices made while wiring the context into the three tools (none is an
   only a purchase with a positive cost while below 0 (a free one adds no spend), matching the server.
 - **Escaping.** Live Sheet `ib()`/`ibOwned()` now `esc()` the tile label (custom boon/drawback names are DM/player-typed); no caller
   passed markup.
+- **After review of #655:** (a) a campaign context is given only to a character KNOWN to be bound (Live Sheet `_lsCampaignId`,
+  CharGen `_cgCampaignId`/pending binding, DM Console a file's envelope `campaignId`), in all three tools alike; an unbound one is solo
+  even with an old snapshot. A bound one with no usable snapshot (offline / unconfirmed — 8 of 10 live bound characters have none) gets
+  `houseRulesCtxFromRules({}, campaignId)`: own rules ignored (U1), CharGen's own editor hidden, rather than solo. (b) V1's server-spend
+  base is persisted per character in `localStorage` (`pactCloudSpent:<id>`, shared by both player tools) when learned, so a reload
+  keeps it; when it is truly unknown the spend of the local copy the page restored is the base (a push that adds nothing goes through;
+  the server still decides). (c) No user-typed value goes inside an `onclick` handler's JS — the browser decodes `&quot;` before
+  parsing it — values ride in `data-*` attributes. (d) Share links strip every `_`-prefixed (derived) key.
 - **Not fixed here (reviewer's note):** a DM refund (`dmRefundBoon`) returns the boon's AP but not the gold/downtime `wealthLedger()`
   charged for it.

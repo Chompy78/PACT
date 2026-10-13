@@ -1474,6 +1474,16 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       a target that does not precede the event, a non-finite amount — house-rules-ledger-ci.mjs generates each.
       M3's `to` check must accept the printed-value fallback when a campaign deletes a custom/repriced entry. M4: a buy-off
       must record the purchase it cancels (targetSeq) so the server nets out its grant incl. ΣΔ (Live Sheet emits it in PR2).
+      Buy-off netting must resolve a buyoff's target with the SAME FIFO the tools use: the oldest still-open purchase of that
+      name, SKIPPING purchases already bought off AND those a dmRemoveDrawback removed (Live Sheet _openDrawbackEvent / engine
+      activeEvents). A server FIFO that does not skip DM-removed purchases nets out the wrong grant.
+  MERGE WITH #649 (feat/dm-ap-discount) — whichever lands second must reconcile:
+      - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
+        inside it; mixing the two signatures fails silently (wrong tally, no error).
+      - a boon refunded by dmRefundBoon after a #649 discount must not be credited twice: the refund = frozen cost MINUS the
+        discount on that target, mirrored in the server ledger (PR3).
+      - parity fixture id EV-034 is used by both — renumber one.
+      - the Live Sheet ledger's dmTag / else-if chain needs both PRs' branches.
   PR4 feat/campaign-house-rules-dm-editor: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
       houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does.
   PR5 feat/dm-house-rules-editor (rework #642): per-character overrides as dmHouseRules on the same RPC/validator.

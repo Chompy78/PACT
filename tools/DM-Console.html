@@ -1209,8 +1209,11 @@ function foldBuild(uptoIdx){ return _dmStampHr(window._engineFold.foldBuild(even
 function _dmHrCtx(){
   var H=window._engineHR; if(!H) return null;
   if(window._dmHrCtxOverride!==undefined) return window._dmHrCtxOverride;
+  // A local file: campaign context only when its envelope names a campaign (as the player tools rule), from its
+  // snapshot when that is this campaign's, else with no house rules (own patch ignored, U1).
+  var cid=window._dmFileCampaignId||null; if(!cid) return null;
   var s=H.latestRulesSnapshot(LOG);
-  return s ? H.houseRulesCtxFromRules(s.rules, s.campaignId) : null;
+  return H.houseRulesCtxFromRules((s && (!s.campaignId || s.campaignId===cid)) ? s.rules : {}, cid);
 }
 function _dmStampHr(b){ var H=window._engineHR; return H ? H.withHouseRulesCtx(b,_dmHrCtx()) : b; }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
@@ -1225,6 +1228,7 @@ function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts
 // has no campaign and therefore no DM AP.
 function dmAnalyze(exported, apOpts){
   LOG = (exported && exported.LOG) || [];
+  window._dmFileCampaignId = (exported && typeof exported.campaignId === 'string' && exported.campaignId) || null;   // house-rules context of a local file (_dmHrCtx)
   SEQ = (exported && exported.SEQ) || (LOG.length+1);
   var b = foldBuild(null);
   var eco = economy(null);

@@ -1732,9 +1732,19 @@ function _cgDmOpts(){
 // refuses a save only when the spend INCREASED past the budget, so below 0 a save that adds no spend still goes to the
 // cloud. _cgCloudSpentBase = the spend the server was last seen to hold (a clean cloud copy, or this page's accepted
 // push); unknown = treated as increased (the old rule — nothing to compare with). Same as the Live Sheet's gate.
-var _cgCloudSpentBase=null;
-function _cgNoteCloudBase(log){ try{ _cgCloudSpentBase=Array.isArray(log)?economy(log).spent:null; }catch(e){ _cgCloudSpentBase=null; } }
-function _cgSpendIncreased(){ return _cgCloudSpentBase==null || economy(LOG).spent > _cgCloudSpentBase; }
+// Persisted per character ('pactCloudSpent:<id>', shared with the Live Sheet) so a reload keeps it; truly unknown =
+// the spend of the local copy this page restored (same id only) — see the Live Sheet's _lsSpendBase().
+var _cgCloudSpentBase=null, _cgLocalSpentBase=null;   // _cgLocalSpentBase = {id, spent}
+function _cgNoteCloudBase(log,id){
+  try{ _cgCloudSpentBase=Array.isArray(log)?economy(log).spent:null; }catch(e){ _cgCloudSpentBase=null; }
+  var k=id||__charId; if(_cgCloudSpentBase!=null&&k){ try{ localStorage.setItem('pactCloudSpent:'+k,String(_cgCloudSpentBase)); }catch(e){} }
+}
+function _cgSpendBase(){
+  if(_cgCloudSpentBase!=null) return _cgCloudSpentBase;
+  try{ var v=__charId&&localStorage.getItem('pactCloudSpent:'+__charId); if(v!=null&&v!==''&&isFinite(+v)) return +v; }catch(e){}
+  return (_cgLocalSpentBase&&_cgLocalSpentBase.id===__charId)?_cgLocalSpentBase.spent:null;
+}
+function _cgSpendIncreased(){ var b=_cgSpendBase(); return b==null || economy(LOG).spent > b; }
 function _cgOverApBudget(){
   if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
   return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0 && _cgSpendIncreased();
@@ -1828,7 +1838,7 @@ async function _cgAdoptEnvelopeBindingInner(d, campId){
         if(!bnd.campaignId){ _cgPendingCampaignId = null; render(); return; }   // the server says solo: drop the binding
         campId = bnd.campaignId; _cgPendingCampaignId = campId;
         // V1: the server's spend, from this device's cached copy when it is clean (peek never reconciles or pushes).
-        try{ var _pk = S.peekCharacter && await S.peekCharacter(d.id); if(stale()) return; _cgNoteCloudBase(_pk && !_pk.dirty && _pk.stats ? _pk.stats.LOG : null); }catch(e){}
+        try{ var _pk = S.peekCharacter && await S.peekCharacter(d.id); if(stale()) return; _cgNoteCloudBase(_pk && !_pk.dirty && _pk.stats ? _pk.stats.LOG : null, d.id); }catch(e){}
       }
     } else if(S && _session && navigator.onLine && d.id){
       // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, which is right for stats (this
@@ -2228,8 +2238,10 @@ function _cgHrCtx(ev){
   if(!_cgIsCampaignBound()) return null;
   var c=window._cloudCampaign, cid=window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'?_cgPendingCampaignId:null)||null;
   if(window._dmApStatus==='active' && c && c.id && c.id===window._cgCampaignId) return H.houseRulesCtxFromRules(c.rules||{}, c.id);
+  // Bound, rules not confirmed: its snapshot (when it is this campaign's), else a campaign context with no house rules —
+  // the own patch stays ignored (U1) and the own editor stays hidden, instead of falling back to solo. Same as the Live Sheet.
   var snap=H.latestRulesSnapshot(Array.isArray(ev)?ev:LOG);
-  return snap ? H.houseRulesCtxFromRules(snap.rules, snap.campaignId||cid) : null;
+  return H.houseRulesCtxFromRules((snap && (!snap.campaignId || !cid || snap.campaignId===cid)) ? snap.rules : {}, cid || (snap && snap.campaignId) || null);
 }
 window._cgHrCtx=_cgHrCtx;
 function _cgHrInCampaign(){ return !!_cgHrCtx(LOG); }
@@ -2436,8 +2448,9 @@ function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
     // XSS but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the button for any
     // name containing a quote.
     rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+esc(name)+'</span><span class="meta">'+esc(meta)+'</span>'+
-      '<button class="dmctl" type="button" onclick="'+esc('dmToggleDisable('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">'+(off?'enable':'disable')+'</button>'+
-      '<button class="btn x" type="button" onclick="'+esc('dmRemove('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">✕</button></div>');};
+      // Data attributes, not a name inside the handler's JS (review of #655: one pattern for every user-typed name).
+      '<button class="dmctl" type="button" data-k="'+esc(kind)+'" data-v="'+esc(name)+'" onclick="dmToggleDisable(this.dataset.k,this.dataset.v)">'+(off?'enable':'disable')+'</button>'+
+      '<button class="btn x" type="button" data-k="'+esc(kind)+'" data-v="'+esc(name)+'" onclick="dmRemove(this.dataset.k,this.dataset.v)">✕</button></div>');};
   // custom boons/draws
   for(const k in (HOUSE.boons||{}))add('boon',k,'boon · HD '+(HOUSE.boons[k].hd||1)+'+ · '+(HOUSE.boons[k].ap||0)+' AP');
   for(const k in (HOUSE.draws||{}))add('draw',k,'drawback · +'+(HOUSE.draws[k].ap||0)+' AP');
@@ -4841,7 +4854,10 @@ function _copyText(text){
     const okc=document.execCommand('copy');document.body.removeChild(ta);if(okc)return true;}catch(e){}
   try{window.prompt('Copy this link (press Ctrl/Cmd-C):',text);}catch(e){}
   return false;}
-function shareLink(){try{const enc=_encB(readBuild());const base=location.href.split('#')[0];const url=base+'#b='+enc;
+// Strip every derived `_`-prefixed key (_hrCtx, _dmHouseRulesByCampaign, _lostPurchases, …) before encoding: they are
+// fold bookkeeping, never saved, and a share link is a saved build (review of #655).
+function _cgStripDerived(b){const o={};Object.keys(b||{}).forEach(function(k){if(k.charAt(0)!=='_')o[k]=b[k];});return o;}
+function shareLink(){try{const enc=_encB(_cgStripDerived(readBuild()));const base=location.href.split('#')[0];const url=base+'#b='+enc;
   try{history.replaceState(null,'','#b='+enc);}catch(e){}
   const copied=_copyText(url);
   flash(copied?('Shareable link copied to clipboard ('+url.length+' chars).'):'Link shown — copy it from the popup or the address bar.');
@@ -5602,7 +5618,7 @@ function _cgAdoptRestoredProvenance(d){
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);try{_cgLocalSpentBase={id:__charId,spent:economy(LOG).spent};}catch(e){_cgLocalSpentBase=null;}return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);

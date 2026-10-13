@@ -553,11 +553,16 @@ function foldBuild(uptoIdx){ return _lsStampHr(window._engineFold.foldBuild(even
 // snapshot this character carries in its LOG (offline / unavailable), else none (solo: its own house rules).
 // The same source resolveRules() uses for bans. Stamped on the build (derived, never saved), so every compute()/
 // priceOf()/purchaseLegality() call below sees it without being touched.
+// Only a character KNOWN to be bound (_lsCampaignId: the cloud row or the file's envelope) gets a campaign context;
+// an unbound one is solo even if its LOG still carries an old snapshot (CharGen applies the same rule). Bound but with
+// no usable snapshot (offline / unconfirmed, and 8 of 10 live bound characters had none on 2026-10-13): a campaign
+// context with no house rules — the own patch stays ignored (U1) rather than silently pricing the character solo.
 function _lsHrCtx(){
   var H=window._engineHR; if(!H) return null;
-  if(window._rulesStatus==='active') return H.houseRulesCtxFromRules(window._cloudCampaignRules||{}, window._lsCampaignId||null);
+  var cid=window._lsCampaignId||null; if(!cid) return null;
+  if(window._rulesStatus==='active') return H.houseRulesCtxFromRules(window._cloudCampaignRules||{}, cid);
   var s=H.latestRulesSnapshot(LOG);
-  return s ? H.houseRulesCtxFromRules(s.rules, s.campaignId||window._lsCampaignId||null) : null;
+  return H.houseRulesCtxFromRules((s && (!s.campaignId || s.campaignId===cid)) ? s.rules : {}, cid);
 }
 function _lsStampHr(b){ var H=window._engineHR; return H ? H.withHouseRulesCtx(b,_lsHrCtx()) : b; }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
@@ -796,9 +801,21 @@ function _lsWallet(uptoIdx){
 // spends more than the server's copy did is held back. The server's spend is the last one this page saw it hold
 // (_lsCloudSpentBase: a clean cloud load, or this page's own accepted push); unknown = treated as increased, the
 // old rule, because then there is nothing to compare with.
-var _lsCloudSpentBase=null;
-function _lsNoteCloudBase(log){ try{ _lsCloudSpentBase=Array.isArray(log)?window._engineFold.economy(log).spent:null; }catch(e){ _lsCloudSpentBase=null; } }
-function _lsSpendIncreased(){ return _lsCloudSpentBase==null || economy(null).spent > _lsCloudSpentBase; }
+// The server's spend, once learned, is also PERSISTED per character ('pactCloudSpent:<id>', shared with CharGen) so a
+// reload keeps it — an honest below-0 character with a dirty local copy was otherwise refused every push for ever.
+// When it is truly unknown, the spend of the local copy this page restored (_lsLocalSpentBase, same id only) is the
+// base: a push that does not raise spend above what was already saved locally goes through, and the server decides.
+var _lsCloudSpentBase=null, _lsLocalSpentBase=null;   // _lsLocalSpentBase = {id, spent}
+function _lsNoteCloudBase(log,id){
+  try{ _lsCloudSpentBase=Array.isArray(log)?window._engineFold.economy(log).spent:null; }catch(e){ _lsCloudSpentBase=null; }
+  var k=id||__charId; if(_lsCloudSpentBase!=null&&k){ try{ localStorage.setItem('pactCloudSpent:'+k,String(_lsCloudSpentBase)); }catch(e){} }
+}
+function _lsSpendBase(){
+  if(_lsCloudSpentBase!=null) return _lsCloudSpentBase;
+  try{ var v=__charId&&localStorage.getItem('pactCloudSpent:'+__charId); if(v!=null&&v!==''&&isFinite(+v)) return +v; }catch(e){}
+  return (_lsLocalSpentBase&&_lsLocalSpentBase.id===__charId)?_lsLocalSpentBase.spent:null;
+}
+function _lsSpendIncreased(){ var b=_lsSpendBase(); return b==null || economy(null).spent > b; }
 function _lsOverApBudget(){
   if(!window._lsCampaignId) return false;
   var r = window._cloudCampaignRules;
@@ -1458,7 +1475,7 @@ async function _lsCheckFreshnessNow(){
 // async cloud round-trip in refreshCloudCampaignRules(). That is the owner's "refresh loses the
 // connection to campaign" report. This is the tab's OWN autosave, so adopting its binding is just
 // restoring what this tab already had; it grants no access the server's RLS doesn't already allow.
-function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;_lsAdoptRestoredProvenance(d);}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
+function load(){ try{const d=JSON.parse(localStorage.getItem(KEY)); if(d&&d.LOG){_lsResetCloudApState();LOG=d.LOG;SEQ=d.SEQ||(LOG.length+1);loadedRules=d.rules||null;if(d.id)__charId=d.id;if(d.campaignId)window._lsCampaignId=d.campaignId;_lsAdoptRestoredProvenance(d);try{_lsLocalSpentBase={id:__charId,spent:window._engineFold.economy(LOG).spent};}catch(e){_lsLocalSpentBase=null;}}}catch(e){ console.error('PACT Live Sheet: local load failed',e); } }
 // Feature-detect Web Share (files) rather than sniffing the user agent — this is the reliable
 // save path on iOS Safari/PWA, where a plain blob+<a download> is known to silently fail (it
 // often just opens the JSON in a new tab instead of saving a file). Falls back to the existing
@@ -2070,8 +2087,11 @@ function buildBuyPanel(b,r,eco,head){
     const blocked=!!hardReason;
     if(hideUnavail && blocked) return '';   // "Hide unavailable": drop the greyed can't-buy tiles (default off → shown greyed+clickable with the reason)
     const costlbl = (cat==='drawback'||cat==='mbound'||cat==='dbound')?('+'+(-cost)):(''+cost);
-    const pay='buy(&quot;'+cat+'&quot;,'+esc(JSON.stringify(payload))+',&quot;'+esc(label)+'&quot;)';
-    const click = blocked ? ('flash(&quot;'+esc(hardReason)+'&quot;)') : pay;
+    // Never a name inside an onclick JS string: the browser decodes &quot; back to a quote BEFORE the handler is
+    // parsed, so a DM-typed name like `x");evil();//` broke out of it (stored XSS, review of #655). Every value rides
+    // in a data-* attribute (esc()'d — attribute context only) and the handler reads it back as plain data.
+    const _da=' data-cat="'+esc(cat)+'" data-p="'+esc(JSON.stringify(payload))+'" data-l="'+esc(label)+'" data-msg="'+esc(hardReason||'')+'"';
+    const click = blocked ? 'flash(this.dataset.msg)' : 'buy(this.dataset.cat,JSON.parse(this.dataset.p),this.dataset.l)';
     const note = hardReason || soft || followup;
     const _pg=(['feature','subabil','racial'].indexOf(cat)>=0&&typeof FEAT_PG!=='undefined'&&payload&&FEAT_PG[payload.v])?('PHB p.'+FEAT_PG[payload.v]):'';
     const _ttl=[note,descr,_pg].filter(Boolean).join(' · ');
@@ -2083,15 +2103,15 @@ function buildBuyPanel(b,r,eco,head){
     const _qlbl = !_q ? '' : (!_q.gp && !_q.days) ? 'free of coin and time'
                  : [ _q.gp?(_q.gp.toLocaleString()+' gp'):'', _q.days?_q.time:'' ].filter(Boolean).join(' · ');
     const _over = _q && _lsWalletShort(_q);
-    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'" onclick="'+click+'"><span class="ibhead">'+esc(label)+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
+    return '<button class="ib'+(blocked?' dis':(soft?' warn':''))+(cat==='drawback'?' draw':'')+'" title="'+esc(_ttl)+'"'+_da+' onclick="'+click+'"><span class="ibhead">'+esc(label)+' <em>'+costlbl+'</em></span>'+(_qlbl?('<small class="why gt'+(_over?' gtshort':'')+'">'+esc(_qlbl)+(_over?(' — '+esc(_over)):'')+'</small>'):'')+(note?'<small class="why">'+esc(note)+'</small>':'')+(descr?'<small class="why dsc">'+esc(descr)+'</small>':'')+'</button>';
   }
   // Drawback tile: the EFFECTIVE value and text (campaign / DM override / own house rule — _EDT below), so a custom
   // drawback shows what it really grants. Names are esc()'d: a custom one is DM- or player-typed.
   function db(name){ if(buyQuery && name.toLowerCase().indexOf(buyQuery)<0) return '';
     var _dr=_EDT[name]||{ap:DATA.drawbacks[name]||0,fx:''};
     var _bar=_lsBarGrant('drawback')||(_dr.allowed===false?_dr.reason:''); if(_bar&&hideUnavail) return '';
-    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" onclick="flash(&quot;'+esc(_bar)+'&quot;)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
-    return '<button class="ib draw" onclick="takeDrawback(&quot;'+esc(name)+'&quot;)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why" style="color:var(--bad)">'+esc(_dr.fx||'')+'</small></button>';}
+    if(_bar) return '<button class="ib dis draw" title="'+esc(_bar)+'" data-msg="'+esc(_bar)+'" onclick="flash(this.dataset.msg)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why">'+esc(_bar)+'</small></button>';
+    return '<button class="ib draw" data-v="'+esc(name)+'" onclick="takeDrawback(this.dataset.v)"><span class="ibhead">'+esc(name)+' <em>+'+esc(String(_dr.ap))+'</em></span><small class="why" style="color:var(--bad)">'+esc(_dr.fx||'')+'</small></button>';}
   // Greyed-out "already purchased" tile — shows up in buy panel for items already owned
   // A HELD purchase that the engine reports as blocked must not read as an ordinary holding: compute()
   // says "not counted, not owned" and charges 0 for it, so "Already purchased" is actively wrong. Show it
@@ -2110,7 +2130,7 @@ function buildBuyPanel(b,r,eco,head){
   function ibOwned(label,note){
     if(buyQuery && label.toLowerCase().indexOf(buyQuery)<0) return '';
     const tt=note||'Already purchased';
-    return '<button class="ib dis" title="'+esc(tt)+'" onclick="flash(&quot;'+esc(tt)+'&quot;)" style="opacity:0.45;cursor:default">'+esc(label)+' <em>✓</em><small class="why">'+esc(note||'owned')+'</small></button>';}
+    return '<button class="ib dis" title="'+esc(tt)+'" data-msg="'+esc(tt)+'" onclick="flash(this.dataset.msg)" style="opacity:0.45;cursor:default">'+esc(label)+' <em>✓</em><small class="why">'+esc(note||'owned')+'</small></button>';}
   const wp=b.weaponProf||{};
   // The EFFECTIVE house rules (D-GH-2026-10-13-campaign-house-rules): in a campaign the DM's calls, custom and repriced
   // boons/drawbacks and bans; solo, this character's own. b carries the context (foldBuild stamps it).
@@ -3209,7 +3229,7 @@ document.addEventListener('sync-ready', function () {
       var _cid = (typeof window.peekCharId === 'function') ? window.peekCharId() : window.currentCharId();
       if(!_cid){ renderCloudStatusBadge(); return; }
       var rec = await S.loadCharacter(_cid);
-      _lsNoteCloudBase(rec&&!rec.dirty&&rec.stats?rec.stats.LOG:null);   // V1: a clean copy is what the server holds
+      _lsNoteCloudBase(rec&&!rec.dirty&&rec.stats?rec.stats.LOG:null,_cid);   // V1: a clean copy is what the server holds
       window._dmAp = rec ? (rec.ap || 0) : 0;
       // Same row, same server authority as `ap` — see js/sync.js applyServerMeta. `|| 0` because a
       // character row cached before this column existed comes back without it. Downtime carries no
@@ -3254,7 +3274,7 @@ document.addEventListener('sync-ready', function () {
                    + 'keep it, click Cancel first and use ⬇ Export to save a local copy before retrying.');
     } });
     if(!rec||!rec.stats||!rec.stats.LOG){ alert('No character data found.'); return false; }
-    _lsNoteCloudBase(rec.dirty?null:rec.stats.LOG);   // V1: a clean copy is what the server holds
+    _lsNoteCloudBase(rec.dirty?null:rec.stats.LOG,id);   // V1: a clean copy is what the server holds
     window._dmAp = rec.ap || 0;
     window._dmGold = rec.gold || 0; window._dmWindow = null;
     window._ignorePlayerAp = false;
