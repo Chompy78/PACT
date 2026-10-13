@@ -71,3 +71,20 @@ feature (table view, matrix/ledger overlays, counts) still excludes NPCs. The aw
 character, which already accepts an NPC (a DM's own character bound to the campaign), so no server change.
 
 **Status:** accepted by the owner, 2026-10-14.
+
+## Addendum 2026-10-14 — duplicate an NPC as a new version (`feat/npc-duplicate-version`, owner decision AF3)
+
+**Owner decision:** the copy keeps its AP — everything is identical apart from the name.
+
+**Built:** an NPC card's "⧉ Duplicate as new version" asks for a name (prefilled "<name> (copy)") and calls `duplicateNpc()`
+(`js/dm.js`): insert a new row owned by the DM whose stats are the source's, deep-copied, with a `name` event appended for the
+new name (`npcCopyStats`, pure); `dm_bind_npc` it into the same campaign; then give it the source's DM AP and gold through
+`award_ap` / `award_gold` with the note "Copied from <name>", so the server ledgers show where they came from (the `ap`
+column has no client write path). A name the DM already uses is refused with a plain message (the 2026-10-11 unique-name
+index). If the bind fails, the copy stays among the DM's own characters, unbound, and the message says so. Not copied: the
+DM's private notes/custom fields for the source (a separate DM-only table). No server change.
+
+**Not yet exercised against a real database** (no live test path): the insert + bind + award sequence is covered by the
+console UI test with the RPCs stubbed, and the copied envelope by a unit check of `npcCopyStats`. Known server refusal to
+expect: a source NPC carrying a DM discount (`dmDiscount`) — the #649 authorship trigger refuses binding a character that
+already holds one; the console shows the server's message.
