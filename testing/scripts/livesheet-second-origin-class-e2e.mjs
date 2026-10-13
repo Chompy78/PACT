@@ -56,7 +56,9 @@ const menu = await page.evaluate(() => {
   // Expand the rows under test the way a click on their heading does.
   ['Rogue features', 'Wizard features', 'Unlock classes', 'Subclasses & abilities'].forEach(t => { grpOpen[t] = 1; });
   refreshBuy();
-  const btns = [...document.querySelectorAll('button.ib')].map(e => e.getAttribute('onclick') || '');
+  // A tile's purchase rides in data-cat / data-p (never inside the onclick JS — feat/campaign-house-rules-tools); rebuild the
+  // old 'buy("cat",{payload})' shape from them so the patterns below read the same.
+  const btns = [...document.querySelectorAll('button.ib')].map(e => e.dataset.cat ? ('buy("' + e.dataset.cat + '",' + e.dataset.p + ')') : (e.getAttribute('onclick') || ''));
   return {
     wizFeat: btns.filter(o => /"feature"/.test(o) && /Wizard: /.test(o)).length,
     rogueFeat: btns.filter(o => /"feature"/.test(o) && /Rogue: /.test(o)).length,

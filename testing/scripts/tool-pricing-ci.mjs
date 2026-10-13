@@ -1156,6 +1156,9 @@ try {
       return [d.items.length,d.sum,d.line,d.sum===d.line];})()`), [3, -11, -11, true]);
   check('a house-ruled drawback itemises at the value actually charged, not the printed one',
     await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      // SOLO: the check above left this page bound to 'test-camp'; in a campaign the character's own house rules are
+      // ignored (owner decision U1, feat/campaign-house-rules-tools), so drop that binding to test the own-rules path.
+      _cgResetCloudApState();
       const n=Object.keys(DATA.drawbacks).slice(0,3);
       const b=readBuild();b.drawbacks=n.slice();b.houseRules={draws:{[n[0]]:{ap:99}}};
       renderLedger(compute(b),b);const d=sect('Drawbacks (refund)');

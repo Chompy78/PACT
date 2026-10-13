@@ -130,3 +130,39 @@ generates every one of these and asserts the engine ignores them. Two more PR3 r
 `_apOpts` on event fixtures, both runners in lockstep); new `testing/scripts/house-rules-ledger-ci.mjs` (unit cases + a fuzz over
 random campaign histories asserting browser AP left == an independent port of the server ledger), wired into `engine-parity.yml`;
 `log-fuzz.mjs` generates the new event types. Every existing fixture's output is unchanged.
+
+## Addendum — PR2, the tools (`feat/campaign-house-rules-tools`, 2026-10-13)
+
+Technical choices made while wiring the context into the three tools (none is an owner-level question):
+
+- **Where the pure helpers live.** `houseRulesCtxFromRules()` and `latestRulesSnapshot()` are `js/campaign.js` API (it re-exports
+  them) but are defined in a new dependency-free `js/campaign-rules.js`. `campaign.js` imports the Supabase client and loads in each
+  tool's CLOUD module, which can fail or arrive after the first render; the context is needed by every fold from the first render and
+  fully offline, so the tools import the helpers in their ENGINE bridge. The service worker precaches it and serves it network-first
+  (a network-first module imports it), cache `pact-v10`.
+- **Context source per tool.** Live Sheet: live rules when `_rulesStatus==='active'`, else the LOG's snapshot (the same source
+  `resolveRules()` already uses for bans). CharGen: a campaign context only for a campaign-BOUND character (confirmed or pending) —
+  live rules when they are confirmed and belong to its campaign, else its snapshot; an unbound character is solo even if its LOG
+  still holds a snapshot (it may have left, and CharGen never writes the "leave" snapshot), and the campaign-rules preview picker never
+  applies. DM Console: the selected campaign's live rules for each roster row; a locally imported file uses its own snapshot.
+- **Snapshot campaign id.** New `rulesSnapshot` events carry `campaignId`, so a DM override resolves offline (PR5). An existing
+  snapshot is not rewritten to add it (dedupe stays on the rules only) — that would append an event to every bound character's LOG.
+- **CharGen own vs effective.** In a campaign the own customisation controls are hidden (not just disabled: they show rules that do
+  not apply) and a read-only panel lists the effective rules with their source; the HOUSE_RULES patch slot never syncs there; `HOUSE`
+  is never written from the effective rules. Covered by an e2e that the own patch is byte-identical after a campaign session.
+- **V1 gate.** The client cannot see the server's OLD row, so `_lsOverApBudget()`/`_cgOverApBudget()` compare against the spend of the
+  last copy the page knows the server holds (a clean cloud load, or the page's own accepted push). Unknown = treated as an increase
+  (the pre-V1 rule), so the gate never lets through what it cannot judge; the server stays the authority. The purchase gates refuse
+  only a purchase with a positive cost while below 0 (a free one adds no spend), matching the server.
+- **Escaping.** Live Sheet `ib()`/`ibOwned()` now `esc()` the tile label (custom boon/drawback names are DM/player-typed); no caller
+  passed markup.
+- **After review of #655:** (a) a campaign context is given only to a character KNOWN to be bound (Live Sheet `_lsCampaignId`,
+  CharGen `_cgCampaignId`/pending binding, DM Console a file's envelope `campaignId`), in all three tools alike; an unbound one is solo
+  even with an old snapshot. A bound one with no usable snapshot (offline / unconfirmed — 8 of 10 live bound characters have none) gets
+  `houseRulesCtxFromRules({}, campaignId)`: own rules ignored (U1), CharGen's own editor hidden, rather than solo. (b) V1's server-spend
+  base is persisted per character in `localStorage` (`pactCloudSpent:<id>`, shared by both player tools) when learned, so a reload
+  keeps it; when it is truly unknown the spend of the local copy the page restored is the base (a push that adds nothing goes through;
+  the server still decides). (c) No user-typed value goes inside an `onclick` handler's JS — the browser decodes `&quot;` before
+  parsing it — values ride in `data-*` attributes. (d) Share links strip every `_`-prefixed (derived) key.
+- **Not fixed here (reviewer's note):** a DM refund (`dmRefundBoon`) returns the boon's AP but not the gold/downtime `wealthLedger()`
+  charged for it.

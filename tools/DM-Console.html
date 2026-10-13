@@ -1155,8 +1155,8 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
 // does; the fixed DATA.levelAP ladder is no longer read for level DISPLAY here
 // (fix/dm-console-roster-tuned-curve — see D-GH-2026-07-15-dm-console-roster-tuned-curve).
 function _latestLogSnapshotRules(){
-  for(var i=LOG.length-1;i>=0;i--){ var e=LOG[i]; if(e&&e.type==='rulesSnapshot') return e.campRules||null; }
-  return null;
+  var s=window._engineHR.latestRulesSnapshot(LOG);   // the shared reader (js/campaign-rules.js)
+  return s?s.rules:null;
 }
 function _levelCurve(){
   var r=_latestLogSnapshotRules()||{};
@@ -1201,7 +1201,21 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 // identical adapter shape, which DOES have a scrub UI; don't assume one exists here too.
 function eventsUpTo(uptoIdx){ return uptoIdx==null ? LOG : LOG.slice(0,uptoIdx); }
 function activeEvents(uptoIdx){ return window._engineFold.activeEvents(eventsUpTo(uptoIdx)); }
-function foldBuild(uptoIdx){ return window._engineFold.foldBuild(eventsUpTo(uptoIdx)); }
+function foldBuild(uptoIdx){ return _dmStampHr(window._engineFold.foldBuild(eventsUpTo(uptoIdx))); }
+// Campaign house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules): every fold carries the
+// context the engine prices with, so the console shows the AP left the player's own tools show. A roster character
+// is analysed under its CAMPAIGN's live rules (cloudAnalyze sets window._dmHrCtxOverride for the duration); anything
+// else — a locally imported file — under the rules snapshot its own LOG carries, else solo (its own house rules).
+function _dmHrCtx(){
+  var H=window._engineHR; if(!H) return null;
+  if(window._dmHrCtxOverride!==undefined) return window._dmHrCtxOverride;
+  // A local file: campaign context only when its envelope names a campaign (as the player tools rule), from its
+  // snapshot when that is this campaign's, else with no house rules (own patch ignored, U1).
+  var cid=window._dmFileCampaignId||null; if(!cid) return null;
+  var s=H.latestRulesSnapshot(LOG);
+  return H.houseRulesCtxFromRules((s && (!s.campaignId || s.campaignId===cid)) ? s.rules : {}, cid);
+}
+function _dmStampHr(b){ var H=window._engineHR; return H ? H.withHouseRulesCtx(b,_dmHrCtx()) : b; }
 function economy(uptoIdx){ return window._engineFold.economy(eventsUpTo(uptoIdx)); }
 // feat/ap-model-reconcile: no index-scrubbing needed — operates on an already-computed economy() result.
 function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts); }
@@ -1214,6 +1228,7 @@ function earnedWithDm(eco,opts){ return window._engineFold.earnedWithDm(eco,opts
 // has no campaign and therefore no DM AP.
 function dmAnalyze(exported, apOpts){
   LOG = (exported && exported.LOG) || [];
+  window._dmFileCampaignId = (exported && typeof exported.campaignId === 'string' && exported.campaignId) || null;   // house-rules context of a local file (_dmHrCtx)
   SEQ = (exported && exported.SEQ) || (LOG.length+1);
   var b = foldBuild(null);
   var eco = economy(null);
@@ -2756,6 +2771,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         // both, every AP figure below is player-log-only — which is what made an entirely
         // DM-funded roster read as universally overspent.
         var _apr = window._dmCampaignApRules || {};
+        // This character is in the selected campaign: price it under that campaign's house rules (its own CharGen
+        // patch is ignored there, owner decision U1) — the same context its Live Sheet and CharGen stamp.
+        window._dmHrCtxOverride = (window._engineHR && _apr.rules) ? window._engineHR.houseRulesCtxFromRules(_apr.rules, _apr.campaignId || null) : null;
+        try {
         summary = analyzeAug({ LOG: log, SEQ: row.stats.SEQ || (log.length+1), rules: row.stats.rules, name: row.name },
                              { dmAp: Number(row.ap) || 0, ignorePlayerAp: !!_apr.ignorePlayerAp,
                                // Shared with both player tools since fix/drawback-cap-player-tools —
@@ -2768,6 +2787,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
                                  ? window._campBridge.drawbackCapFromRules(_apr.rules) : undefined),
                                drawbackCountAdvice: (window._campBridge
                                  ? window._campBridge.drawbackCountAdviceFromRules(_apr.rules) : undefined) });
+        } finally { delete window._dmHrCtxOverride; }
       } catch(e){ hasData = false; summary = null; }
     }
     // Carry the `name` COLUMN through even when hasData is false. A player can name a character and
@@ -3510,6 +3530,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   window._engineEcon = { purchaseCost, priceLabel, wealthLedger, wealthWithDm, formatDowntime, economySetting, economyOn, chargesGoldAndTime, effectiveBandRows, bandRowKey, resolveEconomyRules };
   import { verifyCharacterEnvelope } from '../js/character-store.js';   // tamper-evidence read-side (D-GH48)
   import { apEncodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with Live Sheet (fixed 2026-09-10 — see that file's header)
+  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable } from '../js/engine.js';
+  import { houseRulesCtxFromRules, latestRulesSnapshot } from '../js/campaign-rules.js';
+  // Campaign house rules (feat/campaign-house-rules-tools): in the ENGINE bridge so the fold stamp works offline too.
+  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesCtxFromRules, latestRulesSnapshot };
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   window.verifyCharacterEnvelope = verifyCharacterEnvelope;   // tamper-evidence read-side (D-GH48)
   window.apEncodeGrant = apEncodeGrant; window.makeGrantId = makeGrantId;
