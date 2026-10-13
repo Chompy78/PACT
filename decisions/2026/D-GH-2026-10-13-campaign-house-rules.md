@@ -169,7 +169,7 @@ Technical choices made while wiring the context into the three tools (none is an
 ## Addendum 2026-10-13 — PR3, the server half (`feat/campaign-house-rules-server`)
 
 Migration `sql/migrations/2026-10-13-campaign-house-rules-server.sql` + `-rollback.sql`, rehearsed in Docker by
-`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (164 cases). **NOT applied** to the live database by merging;
+`testing/scripts/creation-lock-guard-test/run-house-rules.sh` (186 cases). **NOT applied** to the live database by merging;
 `sql/rls-policies.sql` and the baseline tests are deliberately unchanged until it is (sql/migrations/README.md; precedents
 #580 -> #598, #600 -> #608).
 
@@ -275,13 +275,43 @@ cost:-1000}` and spend it, because the server counted `−cost` and had no idea 
   min(0, value) = 0, as today. A DM-imposed drawback with a positive cost now counts 0 instead of a negative amount (gain).
   No other legitimate shape loses AP.
 
+### PR #654 round-2 review — changes (2026-10-13)
+
+- **F1 (introduced by AB1/X1, blocking): one grant per drawback name.** 20 copies of "Slow to Mend" minted 100 AP in an
+  uncapped ignore-mode campaign. Verified first that no drawback can legitimately be held twice at once: `MUT.drawback` just
+  pushes a name; CharGen's drawback picker is a checkbox; the Live Sheet lists an owned drawback as "Active drawback" instead of
+  for sale; the guide never lets a drawback stack (its only stacking line forbids Frail + Glass Frame together); an imposed copy
+  grants 0 anyway; a bought-off copy has left the fold before a retake. So: of two OPEN player copies of a name only the oldest
+  earns — in `compute()`'s grant (the second is listed "held twice — counted once" at 0), `economy()`, `serverApLedger()`, the CI
+  port and `pact_ap_ledger_split`. A `compute()` change only for logs holding duplicates (no tool makes one); every parity fixture
+  is unchanged; `DATA.version` stays v0.377 (unreleased). A copy closed by an untargeted (legacy) buyoff keeps its old lenient
+  grant on the server and does not use up the name.
+- **New server refusals** (`pact_enforce_player_grants`, non-DM non-admin writers of campaign characters, NEW events only —
+  stored ones are grandfathered): a player drawback buy after the creation lock unless the campaign set
+  `rules.postLockDrawbacks` (`postLockAllowance()`, as the Live Sheet's `_lsBarGrant()`); a buyoff without `targetSeq` (R2-5;
+  the Live Sheet stamps it since PR2), one that cancels nothing, and one cheaper than rate × the purchase's effective value
+  (W1). The DM's buy-off rate IS known server-side — it is on the imposed purchase (`dmRemovalCost`: 'expensive' = 3, else 1) —
+  so that check is in. Bindings after the lock (the other half of `_lsBarGrant`) stay client-side; not in this review item.
+- **F3:** seq/targetSeq are keyed as the engine keys them (`pact_js_key`: JavaScript `String()` of the number, so 5.0 is "5").
+- **F4:** server-stamped seqs come from `pact_next_seq()` (whole-number SEQ, else max seq + 1) in the RPC and
+  `dm_edit_character_log`; a garbage SEQ no longer blocks every DM write. (`seal_character_history` / `award_ap_and_seal` keep
+  their own cast — not redefined here.)
+- **F5:** `houseRulesImpact()` emits no reprice event whose `ledgerDelta` is 0 (the RPC refuses amount 0).
+- **Generator:** the no-argument mode rewrites only a file carrying a `-- STATUS: NOT APPLIED` line; the PR that records the
+  apply flips it to `-- STATUS: APPLIED <date>`. A later price change uses `--stdout` or `--write <new migration>`.
+- **Board:** `fix/server-negative-cost-after-lock` extended with F2 (a negative cost on any other non-drawback buy or a
+  `names` event still lowers server spend in every campaign mode — pre-existing, pinned as allowed in the harness; a clamp must
+  keep Martially/Magically Bound's legitimate negative costs); the campaignId/adjustments-table follow-up gains R2-6 (a pin
+  forged while solo with the target campaign's own id survives joining — pinned as a KNOWN GAP case).
+
 ### Constraints for applying it (owner)
 
 1. The read-only blast-radius queries in the migration header (Q1–Q4), and `roundtrip-audit.mjs` on a fresh export (it now
    checks the DM family and buy/buyoff `seq`, which this migration freezes).
 2. AB1 is in the migration; Q5 in its header lists who loses drawback AP against today's server (expected: few or none).
-3. Apply with `apply_migration` (or `psql -1`), then `get_advisors` (security + performance) and `get_logs`; then fold into
-   `sql/rls-policies.sql` and the baseline tests.
+3. Apply with `apply_migration` (or `psql -1`), then `get_advisors` (security + performance) and `get_logs`; then, in the
+   PR that records the apply, flip the migration's `-- STATUS: NOT APPLIED` line and fold it into `sql/rls-policies.sql` and
+   the baseline tests.
 
 ### Residual risk (plan §6.7, corrected by the review)
 

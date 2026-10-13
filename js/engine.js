@@ -1161,7 +1161,15 @@ export function compute(b, opts){
   // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
   // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
   const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
+  // ONE grant per drawback name (PR #654 round-2 review, F1): no drawback can be held twice at once — CharGen's picker is a
+  // checkbox, the Live Sheet lists an owned one as "Active drawback" rather than for sale, and a bought-off copy has left the
+  // fold before a retake. A log that nevertheless holds two open player copies (hand-written) earned AP for each; now the
+  // second copy is listed at 0. The server ledger (pact_ap_ledger_split) applies the same rule. Imposed copies grant 0 anyway
+  // and do not use up the name.
+  const _grantedNames=new Set();
   let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=_drawVal(HRd,lab);
+    if(!_impIdx.has(_dIdx)&&_grantedNames.has(lab)){_DI.push([lab+' (held twice — counted once)',0]);continue;}
+    if(!_impIdx.has(_dIdx))_grantedNames.add(lab);
     // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
     // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
     // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed drawbacks
@@ -1596,11 +1604,16 @@ function _economyFrom(evs, boughtOff, ae) {
   let earned = 0, spent = 0, drawbackEarned = 0;
   const _removed = (ae && ae.drawRemoved) || null, _deltas = (ae && ae.drawRepriced) || null;
   const _matched = (ae && ae.dmMatched) || null;
+  // One grant per drawback name (F1, as compute()): only the OLDEST open, non-imposed copy of a name earns.
+  const _earnedNames = new Set();
   evs.forEach((e, i) => {
     if (e.type === 'award') earned += Number(e.amount) || 0;
     else if (e.type === 'buy' && e.cat === 'drawback') {
-      if (!boughtOff.has(i) && !(_removed && _removed.has(i)))
+      if (!boughtOff.has(i) && !(_removed && _removed.has(i))) {
+        const _imp = e.dmEdit && (Number(e.cost) || 0) >= 0, _nm = e.payload && e.payload.v;
+        if (!_imp && _nm != null) { if (_earnedNames.has(String(_nm))) return; _earnedNames.add(String(_nm)); }
         drawbackEarned += (-(Number(e.cost) || 0)) + ((_deltas && _deltas.get(i)) || 0);
+      }
     }
     else if (e.type === 'dmRefundBoon') {
       if (_matched && _matched.has(i)) spent += _fin(e.cost);
@@ -3260,12 +3273,15 @@ export function serverApLedger(events, opts) {
     for (const ev of evs) if (ev.type === 'dmHouseRules' && ev.dmEdit === true && ev.campaignId === ctx.campaignId
         && ev.overrides && typeof ev.overrides === 'object' && !Array.isArray(ev.overrides)) stub._dmHouseRulesByCampaign[ctx.campaignId] = ev.overrides;
   }
+  // F1: one grant per name among the OPEN copies (the oldest); a copy closed by an untargeted buyoff keeps its legacy grant.
+  const openNames = new Set();
   evs.forEach((ev, i) => {
     if (ev.type !== 'buy' || (ev.cat || '') !== 'drawback') return;
     if (ev.dmEdit && n(ev.cost) >= 0) return;                                  // imposed: grants 0
     const v = ev.payload && ev.payload.v;
     if (v == null) { drawbackEarned += Math.min(-n(ev.cost), 0); return; }
     if (ae.drawRemoved.has(i) || netted.has(i)) return;
+    if (!ae.boughtOff.has(i)) { if (openNames.has(String(v))) return; openNames.add(String(v)); }
     drawbackEarned += Math.min(-n(ev.cost) + (ae.drawRepriced.get(i) || 0), drawbackValue(stub, v, ctx));
   });
   const capped = Number.isFinite(o.drawbackCap);
@@ -3342,7 +3358,7 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
           apDelta: imposed ? 0 : capF(sumOld + valueDelta) - capF(sumOld), imposed, dmGranted: false, locked, changed,
           barredNew: !!(tOldD[v] && tOldD[v].allowed) && !(tNewD[v] && tNewD[v].allowed),
           ledgerGrant, ledgerDelta: imposed ? 0 : newEffective - ledgerGrant, ambiguousSeq: _amb(e) };
-        if (changed && !p.ambiguousSeq) {
+        if (changed && !p.ambiguousSeq && p.ledgerDelta !== 0) {   // F5: a 0 delta is refused by the RPC and moves nothing
           p.repriceEvent = { type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: p.ledgerDelta, from: ledgerGrant, to: newEffective };
           synth.push(Object.assign({ dmEdit: true }, p.repriceEvent));
         }

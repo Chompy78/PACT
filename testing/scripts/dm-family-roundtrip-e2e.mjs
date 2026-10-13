@@ -126,6 +126,9 @@ try {
         const f2 = family(out && out.LOG);
         check(`Live Sheet buy-off of ${s.buyoff}: a buyoff was appended`, out && out.LOG.length === n0 + 1 && out.LOG[out.LOG.length - 1].type === 'buyoff',
           out ? `${n0} -> ${out.LOG.length}` : 'no envelope');
+        // R2-5: the server refuses a new buyoff without targetSeq, or one cheaper than rate × the effective value.
+        const bo = out && out.LOG[out.LOG.length - 1], src = s.LOG.find(e => e.type === 'buy' && e.cat === 'drawback' && e.payload.v === s.buyoff);
+        check('…carrying targetSeq = the purchase it cancels (the server requires it)', !!bo && bo.targetSeq === src.seq, JSON.stringify(bo && bo.targetSeq));
         check('Live Sheet buy-off + save: DM family unchanged', same(fam0, f2), firstDiff(fam0, f2));
       }
       check('Live Sheet: no page errors', errs.length === 0, errs.join(' | ').slice(0, 200));

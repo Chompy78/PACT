@@ -139,11 +139,13 @@ function sqlLedgerParts(log, chr = null, campaignId = null) {     // pact_ap_led
   let ov = null;
   if (campaignId) for (const e of evs) if (isObj(e) && e.type === 'dmHouseRules' && e.dmEdit === true && typeof e.campaignId === 'string'
       && e.campaignId === campaignId && isObj(e.overrides)) ov = e.overrides;
+  const openNames = new Set();   // F1: one grant per name among the open copies (the oldest)
   evs.forEach((ev, i) => {
     if (!isObj(ev) || ev.type !== 'buy' || (ev.cat == null ? '' : ev.cat) !== 'drawback') return;
     if (truthy(ev.dmEdit) && num(ev.cost) >= 0) return;                         // imposed
     if (!(i in status)) { draw += Math.min(-num(ev.cost), 0); return; }          // no name
     if (status[i] === 'removed' || netted.has(i)) return;
+    if (status[i] === 'open') { const nm = String(ev.payload.v); if (openNames.has(nm)) return; openNames.add(nm); }
     draw += Math.min(-num(ev.cost) + delta[i], sqlEffective(String(ev.payload.v), chr, ov));
   });
   return { spent, award, draw };
@@ -230,6 +232,18 @@ section('AB1 — a drawback grants at most its effective value; an unknown name 
   t('an imposed drawback grants 0 whatever its name', both([D(STM, 0, 1, { dmEdit: true, dmLocked: true })], ctx({})), [0, 0]);
   t('a DM-granted (dmEdit, cost < 0) one is a normal grant', both([D(STM, -P, 1, { dmEdit: true })], ctx({})), [P, P]);
   t('an Object.prototype name grants 0', both([D('toString', -5, 1), D('constructor', -5, 2)], ctx({ draws: {} })), [0, 0]);
+  // F1 (round-2 review): two OPEN player copies of one name grant once — browser, model and port alike.
+  const dup = [award(10, 1), fighter].concat(Array.from({ length: 20 }, (_, k) => D(STM, -P, 10 + k)));
+  t('F1: 20 copies of one drawback grant once (model, port)', both(dup, ctx({})), [P, P]);
+  t('F1: …and once in the browser (compute)', compute(withHouseRulesCtx(foldBuild(dup), ctx({}))).drawbackAp, P);
+  t('F1: …and in economy()', economy(dup).drawbackEarned, P);
+  const retake = [award(10, 1), D(STM, -P, 2), { type: 'buyoff', refVal: STM, targetSeq: 2, cost: 3 * P, seq: 3 }, D(STM, -P, 4)];
+  t('F1: a bought-off copy then a retake: the retake grants (the first is closed)', [both(retake, ctx({})), compute(withHouseRulesCtx(foldBuild(retake), ctx({}))).drawbackAp], [[P, P], P]);
+  t('F1: an imposed copy beside a player copy: the player copy grants', both([D(STM, -P, 1), D(STM, 0, 2, { dmEdit: true, dmLocked: true })], ctx({})), [P, P]);
+  t('F5: houseRulesImpact emits no reprice with ledgerDelta 0', (() => { const L = [award(79, 1), fighter, { type: 'creationLocked', seq: 3 }, D(STM, -3, 4),
+      dmE({ type: 'dmRepriceDrawback', refVal: STM, targetSeq: 4, amount: 2, from: 3, to: 5, seq: 5 })];
+    const [r] = houseRulesImpact([{ id: 'x', LOG: L }], ctx({ draws: { [STM]: { ap: 3 } } }), ctx({ draws: { [STM]: { ap: 5 } } }));
+    return 'repriceEvent' in r.purchases[0]; })(), false);
   t('the engine\'s browser grant agrees on the deleted custom', compute(withHouseRulesCtx(foldBuild([award(79, 1), fighter, D('Hexed Custom', -4, 3)]), ctx({}))).drawbackAp, 0);
 }
 

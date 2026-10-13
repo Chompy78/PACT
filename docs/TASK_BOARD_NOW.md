@@ -231,6 +231,13 @@ costs. Then decide (H2 if the owner is away) a server rule that stays SQL-only a
 is the only pricing source): e.g. refuse cost < 0 on non-drawback events for campaign characters, and on a locked/sealed one
 refuse a rise in drawback earnings by anyone but the DM (mirroring pact_enforce_player_ap_ceiling). Rehearse in the Docker
 harness (testing/scripts/creation-lock-guard-test/, run-award.sh pattern) incl. legitimate post-lock drawbacks the tools allow.
+UPDATE 2026-10-13 (PR #654, campaign house rules — NOT applied yet): route (1) is closed there — a drawback grants at most its
+effective value (AB1, a generated server price list), a name grants once (F1), and a new player drawback after the lock is refused
+unless the campaign allows post-lock drawbacks. A new buyoff must name its target and pay rate × value (R2-5), which also closes a
+negative-cost BUYOFF. What remains is F2 (round-2 review of #654, R2-2/R2-4, pre-existing): a negative cost on any other
+non-drawback event — a buy of any other cat (e.g. skill), or a `names` event — lowers server spend in EVERY campaign mode, locked or
+not (harness cases R2-2 and R2-4 in run-house-rules.sh pin it as allowed today). A clamp must still allow the categories that
+legitimately carry a negative cost: Martially/Magically Bound (cat mbound / dbound) are AP-granting bindings with a negative cost.
 ```
 **Done when:** the harness refuses both negative-cost routes on a locked campaign character and accepts every legitimate save the
 tools make; the live measurement is recorded; the owner has applied it and the advisors are clean.

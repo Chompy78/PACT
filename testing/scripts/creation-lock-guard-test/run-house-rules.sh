@@ -23,8 +23,8 @@ docker cp drawback-cap-shapes.json "$C":/tmp/caps.json >/dev/null
 
 CHANGED="'public.pact_ap_ledger_spend(jsonb)','public.pact_enforce_ap_budget_consistency()','public.pact_ap_ledger_protected(jsonb)','public.pact_enforce_locked_history()','public.dm_edit_character_log(uuid,jsonb)'"
 defs() { psqlc -At -c "select string_agg(f || '=' || md5(pg_get_functiondef(f::regprocedure)), ' ' order by f) from unnest(array[$CHANGED]) f"; }
-added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('dm_apply_house_rules_change','pact_enforce_dm_family','pact_guard_char_house_rules','pact_dm_family','pact_ap_ledger_split','pact_hr_resolve','pact_hr_validate','pact_hr_entry_ok','pact_hr_drawback_cap','pact_js_number','pact_js_truthy','pact_num','pact_drawback_printed','pact_hr_drawback_effective'))
-  + (select count(*) from pg_trigger where tgname in ('trg_pact_dm_family_guard','trg_pact_guard_char_house_rules'))"; }
+added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('dm_apply_house_rules_change','pact_enforce_dm_family','pact_guard_char_house_rules','pact_dm_family','pact_ap_ledger_split','pact_hr_resolve','pact_hr_validate','pact_hr_entry_ok','pact_hr_drawback_cap','pact_js_number','pact_js_truthy','pact_num','pact_drawback_printed','pact_hr_drawback_effective','pact_js_key','pact_next_seq','pact_enforce_player_grants'))
+  + (select count(*) from pg_trigger where tgname in ('trg_pact_dm_family_guard','trg_pact_guard_char_house_rules','trg_pact_player_grants_guard'))"; }
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 mispredicted() { psqlc -At -F ' | ' -c "select before, verdict, got, name from res where (verdict = 'PASS') <> (before = 'pass') order by n" | cut -c1-240; }
 BASE=$(defs)
@@ -40,7 +40,7 @@ echo "=== applying $M/2026-10-13-campaign-house-rules-server.sql ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server.sql"
 psqlc < house-rules-cases.sql >/dev/null; echo "AFTER: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-260; echo "FAILED"; exit 1; }
-[ "$(added)" = "16" ] || { echo "EXPECTED 14 functions + 2 triggers after the migration, found $(added)"; exit 1; }
+[ "$(added)" = "20" ] || { echo "EXPECTED 17 functions + 3 triggers after the migration, found $(added)"; exit 1; }
 echo "=== Z1: pact_hr_drawback_cap() vs js/campaign.js drawbackCapFromRules() on every shape ==="
 CAPBAD=$(psqlc -At -c "select count(*) from jsonb_array_elements(pg_read_file('/tmp/caps.json')::jsonb) s
   where public.pact_hr_drawback_cap(s->'rules') is distinct from (s->>'cap')::numeric")
@@ -61,12 +61,12 @@ echo "=== grants ==="
 psqlc -At -c "select 'trigger functions callable by authenticated: ' || (has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_guard_char_house_rules()','EXECUTE'))
   || ' · RPC callable by authenticated: ' || has_function_privilege('authenticated','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE')
   || ' · RPC callable by anon: ' || has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE')"
-[ "$(psqlc -At -c "select has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE')")" = "f" ] || { echo "GRANTS WRONG"; exit 1; }
+[ "$(psqlc -At -c "select has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_player_grants()','EXECUTE')")" = "f" ] || { echo "GRANTS WRONG"; exit 1; }
 
 echo "=== rollback: every redefined function byte-identical to BASE, every addition gone ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 [ "$(defs)" = "$BASE" ] && echo "rollback restores the five definitions exactly" || { echo "ROLLBACK DIFFERS: $(defs)"; exit 1; }
-[ "$(added)" = "0" ] && echo "rollback removes the 14 functions and 2 triggers" || { echo "ROLLBACK LEFT $(added) OBJECTS"; exit 1; }
+[ "$(added)" = "0" ] && echo "rollback removes the 17 functions and 3 triggers" || { echo "ROLLBACK LEFT $(added) OBJECTS"; exit 1; }
 psqlc < house-rules-cases.sql >/dev/null; echo "AFTER ROLLBACK: $(counts)"
 BAD=$(mispredicted); [ -z "$BAD" ] || { echo "$BAD" | sed 's/^/  mispredicted: /'; echo "AFTER-ROLLBACK STATE DIFFERS FROM BEFORE"; exit 1; }
 echo "the cases land exactly as BEFORE again"

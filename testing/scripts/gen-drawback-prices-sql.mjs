@@ -8,7 +8,9 @@
  * grants nothing). This script GENERATES `public.pact_drawback_printed(name)` — an immutable SQL function over a jsonb
  * literal of every DATA.drawbacks entry — into a marked block of a SQL file. Never hand-edit the block.
  *
- *   node testing/scripts/gen-drawback-prices-sql.mjs              rewrite the block in the LATEST sql file that carries it
+ *   node testing/scripts/gen-drawback-prices-sql.mjs              rewrite the block in the LATEST sql file that carries it —
+ *                                                                 ONLY while that file carries a '-- STATUS: NOT APPLIED' line
+ *   node testing/scripts/gen-drawback-prices-sql.mjs --write F    rewrite the block in file F (a new, unapplied migration)
  *   node testing/scripts/gen-drawback-prices-sql.mjs --check      exit 1 if that block differs from js/engine-data.js (CI)
  *   node testing/scripts/gen-drawback-prices-sql.mjs --stdout     print the block (to start a NEW migration after a price change)
  *
@@ -56,7 +58,17 @@ function latestFile() {
 const args = process.argv.slice(2);
 const want = block();
 if (args.includes('--stdout')) { console.log(want); process.exit(0); }
-const file = latestFile();
+const wi = args.indexOf('--write');
+const file = wi >= 0 ? path.resolve(args[wi + 1] || '') : latestFile();
+if (!args.includes('--check') && wi < 0) {
+  // An APPLIED migration is history (sql/migrations/README.md): rewriting it would make the file disagree with the database.
+  if (!/^-- STATUS: NOT APPLIED\b/m.test(fs.readFileSync(file, 'utf8'))) {
+    console.error(`✗ ${path.relative(REPO, file)} has no "-- STATUS: NOT APPLIED" line — it is history, so this script will not rewrite it.\n` +
+      `  Start a NEW migration:  node testing/scripts/gen-drawback-prices-sql.mjs --stdout > the new file's block,\n` +
+      `  or name the new file explicitly:  node testing/scripts/gen-drawback-prices-sql.mjs --write sql/migrations/<new>.sql`);
+    process.exit(1);
+  }
+}
 const src = fs.readFileSync(file, 'utf8');
 const a = src.indexOf(BEGIN), b = src.indexOf(END);
 if (a < 0 || b < a) { console.error(`${file}: malformed generated block`); process.exit(1); }

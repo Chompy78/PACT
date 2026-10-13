@@ -2,6 +2,8 @@
 -- feat/campaign-house-rules-server · decision D-GH-2026-10-13-campaign-house-rules · plan docs/plans/2026-10-13-campaign-house-rules.md
 -- (§6.1–6.5, ADDENDUM M1/M3/M4/X1, owner decision Z1, post-review notes).
 --
+-- STATUS: NOT APPLIED   (flip this line to "STATUS: APPLIED <date>" in the PR that records the apply —
+--                         testing/scripts/gen-drawback-prices-sql.mjs refuses to rewrite a file once it says APPLIED)
 -- *** NOT APPLIED to the live database by merging this file. *** The owner applies it, then runs get_advisors (security +
 -- performance) and skims get_logs, per AGENTS.md. Until it is applied, sql/rls-policies.sql correctly describes production
 -- and is deliberately NOT changed (sql/migrations/README.md; precedents #580 -> #598, #600 -> #608): the fold into the
@@ -100,6 +102,19 @@
 --    the engine on `main` before rules v0.377 re-prices DM buys in a draft. In practice a DM boon GRANT is followed by its
 --    matched award, a locked-history boundary that already freezes the buy today, so this only covers a DM buy with no
 --    award after it.
+--
+-- 7. Round-2 review (PR #654):
+--    * F1: a drawback NAME grants once — of two open player copies only the oldest earns (the engine's compute()/economy()
+--      do the same; no tool can make a second copy: CharGen's picker is a checkbox, the Live Sheet shows an owned one as
+--      "Active drawback"). And pact_enforce_player_grants() (trigger trg_pact_player_grants_guard) refuses, for a non-DM
+--      non-admin writer of a campaign character, a NEW player drawback buy once creation is locked unless the campaign set
+--      rules.postLockDrawbacks (js/engine.js postLockAllowance(), the Live Sheet's _lsBarGrant()).
+--    * R2-5: the same trigger refuses a NEW buyoff without targetSeq (stored ones are grandfathered), one that cancels
+--      nothing, and one cheaper than rate × the purchase's effective value (W1: 3 for a drawback the player took; for a
+--      DM-imposed one the DM's rate on the purchase, 'expensive' 3 else 1).
+--    * F3: seq / targetSeq are compared as js/engine.js compares them — String() of the number (pact_js_key: 5.0 is "5").
+--    * F4: a server-stamped event's seq comes from pact_next_seq() — SEQ when it is a whole number, else max seq + 1 —
+--      in dm_apply_house_rules_change() and dm_edit_character_log(); a garbage SEQ no longer blocks every DM write.
 --
 -- WHAT IT DELIBERATELY LEAVES ALONE
 --   * pact_patch_exempt_keys(): houseRules stays exempt. Under owner decision U1 a campaign character's own houseRules
@@ -239,6 +254,31 @@ begin
   end loop;
   return n;
 end;
+$$;
+
+-- pact_js_key(v): the text js/engine.js gets when it builds a match key with `v + '|'` — JavaScript's String() of the parsed
+-- JSON value. A number prints without trailing zeros (5.0 -> "5", 1.50 -> "1.5"), which `->>` on a jsonb numeric does not do
+-- (PR #654 round-2 review, F3: a purchase stored with seq 5.0 matched nothing here while the engine matched it).
+create or replace function public.pact_js_key(p jsonb)
+returns text language sql immutable set search_path = public, pg_temp as $$
+  select case jsonb_typeof(p)
+    when 'number' then case when (p #>> '{}')::numeric = trunc((p #>> '{}')::numeric) and abs((p #>> '{}')::numeric) < 1e21
+                            then trunc((p #>> '{}')::numeric)::text
+                            else trim_scale((p #>> '{}')::numeric)::text end
+    when 'null' then null
+    else p #>> '{}' end;
+$$;
+
+-- pact_next_seq(stats): the seq a server-stamped event takes — stats.SEQ when it is a whole number, else one past the highest
+-- numeric seq in the LOG (round-2 review, F4: a player-written SEQ of "abc" made every DM write to that character raise).
+create or replace function public.pact_next_seq(p_stats jsonb)
+returns integer language sql immutable set search_path = public, pg_temp as $$
+  select case when jsonb_typeof(p_stats -> 'SEQ') = 'number' and (p_stats ->> 'SEQ')::numeric between 0 and 2000000000
+               and (p_stats ->> 'SEQ')::numeric = trunc((p_stats ->> 'SEQ')::numeric)
+              then (p_stats ->> 'SEQ')::integer
+              else coalesce((select max(trunc((e ->> 'seq')::numeric))::integer
+                               from jsonb_array_elements(case when jsonb_typeof(p_stats -> 'LOG') = 'array' then p_stats -> 'LOG' else '[]'::jsonb end) e
+                              where jsonb_typeof(e -> 'seq') = 'number' and abs((e ->> 'seq')::numeric) < 2000000000), 0) + 1 end;
 $$;
 
 -- pact_hr_drawback_cap(rules) — owner decision Z1: the drawback AP cap the server applies, mirroring
@@ -393,7 +433,7 @@ begin
       v := ev -> 'payload' ->> 'v';
       if v is null then continue; end if;
       n := n + 1;
-      a_ord := a_ord || o; a_cat := a_cat || cat; a_name := a_name || v; a_seq := a_seq || (ev ->> 'seq');
+      a_ord := a_ord || o; a_cat := a_cat || cat; a_name := a_name || v; a_seq := a_seq || public.pact_js_key(ev -> 'seq');
       a_cost := a_cost || coalesce(ev -> 'cost', 'null'::jsonb); a_dm := a_dm || coalesce(ev -> 'dmEdit', 'null'::jsonb);
       a_status := a_status || 'open'::text; a_delta := a_delta || 0::numeric;
       if cat = 'drawback' then
@@ -401,8 +441,8 @@ begin
       else
         bq := jsonb_set(bq, array[v], coalesce(bq -> v, '[]'::jsonb) || to_jsonb(n));
       end if;
-      if (ev ->> 'seq') is not null then
-        k := (ev ->> 'seq') || '|' || v;
+      if public.pact_js_key(ev -> 'seq') is not null then
+        k := public.pact_js_key(ev -> 'seq') || '|' || v;
         if cat = 'drawback' then
           dmap := dmap || jsonb_build_object(k, case when dmap ? k then -1 else n end);
         else
@@ -410,11 +450,11 @@ begin
         end if;
       end if;
     elsif t in ('dmRemoveDrawback', 'dmRepriceDrawback', 'dmRefundBoon') then
-      if ev -> 'dmEdit' is distinct from 'true'::jsonb or (ev ->> 'refVal') is null or (ev ->> 'targetSeq') is null then continue; end if;
+      if ev -> 'dmEdit' is distinct from 'true'::jsonb or (ev ->> 'refVal') is null or public.pact_js_key(ev -> 'targetSeq') is null then continue; end if;
       amt := case t when 'dmRemoveDrawback' then ev -> 'grantBack' when 'dmRepriceDrawback' then ev -> 'amount' else ev -> 'cost' end;
       if amt is not null and jsonb_typeof(amt) <> 'null' and public.pact_js_number(amt) is null then continue; end if;
       if t <> 'dmRemoveDrawback' and public.pact_js_number(amt) is null then continue; end if;
-      k := (ev ->> 'targetSeq') || '|' || (ev ->> 'refVal');
+      k := public.pact_js_key(ev -> 'targetSeq') || '|' || (ev ->> 'refVal');
       j := case when t = 'dmRefundBoon' then (bmap ->> k)::int else (dmap ->> k)::int end;
       if j is null or j < 0 or a_status[j] <> 'open' then continue; end if;
       mt := mt || jsonb_build_object(o::text, j);
@@ -615,8 +655,8 @@ end;
 $$;
 
 -- pact_ap_ledger_split(log, charHouseRules?, campaign?) — see the header for the sums. Drawbacks are summed PER PURCHASE
--- (AB1): a player drawback buy grants least(−cost + ΣΔ of its matched DM reprices, its effective value) — never more than
--- the drawback is worth for this character today, so a forged cost or a made-up name buys nothing; a DM-imposed one
+-- (AB1): a player drawback buy grants least(−cost + ΣΔ of its matched DM reprices, its effective value), and a NAME
+-- grants once (F1, round-2 review): of two open player copies only the oldest earns. Never more than the drawback is worth for this character today, so a forged cost or a made-up name buys nothing; a DM-imposed one
 -- (truthy dmEdit, cost >= 0) grants 0; a DM-removed one, or one a TARGETED buy-off cancelled (M4), grants 0; one an
 -- untargeted buy-off cancelled keeps its grant (the old, accepted approximation). Without p_chr/p_campaign (the
 -- pact_ap_ledger_spend wrapper) only printed values are known.
@@ -631,7 +671,7 @@ declare
   v_draw numeric := 0;
   v_need boolean := false;
   r jsonb; b record; p jsonb;
-  v_byord jsonb := '{}'; v_netted jsonb := '{}'; v_ov jsonb; v_g numeric; v_o bigint;
+  v_byord jsonb := '{}'; v_netted jsonb := '{}'; v_names jsonb := '{}'; v_ov jsonb; v_g numeric; v_o bigint;
 begin
   for ev in select * from jsonb_array_elements(v_log) loop
     if (ev->>'type') = 'award' then
@@ -663,7 +703,7 @@ begin
   for b in select key::bigint as ord, value::int as n from jsonb_each_text(r -> 'buyoffs') loop
     ev := v_log -> (b.ord::int - 1);
     p := r -> 'purchases' -> (b.n - 1);
-    if (ev->>'targetSeq') is not null and (p->>'seq') is not null and (p->>'seq') = (ev->>'targetSeq') then
+    if public.pact_js_key(ev->'targetSeq') is not null and (p->>'seq') is not null and (p->>'seq') = public.pact_js_key(ev->'targetSeq') then
       v_netted := v_netted || jsonb_build_object(p->>'ord', true);
     end if;
   end loop;
@@ -685,7 +725,10 @@ begin
       v_g := least(-public.pact_num(ev->'cost'), 0);
     elsif p->>'status' = 'removed' or v_netted ? (v_o::text) then
       v_g := 0;
+    elsif p->>'status' = 'open' and v_names ? (p->>'name') then
+      v_g := 0;                                                         -- F1: a name grants once (its oldest open copy)
     else
+      if p->>'status' = 'open' then v_names := v_names || jsonb_build_object(p->>'name', true); end if;
       v_g := least(-public.pact_num(ev->'cost') + (p->>'delta')::numeric,
                    public.pact_hr_drawback_effective(p->>'name', p_chr, v_ov));
     end if;
@@ -964,6 +1007,91 @@ create trigger trg_pact_dm_family_guard
   for each row execute function public.pact_enforce_dm_family();
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- Player drawback grants and buy-offs (PR #654 round-2 review, F1 + R2-5). For a campaign character written by someone who
+-- is neither a DM of its campaign nor an admin session, a NEW event (one not already in the stored row — events compared
+-- without ts/rules/label, which tools re-stamp; existing ones are grandfathered) is refused when it is:
+--   * a player drawback buy (no truthy dmEdit) on a creation-LOCKED character (last creationLocked after the last
+--     creationUnlocked) whose campaign has not switched rules.postLockDrawbacks on — js/engine.js postLockAllowance(), which
+--     the Live Sheet's _lsBarGrant() already applies. (Bindings stay the client's: not part of this review item.)
+--   * a buyoff without targetSeq (M4: the server must know which purchase it cancels; the Live Sheet stamps it since PR2);
+--   * a targeted buyoff that cancels nothing, or whose cost is below the buy-off price: rate × the purchase's effective value
+--     (drawbackBuyoffQuote, W1) — rate 3 for a drawback the player took, and for a DM-imposed one the DM's own rate
+--     (dmRemovalCost 'expensive' = 3, else 1), all of which the stored purchase carries.
+-- ---------------------------------------------------------------------------------------------------------------------
+create or replace function public.pact_enforce_player_grants()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old jsonb; v_new jsonb; v_rules jsonb; v_locked boolean;
+  v_used int[] := '{}'; v_ev jsonb; v_ord bigint; v_found boolean; j int; v_cand jsonb;
+  v_r jsonb := null; v_n int; v_p jsonb; v_ov jsonb; v_rate numeric; v_need numeric;
+begin
+  if NEW.stats is not distinct from OLD.stats then return NEW; end if;
+  if NEW.campaign_id is null then return NEW; end if;
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;  -- admin session
+  if (OLD.campaign_id is not null and public.is_campaign_dm(OLD.campaign_id)) or public.is_campaign_dm(NEW.campaign_id) then
+    return NEW;
+  end if;
+  v_old := case when jsonb_typeof(OLD.stats->'LOG') = 'array' then OLD.stats->'LOG' else '[]'::jsonb end;
+  v_new := case when jsonb_typeof(NEW.stats->'LOG') = 'array' then NEW.stats->'LOG' else '[]'::jsonb end;
+  select rules into v_rules from public.campaigns where id = NEW.campaign_id;
+  v_locked := coalesce((select max(ord) from jsonb_array_elements(v_old) with ordinality as t(e, ord) where e->>'type' = 'creationLocked'), 0)
+            > coalesce((select max(ord) from jsonb_array_elements(v_old) with ordinality as t(e, ord) where e->>'type' = 'creationUnlocked'), 0);
+  for v_ev, v_ord in select x.e, x.ord from jsonb_array_elements(v_new) with ordinality as x(e, ord) loop
+    if jsonb_typeof(v_ev) <> 'object' then continue; end if;
+    if not ((v_ev->>'type' = 'buy' and v_ev->>'cat' = 'drawback' and not public.pact_js_truthy(v_ev->'dmEdit'))
+            or v_ev->>'type' = 'buyoff') then continue; end if;
+    -- already stored? (multiset match, ignoring what tools re-stamp)
+    v_found := false;
+    for j in 0 .. jsonb_array_length(v_old) - 1 loop
+      if j = any(v_used) then continue; end if;
+      v_cand := v_old -> j;
+      if jsonb_typeof(v_cand) = 'object' and (v_cand - 'ts' - 'rules' - 'label') = (v_ev - 'ts' - 'rules' - 'label') then
+        v_used := v_used || j; v_found := true; exit;
+      end if;
+    end loop;
+    if v_found then continue; end if;
+    if v_ev->>'type' = 'buy' then
+      if v_locked and coalesce(v_rules->'postLockDrawbacks', 'false'::jsonb) <> 'true'::jsonb then
+        raise exception 'PACT: drawbacks can''t be taken once creation is finished — they give AP; ask your DM to impose one, or to allow them in the campaign settings';
+      end if;
+      continue;
+    end if;
+    -- a new buyoff
+    if public.pact_js_key(v_ev->'targetSeq') is null then
+      raise exception 'PACT: a buy-off must name the purchase it cancels (targetSeq) — reload the character and buy it off again';
+    end if;
+    if v_r is null then
+      v_r := public.pact_hr_resolve(v_new);
+      select e -> 'overrides' into v_ov
+        from jsonb_array_elements(v_new) with ordinality as t(e, ord)
+       where jsonb_typeof(e) = 'object' and e->>'type' = 'dmHouseRules' and e->'dmEdit' = 'true'::jsonb
+         and jsonb_typeof(e->'campaignId') = 'string' and e->>'campaignId' = NEW.campaign_id::text
+         and jsonb_typeof(e->'overrides') = 'object'
+       order by ord desc limit 1;
+    end if;
+    v_n := (v_r -> 'buyoffs' ->> v_ord::text)::int;
+    if v_n is null then
+      raise exception 'PACT: that buy-off cancels no drawback the character holds';
+    end if;
+    v_p := v_r -> 'purchases' -> (v_n - 1);
+    v_rate := case when public.pact_js_truthy(v_p -> 'dmEdit')
+                   then (case when v_new -> (((v_p ->> 'ord')::int) - 1) ->> 'dmRemovalCost' = 'expensive' then 3 else 1 end)
+                   else 3 end;
+    v_need := v_rate * public.pact_hr_drawback_effective(v_p ->> 'name', v_rules -> 'charHouseRules', v_ov);
+    if public.pact_num(v_ev -> 'cost') < v_need then
+      raise exception 'PACT: buying off % costs % AP (% × its value), not %', v_p ->> 'name', v_need, v_rate, public.pact_num(v_ev -> 'cost');
+    end if;
+  end loop;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_player_grants_guard on public.characters;
+create trigger trg_pact_player_grants_guard
+  before update on public.characters
+  for each row execute function public.pact_enforce_player_grants();
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- §6.1: campaigns.rules.charHouseRules has one writer.
 -- ---------------------------------------------------------------------------------------------------------------------
 create or replace function public.pact_guard_char_house_rules()
@@ -1045,7 +1173,7 @@ begin
   end if;
 
   v_log := coalesce(v_stats->'LOG', '[]'::jsonb);
-  v_seq := coalesce((v_stats->>'SEQ')::integer, jsonb_array_length(v_log) + 1);
+  v_seq := public.pact_next_seq(v_stats);
 
   for v_ev in select * from jsonb_array_elements(p_events) loop
     v_type := v_ev->>'type';
@@ -1277,7 +1405,7 @@ begin
       raise exception 'PACT house rules: action % — the character has no log', v_idx;
     end if;
     v_log := v_stats -> 'LOG';
-    v_seq := coalesce((v_stats ->> 'SEQ')::integer, jsonb_array_length(v_log) + 1);
+    v_seq := public.pact_next_seq(v_stats);
     v_label := nullif(btrim(coalesce(v_act ->> 'label', '')), '');
 
     if v_kind in ('override', 'pin') then
@@ -1388,9 +1516,12 @@ $$;
 -- ---------------------------------------------------------------------------------------------------------------------
 revoke execute on function public.pact_enforce_dm_family()        from public, anon, authenticated;
 revoke execute on function public.pact_guard_char_house_rules()   from public, anon, authenticated;
+revoke execute on function public.pact_enforce_player_grants()    from public, anon, authenticated;
 revoke all on function public.pact_js_truthy(jsonb)               from public, anon;
 revoke all on function public.pact_js_number(jsonb)               from public, anon;
 revoke all on function public.pact_num(jsonb)                     from public, anon;
+revoke all on function public.pact_js_key(jsonb)                  from public, anon;
+revoke all on function public.pact_next_seq(jsonb)                from public, anon;
 revoke all on function public.pact_hr_drawback_cap(jsonb)         from public, anon;
 revoke all on function public.pact_hr_entry_ok(text, jsonb, text) from public, anon;
 revoke all on function public.pact_hr_validate(jsonb, text)       from public, anon;
@@ -1402,6 +1533,8 @@ revoke all on function public.pact_dm_family(jsonb)               from public, a
 grant execute on function public.pact_js_truthy(jsonb)               to authenticated;
 grant execute on function public.pact_js_number(jsonb)               to authenticated;
 grant execute on function public.pact_num(jsonb)                     to authenticated;
+grant execute on function public.pact_js_key(jsonb)                  to authenticated;
+grant execute on function public.pact_next_seq(jsonb)                to authenticated;
 grant execute on function public.pact_hr_drawback_cap(jsonb)         to authenticated;
 grant execute on function public.pact_hr_entry_ok(text, jsonb, text) to authenticated;
 grant execute on function public.pact_hr_validate(jsonb, text)       to authenticated;

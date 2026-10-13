@@ -120,7 +120,8 @@ above**, plus `testing/expected/` if `compute()` output moved.
 database has its own copy of `DATA.drawbacks` (`public.pact_drawback_printed`, owner decision AB1,
 `D-GH-2026-10-13-campaign-house-rules`) so its AP ledger can cap a drawback's grant at its real value. Run
 `node testing/scripts/gen-drawback-prices-sql.mjs --check`; if it fails, run the generator without `--check` while the
-migration that carries the block is still unapplied, or — once it is applied — start a NEW migration from
+migration that carries the block still has its `-- STATUS: NOT APPLIED` line (it refuses otherwise), or — once it is applied —
+start a NEW migration (`--write sql/migrations/<new>.sql` on a file carrying the marked block) from
 `node testing/scripts/gen-drawback-prices-sql.mjs --stdout` and have the owner apply it with the release. CI
 (engine-parity, sql-guards) fails until the two agree. Run
 `node testing/scripts/version-label-ci.mjs` to confirm — it is the authority on this list, and it goes

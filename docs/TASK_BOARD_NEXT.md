@@ -1474,7 +1474,12 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
       (dm_bind_npc, then dm_unbind_character) or on a solo character before joining, and bring them into campaign X. Count
       AP-moving DM events only when their campaignId equals the character's current campaign_id — engine AND server, so
-      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads.
+      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads. Concrete case (round-2
+      review R2-6, pinned as a KNOWN GAP in run-house-rules.sh): while solo, forge a dmEdit dmHouseRules pin
+      {Fake: 1000} stamped with campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the
+      server grants 1000. The campaignId filter alone does not stop it (the forger used X's id); it needs the adjustments
+      table, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
+      campaign_dms for X) — see PR #654's body.
   MERGE WITH #649 (feat/dm-ap-discount) — whichever lands second must reconcile:
       - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
         inside it; mixing the two signatures fails silently (wrong tally, no error).
