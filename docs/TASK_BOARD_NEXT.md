@@ -1604,3 +1604,18 @@ DO:
   4. Consider batching by class (one PR per class or two) so each is reviewable.
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
+
+## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
+Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
+
+```text
+Depends on feat/campaign-house-rules (integration branch; not yet in preview). Owner deferred this decision (AC) on 2026-10-13.
+When a DM raises a campaign drawback's price (S2 review), characters still in creation (no creationLocked) that hold it can't
+be ticked: the server only moves AP on finished characters, and repriceDraft() never re-stamps drawback costs. As built, the
+draft's browser shows the NEW value while the server credits the OLD one, so the player sees AP they can't spend and a
+purchase using it is refused on save (replay example: Bo 15 vs 13). A price DROP is fine.
+Options put to the owner: AC1 pin drafts at the old value like unticked holders (DM applies the new price after Finish
+creating) — recommended; AC2 let the RPC reprice drafts too (loosens "AP only moves on finished characters"); AC3 leave as is.
+DO: get the owner's choice, then implement in DM Console's S2 review (and the RPC if AC2), with replay + e2e coverage.
+```
+**Done when:** the owner has chosen; a draft holding a repriced drawback shows the same AP in the browser and on the server; replay harness covers it.
