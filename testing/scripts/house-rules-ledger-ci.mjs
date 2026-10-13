@@ -133,6 +133,13 @@ section('(g) repriceDraft(events, {houseRulesCtx})');
   t('campaign draft: Deft Catch at its printed price', rp[3].cost, DATA.boons['Deft Catch'].ap);
   const withOv = draft.concat([ovr({ boons: { Bulwark: { hd: 1, ap: 12 } } }, 'camp-A', 9)]);
   t('a DM override LATER in the log prices the earlier boon too (one pricing context)', repriceDraft(withOv, { houseRulesCtx: camp })[2].cost, 12);
+  // Two overrides around a buy: the LAST one is today's price. Regression (PR #648 review): the walk's final-override
+  // map was shared by reference, so _replay wrote the earlier snapshot into it and the boon was re-costed at 20.
+  const twoOv = [award(79, 1), { type: 'buy', cat: 'create', payload: {}, cost: 0, seq: 5 }, ovr({ boons: { Bulwark: { hd: 1, ap: 20 } } }, 'camp-A', 2),
+    { type: 'buy', cat: 'boon', payload: { v: 'Bulwark' }, cost: 6, seq: 3 }, ovr({ boons: { Bulwark: { hd: 1, ap: 1 } } }, 'camp-A', 4)];
+  t('two overrides around a buy: the boon re-costs at the LAST override (1), not the earlier one (20)', repriceDraft(twoOv, { houseRulesCtx: ctx({}) })[3].cost, 1);
+  t('…and a second call agrees (no state leaks between calls)', repriceDraft(twoOv, { houseRulesCtx: ctx({}) })[3].cost, 1);
+  t('…and the input log keeps its own two snapshots', [twoOv[2].overrides.boons.Bulwark.ap, twoOv[4].overrides.boons.Bulwark.ap], [20, 1]);
   const dmGrant = [award(79, 1), fighter,
     { type: 'buy', cat: 'boon', payload: { v: 'Bulwark' }, cost: 0, seq: 3, dmEdit: true, dmId: DM },
     { type: 'award', amount: 0, seq: 4, dmEdit: true, dmId: DM, disc: true },
@@ -219,6 +226,10 @@ section('houseRulesImpact — S2 preview (plan §7.1) and drawbackCap (M5)');
   t('boons call off: both held boons are T2 candidates (barredNew)', [by('Bulwark').barredNew, by('Deft Catch').barredNew], [true, true]);
   t('DM-granted boon flagged (no refund — plan §7.2)', [by('Bulwark').dmGranted, by('Deft Catch').dmGranted], [false, true]);
   t('draft flag: not creation-locked', r2.locked, false);
+  const L3 = [award(79, 1), fighter, { type: 'creationLocked', seq: 3 },
+    { type: 'buy', cat: 'drawback', payload: { v: STM }, cost: -3, seq: 4 }, { type: 'buy', cat: 'drawback', payload: { v: STM }, cost: -3, seq: 4 }];
+  const [r3] = houseRulesImpact([{ id: 'dup', LOG: L3 }], oldC, newC);
+  t('a duplicated seq: both copies flagged ambiguousSeq and offered no reprice event (must be pinned)', r3.purchases.map(p => [p.ambiguousSeq, 'repriceEvent' in p]), [[true, false], [true, false]]);
 }
 
 // ================================================================================================================
@@ -228,7 +239,7 @@ function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; 
   t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const PLAYER_DRAWS = Object.keys(DATA.drawbacks).filter(k => !(DATA.wounds && DATA.wounds[k]) && !(DATA.drawbackMaxStats && DATA.drawbackMaxStats[k]) && !(DATA.drawbackReq && DATA.drawbackReq[k])).slice(0, 8);
 const BOONS = ['Bulwark', 'Deft Catch', 'Crippling Strike', 'Fleet as Thought'];
-const stats = { checked: 0, buyoffLenient: 0, capStricter: 0, steps: 0 };
+const stats = { checked: 0, buyoffLenient: 0, capStricter: 0, steps: 0, junk: 0, junkLogs: 0, ambiguous: 0 };
 
 function fuzzOne(rng) {
   const pick = a => a[Math.floor(rng() * a.length)];
@@ -242,6 +253,11 @@ function fuzzOne(rng) {
   let capRule = rng() < 0.6 ? { enabled: true, ap: int(4, 20) } : (rng() < 0.5 ? { enabled: false, ap: 12 } : null);
   let ignorePlayerAp = rng() < 0.4, dmAp = int(0, 60);
   let overrides = {};           // the character's current DM override snapshot for camp-A
+  // DM-stamped AP events that must NOT match (bad seq, wrong type, stale or ambiguous target, non-finite amount).
+  // The engine must ignore them; the server counts AP-moving events unconditionally, so PR3's RPC must refuse
+  // exactly these — the server comparison below runs on the log WITHOUT them.
+  const JUNK = new Set(), ambiguous = new Set();
+  const pushDm = ev => { if (ambiguous.has(ev.targetSeq)) JUNK.add(ev); LOG.push(ev); };
   const C = () => ctx(JSON.parse(JSON.stringify(rules)));
   const optsOf = () => { const o = { dmAp, ignorePlayerAp }; const cap = capRule && capRule.enabled !== false ? Number(capRule.ap) : undefined; if (cap != null) o.drawbackCap = cap; return o; };
   const cur = () => withHouseRulesCtx(foldBuild(LOG), C());
@@ -254,6 +270,34 @@ function fuzzOne(rng) {
   if (rng() < 0.2) LOG.push({ type: 'buy', cat: 'drawback', payload: { v: pick(PLAYER_DRAWS) }, cost: 0, seq: S(), dmEdit: true, dmId: DM, dmLocked: true });   // imposed
   if (rng() < 0.2) { const v = pick(BOONS); LOG.push({ type: 'buy', cat: 'boon', payload: { v }, cost: 0, seq: S(), dmEdit: true, dmId: DM }); }  // DM-granted
   LOG.push({ type: 'creationLocked', seq: S() });
+  function junkStep() {
+    stats.junk++;
+    const ae = E.activeEvents(LOG);
+    const buys = ae.evs.map((e, i) => [e, i]).filter(([e]) => e.type === 'buy' && (e.cat === 'drawback' || e.cat === 'boon') && e.seq != null);
+    const k = int(0, 4);
+    const junk = o => { const ev = dmE(Object.assign({ seq: S() }, o)); JUNK.add(ev); LOG.push(ev); };
+    if (k === 0) {                                   // bad seq: no purchase has it
+      const t = pick(['dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback']);
+      junk({ type: t, refVal: t === 'dmRefundBoon' ? pick(BOONS) : pick(PLAYER_DRAWS), targetSeq: seq + 1000, cost: -5, grantBack: 5, amount: 5 });
+    } else if (k === 1 && buys.length) {             // wrong type: a boon event at a drawback purchase or vice versa
+      const [e] = pick(buys); const v = e.payload.v;
+      junk(e.cat === 'drawback' ? { type: 'dmRefundBoon', refVal: v, targetSeq: e.seq, cost: -5 } : { type: pick(['dmRemoveDrawback', 'dmRepriceDrawback']), refVal: v, targetSeq: e.seq, grantBack: 5, amount: 5 });
+    } else if (k === 2) {                            // stale target: already bought off / removed / refunded / DM-removed
+      const dead = buys.filter(([e, i]) => ae.boughtOff.has(i) || ae.drawRemoved.has(i) || ae.boonRefunded.has(i) || ae.boonRemoved.has(i));
+      if (dead.length) { const [e] = pick(dead); const v = e.payload.v;
+        junk(e.cat === 'boon' ? { type: 'dmRefundBoon', refVal: v, targetSeq: e.seq, cost: -(Number(e.cost) || 0) }
+          : pick([{ type: 'dmRemoveDrawback', refVal: v, targetSeq: e.seq, grantBack: -(Number(e.cost) || 0) }, { type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: 3, from: 0, to: 3 }])); }
+    } else if (k === 3) {                            // duplicate seq: a second purchase reuses a seq; any DM event aimed at it is ambiguous
+      const ds = buys.filter(([e, i]) => e.cat === 'drawback' && !e.dmEdit && !ae.boughtOff.has(i) && !ae.drawRemoved.has(i));
+      if (ds.length) { const [e] = pick(ds); const v = e.payload.v;
+        LOG.push({ type: 'buy', cat: 'drawback', payload: { v }, cost: priceOf(cur(), 'drawback', { v }), seq: e.seq });
+        ambiguous.add(e.seq);
+        junk({ type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: 2, from: 0, to: 2 }); }
+    } else if (buys.length) {                        // non-finite amount
+      const [e] = pick(buys); const v = e.payload.v;
+      junk(e.cat === 'boon' ? { type: 'dmRefundBoon', refVal: v, targetSeq: e.seq, cost: -Infinity } : { type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: Infinity });
+    }
+  }
   for (let step = int(3, 14); step > 0; step--) {
     stats.steps++;
     const roll = rng();
@@ -266,7 +310,7 @@ function fuzzOne(rng) {
       const changed = imp.purchases.filter(p => p.kind === 'drawback' && p.changed && p.name === name);
       rules = next;
       if (changed.length) {
-        if (rng() < 0.6) { for (const p of changed) LOG.push(dmE(Object.assign({}, p.repriceEvent, { seq: S() }))); }
+        if (rng() < 0.6) { for (const p of changed) pushDm(dmE(Object.assign({}, p.repriceEvent, { seq: S() }))); }
         else {
           overrides = JSON.parse(JSON.stringify(overrides));
           ((overrides.pins = overrides.pins || {}).draws = overrides.pins.draws || {})[name] = { ap: changed[0].oldEffective, reason: 'kept', at: 'x' };
@@ -280,18 +324,18 @@ function fuzzOne(rng) {
         LOG.push(dmE({ type: 'dmHouseRules', overrides, seq: S() }));
         const [imp] = houseRulesImpact([{ id: 'x', LOG }], C(), C());
         for (const p of imp.purchases) if (p.kind === 'drawback' && !p.imposed && p.ledgerGrant !== p.newEffective)
-          LOG.push(dmE({ type: 'dmRepriceDrawback', refVal: p.name, targetSeq: p.seq, amount: p.newEffective - p.ledgerGrant, from: p.ledgerGrant, to: p.newEffective, seq: S() }));
+          pushDm(dmE({ type: 'dmRepriceDrawback', refVal: p.name, targetSeq: p.seq, amount: p.newEffective - p.ledgerGrant, from: p.ledgerGrant, to: p.newEffective, seq: S() }));
       }
     } else if (roll < 0.43) {
       // T2: remove one held, player-taken drawback (grant taken back = the ledger's grant for it)
       const [imp] = houseRulesImpact([{ id: 'x', LOG }], C(), C());
       const ds = imp.purchases.filter(p => p.kind === 'drawback' && !p.imposed);
-      if (ds.length) { const p = pick(ds); LOG.push(dmE({ type: 'dmRemoveDrawback', refVal: p.name, targetSeq: p.seq, grantBack: p.ledgerGrant, seq: S() })); }
+      if (ds.length) { const p = pick(ds); pushDm(dmE({ type: 'dmRemoveDrawback', refVal: p.name, targetSeq: p.seq, grantBack: p.ledgerGrant, seq: S() })); }
     } else if (roll < 0.53) {
       // T2: refund one held, player-paid boon (refund = its frozen cost)
       const [imp] = houseRulesImpact([{ id: 'x', LOG }], C(), C());
       const bs = imp.purchases.filter(p => p.kind === 'boon' && !p.dmGranted);
-      if (bs.length) { const p = pick(bs); LOG.push(dmE({ type: 'dmRefundBoon', refVal: p.name, targetSeq: p.seq, cost: -p.frozenCost, seq: S() })); }
+      if (bs.length) { const p = pick(bs); pushDm(dmE({ type: 'dmRefundBoon', refVal: p.name, targetSeq: p.seq, cost: -p.frozenCost, seq: S() })); }
     } else if (roll < 0.63) {
       const v = pick(drawNames()); LOG.push({ type: 'buy', cat: 'drawback', payload: { v }, cost: priceOf(cur(), 'drawback', { v }), seq: S() });
     } else if (roll < 0.73) {
@@ -299,22 +343,39 @@ function fuzzOne(rng) {
     } else if (roll < 0.78) {
       const held = foldBuild(LOG).drawbacks;
       if (held.length) { const v = pick(held); LOG.push({ type: 'buyoff', refVal: v, cost: drawbackBuyoffQuote(cur(), v).cost, seq: S() }); }
-    } else if (roll < 0.84) {
+    } else if (roll < 0.86) {
+      junkStep();
+    } else if (roll < 0.88) {
       // forged by a player: no dmEdit — both sides must ignore it
       const v = pick(BOONS); LOG.push({ type: pick(['dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback']), refVal: v, targetSeq: int(1, seq), cost: -50, grantBack: 50, amount: 50, seq: S() });
-    } else if (roll < 0.9) { LOG.push({ type: 'award', amount: int(0, 20), seq: S() }); }
+    } else if (roll < 0.91) { LOG.push({ type: 'award', amount: int(0, 20), seq: S() }); }
     else if (roll < 0.94) { dmAp = int(0, 60); }
     else if (roll < 0.97) { ignorePlayerAp = !ignorePlayerAp; }
     else { capRule = rng() < 0.7 ? { enabled: true, ap: int(0, 20) } : { enabled: false, ap: 12 }; }
   }
   // ---- the checks ----
   const o = optsOf();
+  const fails = [];
+  // 1. The engine IGNORES every non-matching DM event: the log with them and the log without them fold, price and
+  //    tally identically.
+  const FULL = LOG.slice();
+  if (JUNK.size) {
+    stats.junkLogs++;
+    const clean = FULL.filter(e => !JUNK.has(e));
+    const sig = L => { const r = compute(withHouseRulesCtx(foldBuild(L), C()), o), ec = economy(L);
+      return JSON.stringify([r.total, r.spendable, r.drawbackAp, r.warnings, ec, foldBuild(L).boons, foldBuild(L).drawbacks]); };
+    if (sig(FULL) !== sig(clean)) fails.push(`non-matching dmEdit events changed the engine's answer (${JUNK.size} of them)`);
+    if (FULL.some(e => JUNK.has(e) && E.activeEvents(FULL).dmMatched.has(E.activeEvents(FULL).evs.indexOf(e)))) fails.push('a non-matching dmEdit event was reported as matched');
+    LOG.length = 0; clean.forEach(e => LOG.push(e));   // 2. the server comparison runs on what the RPC would allow
+  }
   const browser = compute(cur(), o).spendable - economy(LOG).spent;
   const port = sqlLedgerPort(LOG, { dmAp, ignorePlayerAp, capRule });
   const model = serverApLedger(LOG, o).apLeft;
-  const fails = [];
   if (port !== model) fails.push(`engine serverApLedger() ${model} != independent SQL port ${port}`);
   const hasBuyoff = LOG.some(e => e.type === 'buyoff');
+  // A history with a duplicated purchase seq: the holder can't be targeted (houseRulesImpact flags it ambiguousSeq;
+  // the console must pin it), and this generator doesn't pin, so the server comparison is meaningless there.
+  if (ambiguous.size) { stats.ambiguous++; return fails.length ? { fails, LOG: FULL, opts: o, rules, capRule } : null; }
   const uncappedGrant = compute(cur(), Object.assign({}, o, { drawbackCap: undefined })).drawbackAp;
   const capOff = o.drawbackCap === undefined;
   const capGap = capOff && uncappedGrant > DATA.drawbackCap;
@@ -343,6 +404,8 @@ section(`(f) ledger invariant — ${ITER} random campaign histories, seed ${SEED
   }
   t(`fuzz: browser AP left == server ledger on every history (${stats.checked} strict, ${stats.buyoffLenient} buyoff-lenient, ${stats.capStricter} cap-off-stricter, ${stats.steps} DM/player steps)`, bad, 0);
   t('fuzz: the strict scope is not empty', stats.checked > ITER / 3, true);
+  t('fuzz: non-matching dmEdit events were generated', stats.junk > ITER / 4, true);
+  console.log(`  ${stats.junk} non-matching dmEdit events across ${stats.junkLogs} histories — all ignored by the engine; ${stats.ambiguous} histories with a duplicated seq left out of the server comparison`);
   console.log(`  coverage: ${stats.checked} strict equality, ${stats.buyoffLenient} server-more-lenient (buyoff), ${stats.capStricter} server-STRICTER (cap switched off, grant > ${DATA.drawbackCap} — open owner question, see the decision record)`);
 }
 

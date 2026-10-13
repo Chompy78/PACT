@@ -396,3 +396,13 @@ charHouseRules: {
 - M6: PR1 is NOT behaviour-neutral for solo characters (priceOf now reads own custom drawback values) — say so, add a fixture.
 - M7: offline rulesSnapshot is player-written; server cap is the backstop — note it.
 - Concurrency: sync.js optimistic concurrency (.eq updated_at) turns a DM-RPC vs stale player save race into a conflict — note in risks.
+
+## Post-review notes (2026-10-13, after PR #648's review — orchestrator)
+- PR1's engine counts client-set `dmEdit` events; they are forgeable until PR3's DM-family guard is applied. Do not promote to
+  `main` between PR1 and PR3.
+- PR3's RPC must refuse every AP-moving event the engine ignores, because the server counts them unconditionally: unknown
+  targetSeq; wrong target type/name; a target already bought off / removed / refunded; an ambiguous (duplicated) seq; a target that
+  does not precede the event; a non-finite amount. `houseRulesImpact` flags an ambiguous holder `ambiguousSeq` (pin it).
+- M3's `to` check accepts the printed-value fallback when a campaign deletes a custom/repriced entry.
+- M4 (decision): a buy-off records the exact purchase it cancels (`targetSeq`), so the server can net out its grant including ΣΔ.
+

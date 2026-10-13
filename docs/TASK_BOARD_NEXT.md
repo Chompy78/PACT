@@ -1472,12 +1472,19 @@ serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepric
       campaigns charHouseRules guard trigger, RPC dm_apply_house_rules_change, dm_edit_character_log accepts dmHouseRules,
       pact_ap_ledger_spend counts the new events (dmEdit only, ΣΔ), split award/drawback earned + drawback cap (X1), DM-family
       forgery guard. NOT applied without the owner; then get_advisors + logs. Resolve the X1 open question first (below).
+      The RPC must REFUSE every AP-moving event the engine ignores (the server counts them unconditionally): unknown
+      targetSeq, wrong target type/name, a target already bought off / removed / refunded, an ambiguous (duplicated) seq,
+      a target that does not precede the event, a non-finite amount — house-rules-ledger-ci.mjs generates each.
+      M3's `to` check must accept the printed-value fallback when a campaign deletes a custom/repriced entry. M4: a buy-off
+      must record the purchase it cancels (targetSeq) so the server nets out its grant incl. ΣΔ (Live Sheet emits it in PR2).
   PR4 feat/campaign-house-rules-dm-editor: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
       houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does.
   PR5 feat/dm-house-rules-editor (rework #642): per-character overrides as dmHouseRules on the same RPC/validator.
   PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
       testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
       merge BEFORE preview is promoted to main.
+SECURITY GATE: PR1's engine counts dmEdit-flagged events that a PLAYER can still write until PR3's DM-family guard is applied
+(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration.
 OPEN OWNER QUESTION (blocks PR3): with a campaign's drawback cap switched off, compute() grants drawbacks uncapped but X1's server
 falls back to capping at DATA.drawbackCap (12) — server stricter. Choose: browser caps at 12 in such a campaign, or server uncapped
 when the DM turned the cap off. house-rules-ledger-ci.mjs counts the cases.
@@ -1485,7 +1492,7 @@ when the DM turned the cap off. house-rules-ledger-ci.mjs counts the cases.
 **Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
 server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;
 leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
-verify-guide.mjs passes; promotion to main only after PR3 is applied and PR6 has landed.
+verify-guide.mjs passes; promotion to main only after PR3 is applied (security gate above) and PR6 has landed.
 
 ## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
 Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).

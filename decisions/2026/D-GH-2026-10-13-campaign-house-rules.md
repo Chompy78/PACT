@@ -88,8 +88,14 @@ is the backstop; a DM-RPC vs stale player save race surfaces as a sync.js optimi
   call sites untouched, and solo characters are unaffected by construction.
 - Moving browser and server by the same delta (S2 events) is the only design compatible with F4: grants stay derived from current
   values in the browser and frozen numbers on the server.
-- Seq-targeting, dmEdit-only counting and "matched only" make a forged or stale event inert in the engine; PR3 makes the same events
-  unforgeable server-side (M1).
+- Seq-targeting, dmEdit-only counting and "matched only" make a STALE or MIS-AIMED DM event inert in the engine (a bad seq, a wrong
+  type, a target already bought off / removed / refunded, an ambiguous seq, a non-finite amount). They do **not** make a FORGED one
+  inert: `dmEdit` is set by the client, and until PR3 the server neither freezes nor refuses the new event types for a player
+  writer. Today a player could write their own `dmEdit:true` `dmRefundBoon` / `dmRepriceDrawback` / `dmHouseRules` and the engine
+  would count it (the server ledger does not count them yet, so the browser would merely show AP the server won't honour; but
+  `dmHouseRules` reprices in the browser). PR3's DM-family guard (M1) is what makes them unforgeable. **Therefore this engine change
+  must not reach `main` before PR3's migration is applied.** (No tool emits or reads a context yet, so preview is unaffected in
+  practice.)
 
 ## Known gaps / open questions (for the owner)
 
@@ -104,6 +110,19 @@ is the backstop; a DM-RPC vs stale player save race surfaces as a sync.js optimi
    browser) in the gate.
 3. **M6:** `priceOf('drawback')` now returns a SOLO character's own house-ruled value (was the printed value, 0 for a custom
    drawback). Intended; fixture EV-039.
+
+### What PR3's RPC must refuse (so the server never counts what the engine ignores)
+
+The server ledger counts a DM-stamped AP event UNCONDITIONALLY; the engine counts it only when it matches. The RPC must therefore
+refuse exactly the events the engine ignores, or the two diverge: a `targetSeq` no purchase has; a target of the wrong type or name
+(a boon event at a drawback purchase and vice versa); a target already bought off, removed (dmRemoveDrawback / dmRemoveBoon) or
+refunded; a target whose seq+name is shared with another purchase (ambiguous — `houseRulesImpact` flags it `ambiguousSeq` and the
+console must pin it instead); a non-finite amount; and a target that does not PRECEDE the event. `house-rules-ledger-ci.mjs`
+generates every one of these and asserts the engine ignores them. Two more PR3 rules (orchestrator, after the PR #648 review):
+- **M3 `to` check:** accept the printed-value fallback — when a campaign DELETES a custom/repriced entry, the new effective value is
+  the printed `DATA` value (0 for a custom drawback), not an entry in `charHouseRules`.
+- **M4 buy-off netting:** a buy-off must record the exact purchase it cancels (`targetSeq`), so the server can net out that
+  purchase's grant including ΣΔ instead of keeping it (today's accepted approximation).
 
 ## Tests
 

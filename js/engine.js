@@ -410,6 +410,8 @@ const _HR_TASHA_CAMP_TXT=': non-core — barred for new purchases by your campai
  * DM override's own `disabled` adds to them. There is no per-character un-ban in v1.
  * ========================================================================== */
 const _HR_BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+// A finite number, else 0 — a house-rule value or DM-event amount must never turn into NaN/Infinity downstream.
+const _fin = x => { const n = Number(x); return Number.isFinite(n) ? n : 0; };
 const _hrObj = o => (o && typeof o === 'object' && !Array.isArray(o)) ? o : null;
 const _hrList = a => Array.isArray(a) ? a.filter(x => typeof x === 'string') : [];
 // Copy a {name: {...}} table entry by entry: own keys only, never a prototype key, never a non-object entry.
@@ -497,7 +499,7 @@ function _effHouseRules(b, ctx) {
   return { dmAllows: r.dmAllows, boons: r.boons, draws: r.draws, disabled: r.disabled };
 }
 // The one drawback-value expression — compute()'s grant loop, priceOf()'s pricer and the buy-off quote all use it.
-function _drawVal(HRd, lab) { return ((HRd[lab] ? (+HRd[lab].ap) : DATA.drawbacks[lab]) || 0); }
+function _drawVal(HRd, lab) { return _fin(HRd[lab] ? HRd[lab].ap : DATA.drawbacks[lab]); }
 
 // drawbackValue(b, name, ctx?) — the drawback's CURRENT EFFECTIVE AP value for this character (its grant before
 // the imposed-drawback rule and the campaign cap): DM pin/override, else campaign value, else (solo) the own
@@ -531,7 +533,7 @@ export function effectiveBoonTable(b, ctx) {
   for (const k in DATA.boons) { const d = DATA.boons[k];
     o[k] = { hd: d.hd, ap: d.ap, fx: d.fx, cat: d.cat || 'Other', custom: false, source: 'printed' }; }
   for (const k of Object.keys(r.boons)) { const h = r.boons[k], bi = DATA.boons[k];
-    o[k] = { hd: +h.hd || 1, ap: +h.ap || 0, fx: h.fx || (o[k] && o[k].fx) || '', cat: bi ? (bi.cat || 'Other') : 'DM custom', custom: true, source: r.source.boons[k] }; }
+    o[k] = { hd: _fin(h.hd) || 1, ap: _fin(h.ap), fx: h.fx || (o[k] && o[k].fx) || '', cat: bi ? (bi.cat || 'Other') : 'DM custom', custom: true, source: r.source.boons[k] }; }
   const dis = new Set(r.disabled.boons);
   for (const k of Object.keys(o)) {
     const row = o[k], bi = DATA.boons[k];
@@ -550,7 +552,7 @@ export function effectiveDrawbackTable(b, ctx) {
   for (const k in DATA.drawbacks) o[k] = { ap: DATA.drawbacks[k], fx: (DATA.drawbackFx && DATA.drawbackFx[k]) || '',
     cat: (DATA.drawbackCat && DATA.drawbackCat[k]) || 'Other', custom: false, source: 'printed' };
   for (const k of Object.keys(r.draws)) { const h = r.draws[k];
-    o[k] = { ap: +h.ap || 0, fx: h.fx || (o[k] && o[k].fx) || '', cat: 'DM custom', custom: true, source: r.source.draws[k] }; }
+    o[k] = { ap: _fin(h.ap), fx: h.fx || (o[k] && o[k].fx) || '', cat: 'DM custom', custom: true, source: r.source.draws[k] }; }
   const dis = new Set(r.disabled.draws);
   for (const k of Object.keys(o)) {
     const row = o[k], w = DATA.wounds && DATA.wounds[k];
@@ -1110,7 +1112,7 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=(+bo.ap||0);
+  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=_fin(bo.ap);
     if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(Number(bo.hd)||1)+' Hit Dice (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
     boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
@@ -1157,7 +1159,7 @@ export function compute(b, opts){
   // b._imposedDrawbackIdx (stamped by _replay) = positions in b.drawbacks that a DM imposed. Positional,
   // not by name, so a player-taken Peg Leg and an imposed one on the same character are told apart.
   const _impIdx=new Set(b._imposedDrawbackIdx||[]);let _dIdx=-1;
-  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=(HRd[lab]?(+HRd[lab].ap):DATA.drawbacks[lab])||0;
+  let drawGain=0;const _DI=[];for(const lab of (b.drawbacks||[])){_dIdx++;if(!HRd[lab]&&DATA.drawbacks[lab]===undefined){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const v=_drawVal(HRd,lab);
     // A DM-IMPOSED drawback grants NOTHING (fix/imposed-drawbacks-grant-no-ap). It was recorded at cost 0, so
     // economy().drawbackEarned already says 0 — but this loop derives the grant from the drawback NAMES, which
     // cannot tell imposed from chosen, so it credited the table value anyway: with four imposed drawbacks
@@ -1490,6 +1492,10 @@ export function activeEvents(events) {
   const _dqRemove = (q, idx) => { if (!q) return; const k = q.indexOf(idx); if (k >= 0) q.splice(k, 1); };
   const _seqTarget = (map, e) => {
     if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return -1;
+    // A non-finite amount (NaN/Infinity/garbage) makes the whole event inert rather than a NaN in the ledger.
+    const amt = e.type === 'dmRefundBoon' ? e.cost : e.type === 'dmRemoveDrawback' ? e.grantBack : e.amount;
+    if (amt != null && !Number.isFinite(Number(amt))) return -1;
+    if (e.type !== 'dmRemoveDrawback' && !Number.isFinite(Number(amt))) return -1;
     const j = map[e.targetSeq + '|' + e.refVal];
     return (j != null && j >= 0) ? j : -1;
   };
@@ -1512,7 +1518,7 @@ export function activeEvents(events) {
         const grant = -(Number(evs[j].cost) || 0) + (drawRepriced.get(j) || 0);
         dmAdjustments.push({ kind: 'drawRemoved', label: e.refVal, ap: -grant });
       } else {
-        const d = Number(e.amount) || 0;
+        const d = Number(e.amount);
         drawRepriced.set(j, (drawRepriced.get(j) || 0) + d);
         dmAdjustments.push({ kind: 'drawRepriced', label: e.refVal, ap: d, from: e.from, to: e.to });
       }
@@ -1520,7 +1526,7 @@ export function activeEvents(events) {
       const j = _seqTarget(_boonBySeq, e);
       if (j < 0 || boonRemoved.has(j) || boonRefunded.has(j)) return;
       dmMatched.add(i); boonRefunded.add(j); refundedBy.set(j, e); _dqRemove(_openBoons[e.refVal], j);
-      dmAdjustments.push({ kind: 'boonRefunded', label: e.refVal, ap: -(Number(e.cost) || 0) });
+      dmAdjustments.push({ kind: 'boonRefunded', label: e.refVal, ap: -Number(e.cost) });
     } else if (e.type === 'dmUnlockDrawback') {
       if (e.dmEdit !== true || e.refVal == null || e.targetSeq == null) return;
       const j = _lockedBySeq[e.targetSeq + '|' + e.refVal];
@@ -1590,7 +1596,7 @@ function _economyFrom(evs, boughtOff, ae) {
         drawbackEarned += (-(Number(e.cost) || 0)) + ((_deltas && _deltas.get(i)) || 0);
     }
     else if (e.type === 'dmRefundBoon') {
-      if (_matched && _matched.has(i)) spent += Number(e.cost) || 0;
+      if (_matched && _matched.has(i)) spent += _fin(e.cost);
     }
     // LEGACY SHAPE (v0.354). Both tools now emit cat:'drawback', but older CharGen exports delivered
     // drawbacks as a coalescing PATCH whose whole cost is the grant — LS-001 carries one. Under the old
@@ -2495,7 +2501,8 @@ function _replay(b, log, onApplied) {
     if (e.type === 'dmHouseRules') {
       if (e.dmEdit === true && typeof e.campaignId === 'string' && e.campaignId && !_HR_BAD_KEYS.has(e.campaignId)
           && e.overrides && typeof e.overrides === 'object' && !Array.isArray(e.overrides))
-        (b._dmHouseRulesByCampaign = b._dmHouseRulesByCampaign || {})[e.campaignId] = clone(e.overrides);
+        // Copy-on-write: never write into a map someone else may hold (repriceDraft() seeds the final snapshot).
+        b._dmHouseRulesByCampaign = Object.assign({}, b._dmHouseRulesByCampaign || {}, { [e.campaignId]: clone(e.overrides) });
       continue;
     }
     if (e.type !== 'buy') continue;                          // award/buyoff/dmRemoveBoon affect economy only
@@ -3149,7 +3156,7 @@ export function repriceDraft(events, opts) {
   const priced = [];
   _replay(b, log, (e, build, wasLocked) => {
     if (wasLocked) anyLocked = true;
-    if (_ctx) { build._hrCtx = _ctx; if (_finalOv) build._dmHouseRulesByCampaign = _finalOv; }
+    if (_ctx) { build._hrCtx = _ctx; if (_finalOv) build._dmHouseRulesByCampaign = Object.assign({}, _finalOv); }   // a fresh copy per step
     // Dedupe BEFORE pricing. _replay only collapses the proficiency lists once, at the very end, so
     // mid-walk a duplicate purchase is still sitting in the array and inflates compute() — while the
     // final build has it collapsed away. Pricing off that gap charges real AP for a purchase the
@@ -3201,7 +3208,7 @@ export function repriceDraft(events, opts) {
 // the database is. testing/scripts/house-rules-ledger-ci.mjs keeps an independent port to check this one.
 export function serverApLedger(events, opts) {
   const o = opts || {};
-  const n = x => Number(x) || 0;
+  const n = _fin;
   let spent = 0, awardEarned = 0, drawbackEarned = 0;
   for (const ev of (Array.isArray(events) ? events : [])) {
     if (!ev) continue;
@@ -3239,8 +3246,10 @@ export function serverApLedger(events, opts) {
 //                drawback, Y1): recording the raw ledger gap lets a ticked holder land in agreement. It is per
 //                purchase and UNCAPPED — the cap is applied to the sum on both sides, which keeps them equal; a
 //                per-event capped Δ would not (see the decision record).
-//   repriceEvent (changed, non-imposed drawbacks) the event body the RPC would stamp: {type, refVal, targetSeq,
-//                amount, from, to}
+//   repriceEvent (changed, non-imposed drawbacks with a unique seq) the event body the RPC would stamp: {type, refVal,
+//                targetSeq, amount, from, to}
+//   ambiguousSeq the purchase has no seq, or shares seq+name with another purchase: no DM event can target it (it
+//                would match nothing), so the console must PIN it rather than offer a tick / refund / removal
 //   barredNew    allowed to be bought under the old rules but not under the new — the T2 candidates
 export function houseRulesImpact(rows, oldCtx, newCtx) {
   return (Array.isArray(rows) ? rows : []).filter(Boolean).map(row => {
@@ -3263,6 +3272,11 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
     const capF = x => Number.isFinite(opts.drawbackCap) ? Math.min(Math.max(0, opts.drawbackCap), x) : x;
     const purchases = [];
     const synth = [];
+    // A purchase whose seq+name is shared with another purchase can't be targeted (activeEvents() matches nothing on an
+    // ambiguous seq, and the RPC must refuse it), so it gets no reprice event: the DM Console must PIN it instead.
+    const _seqN = {};
+    ae.evs.forEach(e => { if (e.type === 'buy' && e.seq != null && e.payload && e.payload.v != null) { const k = e.cat + '|' + e.seq + '|' + e.payload.v; _seqN[k] = (_seqN[k] || 0) + 1; } });
+    const _amb = e => e.seq == null || _seqN[e.cat + '|' + e.seq + '|' + e.payload.v] > 1;
     ae.evs.forEach((e, i) => {
       if (e.type !== 'buy') return;
       const v = e.payload && e.payload.v;
@@ -3278,8 +3292,8 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
         const p = { kind: 'drawback', name: v, seq: e.seq, index: i, frozenCost, oldEffective, newEffective, valueDelta,
           apDelta: imposed ? 0 : capF(sumOld + valueDelta) - capF(sumOld), imposed, dmGranted: false, locked, changed,
           barredNew: !!(tOldD[v] && tOldD[v].allowed) && !(tNewD[v] && tNewD[v].allowed),
-          ledgerGrant, ledgerDelta: imposed ? 0 : newEffective - ledgerGrant };
-        if (changed) {
+          ledgerGrant, ledgerDelta: imposed ? 0 : newEffective - ledgerGrant, ambiguousSeq: _amb(e) };
+        if (changed && !p.ambiguousSeq) {
           p.repriceEvent = { type: 'dmRepriceDrawback', refVal: v, targetSeq: e.seq, amount: p.ledgerDelta, from: ledgerGrant, to: newEffective };
           synth.push(Object.assign({ dmEdit: true }, p.repriceEvent));
         }
@@ -3289,7 +3303,7 @@ export function houseRulesImpact(rows, oldCtx, newCtx) {
         const oldEffective = tOldB[v] ? (+tOldB[v].ap || 0) : 0, newEffective = tNewB[v] ? (+tNewB[v].ap || 0) : 0;
         purchases.push({ kind: 'boon', name: v, seq: e.seq, index: i, frozenCost, oldEffective, newEffective,
           valueDelta: newEffective - oldEffective, apDelta: 0, imposed: false, dmGranted: e.dmEdit === true, locked,
-          changed: newEffective !== oldEffective,
+          changed: newEffective !== oldEffective, ambiguousSeq: _amb(e),
           barredNew: !!(tOldB[v] && tOldB[v].allowed) && !(tNewB[v] && tNewB[v].allowed) });
       }
     });
