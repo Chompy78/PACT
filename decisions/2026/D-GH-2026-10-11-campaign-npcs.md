@@ -59,3 +59,15 @@ with **C1: Bram ends at 82 DM AP total**.
 - Party-wide downtime (`declare_downtime`) also covers NPCs — harmless (downtime locks nothing; players never see NPCs).
 - Plan + cold reviews: `docs/plans/2026-10-11-campaign-npcs.md`, `docs/plans/cold-reviews/2026-10-11-*-campaign-npcs.md`.
   Tests: `testing/sql/campaign-npcs-test.sql` (CI: sql-guards), `testing/scripts/dm-console-ui-e2e.mjs` (NPC block).
+
+## Addendum 2026-10-14 — NPCs in the Award AP tick-list (`feat/award-ap-npcs`)
+
+**Owner request:** "I cannot add DM AP to NPCs. Include their names under 'Award AP' in DM Console and change the select all to
+select all PCs." The per-card award form still works, but the shared Award AP tile was the obvious place and left NPCs out.
+
+**Decision (owner):** the Award AP tick-list now lists the campaign's NPCs after the players, marked "NPC". The "Select all"
+button becomes **"Select all PCs"**: it ticks every player character and leaves NPC ticks as they were. Every other party-wide
+feature (table view, matrix/ledger overlays, counts) still excludes NPCs. The award itself is the same `award_ap` RPC per
+character, which already accepts an NPC (a DM's own character bound to the campaign), so no server change.
+
+**Status:** accepted by the owner, 2026-10-14.
