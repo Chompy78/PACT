@@ -10,6 +10,15 @@
 
 ## Index
 
+## D-GH-2026-10-13-campaign-house-rules — house rules are set campaign-wide by the DM, with per-character DM overrides
+- Accepted by owner 2026-10-13 (P2/R1/U1/T2/S2/V1/W1/X1/Y1). Campaign `rules.charHouseRules` (Calls, custom/repriced boons and
+  drawbacks; "disabled" = the existing ban lists) apply to every campaign character; a DM's per-character `dmHouseRules` override
+  (campaign-scoped, with S2 "keep old value" pins) sits on top; the character's own CharGen patch applies only when solo. A Call
+  turned off stops new purchases; the DM may opt in to remove owned items with refund (T2) and choose which holders a drawback
+  reprice applies to (S2), via seq-targeted `dmRefundBoon` / `dmRemoveDrawback` / `dmRepriceDrawback` events that move browser and
+  server ledger by the same amount. Engine half landed (rules v0.377); tools, server, DM editor, #642 rework and the guide follow.
+  Open: X1's server cap fallback (12) vs the browser's uncapped grant when a DM switches the cap off.
+  Full record: `decisions/2026/D-GH-2026-10-13-campaign-house-rules.md`.
 ## D-GH-2026-10-12-server-player-award-after-lock — the database refuses a player-added award on a finished campaign character
 - H2 (owner away), provisional. `pact_enforce_player_ap_ceiling()` now also refuses, on a creation-locked or sealed campaign
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
