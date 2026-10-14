@@ -1624,7 +1624,7 @@ compute() (never re-derived). Keep it readable on a phone.
 ```
 **Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
-## feat/livesheet-weapons — all weapon types selectable, DM custom weapon types, weapon stats on one line — TODO
+## feat/livesheet-weapons — "Weapons & attacks": all weapon types, DM custom weapons, range fields, one line each — TODO
 Branch feat/livesheet-weapons. **Effort:** medium · **Risk:** medium — a DM-defined list crosses users (esc() rule) and may need campaign storage.
 
 ```text
@@ -1636,6 +1636,9 @@ Owner request 2026-10-14. In the Live Sheet's weapons panel (centre panel / play
      solo characters see the standard list only. Every DM-typed value through esc() and data-* attributes, never inside onclick.
   3. Show each weapon's stats on ONE line (name · attack bonus · damage dice + type · properties/range), wrapping only on
      narrow phones.
+  4. (added 2026-10-14) Rename the panel "Weapons" -> "Weapons & attacks" (it also holds non-weapon attacks, e.g. spell
+     attacks, unarmed strikes), and give every entry RANGE fields (normal / long, in feet; melee reach where relevant),
+     editable on custom entries and prefilled for standard weapons.
 Check whether attack bonus/damage should come from compute() (proficiency, ability mod) — reuse the engine, don't re-derive.
 ```
 **Done when:** a player can pick any standard weapon; a DM-added custom weapon appears for that campaign's characters (and is escaped); each weapon renders on one line at desktop width; e2e covers all three; `engine-parity-ci` 0 failed.
@@ -1681,3 +1684,34 @@ Plan + cold review first (server guard + new event type). Migration NOT applied 
 Coordinate with feat/campaign-house-rules (its DM-family forgery guard must freeze the new approval event too).
 ```
 **Done when:** buying Code of Honour requires a description; the DM sees and approves it in DM Console; after approval the player can't change it in either tool and a direct server write changing it is refused (tested); a DM unlock re-opens it; names/notes escaped; `engine-parity-ci` 0 failed.
+
+## feat/livesheet-sheet-layout — Live Sheet: colour-coded skills, description always visible, centre panel and 📋 Sheet look alike — TODO
+Branch feat/livesheet-sheet-layout. **Effort:** medium · **Risk:** low — display only.
+
+```text
+Owner request 2026-10-14. Live Sheet presentation:
+  1. Skills: colour-code each skill by its ability, with the same per-ability colours the stats card and saves use
+     (see feat/livesheet-saves-in-stats-card — do them together or share one colour map).
+  2. Appearance & description: the description PARAGRAPH is always shown; only the individual fields (hair, eyes, …) are
+     collapsible. Today the whole block collapses.
+  3. Make the centre panel and the 📋 Sheet view match more closely — same sections, order, labels and styling — so a
+     player sees one character sheet, not two different layouts. Prefer one shared renderer over two copies.
+Values from compute()/the fold only; every player value escaped; check phone width.
+```
+**Done when:** skills show in their ability colours; the description paragraph is visible with the fields collapsed; the centre panel and 📋 Sheet show the same sections in the same order and style (screenshot check at phone and desktop width); existing Live Sheet e2e green.
+
+## feat/livesheet-armour-ac — armour-worn dropdown; AC follows class features (e.g. Barbarian Unarmored Defense) — TODO
+Branch feat/livesheet-armour-ac. **Effort:** medium · **Risk:** medium — AC is a rules value: if compute() output changes it is a rules change (DATA.version bump, fixtures, Players Guide).
+
+```text
+Owner request 2026-10-14. On the Live Sheet: a dropdown for the armour the character is WEARING (none, each owned/standard
+armour, shield on/off), and the AC shown follows it AND the character's class features: Barbarian Unarmored Defense
+(10 + DEX + CON with no armour, shield allowed), Monk Unarmored Defense (10 + DEX + WIS, no armour or shield), Draconic
+Resilience, Mage Armor, etc. — the best applicable formula. FIRST check what js/engine.js already does (recent work: "worn
+armour — none", fix/roller-wears-armour, the engine's AC calculation): AC must come from compute(), never computed in the
+tool. If the engine lacks the worn-armour input or these class formulas, add them there (additive compute() option or a
+build field), with parity fixtures, a DATA.version bump if outputs change, and the Players Guide updated. Where is the worn
+choice stored: a cost-0 field in the LOG (like appearance) so it syncs and the DM sees it.
+```
+**Done when:** the dropdown changes the worn armour and the AC updates; a Barbarian with no armour shows 10+DEX+CON (with a shield +2), a Monk 10+DEX+WIS; AC matches compute() in the Live Sheet, CharGen and DM Console; parity 0 failed with new fixtures.
+
