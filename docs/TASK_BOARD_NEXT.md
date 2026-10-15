@@ -1570,6 +1570,19 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
+## feat/campaign-house-rules merge — keep customWeapons + weaponList in DM Console's Save rules — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-weapons (#667) merges into preview SECOND. **Effort:** low · **Risk:** medium — a dropped key silently wipes DM data on the next Save rules.
+
+```text
+DM Console's "Save rules" builds the whole campaigns.rules blob key by key (ruleSaveBtn handler), so any key it doesn't
+name is wiped on save. feat/livesheet-weapons (#667, D-GH-2026-10-15-livesheet-weapons) adds customWeapons and weaponList
+to that literal; feat/campaign-house-rules routes the same save through _rulesBlobForSave()/_rulesKeepChr() for
+charHouseRules. Whichever merges second must resolve the conflict keeping ALL of them: customWeapons, weaponList (written
+by Save rules) AND the charHouseRules handling (never sent by Save rules; kept from the cached copy). Then run
+livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponList" check) and the house-rules DM e2e.
+```
+**Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 

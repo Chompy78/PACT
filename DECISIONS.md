@@ -10,11 +10,13 @@
 
 ## Index
 
-## D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon is copied onto the sheet
+## D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon stays linked to its definition
 - `WEAPONS` (38 PHB weapons + Unarmed Strike), `weaponSheetDefaults()` and `campaignWeapons()` are engine exports beside
-  `weaponAttack()`, not `DATA` (never read by `compute()`, no version bump; `engine-data.js` is one shared line). Picking a
-  weapon copies its stats onto the sheet entry, so a DM edit never rewrites a saved weapon. DM weapons are
-  `campaigns.rules.customWeapons`, carried by DM Console's whole-blob Save rules; cleaned by the engine on save and read.
+  `weaponAttack()`, not `DATA` (never read by `compute()`, no version bump; `engine-data.js` is one shared line). A sheet
+  weapon keeps a `ref` and its stats are refreshed from the current definition (owner AL2 — overwrites player edits to
+  them) and read-only (AM2); free-text and older entries stay editable. DM weapons (stable ids, max 50) are
+  `rules.customWeapons`, the campaign's standard-weapon list is `rules.weaponList {list, strict}`; both carried by DM
+  Console's whole-blob Save rules — keep them when `feat/campaign-house-rules` merges.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-weapons.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the

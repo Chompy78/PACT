@@ -1,6 +1,8 @@
-# D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon is copied onto the sheet; DM weapons are `rules.customWeapons`
+# D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon stays linked to its definition; DM weapons and the campaign weapon list live in `campaigns.rules`
 
-**Status:** IN FORCE. Shipped in the `feat/livesheet-weapons` PR. Display/sheet data only; no `DATA.version` bump.
+**Status:** IN FORCE. Shipped in PR #667 (`feat/livesheet-weapons`). Display/sheet data only; no `DATA.version` bump.
+Revised the same day by owner decisions **AL2**, **AM2** and the campaign weapon list (see the Addendum) — the "copy, not
+reference" choice below was **reversed** by AL2.
 
 ## Context
 
@@ -45,3 +47,38 @@ entry, and the engine's `weaponAttack()` only turned an ability/proficiency/magi
   DM-typed goes into an `onclick` (rows are addressed by `data-*` index).
 - **Proficiency:** the build records "N martial weapons" without saying which, so `weaponSheetDefaults` returns null there
   and the player's tick is kept, rather than guessing.
+
+## Addendum (2026-10-15) — owner decisions AL2, AM2 and the campaign weapon list; review fixes
+
+**AL2 — a DM's edit reaches every sheet (reverses "copy, not reference").** Each sheet weapon stores `ref`: `'std:<id>'` (a
+standard weapon), `'camp:<id>'` (a campaign weapon) or `'atk:spell'`. Campaign weapons now carry a **stable id** (DM Console
+generates one per new row; a pre-id entry gets `'n-<name>'`), so a rename keeps every sheet linked. Every read of the sheet
+(`_psGet()`) refreshes dice, type, properties, range, reach and attack ability from the current definition, and the Live
+Sheet saves that refresh once (into the same single appearance event) so the character's own copy follows. **This
+overwrites any player edit to those stats** — which is why AM2 locks them. The entry's name follows a rename only while
+the player kept the weapon's own name (`base` records it); a name the player chose is kept.
+
+**AM2 — linked stats are read-only.** On standard and campaign weapons the dice, type, properties, normal/long range,
+reach and attack ability are disabled on the sheet, and `_psEdit()` ignores a forced edit to them. The player keeps the
+name, proficiency tick, magic bonus and notes (the magic bonus is a property of the player's own weapon, not the weapon
+type — a judgement call, flagged to the owner). A spell attack locks only its ability. Free-text entries (no ref) and
+every weapon saved before this stay fully editable — no data loss. If a linked definition disappears (the DM deleted it,
+or the character left the campaign) the entry keeps its last stats, is flagged, and becomes editable, since nothing can
+update it any more.
+
+**The campaign weapon list** — `rules.weaponList = {list:[standard ids], strict}`, modelled on `rules.languages`. DM
+Console ticks the standard weapons (all ticked saves `[]`); "Only offer the ticked weapons" (strict) OFF offers every
+standard weapon, ON only the ticked ones. The campaign's own weapons and the Unarmed Strike are always offered. A weapon
+already on a sheet is never removed: it shows "not on this campaign's weapon list" (and stays selected in its picker).
+
+**Review fixes.** Notes show on the one-line view (older weapons kept range/properties there). At most
+`CUSTOM_WEAPON_MAX` = 50 campaign weapons (rules are copied into every bound character's LOG as a `rulesSnapshot`); the
+chosen list is bounded by the 38 standard ids. `campaignWeapons()` no longer strips `&` (rendering escapes it), splits
+properties only on commas outside brackets, and no longer drops a custom weapon named like a standard one — it is its own
+weapon with its own ref, and DM Console shows a note on that row. A custom weapon with category "other" sets proficiency
+off deterministically. ✎ is hidden on an unnamed row; the open/closed row state resets when another character loads.
+
+**MERGE NOTE — feat/campaign-house-rules.** DM Console's Save rules builds the blob key by key. Whichever of this PR and
+`feat/campaign-house-rules` merges second must keep **both** `customWeapons` and `weaponList` in that literal **and** the
+house-rules branch's `charHouseRules` handling (`_rulesBlobForSave()` / `_rulesKeepChr()`). Tracked on
+`docs/TASK_BOARD_NEXT.md` ("feat/campaign-house-rules merge — keep customWeapons + weaponList…").

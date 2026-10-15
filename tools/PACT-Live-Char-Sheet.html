@@ -246,12 +246,13 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .psnotes{flex:1 1 160px}
 /* feat/livesheet-weapons: each weapon's stats on ONE line (name · to hit · damage · properties/range); wraps only on a phone. */
 .pswpn .pswtop{flex-wrap:nowrap;min-width:0}
-.pswname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%;font-size:13px}
+.pswname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%;flex-shrink:0;font-size:13px}
 .pswprops{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--grey)}
 .psedit{border:0;background:none;color:var(--navytx);cursor:pointer;font-size:13px;margin-left:auto}
 .pswrow[hidden]{display:none}
 .psprops{flex:1 1 160px}.pswpick{max-width:170px}
 .psrng{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.pswflag{font-size:11px;color:var(--bad);white-space:nowrap}.pswlock{font-size:11px;color:var(--grey)}
 @media(max-width:600px){.pswpn .pswtop{flex-wrap:wrap}.pswname{max-width:none;flex:1 1 100%}.pswprops{white-space:normal;flex-basis:100%}}
 .psnote textarea{width:100%;margin-top:5px;resize:vertical}
 .psdel{border:0;background:none;color:var(--bad);cursor:pointer;font-size:13px}
@@ -1829,38 +1830,57 @@ function _lsPanelWidthInit(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsPanelWidthInit);else _lsPanelWidthInit();
 // ---- Player's own sheet: coins, weapons, note sections (feat/livesheet-center-panel, owner choices G1/H1) ----
-// Stored in b.appearance.playerSheet = {coins:{pp,gp,ep,sp,cp}, weapons:[{n,ab,prof,bonus,dice,type,notes, wid,props,rn,rl,reach,m}], notes:[{t,x}]}.
-// (feat/livesheet-weapons added wid = the picked entry's id from campaignWeapons(), props = properties text, rn/rl = normal/long
-// range in feet, reach = melee reach in feet, m = the weapon's mastery. Older saved weapons simply lack them.)
+// Stored in b.appearance.playerSheet = {coins:{pp,gp,ep,sp,cp}, weapons:[{n,ab,prof,bonus,dice,type,notes, ref,base,props,rn,rl,reach,m}], notes:[{t,x}]}.
+// (feat/livesheet-weapons added ref = the linked definition — 'std:<id>' a standard weapon, 'camp:<id>' a campaign weapon,
+// 'atk:spell' a spell attack; base = that definition's name when it was last copied; props = properties text; rn/rl =
+// normal/long range in feet; reach = melee reach in feet; m = the weapon's mastery. Older saved weapons simply lack them
+// and stay free text.)
 // appearance is the patch field the server leaves editable after a lock/seal (pact_patch_exempt_keys), so this follows the
 // character to the cloud and the other tool and stays editable in play. Saved on change (blur), not per keystroke.
 var PS_DMG=['Acid','Bludgeoning','Cold','Fire','Force','Lightning','Necrotic','Piercing','Poison','Psychic','Radiant','Slashing','Thunder'];
 function _psGet(b){var p=((b||foldBuild(null)).appearance||{}).playerSheet;p=(p&&typeof p==='object')?JSON.parse(JSON.stringify(p)):{};
-  p.coins=(p.coins&&typeof p.coins==='object')?p.coins:{};p.weapons=Array.isArray(p.weapons)?p.weapons:[];p.notes=Array.isArray(p.notes)?p.notes:[];return p;}
+  p.coins=(p.coins&&typeof p.coins==='object')?p.coins:{};p.weapons=Array.isArray(p.weapons)?p.weapons:[];p.notes=Array.isArray(p.notes)?p.notes:[];
+  if(p.weapons.some(function(w){return w&&w.ref;})){var WL=_psWeaponList();p.weapons.forEach(function(w){var d=w&&_psDef(w,WL);if(d)_psRefresh(w,d);});}   // AL2
+  return p;}
 function _psCommit(p){if(_viewOnlyBlock())return;if(viewAt!=null){flash('Return to the present to edit your sheet.');return;}_shCommitAppearanceField('playerSheet',p);}
 function _psEdit(el){var p=_psGet(),path=el.getAttribute('data-ps').split('.'),v=(el.type==='checkbox')?el.checked:el.value;
   if(el.getAttribute('data-num')){v=String(v).trim()===''?'':(Math.trunc(Number(v))||0);}
+  if(path[0]==='weapons'){var w0=p.weapons[+path[1]];if(w0&&_psLocked(w0,_psWeaponList()).indexOf(path[2])>=0)return;}   // AM2: a linked weapon's stats are its definition's
   var o=p;for(var i=0;i<path.length-1;i++){o=o[path[i]];if(o==null)return;}o[path[path.length-1]]=v;_psCommit(p);}
 function _psAdd(kind){var p=_psGet();if(kind==='weapons'){p.weapons.push({n:'',ab:'STR',prof:true,bonus:'',dice:'1d6',type:'Slashing',notes:''});_psWOpen[p.weapons.length-1]=true;}else p.notes.push({t:'',x:''});_psCommit(p);}
 function _psDel(kind,i){var p=_psGet();var it=p[kind][i];if(it&&((it.n||it.t||it.x||it.notes)&&!confirm('Remove "'+(it.n||it.t||'this entry')+'"?')))return;p[kind].splice(i,1);if(kind==='weapons')_psWOpen={};_psCommit(p);}
-// ---- Weapons & attacks (feat/livesheet-weapons) ----
-// The list a player picks from: the engine's standard WEAPONS plus this campaign's DM-added weapons (rules.customWeapons,
-// cleaned by the engine's campaignWeapons() — solo characters get the standard list only), plus a spell attack. Picking one
-// COPIES its stats onto the sheet entry (so a later DM edit never rewrites a saved weapon); every field stays editable.
-var _psWOpen={};   // which weapon rows have their edit fields open (this page only; a new weapon opens)
-var PS_SPELL_ATK={id:'spell-attack',n:'Spell attack',cat:'other',kind:'ranged',dice:'',type:'',props:[],rn:null,rl:null,reach:null,mastery:null};
+// ---- Weapons & attacks (feat/livesheet-weapons; owner decisions AL2 / AM2, 2026-10-15) ----
+// The list a player picks from comes from the engine's campaignWeapons(): the standard WEAPONS (all of them, or only the
+// DM's ticked ones when the campaign's weapon list is "only these"), the campaign's own weapons, the Unarmed Strike, plus a
+// spell attack. Solo characters get the standard list. A picked weapon stays LINKED (ref): its stats — dice, type,
+// properties, range, reach, attack ability — are refreshed from the current definition every time the sheet is read, so
+// a DM's edit to a campaign weapon reaches every sheet (and overwrites any edit to those stats), and they are read-only
+// on the sheet. The player keeps the entry's name, proficiency tick, magic bonus and notes. Entries with no ref (typed by
+// hand, or saved before this) stay fully editable free text. A linked weapon the list no longer offers is never removed:
+// it is marked "not on this campaign's weapon list"; if its definition is gone entirely it keeps its last stats, editable.
+var _psWOpen={},_psWOpenId=null;   // which weapon rows have their fields open (this page, this character; a new weapon opens)
+var PS_SPELL_ATK={id:'spell-attack',ref:'atk:spell',n:'Spell attack',cat:'other',kind:'ranged',dice:'',type:'',props:[],rn:null,rl:null,reach:null,mastery:null};
+var PS_STAT_FIELDS=['ab','dice','type','props','rn','rl','reach'];
 function _psWeaponList(){var rules=null;try{rules=(typeof resolveRules==='function')?resolveRules():null;}catch(e){}
-  return (typeof window.campaignWeapons==='function')?window.campaignWeapons(rules):{list:(window.WEAPONS||[]).slice(),custom:[]};}
+  if(typeof window.campaignWeapons==='function')return window.campaignWeapons(rules);
+  var l=(window.WEAPONS||[]).map(function(w){return Object.assign({ref:'std:'+w.id},w);});
+  return {list:l,all:l,custom:[],chosen:[],strict:false,byRef:function(r){return l.find(function(w){return w.ref===r;})||null;},isOffered:function(){return true;}};}
+function _psDef(wp,WL){if(!wp||!wp.ref)return null;if(wp.ref===PS_SPELL_ATK.ref)return PS_SPELL_ATK;return WL.byRef(wp.ref);}
+function _psLocked(wp,WL){var d=_psDef(wp,WL);return !d?[]:(d===PS_SPELL_ATK?['ab']:PS_STAT_FIELDS);}
+function _psRefresh(wp,d){   // copy the definition's stats onto the entry; a name still equal to the old definition name follows a rename
+  if(String(wp.n||'')===String(wp.base||''))wp.n=d.n;wp.base=d.n;
+  if(d===PS_SPELL_ATK){wp.ab='SPELL';return;}
+  wp.dice=d.dice;wp.type=d.type;wp.props=(d.props||[]).join(', ');wp.rn=d.rn==null?'':d.rn;wp.rl=d.rl==null?'':d.rl;wp.reach=d.reach==null?'':d.reach;wp.m=d.mastery||'';
+  wp.ab=window.weaponSheetDefaults(d,null).ab;}
 function _psWToggle(el){var i=+el.getAttribute('data-wi');_psWOpen[i]=!_psWOpen[i];render();}
-function _psPick(el){var i=+el.getAttribute('data-wi'),id=el.value;if(!id)return;
-  var w=id===PS_SPELL_ATK.id?PS_SPELL_ATK:_psWeaponList().list.find(function(x){return x.id===id;});if(!w)return;
+function _psPick(el){var i=+el.getAttribute('data-wi'),ref=el.value;if(!ref)return;
+  var WL=_psWeaponList(),w=ref===PS_SPELL_ATK.ref?PS_SPELL_ATK:WL.byRef(ref);if(!w)return;
   var p=_psGet(),wp=p.weapons[i];if(!wp)return;
-  var prevName=(function(){var o=wp.wid&&(wp.wid===PS_SPELL_ATK.id?PS_SPELL_ATK:_psWeaponList().list.find(function(x){return x.id===wp.wid;}));return o?o.n:'';})();
-  if(!String(wp.n||'').trim()||wp.n===prevName)wp.n=w.n;   // keep a name the player typed themselves
-  wp.wid=w.id;wp.dice=w.dice;wp.type=w.type;wp.props=(w.props||[]).join(', ');wp.rn=w.rn==null?'':w.rn;wp.rl=w.rl==null?'':w.rl;wp.reach=w.reach==null?'':w.reach;wp.m=w.mastery||'';
+  if(!wp.ref)wp.base='';   // free text: an empty name takes the weapon's name, a name the player typed is kept
+  wp.ref=w.ref;_psRefresh(wp,w);
   _psWOpen[i]=false;   // picked: fold to the one-line view (✎ reopens it)
-  if(w===PS_SPELL_ATK){wp.ab='SPELL';wp.prof=true;}
-  else{var d=window.weaponSheetDefaults(w,foldBuild(null));wp.ab=d.ab;if(d.prof!==null)wp.prof=d.prof;}
+  if(w===PS_SPELL_ATK)wp.prof=true;
+  else{var d=window.weaponSheetDefaults(w,foldBuild(null));if(d.prof!==null)wp.prof=d.prof;}
   _psCommit(p);}
 function _psRangeText(wp){var out=[],n=function(v){var x=Math.trunc(Number(v));return (v!==''&&v!=null&&x>0)?x:0;};
   var reach=n(wp.reach),rn=n(wp.rn),rl=n(wp.rl);
@@ -1877,35 +1897,48 @@ function _psPanel(b,r){
   H+='</div></div><div class="pssec"><h4>⚔ Weapons &amp; attacks</h4>';
   if(!p.weapons.length)H+='<div class="hint">No weapons or attacks yet. Add one, pick it from the list (or type your own) and the sheet works out to-hit and damage from your ability scores and proficiency.</div>';
   var WL=_psWeaponList(),GROUPS=[['Simple melee','simple','melee'],['Simple ranged','simple','ranged'],['Martial melee','martial','melee'],['Martial ranged','martial','ranged']];
-  var owned=(b.masteries||[]);
-  p.weapons.forEach(function(wp,i){var a=weaponAttack(b,r,wp),k='weapons.'+i+'.',open=!!_psWOpen[i]||!String(wp.n||'').trim();
+  var owned=(b.masteries||[]),cid=(typeof __charId!=='undefined'&&__charId)||'';
+  if(cid!==_psWOpenId){_psWOpen={};_psWOpenId=cid;}   // another character loaded: forget which rows were open
+  // AL2: a linked weapon whose definition changed (a DM edit) is shown refreshed by _psGet(); save that refresh once, so the
+  // character's own copy follows too (it is what a solo/offline read falls back to). Same single appearance event as any edit.
+  if(!VIEW_ONLY&&viewAt==null){var _stW=((b.appearance||{}).playerSheet||{}).weapons;
+    if(Array.isArray(_stW)&&JSON.stringify(_stW)!==JSON.stringify(p.weapons))setTimeout(function(){if(!VIEW_ONLY&&viewAt==null)_psCommit(_psGet());},0);}
+  var opt=function(w,cur,suffix){return '<option value="'+E(w.ref)+'"'+(cur===w.ref?' selected':'')+'>'+E(w.n)+(suffix||'')+'</option>';};
+  p.weapons.forEach(function(wp,i){var a=weaponAttack(b,r,wp),k='weapons.'+i+'.',named=!!String(wp.n||'').trim(),open=!!_psWOpen[i]||!named;
+    var def=_psDef(wp,WL),lk=_psLocked(wp,WL),L=function(f){return (lk.indexOf(f)>=0||ro)?' disabled':'';};
+    var off=wp.ref&&wp.ref!==PS_SPELL_ATK.ref&&!WL.isOffered(wp.ref);
     var dmg=(wp.dice||'—')+(a.dmgBonus?(a.dmgBonus>0?' + ':' − ')+Math.abs(a.dmgBonus):'')+(wp.type?' '+String(wp.type).toLowerCase():'');
     var props=[String(wp.props||'').trim(),_psRangeText(wp)].filter(Boolean),mast=(wp.m&&owned.indexOf(wp.m)>=0)?'Mastery: '+wp.m:'';
     if(mast)props.push(mast);
+    if(String(wp.notes||'').trim())props.push(String(wp.notes).trim());   // notes too — older weapons kept range/properties there
     var hitTip='Attack roll: d20 '+sgn(a.toHit)+' ('+(wp.ab==='SPELL'?'spell attack '+sgn(a.abMod+a.prof):sgn(a.abMod)+' '+a.ab+(a.prof?' + '+a.prof+' proficiency':''))+(Number(wp.bonus)?' + '+wp.bonus+' magic':'')+')';
-    // ONE line: name · to hit · damage · properties / range — wraps only on a narrow phone (CSS).
-    H+='<div class="pswpn"><div class="pswtop"><b class="pswname">'+(String(wp.n||'').trim()?E(wp.n):'<i>New weapon</i>')+'</b>'
+    // ONE line: name · to hit · damage · properties / range / notes — wraps only on a narrow phone (CSS).
+    H+='<div class="pswpn"><div class="pswtop"><b class="pswname">'+(named?E(wp.n):'<i>New weapon</i>')+'</b>'
+      +(off?'<span class="pswflag" title="Your DM\'s weapon list for this campaign doesn\'t include this weapon. It stays on your sheet.">not on this campaign\'s weapon list</span>':'')
       +'<span class="psbadge" title="'+E(hitTip)+'">To hit <b>'+sgn(a.toHit)+'</b></span>'
       +'<span class="psbadge" title="Damage on a hit">Dmg <b>'+E(dmg)+'</b></span>'
       +'<span class="pswprops" title="'+E(props.join(' · '))+'">'+E(props.join(' · '))+'</span>'
-      +'<button type="button" class="psedit" data-wi="'+i+'" onclick="_psWToggle(this)" aria-expanded="'+open+'" aria-label="'+(open?'Hide':'Show')+' weapon details" title="'+(open?'Hide':'Edit')+' details">'+(open?'▴':'✎')+'</button>'
+      +(named?'<button type="button" class="psedit" data-wi="'+i+'" onclick="_psWToggle(this)" aria-expanded="'+open+'" aria-label="'+(open?'Hide':'Show')+' weapon details" title="'+(open?'Hide':'Edit')+' details">'+(open?'▴':'✎')+'</button>':'')
       +'<button type="button" class="psdel" onclick="_psDel(\'weapons\','+i+')" aria-label="Remove weapon"'+ro+'>✕</button></div>';
-    var sel='<option value="">'+(wp.wid?'— change weapon —':'— pick a weapon —')+'</option>';
-    GROUPS.forEach(function(g){sel+='<optgroup label="'+g[0]+'">'+WL.list.filter(function(w){return !w.custom&&w.cat===g[1]&&w.kind===g[2];}).map(function(w){return '<option value="'+E(w.id)+'"'+(wp.wid===w.id?' selected':'')+'>'+E(w.n)+'</option>';}).join('')+'</optgroup>';});
-    if(WL.custom.length)sel+='<optgroup label="This campaign\'s weapons">'+WL.custom.map(function(w){return '<option value="'+E(w.id)+'"'+(wp.wid===w.id?' selected':'')+'>'+E(w.n)+'</option>';}).join('')+'</optgroup>';
-    sel+='<optgroup label="Other attacks">'+WL.list.filter(function(w){return !w.custom&&w.cat==='other';}).concat([PS_SPELL_ATK]).map(function(w){return '<option value="'+E(w.id)+'"'+(wp.wid===w.id?' selected':'')+'>'+E(w.n)+'</option>';}).join('')+'</optgroup>';
+    var sel='<option value="">'+(wp.ref?'— change weapon —':'— pick a weapon —')+'</option>';
+    if(off&&def)sel+='<optgroup label="On your sheet">'+opt(def,wp.ref,' (not on this campaign\'s list)')+'</optgroup>';
+    GROUPS.forEach(function(g){var ws=WL.list.filter(function(w){return !w.custom&&w.cat===g[1]&&w.kind===g[2];});if(ws.length)sel+='<optgroup label="'+g[0]+'">'+ws.map(function(w){return opt(w,wp.ref);}).join('')+'</optgroup>';});
+    if(WL.custom.length)sel+='<optgroup label="This campaign\'s weapons">'+WL.custom.map(function(w){return opt(w,wp.ref);}).join('')+'</optgroup>';
+    sel+='<optgroup label="Other attacks">'+WL.list.filter(function(w){return !w.custom&&w.cat==='other';}).concat([PS_SPELL_ATK]).map(function(w){return opt(w,wp.ref);}).join('')+'</optgroup>';
     var types=PS_DMG.slice();if(wp.type&&types.indexOf(wp.type)<0)types.push(wp.type);
-    var num=function(f,ph,lab){return '<input type="number" min="0" step="5" data-num="1" style="width:58px" placeholder="'+ph+'" data-ps="'+k+f+'" value="'+E(wp[f])+'" onchange="_psEdit(this)" aria-label="'+lab+'"'+ro+'>';};
+    var num=function(f,ph,lab){return '<input type="number" min="0" step="5" data-num="1" style="width:58px" placeholder="'+ph+'" data-ps="'+k+f+'" value="'+E(wp[f])+'" onchange="_psEdit(this)" aria-label="'+lab+'"'+L(f)+'>';};
     H+='<div class="pswrow"'+(open?'':' hidden')+'><select class="pswpick" data-wi="'+i+'" onchange="_psPick(this)" aria-label="Pick a weapon"'+ro+'>'+sel+'</select>'
       +'<input class="psname" placeholder="Weapon or attack name" data-ps="'+k+'n" value="'+E(wp.n)+'" onchange="_psEdit(this)" aria-label="Weapon name"'+ro+'>'
-      +'<select data-ps="'+k+'ab" onchange="_psEdit(this)" aria-label="Attack ability"'+ro+'>'+[['STR','Strength'],['DEX','Dexterity'],['FIN','Finesse (best of STR/DEX)'],['SPELL','Spellcasting (spell attack)'],['none','No ability']].map(function(o){return '<option value="'+o[0]+'"'+((wp.ab||'STR')===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
+      +'<select data-ps="'+k+'ab" onchange="_psEdit(this)" aria-label="Attack ability"'+L('ab')+'>'+[['STR','Strength'],['DEX','Dexterity'],['FIN','Finesse (best of STR/DEX)'],['SPELL','Spellcasting (spell attack)'],['none','No ability']].map(function(o){return '<option value="'+o[0]+'"'+((wp.ab||'STR')===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
       +'<label class="psck"><input type="checkbox" data-ps="'+k+'prof" onchange="_psEdit(this)"'+(wp.prof?' checked':'')+ro+'> Proficient</label>'
       +'<label class="psck">Magic +<input type="number" step="1" data-num="1" style="width:42px" data-ps="'+k+'bonus" value="'+E(wp.bonus)+'" onchange="_psEdit(this)" aria-label="Magic bonus"'+ro+'></label>'
-      +'<input style="width:62px" placeholder="1d8" data-ps="'+k+'dice" value="'+E(wp.dice)+'" onchange="_psEdit(this)" aria-label="Damage dice"'+ro+'>'
-      +'<select data-ps="'+k+'type" onchange="_psEdit(this)" aria-label="Damage type"'+ro+'><option value="">type…</option>'+types.map(function(t){return '<option value="'+E(t)+'"'+(wp.type===t?' selected':'')+'>'+E(t)+'</option>';}).join('')+'</select>'
-      +'<input class="psprops" placeholder="Properties (e.g. Finesse, Light)" data-ps="'+k+'props" value="'+E(wp.props)+'" onchange="_psEdit(this)" aria-label="Weapon properties"'+ro+'>'
+      +'<input style="width:62px" placeholder="1d8" data-ps="'+k+'dice" value="'+E(wp.dice)+'" onchange="_psEdit(this)" aria-label="Damage dice"'+L('dice')+'>'
+      +'<select data-ps="'+k+'type" onchange="_psEdit(this)" aria-label="Damage type"'+L('type')+'><option value="">type…</option>'+types.map(function(t){return '<option value="'+E(t)+'"'+(wp.type===t?' selected':'')+'>'+E(t)+'</option>';}).join('')+'</select>'
+      +'<input class="psprops" placeholder="Properties (e.g. Finesse, Light)" data-ps="'+k+'props" value="'+E(wp.props)+'" onchange="_psEdit(this)" aria-label="Weapon properties"'+L('props')+'>'
       +'<span class="psrng">Reach '+num('reach','—','Melee reach in feet')+' Range '+num('rn','normal','Normal range in feet')+'/'+num('rl','long','Long range in feet')+' ft</span>'
-      +'<input class="psnotes" placeholder="Notes" data-ps="'+k+'notes" value="'+E(wp.notes)+'" onchange="_psEdit(this)" aria-label="Weapon notes"'+ro+'></div></div>';});
+      +'<input class="psnotes" placeholder="Notes" data-ps="'+k+'notes" value="'+E(wp.notes)+'" onchange="_psEdit(this)" aria-label="Weapon notes"'+ro+'>'
+      +(lk.length>1?'<span class="pswlock">🔒 '+(String(wp.ref).indexOf('camp:')===0?'Stats come from your campaign\'s weapon, so your DM\'s changes reach your sheet.':'Stats come from the Players Handbook.')+' Name, proficiency, magic bonus and notes are yours.</span>':'')
+      +'</div></div>';});
   if(!ro)H+='<button type="button" class="btn" style="padding:3px 8px" onclick="_psAdd(\'weapons\')">+ Add weapon or attack</button>';
   H+='</div><div class="pssec"><h4>📝 Notes</h4>';
   if(!p.notes.length)H+='<div class="hint">Add your own sections — gear owned, contacts, quest log, anything.</div>';

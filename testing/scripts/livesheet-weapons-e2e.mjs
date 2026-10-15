@@ -5,7 +5,11 @@
  *   2. A DM's campaign weapons (campaigns.rules.customWeapons, edited in DM Console's Campaign Rules) are offered to that
  *      campaign's characters only — escaped, never run — and a solo character sees the standard list only.
  *   3. Each weapon's stats sit on ONE line at desktop width (name · to hit · damage · properties/range); a phone may wrap.
- *   4. DM Console: the Campaign weapons editor loads, escapes, cleans and saves rules.customWeapons.
+ *   4. DM Console: the Weapons editor loads, escapes, cleans and saves rules.customWeapons (stable ids, capped) and
+ *      rules.weaponList {list, strict}.
+ *   Owner decisions 2026-10-15: AL2 — a linked weapon (ref) takes its stats from the current definition, so a DM's edit
+ *   reaches every sheet; AM2 — those stats are read-only on the sheet (name, proficiency, magic and notes stay the
+ *   player's); free-text and older entries stay editable; and the campaign weapon list with "only these" on and off.
  * No Supabase: campaign rules are set on window directly, as each tool's cloud path would.
  *
  *   node testing/scripts/livesheet-weapons-e2e.mjs   (expect 0 failed)
@@ -34,8 +38,9 @@ const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`  ${ok ? '
 
 const XSS = '"><img src=x onerror="window.__pwn=1">';
 const CUSTOM = [
-  { n: 'Sun Blade ' + XSS, dice: '1d8', type: 'Radiant', cat: 'martial', kind: 'melee', props: ['Finesse', 'Versatile (1d10)'], reach: 5 },
-  { n: 'Harpoon Gun', dice: '1d10', type: 'Piercing', cat: 'martial', kind: 'ranged', props: 'Loading, Two-Handed', rn: 60, rl: 180 },
+  { id: 'sb1', n: 'Sun Blade ' + XSS, dice: '1d8', type: 'Radiant', cat: 'martial', kind: 'melee', props: ['Finesse', 'Versatile (1d10)'], reach: 5 },
+  { id: 'hg1', n: 'Harpoon Gun', dice: '1d10', type: 'Piercing', cat: 'martial', kind: 'ranged', props: 'Ammunition (Harpoon, Bolt), Loading, Two-Handed', rn: 60, rl: 180 },
+  { id: 'nl1', n: 'Net Launcher', dice: '1', type: 'Bludgeoning', cat: 'other', kind: 'ranged', props: 'Special', rn: 15, rl: 30 },
 ];
 const LOG = [
   { type: 'award', amount: 400, seq: 1, label: 'Award' },
@@ -66,83 +71,136 @@ const pickIds = (p, i) => p.evaluate(i => [...document.querySelectorAll('.pswpic
 const groupIds = (p, i, label) => p.evaluate(([i, label]) => { const g = [...document.querySelectorAll('.pswpick')[i].querySelectorAll('optgroup')].find(x => x.label === label);
   return g ? [...g.querySelectorAll('option')].map(o => o.textContent) : null; }, [i, label]);
 
+const setPs = (p, key, v) => p.evaluate(([key, v]) => { const el = document.querySelector('[data-ps="' + key + '"]');
+  if (el.type === 'checkbox') el.checked = v; else el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }, [key, v]);
+const disabled = (p, key) => p.evaluate(key => document.querySelector('[data-ps="' + key + '"]').disabled, key);
+const setRules = async (p, rules) => { await p.evaluate(R => { window._rulesStatus = R ? 'active' : 'none'; window._cloudCampaignRules = R; render(); }, rules); await p.waitForTimeout(150); };
+
 // ---------- 1. standard weapons (solo character) ----------
 const { ctx, page, errs } = await open({ width: 1400, height: 1000 });
+// An older saved weapon (no ref) that kept its range in the notes, as the pre-#667 panel suggested.
+await page.evaluate(() => _psCommit({ coins: {}, notes: [], weapons: [{ n: 'Old bow', ab: 'DEX', prof: true, bonus: '', dice: '1d6', type: 'Piercing', notes: 'Range 80/320, two-handed' }] }));
 check('the panel is called "Weapons & attacks"', await page.evaluate(() => [...document.querySelectorAll('#sheet .pssec h4')].some(h => h.textContent.includes('Weapons & attacks'))));
+check('an older weapon\'s notes show on its one line', (await topLine(page, 0)).includes('Range 80/320, two-handed'), await topLine(page, 0));
+check('…and it stays free text: its stats are editable', !(await disabled(page, 'weapons.0.dice')) && !(await disabled(page, 'weapons.0.reach')));
 const std = await page.evaluate(() => window.WEAPONS.map(w => w.n));
 check('the engine lists all 38 PHB simple + martial weapons (+ Unarmed Strike)', std.length === 39 &&
   ['Club', 'Dagger', 'Sling', 'Light Crossbow', 'Glaive', 'Whip', 'Blowgun', 'Longbow', 'Musket', 'Pistol', 'Unarmed Strike'].every(n => std.includes(n)), String(std.length));
-await addWeapon(page);
-const ids = await pickIds(page, 0);
-check('every standard weapon can be picked, plus a spell attack', await page.evaluate(() => window.WEAPONS.map(w => w.id)).then(all => all.every(id => ids.includes(id))) && ids.includes('spell-attack'), String(ids.length));
+await addWeapon(page);   // #1
+check('an unnamed new row has no ✎ (its fields are already open)', await page.evaluate(() => !document.querySelectorAll('.pswpn')[1].querySelector('.psedit') && !document.querySelectorAll('.pswpn .pswrow')[1].hidden));
+const ids = await pickIds(page, 1);
+check('every standard weapon can be picked, plus a spell attack', (await page.evaluate(() => window.WEAPONS.map(w => 'std:' + w.id))).every(id => ids.includes(id)) && ids.includes('atk:spell'), String(ids.length));
 check('…grouped Simple melee / Simple ranged / Martial melee / Martial ranged',
-  (await groupIds(page, 0, 'Simple melee')).length === 10 && (await groupIds(page, 0, 'Simple ranged')).length === 4 &&
-  (await groupIds(page, 0, 'Martial melee')).length === 18 && (await groupIds(page, 0, 'Martial ranged')).length === 6);
-check('a solo character is offered no campaign weapons', (await groupIds(page, 0, "This campaign's weapons")) === null);
+  (await groupIds(page, 1, 'Simple melee')).length === 10 && (await groupIds(page, 1, 'Simple ranged')).length === 4 &&
+  (await groupIds(page, 1, 'Martial melee')).length === 18 && (await groupIds(page, 1, 'Martial ranged')).length === 6);
+check('a solo character is offered no campaign weapons', (await groupIds(page, 1, "This campaign's weapons")) === null);
 
-await pick(page, 0, 'longbow');
-let w = (await sheetWeapons(page))[0];
-check('picking the Longbow fills dice, type, properties and range', w.n === 'Longbow' && w.dice === '1d8' && w.type === 'Piercing' &&
+await pick(page, 1, 'std:longbow');
+let w = (await sheetWeapons(page))[1];
+check('picking the Longbow fills dice, type, properties and range, and links it', w.n === 'Longbow' && w.ref === 'std:longbow' && w.dice === '1d8' && w.type === 'Piercing' &&
   w.rn === 150 && w.rl === 600 && w.reach === '' && /Heavy/.test(w.props) && /Two-Handed/.test(w.props), JSON.stringify(w));
 check('…a ranged weapon attacks with DEX', w.ab === 'DEX');
 check('…and a martial weapon is not proficient for a Simple-only build', w.prof === false);
-const exp = await page.evaluate(() => { const b = foldBuild(null), r = compute(b); return weaponAttack(b, r, b.appearance.playerSheet.weapons[0]); });
-let line = await topLine(page, 0);
+const exp = await page.evaluate(() => { const b = foldBuild(null), r = compute(b); return weaponAttack(b, r, b.appearance.playerSheet.weapons[1]); });
+let line = await topLine(page, 1);
 check('the one line shows name, to-hit (engine weaponAttack), damage and range',
   line.startsWith('Longbow') && line.includes('To hit ' + (exp.toHit >= 0 ? '+' : '') + exp.toHit) && line.includes('1d8 + ' + exp.dmgBonus + ' piercing') && line.includes('Range 150/600 ft'), line);
-
-await addWeapon(page);
-await pick(page, 1, 'dagger');
+// AM2: a standard weapon's stats are locked; name, proficiency, magic and notes are the player's.
+const LOCKED = ['ab', 'dice', 'type', 'props', 'rn', 'rl', 'reach'], OWN = ['n', 'prof', 'bonus', 'notes'];
+check('AM2: a standard weapon\'s stats are read-only (ability, dice, type, properties, range, reach)', (await Promise.all(LOCKED.map(f => disabled(page, 'weapons.1.' + f)))).every(Boolean));
+check('AM2: …its name, proficiency, magic bonus and notes stay editable', (await Promise.all(OWN.map(f => disabled(page, 'weapons.1.' + f)))).every(d => !d));
+await setPs(page, 'weapons.1.dice', '4d12');
+await setPs(page, 'weapons.1.rn', '999');
 w = (await sheetWeapons(page))[1];
-check('the Dagger: finesse ability, simple-proficient, reach 5 and thrown 20/60', w.ab === 'FIN' && w.prof === true && w.reach === 5 && w.rn === 20 && w.rl === 60, JSON.stringify(w));
-line = await topLine(page, 1);
-check('…shown as "Reach 5 ft · Thrown 20/60 ft"', line.includes('Reach 5 ft · Thrown 20/60 ft'), line);
-await addWeapon(page);
-await pick(page, 2, 'glaive');
-check('a Reach weapon is prefilled with 10 ft reach', (await sheetWeapons(page))[2].reach === 10);
-// Range fields are editable (all entries) and drive the line.
-await page.evaluate(() => { const el = document.querySelector('[data-ps="weapons.2.reach"]'); el.value = '15'; el.dispatchEvent(new Event('change', { bubbles: true })); });
-check('the range fields are editable', (await sheetWeapons(page))[2].reach === 15 && (await topLine(page, 2)).includes('Reach 15 ft'));
-// A name the player typed is kept when they re-pick.
-await page.evaluate(() => { const el = document.querySelector('[data-ps="weapons.2.n"]'); el.value = 'Grandad\'s polearm'; el.dispatchEvent(new Event('change', { bubbles: true })); });
-await pick(page, 2, 'halberd');
+check('AM2: …and a forced edit to a locked stat is ignored', w.dice === '1d8' && w.rn === 150, JSON.stringify(w));
+await setPs(page, 'weapons.1.prof', true); await setPs(page, 'weapons.1.bonus', '1'); await setPs(page, 'weapons.1.notes', 'Grandad\'s');
+w = (await sheetWeapons(page))[1];
+check('AM2: …while the player\'s own fields save', w.prof === true && w.bonus === 1 && w.notes === 'Grandad\'s', JSON.stringify(w));
+
+await addWeapon(page);   // #2
+await pick(page, 2, 'std:dagger');
 w = (await sheetWeapons(page))[2];
-check('re-picking keeps a name the player typed, but takes the new stats', w.n === 'Grandad\'s polearm' && w.wid === 'halberd' && w.dice === '1d10' && w.type === 'Slashing');
-await addWeapon(page);
-await pick(page, 3, 'spell-attack');
-const spellExp = await page.evaluate(() => { const b = foldBuild(null), r = compute(b); return weaponAttack(b, r, b.appearance.playerSheet.weapons[3]); });
+check('the Dagger: finesse ability, simple-proficient, reach 5 and thrown 20/60', w.ab === 'FIN' && w.prof === true && w.reach === 5 && w.rn === 20 && w.rl === 60, JSON.stringify(w));
+check('…shown as "Reach 5 ft · Thrown 20/60 ft"', (await topLine(page, 2)).includes('Reach 5 ft · Thrown 20/60 ft'), await topLine(page, 2));
+await addWeapon(page);   // #3
+await pick(page, 3, 'std:glaive');
+check('a Reach weapon is prefilled with 10 ft reach', (await sheetWeapons(page))[3].reach === 10);
+await setPs(page, 'weapons.3.n', 'Grandad\'s polearm');
+await pick(page, 3, 'std:halberd');
 w = (await sheetWeapons(page))[3];
-check('a spell attack uses the spellcasting ability', w.ab === 'SPELL' && w.n === 'Spell attack' && (await topLine(page, 3)).includes('To hit ' + (spellExp.toHit >= 0 ? '+' : '') + spellExp.toHit));
+check('re-picking keeps a name the player typed, but takes the new stats', w.n === 'Grandad\'s polearm' && w.ref === 'std:halberd' && w.dice === '1d10' && w.type === 'Slashing');
+await addWeapon(page);   // #4 free text
+await setPs(page, 'weapons.4.n', 'Thrown chair');
+await setPs(page, 'weapons.4.reach', '15');
+await setPs(page, 'weapons.4.dice', '1d3');
+w = (await sheetWeapons(page))[4];
+check('a free-text entry (no weapon picked) is fully editable, range fields included', !w.ref && w.reach === 15 && w.dice === '1d3' && (await topLine(page, 4)).includes('Reach 15 ft'), JSON.stringify(w));
+await addWeapon(page);   // #5 spell attack
+await pick(page, 5, 'atk:spell');
+const spellExp = await page.evaluate(() => { const b = foldBuild(null), r = compute(b); return weaponAttack(b, r, b.appearance.playerSheet.weapons[5]); });
+w = (await sheetWeapons(page))[5];
+check('a spell attack uses the spellcasting ability (locked), dice stay the player\'s', w.ab === 'SPELL' && w.n === 'Spell attack' && await disabled(page, 'weapons.5.ab') && !(await disabled(page, 'weapons.5.dice')) &&
+  (await topLine(page, 5)).includes('To hit ' + (spellExp.toHit >= 0 ? '+' : '') + spellExp.toHit));
 
 // ---------- 3. one line at desktop width ----------
 const oneLine = p => p.evaluate(() => [...document.querySelectorAll('.pswpn .pswtop')].map(t => {
   const kids = [...t.children].filter(c => c.getBoundingClientRect().height > 0), tops = kids.map(c => c.getBoundingClientRect().top);
   return Math.max(...tops) - Math.min(...tops) < 8; }));
 check('each weapon\'s stats sit on ONE line at desktop width', (await oneLine(page)).every(Boolean), JSON.stringify(await oneLine(page)));
-check('…with the edit fields folded away once the weapon is named', await page.evaluate(() => [...document.querySelectorAll('.pswpn .pswrow')].every(r => r.hidden)));
-await page.evaluate(() => document.querySelector('.pswpn .psedit').click());
-check('✎ opens a weapon\'s edit fields', await page.evaluate(() => !document.querySelectorAll('.pswpn .pswrow')[0].hidden));
+check('…with the edit fields folded away once a weapon is picked', await page.evaluate(() => [1, 2, 3, 5].every(i => document.querySelectorAll('.pswpn .pswrow')[i].hidden)));
+await page.evaluate(() => document.querySelectorAll('.pswpn')[1].querySelector('.psedit').click());
+check('✎ opens a weapon\'s edit fields', await page.evaluate(() => !document.querySelectorAll('.pswpn .pswrow')[1].hidden));
 
 // ---------- 2. a DM's campaign weapons ----------
-await page.evaluate(C => { window._rulesStatus = 'active'; window._cloudCampaignRules = { customWeapons: C }; render(); }, CUSTOM);
+await setRules(page, { customWeapons: CUSTOM });
 const camp = await groupIds(page, 0, "This campaign's weapons");
-check('a campaign character is offered the DM\'s weapons', camp && camp.length === 2 && camp[1] === 'Harpoon Gun', JSON.stringify(camp));
+check('a campaign character is offered the DM\'s weapons', camp && camp.length === 3 && camp[1] === 'Harpoon Gun', JSON.stringify(camp));
 check('…with markup stripped from the DM-typed name', camp && !/[<>"]/.test(camp[0]) && camp[0].startsWith('Sun Blade'), camp && camp[0]);
-await addWeapon(page);
-const cid = await page.evaluate(() => [...document.querySelectorAll('.pswpick')[4].querySelectorAll('option')].find(o => o.textContent.startsWith('Sun Blade')).value);
-await pick(page, 4, cid);
-w = (await sheetWeapons(page))[4];
-check('picking a campaign weapon copies its stats', w.dice === '1d8' && w.type === 'Radiant' && w.ab === 'FIN' && /Versatile/.test(w.props) && w.reach === 5, JSON.stringify(w));
-await addWeapon(page);
-await pick(page, 5, 'custom:harpoon gun');
-w = (await sheetWeapons(page))[5];
+await addWeapon(page);   // #6
+await pick(page, 6, 'camp:sb1');
+w = (await sheetWeapons(page))[6];
+check('picking a campaign weapon copies its stats and links it by id', w.ref === 'camp:sb1' && w.dice === '1d8' && w.type === 'Radiant' && w.ab === 'FIN' && /Versatile/.test(w.props) && w.reach === 5, JSON.stringify(w));
+check('AM2: a campaign weapon\'s stats are read-only too', (await Promise.all(LOCKED.map(f => disabled(page, 'weapons.6.' + f)))).every(Boolean));
+await addWeapon(page);   // #7
+await pick(page, 7, 'camp:hg1');
+w = (await sheetWeapons(page))[7];
 check('a ranged campaign weapon gets its range, no reach', w.rn === 60 && w.rl === 180 && w.reach === '' && w.ab === 'DEX', JSON.stringify(w));
-check('…and its line reads "Range 60/180 ft"', (await topLine(page, 5)).includes('Range 60/180 ft'));
+check('…"Ammunition (Harpoon, Bolt)" stays one property', w.props === 'Ammunition (Harpoon, Bolt), Loading, Two-Handed', w.props);
+await setPs(page, 'weapons.7.n', 'Old Faithful');
+await addWeapon(page);   // #8
+await setPs(page, 'weapons.8.prof', true);
+await pick(page, 8, 'camp:nl1');
+check('a campaign weapon with no simple/martial category is not proficient (not carried over)', (await sheetWeapons(page))[8].prof === false);
 check('no DM-typed markup ran or was injected', await page.evaluate(() => !window.__pwn && !document.querySelector('#sheet img[src="x"]')));
-check('no weapon value sits inside an onclick string', await page.evaluate(() => [...document.querySelectorAll('.pssec [onclick]')].every(e => !/Sun Blade|Harpoon|longbow/i.test(e.getAttribute('onclick')))));
-await page.evaluate(() => { window._rulesStatus = 'none'; window._cloudCampaignRules = null; render(); });
-check('leaving the campaign: the picker shows the standard list only…', (await groupIds(page, 0, "This campaign's weapons")) === null);
-check('…but the weapon already copied onto the sheet stays', (await sheetWeapons(page))[4].type === 'Radiant');
+check('no weapon value sits inside an onclick string', await page.evaluate(() => [...document.querySelectorAll('.pssec [onclick]')].every(e => !/Sun Blade|Harpoon|longbow|sb1|hg1/i.test(e.getAttribute('onclick')))));
+
+// AL2: the DM edits and renames a campaign weapon — every sheet linked to it follows.
+const EDITED = CUSTOM.map(c => c.id === 'sb1' ? Object.assign({}, c, { n: 'Dawn Blade', dice: '2d6', type: 'Fire', props: ['Heavy'] })
+  : c.id === 'hg1' ? Object.assign({}, c, { rn: 90, rl: 270 }) : c);
+await setRules(page, { customWeapons: EDITED });
+w = (await sheetWeapons(page))[6];
+check('AL2: a DM\'s edit reaches the sheet (dice, type, properties, ability)', w.dice === '2d6' && w.type === 'Fire' && w.props === 'Heavy' && w.ab === 'STR', JSON.stringify(w));
+check('AL2: …a rename follows when the player kept the weapon\'s name', w.n === 'Dawn Blade' && (await topLine(page, 6)).startsWith('Dawn Blade'));
+w = (await sheetWeapons(page))[7];
+check('AL2: …a name the player chose is kept while the stats update', w.n === 'Old Faithful' && w.rn === 90 && w.rl === 270, JSON.stringify(w));
+
+// The campaign weapon list (like the language list): "only these" off = everything; on = the ticked ones.
+await setRules(page, { customWeapons: EDITED, weaponList: { list: ['dagger', 'longbow'], strict: false } });
+check('list, "only these" OFF: every standard weapon is still offered', (await groupIds(page, 0, 'Martial melee')).length === 18);
+check('…and nothing is flagged', await page.evaluate(() => !document.querySelector('.pswflag')));
+await setRules(page, { customWeapons: EDITED, weaponList: { list: ['dagger', 'longbow'], strict: true } });
+check('list, "only these" ON: only the ticked standard weapons are offered', JSON.stringify(await groupIds(page, 0, 'Simple melee')) === '["Dagger"]' &&
+  JSON.stringify(await groupIds(page, 0, 'Martial ranged')) === '["Longbow"]' && (await groupIds(page, 0, 'Martial melee')) === null, JSON.stringify(await groupIds(page, 0, 'Simple melee')));
+check('…plus the campaign\'s own weapons and the Unarmed Strike', (await groupIds(page, 0, "This campaign's weapons")).length === 3 && (await groupIds(page, 0, 'Other attacks')).includes('Unarmed Strike'));
+check('…a weapon already on the sheet is kept, marked "not on this campaign\'s weapon list"', (await sheetWeapons(page))[3].ref === 'std:halberd' &&
+  (await topLine(page, 3)).includes("not on this campaign's weapon list") && !(await topLine(page, 1)).includes('not on this'), await topLine(page, 3));
+check('…and its picker still shows it', (await page.evaluate(() => document.querySelectorAll('.pswpick')[3].value)) === 'std:halberd');
+
+await setRules(page, null);
+check('leaving the campaign: the picker shows the standard list only…', (await groupIds(page, 0, "This campaign's weapons")) === null && (await groupIds(page, 0, 'Martial melee')).length === 18);
+w = (await sheetWeapons(page))[6];
+check('…a campaign weapon already on the sheet stays, with its last stats, flagged', w.dice === '2d6' && (await topLine(page, 6)).includes("not on this campaign's weapon list"));
+check('…and, with nothing left to update it, becomes editable', !(await disabled(page, 'weapons.6.dice')));
 check('Live Sheet: no page errors', errs.length === 0, errs.join(' | '));
 if (process.env.SHOT_DIR) await page.locator('#sheet .pssec').nth(1).screenshot({ path: path.join(process.env.SHOT_DIR, 'livesheet-weapons-desktop.png') });
 await ctx.close();
@@ -150,7 +208,7 @@ await ctx.close();
 // ---------- phone: may wrap, never scrolls sideways ----------
 {
   const { ctx, page, errs } = await open({ width: 390, height: 844 });
-  await addWeapon(page); await pick(page, 0, 'heavy-crossbow');
+  await addWeapon(page); await pick(page, 0, 'std:heavy-crossbow');
   check('phone: no sideways scroll with a weapon on the sheet', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
   check('phone: the weapon line is still readable (range shown)', (await topLine(page, 0)).includes('Range 100/400 ft'));
   check('phone: no page errors', errs.length === 0, errs.join(' | '));
@@ -158,42 +216,64 @@ await ctx.close();
   await ctx.close();
 }
 
-// ---------- 4. DM Console: the Campaign weapons editor ----------
+// ---------- 4. DM Console: the Weapons editor ----------
 {
   const page = await browser.newPage(); const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await page.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.campaignWeapons && window._dmRulesPanel, null, { timeout: 25000 });
   await page.waitForTimeout(500);
-  await page.evaluate(C => window._dmRulesPanel.load({ customWeapons: C }), CUSTOM);
-  const rows = await page.evaluate(() => [...document.querySelectorAll('#ruleCustomWeapons .cwrow [data-cwf="n"]')].map(i => i.value));
-  check('DM: the campaign\'s weapons load as rows', rows.length === 2 && rows[1] === 'Harpoon Gun', JSON.stringify(rows));
-  check('DM: a DM-typed name is escaped into the field, never run', rows[0] === CUSTOM[0].n && await page.evaluate(() => !window.__pwn && !document.querySelector('#ruleCustomWeapons img')));
-  check('DM: rows start locked with the rest of Campaign Rules', await page.evaluate(() => [...document.querySelectorAll('#ruleCustomWeapons input,#ruleCustomWeapons select,#ruleCustomWeapons button')].every(e => e.disabled)));
+  await page.evaluate(C => window._dmRulesPanel.load({ customWeapons: C, weaponList: { list: ['dagger', 'longbow'], strict: true } }), CUSTOM);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#ruleCustomWeapons .cwrow')].map(r => [r.getAttribute('data-cwid'), r.querySelector('[data-cwf="n"]').value]));
+  check('DM: the campaign\'s weapons load as rows, each with its id', rows.length === 3 && rows[1][0] === 'hg1' && rows[1][1] === 'Harpoon Gun', JSON.stringify(rows));
+  check('DM: a DM-typed name is escaped into the field, never run', rows[0][1].startsWith('Sun Blade') && await page.evaluate(() => !window.__pwn && !document.querySelector('#ruleCustomWeapons img')));
+  const ticked = () => page.evaluate(() => [...document.querySelectorAll('#ruleWeaponsStd input:checked')].map(c => c.value));
+  check('DM: the weapon list loads its ticks and "only these"', JSON.stringify(await ticked()) === '["dagger","longbow"]' && await page.isChecked('#ruleWeaponsStrict'));
+  check('DM: rows and ticks start locked with the rest of Campaign Rules', await page.evaluate(() => [...document.querySelectorAll('#ruleCustomWeapons input,#ruleCustomWeapons select,#ruleCustomWeapons button,#ruleWeaponsStd input')].every(e => e.disabled)));
   await page.evaluate(() => document.getElementById('ruleLockBtn').click());
-  check('DM: unlocking enables them', await page.evaluate(() => !document.querySelector('#ruleCustomWeapons [data-cwf="n"]').disabled && !document.getElementById('ruleAddCustomWeapon').disabled));
+  check('DM: unlocking enables them', await page.evaluate(() => !document.querySelector('#ruleCustomWeapons [data-cwf="n"]').disabled && !document.getElementById('ruleAddCustomWeapon').disabled && !document.querySelector('#ruleWeaponsStd input').disabled));
+  let wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: Save rules stores the weapon list', JSON.stringify(wl.list) === '["dagger","longbow"]' && wl.strict === true, JSON.stringify(wl));
+  await page.evaluate(() => document.getElementById('ruleWeaponsAll').click());
+  await page.evaluate(() => { const c = document.getElementById('ruleWeaponsStrict'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); });
+  wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: every weapon ticked saves the empty (= full) list', JSON.stringify(wl.list) === '[]' && wl.strict === false, JSON.stringify(wl));
+  await page.evaluate(() => { const c = document.querySelector('#ruleWeaponsStd input[value="glaive"]'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); });
+  check('DM: an unticked weapon with "only these" off warns that players still see it', await page.evaluate(() => getComputedStyle(document.getElementById('ruleWeaponsStrictHint')).display !== 'none'));
   let saved = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons());
-  check('DM: Save rules stores the cleaned list (markup stripped, props as a list, ranges as feet)', saved.length === 2 && !/[<>"]/.test(saved[0].n) &&
-    JSON.stringify(saved[1]) === JSON.stringify({ n: 'Harpoon Gun', dice: '1d10', type: 'Piercing', cat: 'martial', kind: 'ranged', props: ['Loading', 'Two-Handed'], rn: 60, rl: 180, reach: null }), JSON.stringify(saved));
+  check('DM: Save rules stores the cleaned list, ids kept (markup stripped, bracketed commas kept, ranges in feet)', saved.length === 3 && saved[0].id === 'sb1' && !/[<>"]/.test(saved[0].n) &&
+    JSON.stringify(saved[1]) === JSON.stringify({ id: 'hg1', n: 'Harpoon Gun', dice: '1d10', type: 'Piercing', cat: 'martial', kind: 'ranged', props: ['Ammunition (Harpoon, Bolt)', 'Loading', 'Two-Handed'], rn: 60, rl: 180, reach: null }), JSON.stringify(saved[1]));
+  await page.evaluate(() => { const f = document.querySelector('#ruleCustomWeapons .cwrow[data-cwid="hg1"] [data-cwf="n"]'); f.value = 'Whaling Gun'; f.dispatchEvent(new Event('input', { bubbles: true })); });
+  saved = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons());
+  check('DM: renaming a weapon keeps its id (players\' sheets stay linked)', saved[1].id === 'hg1' && saved[1].n === 'Whaling Gun');
   await page.evaluate(() => document.getElementById('ruleAddCustomWeapon').click());
   await page.evaluate(() => { const r = [...document.querySelectorAll('#ruleCustomWeapons .cwrow')].pop();
     const set = (f, v) => { const el = r.querySelector('[data-cwf="' + f + '"]'); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
     set('n', 'Chakram'); set('dice', '1d6'); set('props', 'Thrown, Light'); set('rn', '30'); set('rl', '90'); });
   saved = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons());
-  check('DM: "+ Add weapon" adds a row that saves', saved.length === 3 && saved[2].n === 'Chakram' && saved[2].rn === 30 && saved[2].rl === 90 && saved[2].reach === 5, JSON.stringify(saved[2]));
-  check('DM: the count line follows', /3 campaign weapons/.test(await page.textContent('#ruleCustomWeaponsCount')));
-  await page.evaluate(() => { const r = [...document.querySelectorAll('#ruleCustomWeapons .cwrow')].pop(); r.querySelector('[data-cwf="n"]').value = 'longsword'; });
-  check('DM: a custom weapon may not reuse a standard weapon\'s name', (await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons())).length === 2);
+  check('DM: "+ Add weapon" adds a row with a new id that saves', saved.length === 4 && saved[3].n === 'Chakram' && /^w[a-z0-9]+$/.test(saved[3].id) && saved[3].rn === 30 && saved[3].reach === 5, JSON.stringify(saved[3]));
+  check('DM: the count line follows', /4 own weapons/.test(await page.textContent('#ruleCustomWeaponsCount')));
+  await page.evaluate(() => { const f = [...document.querySelectorAll('#ruleCustomWeapons .cwrow')].pop().querySelector('[data-cwf="n"]'); f.value = 'Longsword'; f.dispatchEvent(new Event('input', { bubbles: true })); });
+  const note = await page.evaluate(() => { const n = [...document.querySelectorAll('#ruleCustomWeapons .cwrow')].pop().querySelector('.cwnote'); return getComputedStyle(n).display !== 'none' ? n.textContent : ''; });
+  saved = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons());
+  check('DM: a weapon named like a standard one is kept (its own id), with a visible note', saved.length === 4 && saved[3].n === 'Longsword' && /standard weapon/.test(note), note);
   await page.evaluate(() => document.querySelector('#ruleCustomWeapons button[data-cwdel="0"]').click());
   saved = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons());
-  check('DM: ✕ removes a weapon', saved.length === 1 && saved[0].n === 'Harpoon Gun', JSON.stringify(saved));
+  check('DM: ✕ removes a weapon', saved.length === 3 && saved[0].id === 'hg1', JSON.stringify(saved.map(x => x.id)));
+  const MANY = Array.from({ length: 55 }, (_, i) => ({ id: 'm' + i, n: 'Blade ' + i, dice: '1d6' }));
+  await page.evaluate(M => window._dmRulesPanel.load({ customWeapons: M }), MANY);
+  check('DM: a campaign keeps at most 50 own weapons (rules are copied into every bound character)', (await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons())).length === 50 &&
+    await page.evaluate(() => document.querySelectorAll('#ruleCustomWeapons .cwrow').length) === 50 && /most a campaign can have is 50/.test(await page.textContent('#ruleCustomWeaponsCount')));
+  await page.evaluate(() => { if (document.querySelector('#ruleCustomWeapons [data-cwf="n"]').disabled) document.getElementById('ruleLockBtn').click(); });
+  check('DM: …and "+ Add weapon" is off at the cap', await page.evaluate(() => { const a = document.getElementById('ruleAddCustomWeapon'); a.click(); return document.querySelectorAll('#ruleCustomWeapons .cwrow').length === 50; }));
   await page.evaluate(() => window._dmRulesPanel.load({}));
-  check('DM: a campaign with none shows the standard-list note and saves []', /standard Players Handbook/.test(await page.textContent('#ruleCustomWeapons')) &&
-    JSON.stringify(await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons())) === '[]');
-  // The whole-blob Save rules must carry the key, or every save would silently wipe the DM's weapons.
+  check('DM: a campaign with none shows the standard-list note, every weapon ticked, and saves []', /standard Players Handbook/.test(await page.textContent('#ruleCustomWeapons')) &&
+    (await ticked()).length === 38 && JSON.stringify(await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons())) === '[]' &&
+    JSON.stringify((await page.evaluate(() => window._dmRulesPanel.collectWeaponList())).list) === '[]');
+  // The whole-blob Save rules must carry both keys, or every save would silently wipe them.
   const src = fs.readFileSync(path.join(REPO, 'tools/DM-Console.html'), 'utf8');
-  const saveBlock = src.slice(src.indexOf("getElementById('ruleSaveBtn').addEventListener"), src.indexOf('await B.setCampaignRules', src.indexOf("getElementById('ruleSaveBtn').addEventListener")));
-  check('DM: the Save rules blob includes customWeapons', /customWeapons:\s*_collectCustomWeapons\(\)/.test(saveBlock));
+  const st = src.indexOf("getElementById('ruleSaveBtn').addEventListener"), saveBlock = src.slice(st, src.indexOf('B.setCampaignRules', st));
+  check('DM: the Save rules blob includes customWeapons and weaponList', /customWeapons:\s*_collectCustomWeapons\(\)/.test(saveBlock) && /weaponList:/.test(saveBlock));
   check('DM: no page errors', errs.length === 0, errs.join(' | '));
   await page.close();
 }

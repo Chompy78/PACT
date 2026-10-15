@@ -402,7 +402,8 @@ export const WEAPONS = Object.freeze([
 //   ab:   'FIN' for a finesse weapon (best of STR/DEX), 'DEX' for a ranged weapon that isn't thrown, else 'STR'.
 //   prof: from b.weaponProf — simple weapons need .simple, martial ones .allMartial; the Unarmed Strike is always
 //         proficient. null when the build can't say (a character who bought N individual martial weapons: the build
-//         doesn't record WHICH ones), so the caller keeps the player's own tick. Custom 'other' entries are null too.
+//         doesn't record WHICH ones), so the caller keeps the player's own tick. A campaign weapon with category
+//         'other' is false (the player can tick it).
 export function weaponSheetDefaults(w, b) {
   w = w || {}; const props = (Array.isArray(w.props) ? w.props : []).map(p => String(p).toLowerCase());
   const has = p => props.some(x => x === p || x.startsWith(p + ' '));
@@ -412,33 +413,57 @@ export function weaponSheetDefaults(w, b) {
   if (w.id === 'unarmed-strike') prof = true;
   else if (w.cat === 'simple') prof = !!wp.simple;
   else if (w.cat === 'martial') prof = wp.allMartial ? true : (wp.martial ? null : false);
+  else prof = false;   // a campaign weapon with no simple/martial category: no proficiency the build can show
   return { ab, prof };
 }
 
-// campaignWeapons(rules) — the weapons a character may pick from: the standard WEAPONS, then the campaign's own
-// (rules.customWeapons, set in DM Console's Campaign Rules). Solo characters (rules null) get the standard list only.
-// Custom entries are DM-typed text that renders in players' browsers (REV-12): markup characters are stripped, lengths
-// capped, numbers coerced to whole feet (or null), unknown fields dropped and names de-duplicated (a custom weapon may not
-// reuse a standard weapon's name). Each custom entry gets id 'custom:<name, lower-cased>' and custom:true.
-// Returns { list, custom } — custom is just the cleaned campaign entries (what DM Console saves back).
+// campaignWeapons(rules) — the weapons a character in this campaign may pick from, and how to find any weapon a sheet
+// entry refers to (feat/livesheet-weapons; owner decisions AL2/AM2 + the campaign weapon list, 2026-10-15).
+//   rules.customWeapons = [{id, n, dice, type, cat, kind, props, rn, rl, reach}] — the DM's own weapons (DM Console).
+//   rules.weaponList    = {list:[standard weapon ids], strict} — like rules.languages: strict OFF offers every standard
+//                         weapon (the ticks are ignored), strict ON offers only the ticked ones. The campaign's own weapons
+//                         and the 'other' attacks (Unarmed Strike) are always offered.
+// Solo characters (rules null) get the standard list only. Custom entries are DM-typed text that renders in players'
+// browsers (REV-12): markup characters are stripped, lengths capped, numbers coerced to whole feet (or null) and unknown
+// fields dropped; at most CUSTOM_WEAPON_MAX are kept (rules are copied into every bound character's LOG as a
+// rulesSnapshot, so an unbounded list would bloat every character). A custom weapon keeps its own stable id — a rename
+// keeps every sheet linked to it — and may share a standard weapon's name (it is a different weapon with its own ref).
+// Every entry carries ref: 'std:<id>' or 'camp:<id>' — what a sheet entry stores to stay linked to its definition.
+// Returns { list (offered), all (every standard + campaign weapon, for resolving refs), custom (cleaned, what DM Console
+// saves back), chosen, strict, byRef(ref), isOffered(ref) }.
+export const CUSTOM_WEAPON_MAX = 50;
 export function campaignWeapons(rules) {
-  const raw = (rules && typeof rules === 'object' && Array.isArray(rules.customWeapons)) ? rules.customWeapons : [];
-  const txt = (v, max) => String(v == null ? '' : v).replace(/[<>"&`]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const R = (rules && typeof rules === 'object') ? rules : {};
+  const raw = Array.isArray(R.customWeapons) ? R.customWeapons : [];
+  const txt = (v, max) => String(v == null ? '' : v).replace(/[<>"`]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
   const ft = v => { const n = Math.trunc(Number(v)); return (String(v == null ? '' : v).trim() !== '' && Number.isFinite(n) && n > 0) ? Math.min(n, 9999) : null; };
-  const seen = new Set(WEAPONS.map(w => w.n.toLowerCase())), custom = [];
+  const ids = new Set(), custom = [];
   raw.forEach(c => {
-    if (!c || typeof c !== 'object') return;
-    const n = txt(c.n, 40), k = n.toLowerCase();
-    if (!n || seen.has(k)) return;
-    seen.add(k);
+    if (!c || typeof c !== 'object' || custom.length >= CUSTOM_WEAPON_MAX) return;
+    const n = txt(c.n, 40);
+    if (!n) return;
+    let id = String(c.id == null ? '' : c.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    if (!id) id = 'n-' + n.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 38);   // a pre-id entry: keyed by its name
+    if (ids.has(id)) return;
+    ids.add(id);
     const kind = c.kind === 'ranged' ? 'ranged' : 'melee';
-    const props = (Array.isArray(c.props) ? c.props : String(c.props == null ? '' : c.props).split(','))
+    // Split on commas OUTSIDE brackets, so "Ammunition (Arrow, Bolt)" stays one property.
+    const props = (Array.isArray(c.props) ? c.props : String(c.props == null ? '' : c.props).split(/,(?![^()]*\))/))
       .map(p => txt(p, 40)).filter(Boolean).slice(0, 12);
-    custom.push({ id: 'custom:' + k, n, cat: c.cat === 'simple' || c.cat === 'martial' ? c.cat : 'other', kind,
+    custom.push({ id, ref: 'camp:' + id, n, cat: c.cat === 'simple' || c.cat === 'martial' ? c.cat : 'other', kind,
       dice: txt(c.dice, 20), type: txt(c.type, 24), props, rn: ft(c.rn), rl: ft(c.rl),
       reach: kind === 'melee' ? (ft(c.reach) || 5) : null, mastery: null, custom: true });
   });
-  return { list: WEAPONS.concat(custom), custom };
+  const wl = (R.weaponList && typeof R.weaponList === 'object') ? R.weaponList : {};
+  const stdIds = new Set(WEAPONS.filter(w => w.cat !== 'other').map(w => w.id));
+  const chosen = [...new Set((Array.isArray(wl.list) ? wl.list : []).map(String).filter(id => stdIds.has(id)))];
+  const strict = wl.strict === true, pick = new Set(chosen);
+  const std = WEAPONS.map(w => Object.assign({}, w, { ref: 'std:' + w.id }));
+  const list = std.filter(w => w.cat === 'other' || !strict || pick.has(w.id)).concat(custom);
+  const all = std.concat(custom), byRefMap = new Map(all.map(w => [w.ref, w])), offered = new Set(list.map(w => w.ref));
+  return { list, all, custom, chosen, strict,
+    byRef: ref => byRefMap.get(String(ref == null ? '' : ref)) || null,
+    isOffered: ref => offered.has(String(ref == null ? '' : ref)) };
 }
 
 export function sizeOf(b){
