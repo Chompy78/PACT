@@ -1570,6 +1570,19 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
+## feat/campaign-house-rules merge — keep customWeapons + weaponList in DM Console's Save rules — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-weapons (#667) merges into preview SECOND. **Effort:** low · **Risk:** medium — a dropped key silently wipes DM data on the next Save rules.
+
+```text
+DM Console's "Save rules" builds the whole campaigns.rules blob key by key (ruleSaveBtn handler), so any key it doesn't
+name is wiped on save. feat/livesheet-weapons (#667, D-GH-2026-10-15-livesheet-weapons) adds customWeapons and weaponList
+to that literal; feat/campaign-house-rules routes the same save through _rulesBlobForSave()/_rulesKeepChr() for
+charHouseRules. Whichever merges second must resolve the conflict keeping ALL of them: customWeapons, weaponList (written
+by Save rules) AND the charHouseRules handling (never sent by Save rules; kept from the cached copy). Then run
+livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponList" check) and the house-rules DM e2e.
+```
+**Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1623,25 +1636,6 @@ colour per ability — e.g. CharGen's _CSABCOL STR/DEX/CON/INT/WIS/CHA), with pr
 compute() (never re-derived). Keep it readable on a phone.
 ```
 **Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
-
-## feat/livesheet-weapons — "Weapons & attacks": all weapon types, DM custom weapons, range fields, one line each — TODO
-Branch feat/livesheet-weapons. **Effort:** medium · **Risk:** medium — a DM-defined list crosses users (esc() rule) and may need campaign storage.
-
-```text
-Owner request 2026-10-14. In the Live Sheet's weapons panel (centre panel / playerSheet):
-  1. Offer every weapon type (the full PHB simple + martial list, with damage dice, damage type, properties, range) so a player
-     can pick any of them, not only the current subset.
-  2. Let the DM add custom weapon types for the campaign (name, damage, type, properties, range) — store them in the campaign
-     rules (campaigns.rules, set in DM Console's campaign rules panel) so every character in the campaign can pick them;
-     solo characters see the standard list only. Every DM-typed value through esc() and data-* attributes, never inside onclick.
-  3. Show each weapon's stats on ONE line (name · attack bonus · damage dice + type · properties/range), wrapping only on
-     narrow phones.
-  4. (added 2026-10-14) Rename the panel "Weapons" -> "Weapons & attacks" (it also holds non-weapon attacks, e.g. spell
-     attacks, unarmed strikes), and give every entry RANGE fields (normal / long, in feet; melee reach where relevant),
-     editable on custom entries and prefilled for standard weapons.
-Check whether attack bonus/damage should come from compute() (proficiency, ability mod) — reuse the engine, don't re-derive.
-```
-**Done when:** a player can pick any standard weapon; a DM-added custom weapon appears for that campaign's characters (and is escaped); each weapon renders on one line at desktop width; e2e covers all three; `engine-parity-ci` 0 failed.
 
 ## feat/character-images — upload up to 2 images per character — TODO
 Branch feat/character-images. **Effort:** medium–high · **Risk:** medium — new server storage + access rules (security), files cross users (DM / campaign).
