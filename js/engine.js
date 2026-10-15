@@ -324,17 +324,121 @@ export function skillMods(b, r) {
   });
 }
 
-// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon the PLAYER entered on their sheet (the rules data has no weapon
-// table; feat/livesheet-center-panel). w = { ab: 'STR'|'DEX'|'FIN'|'none', prof: bool, bonus: number (magic +N) }.
-// 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier + proficiency (if proficient) + bonus;
-// damage bonus = ability modifier + bonus. Pass compute(b)'s result as r to avoid a second compute.
+// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon or attack on the player's sheet (feat/livesheet-center-panel;
+// the standard weapons are in WEAPONS below, feat/livesheet-weapons). w = { ab: 'STR'|'DEX'|'FIN'|'SPELL'|'none',
+// prof: bool, bonus: number (magic +N) }. 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier +
+// proficiency (if proficient) + bonus; damage bonus = ability modifier + bonus. 'SPELL' (a spell attack) uses compute()'s
+// spellcasting modifier, is always proficient (to-hit = compute()'s spellAtk + bonus) and adds no modifier to damage —
+// a character with no spellcasting gets 0 + bonus. Pass compute(b)'s result as r to avoid a second compute.
 export function weaponAttack(b, r, w) {
   r = r || compute(b); w = w || {};
   const m = r.mods || {}, bonus = Math.trunc(Number(w.bonus)) || 0;
+  if (w.ab === 'SPELL') {
+    const abMod = r.hasDC ? (r.castMod || 0) : 0, prof = r.hasDC ? (r.prof || 0) : 0;
+    return { ab: r.hasDC && r.castAb ? r.castAb : 'SPELL', abMod, prof, toHit: abMod + prof + bonus, dmgBonus: bonus };
+  }
   let ab = w.ab === 'DEX' || w.ab === 'FIN' || w.ab === 'none' ? w.ab : 'STR';
   if (ab === 'FIN') ab = (m.DEX || 0) > (m.STR || 0) ? 'DEX' : 'STR';
   const abMod = ab === 'none' ? 0 : (m[ab] || 0), prof = w.prof ? (r.prof || 0) : 0;
   return { ab, abMod, prof, toHit: abMod + prof + bonus, dmgBonus: abMod + bonus };
+}
+
+// WEAPONS — the standard Players Handbook simple + martial weapons (feat/livesheet-weapons), plus the Unarmed Strike.
+// DISPLAY / SHEET data only: compute() never reads it (weapons cost no AP — only proficiency does, via b.weaponProf), so
+// editing it is not a rules change and does not bump DATA.version. Each entry:
+//   { id, n, cat:'simple'|'martial'|'other', kind:'melee'|'ranged', dice, type, props:[...], rn, rl, reach, mastery }
+// rn/rl = normal/long range in feet (thrown or ammunition weapons; null otherwise); reach = melee reach in feet (null
+// for a ranged weapon). The Live Sheet copies an entry's values onto the player's own sheet when it is picked, so a
+// later change here never rewrites a character's saved weapon.
+const _W = (cat, kind, n, dice, type, props, mastery, rn, rl) => {
+  const reach = kind === 'melee' ? (props.includes('Reach') ? 10 : 5) : null;
+  return Object.freeze({ id: n.toLowerCase().replace(/[^a-z0-9]+/g, '-'), n, cat, kind, dice, type, props: Object.freeze(props.slice()),
+    rn: rn || null, rl: rl || null, reach, mastery: mastery || null });
+};
+export const WEAPONS = Object.freeze([
+  _W('simple', 'melee', 'Club', '1d4', 'Bludgeoning', ['Light'], 'Slow'),
+  _W('simple', 'melee', 'Dagger', '1d4', 'Piercing', ['Finesse', 'Light', 'Thrown'], 'Nick', 20, 60),
+  _W('simple', 'melee', 'Greatclub', '1d8', 'Bludgeoning', ['Two-Handed'], 'Push'),
+  _W('simple', 'melee', 'Handaxe', '1d6', 'Slashing', ['Light', 'Thrown'], 'Vex', 20, 60),
+  _W('simple', 'melee', 'Javelin', '1d6', 'Piercing', ['Thrown'], 'Slow', 30, 120),
+  _W('simple', 'melee', 'Light Hammer', '1d4', 'Bludgeoning', ['Light', 'Thrown'], 'Nick', 20, 60),
+  _W('simple', 'melee', 'Mace', '1d6', 'Bludgeoning', [], 'Sap'),
+  _W('simple', 'melee', 'Quarterstaff', '1d6', 'Bludgeoning', ['Versatile (1d8)'], 'Topple'),
+  _W('simple', 'melee', 'Sickle', '1d4', 'Slashing', ['Light'], 'Nick'),
+  _W('simple', 'melee', 'Spear', '1d6', 'Piercing', ['Thrown', 'Versatile (1d8)'], 'Sap', 20, 60),
+  _W('simple', 'ranged', 'Dart', '1d4', 'Piercing', ['Finesse', 'Thrown'], 'Vex', 20, 60),
+  _W('simple', 'ranged', 'Light Crossbow', '1d8', 'Piercing', ['Ammunition (Bolt)', 'Loading', 'Two-Handed'], 'Slow', 80, 320),
+  _W('simple', 'ranged', 'Shortbow', '1d6', 'Piercing', ['Ammunition (Arrow)', 'Two-Handed'], 'Vex', 80, 320),
+  _W('simple', 'ranged', 'Sling', '1d4', 'Bludgeoning', ['Ammunition (Bullet)'], 'Slow', 30, 120),
+  _W('martial', 'melee', 'Battleaxe', '1d8', 'Slashing', ['Versatile (1d10)'], 'Topple'),
+  _W('martial', 'melee', 'Flail', '1d8', 'Bludgeoning', [], 'Sap'),
+  _W('martial', 'melee', 'Glaive', '1d10', 'Slashing', ['Heavy', 'Reach', 'Two-Handed'], 'Graze'),
+  _W('martial', 'melee', 'Greataxe', '1d12', 'Slashing', ['Heavy', 'Two-Handed'], 'Cleave'),
+  _W('martial', 'melee', 'Greatsword', '2d6', 'Slashing', ['Heavy', 'Two-Handed'], 'Graze'),
+  _W('martial', 'melee', 'Halberd', '1d10', 'Slashing', ['Heavy', 'Reach', 'Two-Handed'], 'Cleave'),
+  _W('martial', 'melee', 'Lance', '1d10', 'Piercing', ['Heavy', 'Reach', 'Two-Handed (unless mounted)'], 'Topple'),
+  _W('martial', 'melee', 'Longsword', '1d8', 'Slashing', ['Versatile (1d10)'], 'Sap'),
+  _W('martial', 'melee', 'Maul', '2d6', 'Bludgeoning', ['Heavy', 'Two-Handed'], 'Topple'),
+  _W('martial', 'melee', 'Morningstar', '1d8', 'Piercing', [], 'Sap'),
+  _W('martial', 'melee', 'Pike', '1d10', 'Piercing', ['Heavy', 'Reach', 'Two-Handed'], 'Push'),
+  _W('martial', 'melee', 'Rapier', '1d8', 'Piercing', ['Finesse'], 'Vex'),
+  _W('martial', 'melee', 'Scimitar', '1d6', 'Slashing', ['Finesse', 'Light'], 'Nick'),
+  _W('martial', 'melee', 'Shortsword', '1d6', 'Piercing', ['Finesse', 'Light'], 'Vex'),
+  _W('martial', 'melee', 'Trident', '1d8', 'Piercing', ['Thrown', 'Versatile (1d10)'], 'Topple', 20, 60),
+  _W('martial', 'melee', 'Warhammer', '1d8', 'Bludgeoning', ['Versatile (1d10)'], 'Push'),
+  _W('martial', 'melee', 'War Pick', '1d8', 'Piercing', ['Versatile (1d10)'], 'Sap'),
+  _W('martial', 'melee', 'Whip', '1d4', 'Slashing', ['Finesse', 'Reach'], 'Slow'),
+  _W('martial', 'ranged', 'Blowgun', '1', 'Piercing', ['Ammunition (Needle)', 'Loading'], 'Vex', 25, 100),
+  _W('martial', 'ranged', 'Hand Crossbow', '1d6', 'Piercing', ['Ammunition (Bolt)', 'Light', 'Loading'], 'Vex', 30, 120),
+  _W('martial', 'ranged', 'Heavy Crossbow', '1d10', 'Piercing', ['Ammunition (Bolt)', 'Heavy', 'Loading', 'Two-Handed'], 'Push', 100, 400),
+  _W('martial', 'ranged', 'Longbow', '1d8', 'Piercing', ['Ammunition (Arrow)', 'Heavy', 'Two-Handed'], 'Slow', 150, 600),
+  _W('martial', 'ranged', 'Musket', '1d12', 'Piercing', ['Ammunition (Bullet)', 'Loading', 'Two-Handed'], 'Slow', 40, 120),
+  _W('martial', 'ranged', 'Pistol', '1d10', 'Piercing', ['Ammunition (Bullet)', 'Loading'], 'Vex', 30, 90),
+  _W('other', 'melee', 'Unarmed Strike', '1', 'Bludgeoning', [], null),
+]);
+
+// weaponSheetDefaults(w, b) — what the Live Sheet fills in when a player picks weapon entry w (from WEAPONS or
+// campaignWeapons()): the attack ability and whether the character is proficient with it.
+//   ab:   'FIN' for a finesse weapon (best of STR/DEX), 'DEX' for a ranged weapon that isn't thrown, else 'STR'.
+//   prof: from b.weaponProf — simple weapons need .simple, martial ones .allMartial; the Unarmed Strike is always
+//         proficient. null when the build can't say (a character who bought N individual martial weapons: the build
+//         doesn't record WHICH ones), so the caller keeps the player's own tick. Custom 'other' entries are null too.
+export function weaponSheetDefaults(w, b) {
+  w = w || {}; const props = (Array.isArray(w.props) ? w.props : []).map(p => String(p).toLowerCase());
+  const has = p => props.some(x => x === p || x.startsWith(p + ' '));
+  const ab = has('finesse') ? 'FIN' : (w.kind === 'ranged' && !has('thrown')) ? 'DEX' : 'STR';
+  const wp = (b && b.weaponProf) || {};
+  let prof = null;
+  if (w.id === 'unarmed-strike') prof = true;
+  else if (w.cat === 'simple') prof = !!wp.simple;
+  else if (w.cat === 'martial') prof = wp.allMartial ? true : (wp.martial ? null : false);
+  return { ab, prof };
+}
+
+// campaignWeapons(rules) — the weapons a character may pick from: the standard WEAPONS, then the campaign's own
+// (rules.customWeapons, set in DM Console's Campaign Rules). Solo characters (rules null) get the standard list only.
+// Custom entries are DM-typed text that renders in players' browsers (REV-12): markup characters are stripped, lengths
+// capped, numbers coerced to whole feet (or null), unknown fields dropped and names de-duplicated (a custom weapon may not
+// reuse a standard weapon's name). Each custom entry gets id 'custom:<name, lower-cased>' and custom:true.
+// Returns { list, custom } — custom is just the cleaned campaign entries (what DM Console saves back).
+export function campaignWeapons(rules) {
+  const raw = (rules && typeof rules === 'object' && Array.isArray(rules.customWeapons)) ? rules.customWeapons : [];
+  const txt = (v, max) => String(v == null ? '' : v).replace(/[<>"&`]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const ft = v => { const n = Math.trunc(Number(v)); return (String(v == null ? '' : v).trim() !== '' && Number.isFinite(n) && n > 0) ? Math.min(n, 9999) : null; };
+  const seen = new Set(WEAPONS.map(w => w.n.toLowerCase())), custom = [];
+  raw.forEach(c => {
+    if (!c || typeof c !== 'object') return;
+    const n = txt(c.n, 40), k = n.toLowerCase();
+    if (!n || seen.has(k)) return;
+    seen.add(k);
+    const kind = c.kind === 'ranged' ? 'ranged' : 'melee';
+    const props = (Array.isArray(c.props) ? c.props : String(c.props == null ? '' : c.props).split(','))
+      .map(p => txt(p, 40)).filter(Boolean).slice(0, 12);
+    custom.push({ id: 'custom:' + k, n, cat: c.cat === 'simple' || c.cat === 'martial' ? c.cat : 'other', kind,
+      dice: txt(c.dice, 20), type: txt(c.type, 24), props, rn: ft(c.rn), rl: ft(c.rl),
+      reach: kind === 'melee' ? (ft(c.reach) || 5) : null, mastery: null, custom: true });
+  });
+  return { list: WEAPONS.concat(custom), custom };
 }
 
 export function sizeOf(b){

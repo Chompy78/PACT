@@ -1624,25 +1624,6 @@ compute() (never re-derived). Keep it readable on a phone.
 ```
 **Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
-## feat/livesheet-weapons — "Weapons & attacks": all weapon types, DM custom weapons, range fields, one line each — TODO
-Branch feat/livesheet-weapons. **Effort:** medium · **Risk:** medium — a DM-defined list crosses users (esc() rule) and may need campaign storage.
-
-```text
-Owner request 2026-10-14. In the Live Sheet's weapons panel (centre panel / playerSheet):
-  1. Offer every weapon type (the full PHB simple + martial list, with damage dice, damage type, properties, range) so a player
-     can pick any of them, not only the current subset.
-  2. Let the DM add custom weapon types for the campaign (name, damage, type, properties, range) — store them in the campaign
-     rules (campaigns.rules, set in DM Console's campaign rules panel) so every character in the campaign can pick them;
-     solo characters see the standard list only. Every DM-typed value through esc() and data-* attributes, never inside onclick.
-  3. Show each weapon's stats on ONE line (name · attack bonus · damage dice + type · properties/range), wrapping only on
-     narrow phones.
-  4. (added 2026-10-14) Rename the panel "Weapons" -> "Weapons & attacks" (it also holds non-weapon attacks, e.g. spell
-     attacks, unarmed strikes), and give every entry RANGE fields (normal / long, in feet; melee reach where relevant),
-     editable on custom entries and prefilled for standard weapons.
-Check whether attack bonus/damage should come from compute() (proficiency, ability mod) — reuse the engine, don't re-derive.
-```
-**Done when:** a player can pick any standard weapon; a DM-added custom weapon appears for that campaign's characters (and is escaped); each weapon renders on one line at desktop width; e2e covers all three; `engine-parity-ci` 0 failed.
-
 ## feat/character-images — upload up to 2 images per character — TODO
 Branch feat/character-images. **Effort:** medium–high · **Risk:** medium — new server storage + access rules (security), files cross users (DM / campaign).
 
