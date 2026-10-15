@@ -1709,3 +1709,22 @@ choice stored: a cost-0 field in the LOG (like appearance) so it syncs and the D
 ```
 **Done when:** the dropdown changes the worn armour and the AC updates; a Barbarian with no armour shows 10+DEX+CON (with a shield +2), a Monk 10+DEX+WIS; AC matches compute() in the Live Sheet, CharGen and DM Console; parity 0 failed with new fixtures.
 
+## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
+Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.
+
+```text
+Found 2026-10-15 during refactor/names-slot-helper (PR 1 of docs/plans/2026-10-15-names-before-spending.md). Live Sheet's
+openNames() renders Mystic Arcanum rows (keys tr::<ti>::<di>::a::<ai>::<aj>, spell levels 6-9, Warlock spells, one datalist per
+level). CharGen's openNames() (tools/PACT-CharGen-Webtool.html) has no Arcanum rows: it only carries arcanumNames through on
+save, so a CharGen player cannot name an Arcanum slot at all.
+
+Why it matters: the names-before-spending gate counts languages and spells (owner decision M1, 2026-10-15), which includes
+Arcanum. Until CharGen can name Arcanum, the gate has to skip that kind in CharGen (the engine helper takes a list of kinds),
+which is a standing exception.
+
+DO: add the Arcanum rows to CharGen's openNames() and make saveNames() write them into the `names` event the same way the Live
+Sheet does (payload tr[].an), reusing the Live Sheet's row and datalist shape. Then delete the CharGen skip from the gate so
+both tools pass the full kind list. Do not change what a `names` event means or costs.
+```
+**Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.
+
