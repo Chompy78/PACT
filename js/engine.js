@@ -307,6 +307,73 @@ export function lineageSpellLabel(sp){
        + (need > 1 ? ' · needs ' + need + ' HD' : '');
 }
 
+// grantedSpells(b) — every spell or cantrip the character has from somewhere OTHER than a tradition discipline's own
+// cantrip/known lists (fix/livesheet-pack-spells, owner report 2026-10-14: a Tiefling's lineage Fire Bolt and its
+// Thaumaturgy trait never appeared in the Live Sheet's spell list). Display only — it prices nothing and compute() does not
+// call it; the tools render it so none of them re-derives which grant gives what. One row per spell:
+//   { name, level (0 = cantrip, null = not in the spell data), kind, source, note, needHD, disc? }
+//   kind: 'lineage' (bought lineage spell-like) · 'trait' (a species trait that is a cantrip, e.g. Thaumaturgy) ·
+//         'subclass' (always-prepared bundle; disc = the discipline it belongs to) · 'grant' (a choice-grant pick) ·
+//         'style' (a fighting style's cantrips) · 'innate' (a bought innate spell-like).
+//   needHD > b.hd means the character owns it but cannot use it yet.
+// Unnamed picks (a slot the player has not named) are left out; the "Not named yet" notices already list those.
+export function grantedSpells(b) {
+  b = b || {};
+  const out = [], hd = Number(b.hd) || 1;
+  const lvlOf = nm => { const s = (DATA.spells || []).find(x => x.n === nm); return s ? s.l : null; };
+  const nm = v => String(v == null ? '' : v).trim();
+  // Lineage spell-likes (b.racialSpells, priced by the lineage table).
+  const lin = (DATA.lineageSpells || {})[b.lineage] || [];
+  const linRace = Object.keys(DATA.lineageOf || {}).find(r => ((DATA.lineageOf || {})[r] || []).indexOf(b.lineage) >= 0);
+  const linSrc = (b.lineage || '') + (linRace ? ' ' + linRace : '') + ' lineage';
+  for (const n of (b.racialSpells || [])) {
+    const sp = lin.find(x => x[0] === n);
+    out.push({ name: n, level: sp ? sp[2] : lvlOf(n), kind: 'lineage', source: linSrc,
+               note: sp ? lineageSpellLabel(sp) : 'spell-like', needHD: sp ? lineageSpellHD(sp) : 1 });
+  }
+  // Species traits that ARE a cantrip (DATA.spellGrants.racialCantrips), whether bought or held through the heritage pack.
+  // The index names the trait without its suffix ("Tiefling: Thaumaturgy" for the trait "Tiefling: Thaumaturgy cantrip").
+  const owned = (b.racialTraits || []).concat(packTraitsFor(b.species, b.species2));
+  const rc = (DATA.spellGrants && DATA.spellGrants.racialCantrips) || {};
+  for (const key of Object.keys(rc)) {
+    const lab = owned.find(t => t === key || t.indexOf(key + ' ') === 0);
+    if (!lab) continue;
+    const race = (DATA.racial[lab] || {}).race || key.split(': ')[0];
+    for (const s of (rc[key].spells || []))
+      out.push({ name: s.name, level: lvlOf(s.name) ?? 0, kind: 'trait', source: race + ' trait — ' + (lab.split(': ')[1] || lab),
+                 note: 'at will', needHD: Number(s.charLevel) || 1 });
+  }
+  // Subclass always-prepared spell bundles ("Discipline|Subclass|terrain").
+  const ss = (DATA.spellGrants && DATA.spellGrants.subclassSpells) || {};
+  for (const bk of (b.subSpellBundles || [])) {
+    const p = String(bk).split('|'); const g = ss[p[0] + ': ' + p[1] + (p[2] ? ' (' + p[2] + ')' : '')];
+    if (!g || !g.spells) continue;
+    g.spells.slice().sort((a, c) => (a.spellLevel - c.spellLevel) || (a.name < c.name ? -1 : 1)).forEach(s =>
+      out.push({ name: s.name, level: s.spellLevel || 0, kind: 'subclass', source: p[1] + (p[2] ? ' (' + p[2] + ')' : ''),
+                 note: 'always prepared', needHD: Number(s.charLevel) || 1, disc: p[0] }));
+  }
+  // Choice grants the player has named (b.grantNames — e.g. "Rogue: Arcane Trickster" → Wizard spells).
+  const gm = b.grantNames || {};
+  for (const gk of Object.keys(gm)) for (const v of (gm[gk] || [])) {
+    const n = nm(v); if (!n) continue;
+    out.push({ name: n, level: lvlOf(n), kind: 'grant', source: gk.split(': ')[1] || gk, note: 'free — from a choice grant', needHD: 1 });
+  }
+  // Fighting styles that grant cantrips (Blessed Warrior, Druidic Warrior).
+  const fsc = b.fsCantripNames || {};
+  for (const st of (b.fightingStyleNames || [])) {
+    const gc = ((DATA.arts || {})[st] || {}).grantCantrips; if (!gc) continue;
+    for (const v of (fsc[st] || [])) { const n = nm(v); if (n)
+      out.push({ name: n, level: 0, kind: 'style', source: st + ' fighting style', note: gc.list + ' list · cast with ' + gc.ab, needHD: 1 }); }
+  }
+  // Bought innate spell-likes (b.innate counts per level, b.innateNames their names).
+  for (let L = 1; L <= 9; L++) {
+    const c = (b.innate || [])[L - 1] || 0;
+    for (let i = 0; i < c; i++) { const n = nm(((b.innateNames || [])[L - 1] || [])[i]); if (n)
+      out.push({ name: n, level: L, kind: 'innate', source: 'Innate spell-like', note: '1 / long rest', needHD: 1 }); }
+  }
+  return out;
+}
+
 // Character size (0 AP). Halfling & Gnome packs are Small. A Halfling is ALWAYS Small (even as a second origin). A Halfling
 // or Gnome paired with a non-small second origin race may CHOOSE Small or Medium (default Small); a Tiefling chooses (default
 // Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
