@@ -99,6 +99,9 @@ jobs:
       # fix/server-player-award-after-lock: a player cannot raise a locked/sealed campaign character's award total (NOT applied to live by merging).
       - name: Player award after the lock — migration, attacks, legitimate paths, rollback
         run: testing/scripts/creation-lock-guard-test/run-award.sh
+      # feat/boon-drawback-notes: a DM approves a boon/drawback description and the server then refuses a player's change to it (NOT applied to live by merging).
+      - name: Boon & drawback descriptions — migration, attacks, legitimate paths, rollback
+        run: testing/scripts/creation-lock-guard-test/run-notes.sh
 
       # feat/character-images: storage policies for the private character-images bucket — owner / campaign DM / campaign players read,
       # owner-only write, at most two slots (NOT applied to live by merging).

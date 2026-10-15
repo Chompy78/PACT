@@ -1114,12 +1114,51 @@ function buy(cat,payload,label){
     var _short=_lsWalletShort(_gt);
     if(_short && !confirm('This purchase costs '+(_gt.gp?_gt.gp.toLocaleString()+' gp':'no gold')+' and '+(_gt.days?_gt.time:'no downtime')+', and you are '+_short+'.\n\nBuy anyway? Your DM can waive or defer the cost — the shortfall will simply show on your sheet.')) return;
   }
+  // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts can't be bought without its description (asked LAST,
+  // after every check above has passed, so a refused purchase never asks). An approved note from an earlier copy of the
+  // same item is kept as it is while the character is in a campaign (the server freezes it there) — nothing to ask.
+  var _noteQ=(cat==='boon'||cat==='drawback')?pactNotePrompt(DATA,cat,payload.v):'', _noteT=null;
+  if(_noteQ){
+    var _noteSt=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,payload.v)]||null;
+    if(!pactNoteLocked(_noteSt,!!window._lsCampaignId)){
+      _noteT=pactAskNote(payload.v,_noteQ,_noteSt?_noteSt.text:'');
+      if(_noteT==null){ flash('Not bought \u2014 '+payload.v+' needs a description.'); return; }
+      if(_noteSt&&_noteSt.status!=='none'&&_noteSt.text===_noteT) _noteT=null;   // unchanged: no second copy of the same note
+    }
+  }
   emit(Object.assign({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest},
                      _gt?{gp:_gt.gp,days:_gt.days}:{}));
+  if(_noteT!=null) emit(pactNoteEvent(cat,payload.v,_noteT));
   if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
   if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
 }
 function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
+// feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): the descriptions some boons/drawbacks need. Write or
+// change one (until the DM approves it — then only a DM unlock re-opens it), and render the list for the Character panel
+// (`edit` true: with buttons) and the 📋 Sheet (text only). Every note is player-written text that the DM's browser also
+// renders, so it goes through esc() here and everywhere else.
+function lsEditItemNote(cat,name){
+  var q=pactNotePrompt(DATA,cat,name); if(!q) return;
+  var st=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,name)]||null;
+  if(pactNoteLocked(st,!!window._lsCampaignId)){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
+  var t=pactAskNote(name,q,st?st.text:''); if(t==null) return;
+  if(st&&st.text===t&&st.status!=='none') return;
+  emit(pactNoteEvent(cat,name,t));
+  flash(window._lsCampaignId?'\u270E Description saved \u2014 your DM will see it and approve it.':'\u270E Description saved.');
+}
+function _lsItemNotesHTML(b,edit){
+  var rows=pactNoteItems(b,LOG,DATA,window._lsCampaignId); if(!rows.length) return '';
+  var bound=!!window._lsCampaignId;
+  return rows.map(function(r){
+    var locked=pactNoteLocked(r,bound);
+    var badge=r.status==='none'?'<span class="nt-need" style="color:var(--bad)">\u26A0 needs a description</span>'
+      :(r.status==='approved'?'<span class="nt-ok" title="Approved by your DM'+(locked?' \u2014 locked':'')+'">'+(locked?'\uD83D\uDD12 ':'')+'\u2713 approved</span>'
+      :(bound?'<span class="nt-wait" style="color:var(--grey)">\u23F3 awaiting DM approval</span>':''));
+    var btn=(edit&&!VIEW_ONLY&&!locked)?' <button type="button" class="btn g lsnote-edit" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" onclick="lsEditItemNote(this.dataset.cat,this.dataset.name)">'+(r.status==='none'?'\u270E Write it':'\u270E Edit')+'</button>':'';
+    return '<div class="lsnote" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'"><b>'+esc(r.name)+'</b> '+badge+btn
+      +'<div class="lsnote-text" style="white-space:pre-wrap">'+(r.text?esc(r.text):'<i style="color:var(--grey)">'+esc(r.prompt)+'</i>')+'</div></div>';
+  }).join('');
+}
 // feat/dm-edit-events: finds the drawback-buy event a NEW buyoff would target — the oldest still-open
 // (not yet bought-off) purchase of this value, same FIFO order activeEvents() itself resolves buyoffs
 // in (D-GH-2026-08-06-buyoff-keyed-by-event). Needed here because buyoffDrawback() must consult THAT
@@ -2089,6 +2128,7 @@ function render(){
   // V3: weapon masteries — descriptions authored in DATA.masteryFx; PHB page appended when present (John fills page:null)
   if((b.masteries||[]).length)sh+='<div class="seg"><b>Weapon Masteries:</b> '+b.masteries.map(x=>_aTip(x,'mastery')).join(' · ')+'</div>';
   if(b.drawbacks.length)sh+='<div class="seg" style="color:var(--bad)"><b>Drawbacks:</b> '+b.drawbacks.map(x=>_ftip(x,(DATA.drawbackFx||{})[x]||'')+_fxI((DATA.drawbackFx||{})[x])).join(', ')+'</div>';
+  {var _nts=_lsItemNotesHTML(b,true); if(_nts)sh+='<div class="seg lsnotes"><b>Descriptions:</b>'+_nts+'</div>';}   // feat/boon-drawback-notes
   // feat/custom-fields-player-display (D-GH-2026-08-10-dm-custom-character-fields follow-up):
   // campaign-defined custom fields the DM has marked visible to players, read-only — labels from
   // window._cloudCampaignRules.customFields (already fetched alongside the rest of the campaign's
@@ -2863,6 +2903,7 @@ function renderCharSheet(b,r,ctx){
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0),i:_fx('feature',l)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0),i:_fx('feature',k)});});(function(){var _pk=(typeof packTraitsFor==='function')?packTraitsFor(b.species,b.species2):[];var _seen={};return (b.racialTraits||[]).concat(_pk).filter(function(l){if(_seen[l])return false;_seen[l]=1;return true;});})().forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0),i:_fx('feature',l)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):''),i:_fx('boon',x)});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>'+(x.i||'');}).join('<br>'):'—')+'</div></div>');
   if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d)+_fx('drawback',d);}).join('<br>')+'</div></div>');
+  {var _shn=_lsItemNotesHTML(b,false); if(_shn)H.push('<div class="shbox shnotes"><h5>Boon &amp; drawback descriptions</h5><div class="shsmall">'+_shn+'</div></div>');}   // feat/boon-drawback-notes
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}

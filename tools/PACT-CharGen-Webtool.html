@@ -2549,6 +2549,7 @@ function buildForm(F){
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Drawbacks — accept a hindrance, gain AP back</div>'+
     '<div class="row"><input type="text" id="drawfilter" class="bdfilter" placeholder="🔍 filter drawbacks by name or effect…" oninput="buildDrawGrid()"></div>'+
     '<div id="drawgrid"></div><div class="row"><span class="price" id="drawp"></span><span id="drawcap" class="hint" style="margin-left:10px"></span></div>'+
+    '<div id="cgItemNotes"></div>'+
 '<div class="row"><span class="hint">Magically Bound is set per discipline above</span></div>'+
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Bonds — magical &amp; martial (each grants +2 AP for a story string)</div>'+
     '<div class="bondsgrid">'+
@@ -4027,6 +4028,49 @@ function raceTraitLegal(v,domBuild){
   return !(!own&&rr.cross==null);
 }
 
+// feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes). _cgAskItemNote: null = no note needed (or the approved
+// one is kept), false = the player cancelled, otherwise the text to record. cgEditItemNote: write or change one until the
+// DM approves it (approval locks it while the character is in a campaign; the server refuses a change there too).
+// The character's own campaign (window._cgCampaignId, set when its binding is confirmed) — NOT window._cloudCampaign, which
+// is the rules picker's selection. Named _cgNote* so the function never shadows those window globals.
+function _cgNoteCampId(){ return (typeof window._cgCampaignId==='string'&&window._cgCampaignId)||null; }
+function _cgNoteBound(){ return !!_cgNoteCampId(); }
+function _cgAskItemNote(cat,v){
+  if(cat!=='boon'&&cat!=='drawback') return null;
+  var q=pactNotePrompt(DATA,cat,v); if(!q) return null;
+  var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,v)]||null;
+  if(pactNoteLocked(st,_cgNoteBound())) return null;
+  var t=pactAskNote(v,q,st?st.text:''); if(t==null) return false;
+  return (st&&st.status!=='none'&&st.text===t)?null:t;
+}
+function cgEditItemNote(cat,name){
+  var q=pactNotePrompt(DATA,cat,name); if(!q) return;
+  var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,name)]||null;
+  if(pactNoteLocked(st,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
+  var t=pactAskNote(name,q,st?st.text:''); if(t==null) return;
+  if(st&&st.text===t&&st.status!=='none') return;
+  emit(pactNoteEvent(cat,name,t));
+}
+// The held items that need a description, with their notes. `edit`: the build-panel copy, with buttons; the 📋 Sheet copy
+// is text only. Player-written text the DM's browser renders too, so every note goes through esc().
+function _cgItemNotesHTML(b,edit){
+  var rows=pactNoteItems(b,LOG,DATA,_cgNoteCampId()); if(!rows.length) return '';
+  var bound=_cgNoteBound();
+  return rows.map(function(r){
+    var locked=pactNoteLocked(r,bound);
+    var badge=r.status==='none'?'<span class="nt-need" style="color:var(--bad,#b00)">\u26A0 needs a description</span>'
+      :(r.status==='approved'?'<span class="nt-ok">'+(locked?'\uD83D\uDD12 ':'')+'\u2713 approved by your DM</span>'
+      :(bound?'<span class="nt-wait" style="color:var(--grey)">\u23F3 awaiting DM approval</span>':''));
+    var btn=(edit&&!locked)?' <button type="button" class="btn ghost cgnote-edit" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" onclick="cgEditItemNote(this.dataset.cat,this.dataset.name)">'+(r.status==='none'?'\u270E Write it':'\u270E Edit')+'</button>':'';
+    return '<div class="cgnote" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" style="margin:4px 0"><b>'+esc(r.name)+'</b> '+badge+btn
+      +'<div class="cgnote-text" style="white-space:pre-wrap">'+(r.text?esc(r.text):'<i style="color:var(--grey)">'+esc(r.prompt)+'</i>')+'</div></div>';
+  }).join('');
+}
+function _cgRenderItemNotes(){
+  var host=$('cgItemNotes'); if(!host) return;
+  var h=''; try{ h=_cgItemNotesHTML(foldBuild(LOG),true); }catch(e){}
+  host.innerHTML=h?('<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Descriptions your boons &amp; drawbacks need</div>'+h):'';
+}
 function onChecklistToggle(el){
   const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
   const cat=CHECKLIST_CAT[cls];
@@ -4047,16 +4091,22 @@ function onChecklistToggle(el){
     // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
     // entry _domReadBuild() would filter out anyway.
     if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
+    // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts needs its description before it is bought (the Live
+    // Sheet asks the same question). Cancel puts the tick back. Skipped while the form is only being repainted from a build.
+    var _noteT=(_histSuspended||(cat==='drawback'&&_cgIsLocked()&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks))?null:_cgAskItemNote(cat,v);   // a post-lock drawback the campaign refuses is refused below without asking
+    if(_noteT===false){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); return; }
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
       if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
+      else if(_noteT) emit(pactNoteEvent(cat,v,_noteT));
     }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
     emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
+    if(_noteT) emit(pactNoteEvent(cat,v,_noteT));
     }
   }else{
     // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
@@ -7078,6 +7128,7 @@ function render(){
   _cgRenderAll();
   try{_cgCharImgs();}catch(e){}   // feat/character-images
   _cgCeilingAccept();
+  _cgRenderItemNotes();   // feat/boon-drawback-notes
   if(_cgIdentityFixed){ _cgIdentityFixed=false;
     // Not while a repaint/whole-build write is in progress (applyBuild rebuilds the LOG from the corrected form
     // itself), and not after the lock: identity is frozen then, so the re-sync would only be refused on every render.
@@ -7352,6 +7403,7 @@ function renderCharSheet(b,r,ctx){
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0)});});(b.racialTraits||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):'')});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>';}).join('<br>'):'—')+'</div></div>');
   if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d);}).join('<br>')+'</div></div>');
+  {var _shn=_cgItemNotesHTML(foldBuild(LOG),false); if(_shn)H.push('<div class="shbox shnotes"><h5>Boon &amp; drawback descriptions</h5><div class="shsmall">'+_shn+'</div></div>');}   // feat/boon-drawback-notes
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}

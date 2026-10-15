@@ -340,3 +340,89 @@ function pactComposeDescription(ap, who){
   if(misc.length)pcs.push('They '+_pactJoinList(misc)+'.');
   return pcs.join(' ');
 }
+
+/* ---- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) --------------------------------------------------
+   Some boons and drawbacks need a player-written description (DATA.notePrompts — "Code of Honour": what is the code?).
+   Shared by CharGen, the Live Sheet and DM Console so the three read a note's state the same way. Display/UX only: no
+   rule reads a note, so nothing here touches compute() or the AP economy.
+
+   THE EVENTS (all three live in the character's LOG, keyed by category + NAME, never by seq — CharGen renumbers a draft's
+   purchases when it rebuilds the log, and a character holds at most one copy of a boon or drawback name):
+     {type:'itemNote',      cat:'boon'|'drawback', refVal:<name>, text}  player-written; the LATEST one is the note
+     {type:'dmApproveNote', cat, refVal, text, campaignId}  written ONLY by dm_edit_character_log (DM-stamped
+                                                dmEdit:true); `text` is the note as the server read it at approval
+     {type:'dmUnlockNote',  cat, refVal, note?, campaignId}  same path; re-opens an approved note for editing
+   A note's state is read in log order: a note makes it 'pending', an approval makes it 'approved', an unlock or a NEWER
+   note makes it 'pending' again. An approval or unlock counts only when it is DM-stamped AND was made in the campaign the
+   character is in now (`campaignId`, stamped by the server) — a character that moves campaign needs its new DM's
+   approval, and a solo character (no campaign) has no DM, so its note is required but never locked. The server applies
+   the same reading (pact_enforce_item_note_lock). */
+var PACT_NOTE_MAX = 500;
+function pactNoteKey(cat, name){ return String(cat) + '|' + String(name); }
+// The question to ask for a boon/drawback, or '' when it needs no note.
+function pactNotePrompt(data, cat, name){
+  var m = data && data.notePrompts && data.notePrompts[cat];
+  return (m && Object.prototype.hasOwnProperty.call(m, name)) ? String(m[name] || '') : '';
+}
+// key -> {cat, name, text, status:'none'|'pending'|'approved', approved:{text,ts,dmId}|null, unlocked:{note,ts}|null}
+function pactNoteStates(log, campaignId){
+  var out = {};
+  (log || []).forEach(function(e){
+    if(!e || (e.type !== 'itemNote' && e.type !== 'dmApproveNote' && e.type !== 'dmUnlockNote')) return;
+    if((e.cat !== 'boon' && e.cat !== 'drawback') || typeof e.refVal !== 'string' || !e.refVal) return;
+    var k = pactNoteKey(e.cat, e.refVal);
+    var st = out[k] || (out[k] = { cat: e.cat, name: e.refVal, text: '', status: 'none', approved: null, unlocked: null });
+    if(e.type === 'itemNote'){
+      if(typeof e.text !== 'string') return;
+      st.text = e.text; st.status = e.text.trim() ? 'pending' : 'none';
+    } else if(e.dmEdit !== true || !campaignId || String(e.campaignId) !== String(campaignId)){
+      return;   // an approval or unlock counts only when the server stamped it, in the character's current campaign
+    } else if(e.type === 'dmApproveNote'){
+      if(st.status === 'none') return;
+      st.status = 'approved'; st.approved = { text: typeof e.text === 'string' ? e.text : st.text, ts: e.ts || 0, dmId: e.dmId || null };
+    } else if(st.status === 'approved'){
+      st.status = 'pending'; st.unlocked = { note: typeof e.note === 'string' ? e.note : '', ts: e.ts || 0 }; st.approved = null;
+    }
+  });
+  return out;
+}
+// The held boons/drawbacks that need a note, one row per name: {cat, name, prompt, text, status, approved}. `build` is
+// the folded build (foldBuild), whose boons/drawbacks are what the character holds right now; `campaignId` the campaign
+// it is in (null when solo).
+function pactNoteItems(build, log, data, campaignId){
+  var states = pactNoteStates(log, campaignId), rows = [], seen = {};
+  [['boon', (build && build.boons) || []], ['drawback', (build && build.drawbacks) || []]].forEach(function(p){
+    p[1].forEach(function(name){
+      var k = pactNoteKey(p[0], name), q = pactNotePrompt(data, p[0], name);
+      if(!q || seen[k]) return; seen[k] = 1;
+      var st = states[k] || { text: '', status: 'none', approved: null, unlocked: null };
+      rows.push({ cat: p[0], name: name, prompt: q, text: st.text, status: st.status, approved: st.approved, unlocked: st.unlocked });
+    });
+  });
+  return rows;
+}
+// Approved notes are frozen while the character is in a campaign (the server refuses a change there too).
+function pactNoteLocked(row, campaignBound){ return !!(row && row.status === 'approved' && campaignBound); }
+// {ok:true, text} or {ok:false, error}. Trimmed; required; capped at PACT_NOTE_MAX (the server caps it too).
+function pactCheckNoteText(t){
+  var s = String(t == null ? '' : t).trim();
+  if(!s) return { ok: false, error: 'A description is required for this one.' };
+  if(s.length > PACT_NOTE_MAX) return { ok: false, error: 'Keep it to ' + PACT_NOTE_MAX + ' characters or fewer (this is ' + s.length + ').' };
+  return { ok: true, text: s };
+}
+function pactNoteEvent(cat, name, text){
+  return { type: 'itemNote', cat: cat, refVal: name, text: text, label: 'Note — ' + name };
+}
+// Ask for a note with the browser's own prompt (the tools already use alert/confirm for purchase questions). Re-asks on
+// an empty or over-long answer; returns the trimmed text, or null when the player cancels.
+function pactAskNote(name, question, current){
+  var v = current || '';
+  for(;;){
+    var r = window.prompt(name + ' — ' + question + '\n\n(Required, up to ' + PACT_NOTE_MAX + ' characters. Your DM sees it and approves it.)', v);
+    if(r == null) return null;
+    var c = pactCheckNoteText(r);
+    if(c.ok) return c.text;
+    window.alert(c.error);
+    v = r;
+  }
+}

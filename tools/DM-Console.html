@@ -1331,6 +1331,9 @@ function dmAnalyze(exported, apOpts){
       });
       return out;
     })(),
+    // feat/boon-drawback-notes: the held boons/drawbacks that need a player-written description, with each note's
+    // state (none / pending / approved), read by the shared pactNoteItems() exactly as the player's tools read it.
+    itemNotes: (typeof pactNoteItems==='function') ? pactNoteItems(b, LOG, DATA, (window._dmCampaignApRules||{}).campaignId || null) : [],
     discountEvents: LOG.filter(function(e){ return e.type==='dmDiscount' && e.dmEdit===true; })
       .map(function(e){ return {targetSeq:e.targetSeq, amount:Number(e.amount)||0, note:e.note||'', ts:e.ts||0}; }),
     dmDiscounted: eco.discounted||0, apValue: eco.apValue!=null?eco.apValue:eco.spent, apPaid: eco.apPaid!=null?eco.apPaid:eco.spent,
@@ -2080,10 +2083,47 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     return ((s&&s.lines)||[]).filter(function(l){ return /^Spell list — /.test(l[0]); })
       .map(function(l){ return l[0].replace(/^Spell list — /,'')+' · '+(l[1]||0)+' AP'; });
   }
+  // feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): the descriptions some boons/drawbacks need ("Code of
+  // Honour": what is the code?). The DM reads each one and approves it (it is then locked for the player) or unlocks an
+  // approved one again. Both go through dm_edit_character_log, which re-checks everything against the stored log. Every
+  // note is the PLAYER's free text rendered in the DM's browser, so it is esc()'d. `dm` false = no write controls.
+  function itemNotesTitle(s){
+    var n = ((s && s.itemNotes) || []).filter(function(r){ return r.status === 'pending'; }).length;
+    return 'Boon & drawback descriptions' + (n ? ' — ' + n + ' awaiting your approval' : '');
+  }
+  function itemNoteRowHTML(id, r, dm){
+    var st = r.status === 'none' ? '<span style="color:var(--warn)">not written yet</span>'
+      : (r.status === 'approved' ? '<span style="color:var(--good,#2a7)">\uD83D\uDD12 approved</span>' : '<span style="color:var(--warn)">\u23F3 awaiting your approval</span>');
+    var act = '';
+    if(dm && r.status === 'pending') act = ' <button type="button" class="btn sm dm-note-approve-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'">Approve</button>';
+    if(dm && r.status === 'approved') act = ' <button type="button" class="btn sm ghost dm-note-unlock-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" title="Lets the player change this description again; they will need your approval again afterwards.">Unlock</button>';
+    return '<div class="dm-note-row" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" style="margin:6px 0">' +
+      '<b>'+esc(r.name)+'</b> <span style="font-size:11px;color:var(--muted)">('+(r.cat === 'boon' ? 'boon' : 'drawback')+')</span> '+st+act +
+      '<div class="dm-note-text" style="white-space:pre-wrap;font-size:12px">'+(r.text ? esc(r.text) : '<i style="color:var(--muted)">'+esc(r.prompt)+'</i>')+'</div></div>';
+  }
+  function itemNotesBody(id, s, dm){
+    var rows = (s && s.itemNotes) || [];
+    if(!rows.length) return '';
+    return rows.map(function(r){ return itemNoteRowHTML(id, r, dm); }).join('') +
+      '<span class="dm-status" data-cid="'+esc(id)+'" data-kind="item-note" style="font-size:11px;color:var(--muted)"></span>';
+  }
+  // The campaign's notes awaiting approval, across every player character (hidden ones too — hiding is display-only),
+  // shown above the cards so a DM doesn't have to open every card to find them.
+  function campNotesHTML(){
+    var items = [];
+    cloudRoster.forEach(function(r){
+      ((r.summary && r.summary.itemNotes) || []).forEach(function(n){ if(n.status === 'pending') items.push({rec:r, n:n}); });
+    });
+    if(!items.length) return '';
+    return '<div class="grantnote" id="campNotesPending" style="margin:0 0 8px"><b>\uD83D\uDCDD Descriptions awaiting your approval ('+items.length+')</b>' +
+      items.map(function(x){ return '<div class="dm-note-pending"><span style="font-size:12px">'+esc(_rosterDisplayName(x.rec))+':</span>'+itemNoteRowHTML(x.rec.id, x.n, true)+'</div>'; }).join('') +
+      '</div>';
+  }
   function buildSections(s, id, dm){
     var h = '';
     if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks, s));
-    h += secBlock('Appearance & backstory', appearanceBody(s.appearance));   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
+    h += secBlock('Appearance & backstory', appearanceBody(s.appearance));
+    h += secBlock(itemNotesTitle(s), itemNotesBody(id, s, !!dm));   // feat/boon-drawback-notes   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2961,7 +3001,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var hidden = cloudRoster.concat(cloudNpcs).filter(function(r){ return hiddenCards.has(String(r.id)); });
     var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
     if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every player character in this campaign is hidden. Use Show all above to bring them back.</div>' + npcs; return; }
-    container.innerHTML = strip + campDiscountHTML() + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
+    container.innerHTML = strip + campDiscountHTML() + campNotesHTML() + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
   }
   // feat/dm-ap-discount: the campaign's running total of DM discounts, across EVERY player character (hidden
   // ones too — hiding is display-only, see above). Shown only once something has been discounted.
@@ -3085,7 +3125,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') || t.closest('.dm-discount-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') || t.closest('.dm-discount-btn') || t.closest('.dm-note-approve-btn') || t.closest('.dm-note-unlock-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.dm-basicmode-btn') || t.closest('.npc-add-go') || t.closest('.npc-dup-btn') ||
           t.closest('.cf-val-save'))){
@@ -3337,6 +3377,37 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           if(/unsupported event type/i.test(udMsg)) udMsg = 'The server has not been updated to support unlocking yet. Ask the app owner to apply the latest database update, then try again.';
           else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
           alert('Unlock failed: '+udMsg);
+        });
+        return;
+      }
+
+      // feat/boon-drawback-notes: approve a player's description (it is then locked for them) or unlock an approved one.
+      // One event through dm_edit_character_log, keyed by category + name; the server copies the note text it approved
+      // into the event and refuses an approval with nothing to approve, or an unlock of a note that is not approved.
+      var noteBtn = t.closest ? (t.closest('.dm-note-approve-btn') || t.closest('.dm-note-unlock-btn')) : null;
+      if(noteBtn){
+        var ncid = noteBtn.getAttribute('data-cid'), ncat = noteBtn.getAttribute('data-cat'), nname = noteBtn.getAttribute('data-name');
+        var nUnlock = noteBtn.classList.contains('dm-note-unlock-btn');
+        var nEv;
+        if(nUnlock){
+          var nWhy = prompt('Unlock the description of '+nname+'? The player can then change it, and it will need your approval again.\n\nOptional: why (shown to the player, up to 200 characters):', '');
+          if(nWhy == null) return;
+          nWhy = nWhy.trim();
+          if(nWhy.length > 200){ alert('Keep the reason to 200 characters or fewer.'); return; }
+          nEv = {type:'dmUnlockNote', cat:ncat, refVal:nname, label:'DM unlocked description — '+nname};
+          if(nWhy) nEv.note = nWhy;
+        } else {
+          nEv = {type:'dmApproveNote', cat:ncat, refVal:nname, label:'DM approved description — '+nname};
+        }
+        noteBtn.disabled = true;
+        B.dmEditCharacterLog(ncid, [nEv]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          noteBtn.disabled = false;
+          var nMsg = String(err && err.message || err);
+          if(/unsupported event type/i.test(nMsg)) nMsg = 'The server has not been updated to support approving descriptions yet. Ask the app owner to apply the latest database update, then try again.';
+          else if(/no description|not approved|already approved/i.test(nMsg)) nMsg = 'The description changed since this page loaded. Reload the roster and try again.';
+          alert((nUnlock ? 'Unlock' : 'Approval')+' failed: '+nMsg);
         });
         return;
       }

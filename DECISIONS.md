@@ -39,6 +39,14 @@
   Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". Owner AP1 adds Defense (+1 AC in armour) and Draconic Resilience HP
   (+1 per Hit Die = 2024's Sorcerer-level bonus). v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
+## D-GH-2026-10-15-boon-drawback-notes — some boons and drawbacks need a player-written description, which the DM approves and so locks
+- 23 items flagged after reading every boon and drawback (16 drawbacks e.g. Code of Honour, Haunted / Phobia, Nightmares;
+  7 boons e.g. Patron, Font of Will; NOT Oath of Poverty) in display-only `DATA.notePrompts`. Append-only `itemNote`
+  events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock are DM events through
+  `dm_edit_character_log`, stamped with and counted only in the current campaign. Locked in both tools and, once the
+  migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (provisional). Migration NOT
+  applied; must be reconciled with the house-rules migration (whichever applies second rebuilds on the other).
+  Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
   Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one
