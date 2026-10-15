@@ -30,8 +30,8 @@ Assumed (not checked; the reviewer should treat as shaky):
 - That a character in no campaign has a place to carry the switch's default (no DM, so no way to turn it off).
 
 ## Proposed approach
-1. Engine: add one exported helper `unnamedChoices(build)` returning `[{kind, slot, label}]`, one entry per owned slot whose name is blank. Kinds: language, dabbler cantrip, innate, discipline cantrip, known spell, and whichever of the others the dialogs really render. Choice-grant spells are excluded (they are free, not bought).
-2. Make both `openNames()` dialogs build their slot list from this helper so the dialog and the gate cannot disagree. Do this as a behaviour-preserving refactor first, in its own commit.
+1. Engine: add one exported helper `allNameableSlots(build)` returning `[{kind, slot, label, name}]`, one entry per owned slot, named or blank. Kinds: language, dabbler cantrip, innate, discipline cantrip, known spell, and whichever of the others the dialogs really render (the build carries `fightingStyleNames`, `maneuverNames`, `metamagicNames`). Choice-grant spells are excluded (they are free, not bought). Then `unnamedChoices(build)` = `allNameableSlots(build)` filtered to blank names. (Review fix: the dialog needs named slots too, so it cannot be built from blanks only.)
+2. Make both `openNames()` dialogs build their slot list from `allNameableSlots` (the gate uses `unnamedChoices`), so the dialog and the gate cannot disagree. Do this as a behaviour-preserving refactor first, in its own commit.
 3. Add the rule to the engine legality check: new function `namesGate(build, rules, {locked})` returning `{blocked, reason}`, called from `purchaseLegality()` (or a sibling that both tools' buy paths already call). Blocked when: build is locked, `rules.requireNames !== false`, and `unnamedChoices` is non-empty. The reason names the first missing choice and points at "✎ Name spells & languages".
 4. Never block these: the `names` event itself, buy-off/refund, DM awards, and the purchase of the slot (the gate checks BEFORE a purchase, so a purchase that creates a blank slot is fine; the next one waits).
 5. CharGen `cgFinishCreating()` refuses while `unnamedChoices` is non-empty (when the switch is on).
@@ -62,7 +62,9 @@ Pricing (no `compute()` output change, so no rules-version bump); DM awards; blo
 
 ## Verification
 - `testing/tests/engine-parity.html` reports 0 failed.
-- New headless script: for each fixture build, `unnamedChoices` matches the slot rows `openNames()` would render.
+- New headless script: for each fixture build, `allNameableSlots` matches the slot rows `openNames()` would render, and `unnamedChoices` is exactly those with a blank name.
+- Exemption by construction: `saveNames()` in both tools does not call `buy()` or `purchaseLegality()` (checked), so the `names` event cannot be gated. A test confirms naming works while the gate is blocking.
+- Spend-path inventory: list every code path that appends a purchase event (Live Sheet `buy()`, CharGen `_cgPostLockAppend`, and any other `emit` of a priced event) and show each passes through the gate; add a test per path.
 - New end-to-end test, both tools: with the switch on, a locked character with a blank language cannot buy anything and is told which choice; after naming, the purchase succeeds; "Finish creating" refuses while a slot is blank; DM award goes through; with `requireNames:false` nothing is blocked.
 - Pre-lock purchases are never blocked.
 
@@ -76,4 +78,7 @@ The behaviours in Verification all pass in both tools, the DM switch saves and r
 - Write the answer as a `.md` file named `names-before-spending-review-<model>.md`.
 
 ## Review outcome
-(to be filled in after review)
+Round 1 (2026-10-15): one API reviewer, called as `gemini-3.8-flash`, which labelled itself "Gemini 2.5 Flash" (self-ID wrong). Filed at `z-cold/processed/2026-10-15-gemini-names-before-spending-plan.md` (local only, git-ignored).
+- Accepted and applied: helper split into `allNameableSlots` + `unnamedChoices` (my wording made the dialog depend on blanks only); verification test rewritten; names-event exemption stated (verified: `saveNames` bypasses `buy`/`purchaseLegality`); spend-path inventory added.
+- Accepted, not yet applied (needs owner): deadlock answer; no-campaign characters; DM release notice; split into two plans.
+- Verified in code: Live Sheet `buy()` is the one buy chokepoint and already has a pre-purchase bar (`_lsBarGrant`), a precedent for where the gate goes.
