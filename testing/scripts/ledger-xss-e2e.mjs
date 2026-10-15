@@ -109,7 +109,8 @@ try {
       [...document.querySelectorAll('#ledger .vtag')].some(v => v.textContent===p), P));
     check(`${tag}: "Loaded under … rules" tray line shows the envelope rules as text`, await shows(page, '#tray'));
     check(`${tag}: version-mismatch banner shows the envelope rules as text`, await shows(page, '#versionBanner'));
-    await page.evaluate(() => { const b=foldBuild(null), r=compute(b); const d=document.createElement('div'); d.id='__cs'; document.body.appendChild(d); d.innerHTML=renderCharSheet(b, r, {apText:''}); });
+    // feat/livesheet-sheet-layout: the Live Sheet's 📋 Sheet is renderSheet() (the panel's body + AP Ledger); renderCharSheet() is CharGen-only.
+    await page.evaluate(() => { const d=document.createElement('div'); d.id='__cs'; document.body.appendChild(d); d.innerHTML=renderSheet(); });
     await settle(page);
     check(`${tag}: character-sheet AP Ledger shows the tradition label as text`, await shows(page, '#__cs .shledger'));
     check(`${tag}: window.__xss never set`, (await xss(page)) === undefined, 'payload executed');
@@ -118,7 +119,7 @@ try {
   console.log('\n[ledger-xss] Live Sheet — file import');
   {
     const { page, errors } = await open(BASE+'PACT-Live-Char-Sheet.html');
-    await page.waitForFunction(() => window._engineFold && window.DATA && typeof window.renderCharSheet==='function', { timeout:20000 });
+    await page.waitForFunction(() => window._engineFold && window.DATA && typeof window.renderSheet==='function', { timeout:20000 });
     await page.setInputFiles('#imp', file('xss', ENV));
     await page.waitForFunction(() => document.querySelectorAll('#ledger tr').length > 2, { timeout:8000 }).catch(()=>{});
     await lsChecks(page, errors, 'Live Sheet import');

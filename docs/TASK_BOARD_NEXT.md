@@ -1686,20 +1686,6 @@ Coordinate with feat/campaign-house-rules (its DM-family forgery guard must free
 ```
 **Done when:** buying Code of Honour requires a description; the DM sees and approves it in DM Console; after approval the player can't change it in either tool and a direct server write changing it is refused (tested); a DM unlock re-opens it; names/notes escaped; `engine-parity-ci` 0 failed.
 
-## feat/livesheet-sheet-layout — Live Sheet: colour-coded skills, description always visible, centre panel and 📋 Sheet look alike — TODO
-Branch feat/livesheet-sheet-layout. **Effort:** medium · **Risk:** low — display only.
-
-```text
-Owner request 2026-10-14. Live Sheet presentation:
-  1. Skills: colour-code each skill by its ability, with the same per-ability colours the stats card and saves use
-     (see feat/livesheet-saves-in-stats-card — do them together or share one colour map).
-  2. Appearance & description: the description PARAGRAPH is always shown; only the individual fields (hair, eyes, …) are
-     collapsible. Today the whole block collapses.
-  3. Make the centre panel and the 📋 Sheet view match more closely — same sections, order, labels and styling — so a
-     player sees one character sheet, not two different layouts. Prefer one shared renderer over two copies.
-Values from compute()/the fold only; every player value escaped; check phone width.
-```
-**Done when:** skills show in their ability colours; the description paragraph is visible with the fields collapsed; the centre panel and 📋 Sheet show the same sections in the same order and style (screenshot check at phone and desktop width); existing Live Sheet e2e green.
 
 ## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
 Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.

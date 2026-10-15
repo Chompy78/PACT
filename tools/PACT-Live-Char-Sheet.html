@@ -35,7 +35,8 @@
 
  ⚠ SHARED, DUPLICATED CODE — THE #1 THING TO GET RIGHT
    Still genuinely copy-pasted into BOTH html files, and must stay in sync:
-     • renderCharSheet(b,r,ctx)   — the shared fillable character sheet
+     • (renderCharSheet(b,r,ctx) is now CharGen-ONLY: since feat/livesheet-sheet-layout this tool's 📋 Sheet renders the
+       Character panel's own body, _lsCharBody(), plus _lsTableExtras() — do not re-add a copy here)
      • buildPortraitPrompts(b)    — AI portrait-prompt builder
      • the manual-field layer     — hydrateSheet / csSave / SHEET_TOOL  (this file sets SHEET_TOOL='livesheet')
 
@@ -207,7 +208,10 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .itip[title]{cursor:help}
 /* feat/livesheet-centre-columns: Stats · Skills · General. Sized by the Character card's own width (container query), not
    the window, because the Buy/History panels beside it fold and unfold. */
-#sheet{container-type:inline-size}
+#sheet,#sheetbody{container-type:inline-size}
+/* feat/livesheet-sheet-layout: the 📋 Sheet is the Character panel's body + the at-the-table extras */
+.lssheetv{max-width:1100px;margin:0 auto}.lstsub{font-size:11px;font-weight:700;color:var(--grey);margin:8px 0 3px}.lstslots{grid-template-columns:repeat(9,minmax(0,1fr))}
+@container (max-width:520px){.lstslots{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .shcols3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.35fr);gap:10px;align-items:start;margin-top:6px}
 .shc{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
 .shc h5{margin:0 0 4px;font-size:12px;color:var(--navytx)}
@@ -227,6 +231,9 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 .skrow{display:flex;gap:6px;align-items:baseline;font-size:12px;line-height:1.55;opacity:.62}
 .skrow.on{opacity:1}
 .skmk{width:12px;text-align:center}.sknm{flex:1}.skab{font-size:10px;color:var(--grey)}.sktot{min-width:26px;text-align:right}
+/* feat/livesheet-sheet-layout: each skill in its ability's colour (--abc, from the shared _CSABCOL map) */
+.skrow{border-left:3px solid var(--abc,transparent);padding-left:5px}.skrow .skab,.skrow .skmk{color:var(--abc,var(--grey));font-weight:700}
+.skpp{font-size:12px;margin-top:4px;border-top:1px solid var(--line);padding-top:3px}
 .sklegend{font-size:10px;color:var(--grey);margin-top:4px}
 .fxi{border:0;background:none;color:var(--navytx);cursor:pointer;padding:0 2px;font-size:13px;line-height:1;vertical-align:baseline}
 @media print{.fxi{display:none !important}}
@@ -366,7 +373,7 @@ body[data-theme="dark"] .slotcell.empty .n{color:var(--grey)}
  .synchip,.cloudstatus{padding:2px 7px;font-size:10px;max-width:96px;overflow:hidden;text-overflow:ellipsis}
 }
 .shhead{margin-bottom:10px}.shname{font-size:22px;font-weight:800;color:var(--navytx)}.shsub{color:var(--grey);font-size:12.5px}
-.lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
+.lsdesc{margin:8px 0}.lsdesc summary{cursor:pointer;font-size:11.5px;margin-top:4px}.lsdtop{font-size:12px;color:var(--ink);margin-top:0}@media print{.shrename{display:none !important}}   /* fix/livesheet-name-description-notes */
 .shcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.shcols2{display:grid;grid-template-columns:1fr 2fr;gap:12px;align-items:start}@media(max-width:800px){.shcols{grid-template-columns:1fr}}
 .shcol{display:flex;flex-direction:column;gap:10px}
 .shbox{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--card)}
@@ -2048,12 +2055,16 @@ function render(){
     var _dmchip=_dmSt==='unavailable'?(' · <span class="ed warn" title="This character is bound to a cloud campaign, but its DM rules (ignore-player-AP setting) could not be confirmed right now — offline, or the campaign failed to load. This is NOT the same as having no DM AP; reconnect to get an accurate total.">⚠ DM AP unavailable</span>'):'';return '<div class="ecoline"><b title="Pace based on AP earned so far (including any not yet spent), against the same level-budget curve as the header\'s ≈ Track-Level. This differs from Track-Level whenever you\'re holding unspent AP — Track-Level reflects only AP actually spent.">Earned Lv '+L+'</b> · '+_apSum+_dmchip+(nx!=null?(' · <span class="ed">'+(nx-ap)+' AP to reach Earned Lv '+(L+1)+'</span>'):' · <span class="ed">top level</span>')+(committed!==reprice?(' · <span class="drift" title="What you paid (frozen at purchase) vs what the same build would cost at current prices. The difference is grandfathered — never refunded or charged.">paid '+committed+' AP · '+reprice+' at today&rsquo;s prices</span>'):'')+(_sw.avail>0?(' <span class="swapchip" title="Free spell/cantrip/arcanum/style swaps available at Hit Die '+_sw.hd+' — non-banking; use them before you level up (they reset each Hit Die)">🔄 '+_sw.avail+' free swap'+(_sw.avail>1?'s':'')+'</span>'):'')+'</div>'+_lsWalletLine(idx);})();
   {const lb=$('lmb'),ls=$('lms');if(lb)lb.textContent=_apAvail+' AP';if(ls)ls.textContent='· '+(eco.discounted?(eco.spent+' AP value · '+eco.apPaid+' paid · '+eco.discounted+' DM discount'):(eco.spent+' spent'))+' of '+r.spendable;}{var _afn=document.getElementById('apFloatN'),_afb=document.getElementById('apFloat');if(_afn&&_afb){var _now=String(_apAvail),_prev=_afb.getAttribute('data-v');_afn.textContent=_apAvail;_afb.classList.toggle('neg',_apOver);if(_prev!=null&&_prev!==_now){_afb.classList.remove('flash');void _afb.offsetWidth;_afb.classList.add('flash');}_afb.setAttribute('data-v',_now);}}
   // --- character sheet (derived) ---
+  // feat/livesheet-sheet-layout: the Character panel's body is ONE renderer, _lsCharBody(b,r,eco,opts), which the 📋 Sheet view
+  // also calls (opts.sheet) — so the two show the same sections, in the same order, with the same labels and styling. It is
+  // (re)defined here, in place, so the block keeps its history; b, r, m and eco below are its own parameters, never render()'s.
+  _lsCharBody=function(b,r,eco,opts){opts=opts||{};const m=r.mods;
   const ABCOL=_CSABCOL;   // one per-ability colour map for the whole tool (stats, saves, skills, spell ability)
   // Display-only campaign-name suffix (fix/duplicate-name-and-campaign-suffix) — never written into
   // b.name/LOG, purely rendered here so two characters that legitimately share a name (e.g. a stray
   // unbound draft and the real campaign one, exactly the confusion that prompted this) are visually
   // distinguishable the moment the sheet is open, without having to check My Characters first.
-  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>'+_lsSheetPointer();
+  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>'+(opts.sheet?'':_lsSheetPointer());
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   // feat/livesheet-centre-columns: name + class line on top, then three columns — Stats · Skills · General
   // (features, drawbacks, DM fields, description) — then Spellcasting, then coins/weapons/notes. Needs review stays below the card.
@@ -2089,8 +2100,29 @@ function render(){
   // feat/livesheet-center-panel: every skill, owned or not, with its ability and total bonus (engine skillMods()).
   sh+='<div class="shc shskills"><h5>Skills</h5>'+skillMods(b,r).map(function(k){
       var mk=k.prof===2?'◉':(k.prof?'●':'○'),tt=k.prof===2?'expertise':(k.prof?'proficient':'not proficient');
-      return '<div class="skrow'+(k.prof?' on':'')+'" title="'+esc(k.skill+' — '+tt+': '+sgn(k.abMod)+' '+k.ab+(k.prof?' + '+(k.prof*r.prof)+' proficiency':''))+'"><span class="skmk">'+mk+'</span><span class="sknm">'+esc(k.skill)+'</span><span class="skab">'+k.ab+'</span><b class="sktot">'+sgn(k.total)+'</b></div>';
-    }).join('')+'<div class="sklegend">● proficient · ◉ expertise</div></div><div class="shc shmain"><h5>General</h5>';
+      return '<div class="skrow'+(k.prof?' on':'')+'" style="--abc:'+(ABCOL[k.ab]||'var(--grey)')+'" title="'+esc(k.skill+' — '+tt+': '+sgn(k.abMod)+' '+k.ab+(k.prof?' + '+(k.prof*r.prof)+' proficiency':''))+'"><span class="skmk">'+mk+'</span><span class="sknm">'+esc(k.skill)+'</span><span class="skab">'+k.ab+'</span><b class="sktot">'+sgn(k.total)+'</b></div>';
+    }).join('')+'<div class="sklegend">● proficient · ◉ expertise</div>'
+    +(function(){var p=skillMods(b,r).find(function(k){return k.skill==='Perception';});return p?'<div class="skpp" title="10 + your Perception bonus">Passive Perception <b>'+(10+p.total)+'</b></div>':'';})()
+    +'</div><div class="shc shmain"><h5>General</h5>';
+  // feat/livesheet-sheet-layout: what the old 📋 Sheet showed and the Character panel did not — species, languages, proficiencies,
+  // species traits (bought and heritage-pack), subclass abilities, ancestry and bonds — now in General, so both views carry it.
+  {const _sp=(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+(b.lineage?' · '+b.lineage+' lineage':'')+' · '+(r.size||'Medium');
+   sh+='<div class="seg"><b>Species:</b> '+esc(_sp)+'</div>';
+   const _ln=(b.languageNames||[]).filter(Boolean);
+   sh+='<div class="seg"><b>Languages:</b> '+(_ln.length?_ln.map(esc).join(', '):'—')+' <span class="hint">('+(b.languages||1)+')</span></div>';
+   const _wp=b.weaponProf||{},_ar=b.armour||{};
+   const _pf=[(_wp.simple?'Simple weapons':''),(_wp.allMartial?'All martial weapons':(_wp.martial?_wp.martial+' martial weapon'+(_wp.martial>1?'s':''):'')),(_wp.improvised?'Improvised weapons':'')]
+     .concat([['light','Light armour'],['medium','Medium armour'],['heavy','Heavy armour'],['shield','Shields']].filter(function(a){return _ar[a[0]];}).map(function(a){return a[1];})).filter(Boolean);
+   sh+='<div class="seg"><b>Proficiencies:</b> '+(_pf.length?esc(_pf.join(', ')):'—')+'</div>';
+   const _seen={},_rt=(b.racialTraits||[]).concat(r.packTraits||[]).filter(function(l){if(_seen[l])return false;_seen[l]=1;return true;});
+   if(_rt.length)sh+='<div class="seg"><b>Species traits:</b> '+_rt.map(function(l){var nm=l.split(': ')[1]||l;return '<span class="itip" title="'+esc(l)+'">'+esc(nm)+'</span>'+_fxBtn(_lsFx('feature',l));}).join(' · ')+'</div>';
+   const _sa=(b.subAbilities||[]).map(function(k){var a=(DATA.subAbilMap||{})[k];return a?'<span class="itip" title="'+esc(a.sub)+'">'+esc(a.name)+'</span>'+_fxBtn(_lsFx('feature',k)):'';}).filter(Boolean);
+   if(_sa.length)sh+='<div class="seg"><b>Subclass abilities:</b> '+_sa.join(' · ')+'</div>';
+   const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[],_lfx=(!_lin.length&&b.lineage&&DATA.lineageFx&&DATA.lineageFx[b.lineage])||'';
+   if(_lfx)sh+='<div class="seg"><b>Ancestry — '+esc(b.lineage)+':</b> '+esc(_lfx)+'</div>';
+   const _bd=[];(b.traditions||[]).forEach(function(t){if(t&&t.name&&t.name!=='(none)')(t.disciplines||[]).forEach(function(d){if(d&&d.bound&&d.name&&d.name!=='(none)')_bd.push('⛓ Magical — '+t.name+' › '+d.name);});});
+   if(b.martiallyBound&&b.martiallyBound!=='(none)')_bd.push('⚔ Martial — '+b.martiallyBound);
+   if(_bd.length)sh+='<div class="seg"><b>Bonds:</b> '+_bd.map(esc).join(' · ')+'</div>';}
   if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).map(esc).join(', ')+'</div>';
   if(feats.length)sh+='<div class="seg"><b>Features:</b> '+feats.join(' · ')+'</div>';
   // V1: Arts & Techniques / Maneuvers / Metamagic — these carry full effect text (DATA.*.fx)
@@ -2115,12 +2147,14 @@ function render(){
   const _cfVals=window._lsVisibleCustomFields||{};
   const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
   if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
-  sh+=_lsDescBlock(b);
-  sh+=_lsCharImgSlot('sheet');   // feat/character-images
+  sh+=_lsDescBlock(b,opts.sheet?{sheet:1}:{});
+  sh+=_lsCharImgSlot(opts.sheet?'sheetbody':'sheet');   // feat/character-images — one slot per host; the 📋 Sheet gets it through this shared body
   sh+='</div></div>';   // .shmain, .shcols3
-  sh+=spellPanel(b,r);
+  if(!opts.noSpell)sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
-  $('sheet').innerHTML=sh;
+  return sh;};
+  $('sheet').innerHTML=_lsCharBody(b,r,eco,{});
+  _lsSheetViewRefresh();
   {const _tn=$('topCharName');if(_tn)_tn.textContent=b.name||'New Character';}   // textContent: player text, never markup
   _lsDescRestoreFocus('sheet');
   _lsScheduleCopyIn();
@@ -2492,9 +2526,43 @@ function buildBuyPanel(b,r,eco,head){
 }
 
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
+// feat/livesheet-sheet-layout: the 📋 Sheet is the Character panel's own body (_lsCharBody, defined in render()) — same sections,
+// order, labels and styling — followed by the things only a printed/at-the-table sheet needs (_lsTableExtras). It always shows
+// the present (foldBuild(null)), whatever the time-travel slider is on.
+var _lsCharBody=null;
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
+  if(!_lsCharBody)render();
   const avail=_apRemaining(r.spendable,eco.spent);
-  return _lsCharImgSlot('sheetbody')+renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell,nameEdit:_lsRenameBtn(),descBlock:_lsDescBlock(b,{sheet:1}),fx:1});}
+  return '<div class="lssheetv">'+_lsCharBody(b,r,eco,{sheet:1,noSpell:LS_noSpell})+_lsTableExtras(b,r,eco,avail)+'</div>';}
+// Device-local "at the table" fields (hydrateSheet/csSave — never synced: HP, death saves, inspiration, slots used, bond notes),
+// any older device-local notes the previous Sheet layout held, and the AP ledger. Every player value is escaped (_csEsc/_mfIn).
+var LS_SHEET_LEGACY=[['equip','Equipment',1],['cp','CP'],['sp','SP'],['gp','GP'],['pp','PP'],['spelllist','Spells (typed list)',1]];
+function _lsTableExtras(b,r,eco,avail){
+  var H='<div class="pssec lstable"><h4>🎲 At the table <span class="hint">· 📱 this device only — not saved to the cloud or shared with other devices</span></h4>';
+  H+='<div class="cs-hpbox"><div class="cs-hp big"><label>Current HP  ·  (max '+r.hp+')</label>'+_mfIn('curHP',String(r.hp),'cs-num','','Current HP')+'</div>'
+    +'<div class="cs-hp"><label>Temp HP</label>'+_mfIn('tempHP','','cs-num','','Temporary HP')+'</div>'
+    +'<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(b.hd),'cs-num','','Hit Dice remaining')+'</div></div>';
+  H+='<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span>'
+    +' <span class="cs-insp"><b>Inspiration</b> '+_mfCk('insp',false,'Inspiration')+'</span></div>';
+  var caster=(b.traditions||[]).some(function(t){return t&&t.name&&t.name!=='(none)';});
+  if(caster&&!LS_noSpell)H+='<div class="lstsub">Spell slots used</div><div class="cs-grid3 lstslots">'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<div class="cs-fld"><label>L'+L+'</label>'+_mfIn('slot_L'+L,'','','','Level '+L+' slots (total / used)')+'</div>';}).join('')+'</div>';
+  var bonded=(b.martiallyBound&&b.martiallyBound!=='(none)')||(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.bound;});});
+  if(bonded)H+='<div class="lstsub">Bonds</div><div class="cs-fld"><label>Bound to (source)</label>'+_mfIn('bondSource','','','e.g. The Maw, The Iron Pact')+'</div>'
+    +'<div class="cs-fld" style="margin-top:4px"><label>Obligations / notes</label>'+_mfTa('bondNotes','','demands, tithe, the band you owe…',46)+'</div>';
+  H+='</div>';
+  // The previous Sheet layout had its own device-local equipment, coin, attack and spell-list boxes; coins, weapons and notes now
+  // live in the character (above). Anything a player typed into the old boxes on this device is still shown — never hidden.
+  var st=csLoad(_csKey(currentCharId())),has=function(k){return st[k]!=null&&String(st[k]).trim()!=='';};
+  var old=LS_SHEET_LEGACY.filter(function(f){return has(f[0]);}).map(function(f){return '<div class="cs-fld"><label>'+f[1]+'</label>'+(f[2]?_mfTa(f[0],'','',60):_mfIn(f[0],'','',''))+'</div>';});
+  for(var i=0;i<6;i++){if(has('wpn'+i+'_name')||has('wpn'+i+'_atk')||has('wpn'+i+'_dmg'))old.push('<div class="cs-fld"><label>Attack '+(i+1)+' (name · bonus · damage)</label><div style="display:flex;gap:4px">'+_mfIn('wpn'+i+'_name','','','','Weapon '+(i+1)+' name')+_mfIn('wpn'+i+'_atk','','','','Weapon '+(i+1)+' attack bonus')+_mfIn('wpn'+i+'_dmg','','','','Weapon '+(i+1)+' damage and type')+'</div></div>');}
+  Object.keys(st).filter(function(k){return /^spp_\d+$/.test(k)&&has(k);}).forEach(function(k){old.push('<div class="cs-fld"><label>Prepared spells ('+_csEsc(k.slice(4))+')</label>'+_mfTa(k,'','',38)+'</div>');});
+  if(old.length)H+='<div class="pssec lstable"><h4>📱 Older notes on this device <span class="hint">· typed into the previous Sheet layout — copy them into Coins, Weapons or Notes above to keep them with the character</span></h4>'+old.join('')+'</div>';
+  H+='<div class="pssec"><h4 title="Priced at TODAY&rsquo;S rules — this can differ from the AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger <span class="hint">· '+eco.spent+' AP spent / '+avail+' available</span></h4><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>';
+  return H;
+}
+// render() redraws the Character panel; while the 📋 Sheet is open it is redrawn too, so an edit made in either shows in both.
+function _lsSheetViewRefresh(){var ov=$('sheetview'),bd=$('sheetbody');if(!ov||!bd||ov.style.display!=='block'||!_lsCharBody)return;
+  var y=ov.scrollTop;bd.innerHTML=renderSheet();hydrateSheet(currentCharId());ov.scrollTop=y;_lsDescRestoreFocus('sheetbody');}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{_lsSheetTipDone();$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
@@ -2728,8 +2796,9 @@ var LS_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['buil
 var LS_DESC_LONG={allies:1};
 var LS_DESC_OPEN=false, _lsDescFocus=null;
 // The SAME block renders in the Character panel (host "sheet") and in the 📋 Sheet view (host "sheetbody", opts.sheet) — so the
-// two can't drift (feat/livesheet-sheet-view-desc). The Sheet view's header already has Player name / Alignment / Background.
-var LS_DESC_SHEET_OMIT={playerName:1,alignment:1,background:1};
+// two can't drift (feat/livesheet-sheet-view-desc). feat/livesheet-sheet-layout: the description PARAGRAPH is always shown; only
+// the individual fields and the backstory fold away (details.lsdfold, open state LS_DESC_OPEN). Both views now carry Player
+// name / Alignment / Background here (the old Sheet header that also had them is gone — the Sheet renders the panel's body).
 function _lsDescBlock(b,opts){
   opts=opts||{};
   var ap=(b&&b.appearance)||{}, ro=(VIEW_ONLY||viewAt!=null)?' disabled':'', E=function(v){return esc(v==null?'':String(v));};
@@ -2738,17 +2807,18 @@ function _lsDescBlock(b,opts){
     var c=LS_DESC_LONG[k]?'<textarea rows="2" data-lsd="'+k+'" onchange="_lsDescEdit(this)" aria-label="'+E(lab)+'"'+ro+'>'+E(ap[k])+'</textarea>'
       :'<input data-lsd="'+k+'" value="'+E(ap[k])+'"'+(ph?' placeholder="'+E(ph)+'"':'')+' onchange="_lsDescEdit(this)" aria-label="'+E(lab)+'"'+ro+'>';
     return '<label class="lsdf'+(LS_DESC_LONG[k]?' wide':'')+'">'+E(lab)+c+'</label>';};
-  var grid=LS_DESC_FIELDS.filter(function(f){return !(opts.sheet&&LS_DESC_SHEET_OMIT[f[0]]);}).map(function(f){
+  var grid=LS_DESC_FIELDS.map(function(f){
     if(f[2])return inp(f[0]+'Label','Custom field label','e.g. Lucky number')+inp(f[0]+'Text',filled(ap[f[0]+'Label'])?ap[f[0]+'Label']:'Custom field value');
     return inp(f[0],f[1]);}).join('');
-  if(filled(ap.overall))n++; if(filled(ap.backstory))n++;
+  if(filled(ap.backstory))n++;
   var regen=ro?'':'<button type="button" class="btn g" style="padding:1px 7px;font-size:11px" onclick="lsRegenDesc()" title="Write the paragraph again from the fields below (the same writer as the Character Creator\'s 🪶 Auto-write)">🪶 Regenerate paragraph</button>';
-  return '<details class="lsdesc" data-lshost="'+(opts.sheet?'sheetbody':'sheet')+'"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary><b>Appearance &amp; description</b> <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
-    +'<div class="lsdhd"><span>Description</span>'+regen+_lsApCopyBtns(ro)+'</div>'
-    +'<textarea rows="4" data-lsd="overall" onchange="_lsDescEdit(this)" aria-label="Description paragraph" placeholder="A one-paragraph description — write your own, or fill in the fields below and press 🪶 Regenerate paragraph."'+ro+'>'+E(ap.overall)+'</textarea>'
+  return '<div class="lsdesc" data-lshost="'+(opts.sheet?'sheetbody':'sheet')+'">'
+    +'<div class="lsdhd lsdtop"><b>Appearance &amp; description</b>'+regen+_lsApCopyBtns(ro)+'</div>'
+    +'<textarea rows="4" data-lsd="overall" onchange="_lsDescEdit(this)" aria-label="Description paragraph" placeholder="A one-paragraph description — write your own, or fill in the details below and press 🪶 Regenerate paragraph."'+ro+'>'+E(ap.overall)+'</textarea>'
+    +'<details class="lsdfold"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary>Details — looks, family, background, backstory <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
     +'<div class="lsdgrid">'+grid+'</div>'
     +'<div class="lsdhd"><span>Backstory &amp; notes</span></div>'
-    +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea></details>';
+    +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea></details></div>';
 }
 // feat/appearance-copy-paste (AF1): copy every text appearance field to the clipboard / paste a copied one over this
 // character's (shared code: js/ui-helpers.js pactAppearanceCopy/pactAppearancePaste). Name, coins and weapons never travel.
@@ -2783,9 +2853,7 @@ function _lsDescEdit(el){
 }
 // render() only redraws #sheet; the 📋 Sheet view's copy of the block is redrawn here (the rest of the Sheet is left alone so
 // its other fields keep their focus and typed text).
-function _lsDescRefreshSheetView(){
-  var ov=$('sheetview'), old=document.querySelector('#sheetbody .lsdesc');
-  if(ov&&ov.style.display==='block'&&old)old.outerHTML=_lsDescBlock(foldBuild(null),{sheet:1});
+function _lsDescRefreshSheetView(){   // feat/livesheet-sheet-layout: render() redraws the whole Sheet now (_lsSheetViewRefresh)
   _lsDescRestoreFocus('sheetbody');
 }
 function _lsDescRestoreFocus(host){
@@ -2793,8 +2861,8 @@ function _lsDescRestoreFocus(host){
   var el=document.querySelector('[data-lshost="'+host+'"] [data-lsd="'+f.key+'"]'); if(el&&el.focus)el.focus();
 }
 // A printed Sheet shows the description even when the block is folded.
-window.addEventListener('beforeprint',function(){document.querySelectorAll('#sheetbody details.lsdesc').forEach(function(d){d.open=true;});});
-window.addEventListener('afterprint',function(){document.querySelectorAll('#sheetbody details.lsdesc').forEach(function(d){d.open=LS_DESC_OPEN;});});
+window.addEventListener('beforeprint',function(){document.querySelectorAll('#sheetbody details.lsdfold').forEach(function(d){d.open=true;});});
+window.addEventListener('afterprint',function(){document.querySelectorAll('#sheetbody details.lsdfold').forEach(function(d){d.open=LS_DESC_OPEN;});});
 // 🪶 Regenerate paragraph: rewrite appearance.overall from the other fields with the shared writer. The appearance holder
 // is rewritten in place (see pactWithAppearance), so Undo can't bring a hand-written paragraph back — ask first.
 function lsRegenDesc(){
@@ -2804,7 +2872,6 @@ function lsRegenDesc(){
   var txt=pactComposeDescription(ap,{name:b.name,species:b.species,originClass:b.originClass});
   var cur=typeof ap.overall==='string'?ap.overall.trim():'';
   if(cur&&cur!==txt&&!confirm('Replace your current description paragraph with a freshly written one? Undo can\'t bring the old one back.'))return;
-  LS_DESC_OPEN=true;
   _shCommitAppearanceField('overall',txt);
   _lsDescRefreshSheetView();
 }
@@ -2815,126 +2882,8 @@ function _mfTa(id,seed,ph,minh,aria){return '<textarea class="cs-ta" data-mf="'+
 function _mfCk(id,seed,aria){return '<input type="checkbox" data-mf="'+id+'" data-seed="'+(seed?'1':'')+'" aria-label="'+_csEsc(aria||id)+'">';}
 function _sgn(x){return (x>=0?'+':'')+x;}
 
-// The shared, fillable sheet. b=build, r=compute(b), ctx={apText:'...'} (tool-specific AP summary line)
+// PHB page per feature (the ⓘ pointer, _lsFx). The fillable renderCharSheet() that also used it is CharGen-only now.
 const FEAT_PG={"Barbarian: Rage":51,"Barbarian: Unarmored Defense":51,"Barbarian: Danger Sense":52,"Barbarian: Reckless Attack":52,"Barbarian: Extra Attack":53,"Barbarian: Fast Movement":53,"Barbarian: Feral Instinct":53,"Barbarian: Brutal Strike":53,"Barbarian: Relentless Rage":53,"Barbarian: Persistent Rage":53,"Barbarian: Indomitable Might":53,"Bard: Bardic Inspiration die":59,"Bard: Font of Inspiration":61,"Bard: Countercharm":61,"Bard: Superior Inspiration":61,"Bard: Words of Creation":61,"Cleric: Divine Order (Protector/Thaumaturge)":70,"Cleric: Channel Divinity":70,"Cleric: Sear Undead / domain blast":71,"Cleric: Blessed Strikes":71,"Cleric: Divine Intervention":71,"Cleric: Greater Divine Intervention":71,"Druid: Wild Shape":80,"Druid: Wild Companion":81,"Druid: Primal Order":80,"Druid: Elemental Fury / Improved circle":81,"Druid: Beast Spells":81,"Druid: Archdruid (free uses)":82,"Fighter: Fighting Style":91,"Fighter: Second Wind":91,"Fighter: Weapon Mastery":52,"Fighter: Action Surge":91,"Fighter: Tactical Mind / Shift / Master":91,"Fighter: Extra Attack":53,"Fighter: Extra Attack (2nd)":53,"Fighter: Extra Attack (3rd)":53,"Fighter: Indomitable":92,"Fighter: Studied Attacks":92,"Monk: Martial Arts die":101,"Monk: Unarmored Defense":51,"Monk: Flurry / Patient Defense / Step":104,"Monk: Unarmored Movement":102,"Monk: Deflect Attacks":102,"Monk: Extra Attack":53,"Monk: Stunning Strike":103,"Monk: Evasion":103,"Monk: Empowered Strikes / Self-Restoration":103,"Monk: Perfect Focus / Body &amp; Mind":102,"Paladin: Lay on Hands":109,"Paladin: Weapon Mastery":52,"Paladin: Fighting Style":91,"Paladin: Channel Divinity":70,"Paladin: Extra Attack":53,"Paladin: Aura of Protection":111,"Paladin: Aura of Courage":111,"Paladin: Radiant Strikes":111,"Paladin: Aura expansions":111,"Ranger: Weapon Mastery":52,"Ranger: Fighting Style":91,"Ranger: Extra Attack":53,"Ranger: Roving / Tireless":121,"Ranger: Nature's Veil":121,"Ranger: Feral Senses":121,"Ranger: Foe Slayer":121,"Rogue: Sneak Attack":129,"Rogue: Weapon Mastery":52,"Rogue: Cunning Action":130,"Rogue: Steady Aim":130,"Rogue: Cunning Strike":130,"Rogue: Uncanny Dodge":131,"Rogue: Evasion":103,"Rogue: Reliable Talent":131,"Rogue: Stroke of Luck":131,"Sorcerer: Innate Sorcery":140,"Sorcerer: Metamagic":141,"Sorcerer: Sorcerous Restoration":141,"Sorcerer: Sorcery Incarnate":141,"Sorcerer: Arcane Apotheosis":141,"Warlock: Magical Cunning":154,"Warlock: Contact Patron":155,"Warlock: Eldritch Master":154,"Wizard: Ritual Adept":166,"Wizard: Arcane Recovery":166,"Wizard: Memorize Spell":167,"Wizard: Spell Mastery":167,"Wizard: Signature Spells":167,"Barbarian: Frenzy":54,"Barbarian: Mindless Rage":54,"Barbarian: Intimidating Presence":54,"Barbarian: Retaliation":54,"Barbarian: Rage of the Wilds":55,"Barbarian: Aspect of the Wilds":55,"Barbarian: Nature Speaker":55,"Barbarian: Power of the Wilds":55,"Barbarian: Vitality of the Tree":56,"Barbarian: Branches of the Tree":56,"Barbarian: Battering Roots":56,"Barbarian: Travel along the Tree":56,"Barbarian: Divine Fury":57,"Barbarian: Warrior of the Gods":57,"Barbarian: Fanatical Focus":57,"Barbarian: Rage of the Gods":57,"Bard: Dazzling Footwork":64,"Bard: Inspiring Movement":64,"Bard: Tandem Footwork":64,"Bard: Leading Evasion":65,"Bard: Mantle of Inspiration":65,"Bard: Beguiling Magic":65,"Bard: Mantle of Majesty":65,"Bard: Unbreakable Majesty":66,"Bard: Cutting Words":66,"Bard: Bonus Skills":40,"Bard: Peerless Skill":67,"Bard: Combat Inspiration":67,"Bard: Extra Attack":53,"Bard: Battle Magic":67,"Cleric: Disciple of Life":73,"Cleric: Preserve Life (Channel Divinity)":73,"Cleric: Blessed Healer":74,"Cleric: Supreme Healing":74,"Cleric: Warding Flare":74,"Cleric: Radiance of the Dawn (Channel Divinity)":74,"Cleric: Improved Warding Flare":75,"Cleric: Corona of Light":75,"Cleric: Blessing of the Trickster":75,"Cleric: Invoke Duplicity (Channel Divinity)":75,"Cleric: Trickster’s Transposition":76,"Cleric: Improved Duplicity":76,"Cleric: War Priest":77,"Cleric: Guided Strike (Channel Divinity)":77,"Cleric: War God’s Blessing":77,"Cleric: Avatar of Battle":77,"Druid: Land's Aid":85,"Druid: Natural Recovery":85,"Druid: Nature's Ward":85,"Druid: Nature's Sanctuary":86,"Druid: Circle Forms":86,"Druid: Improved Circle Forms":87,"Druid: Moonlight Step":87,"Druid: Lunar Form":87,"Druid: Wrath of the Sea":87,"Druid: Aquatic Affinity":87,"Druid: Stormborn":87,"Druid: Oceanic Gift":88,"Druid: Star Map":88,"Druid: Starry Form":88,"Druid: Cosmic Omen":89,"Druid: Full of Stars":89,"Fighter: Combat Superiority (maneuvers)":93,"Fighter: Know Your Enemy":94,"Fighter: Improved Combat Superiority":94,"Fighter: Relentless":94,"Fighter: Improved Critical":96,"Fighter: Remarkable Athlete":96,"Fighter: Additional Fighting Style":96,"Fighter: Survivor":96,"Fighter: War Bond":98,"Fighter: War Magic":98,"Fighter: Arcane Charge":98,"Fighter: Improved War Magic":98,"Fighter: Psionic Power":98,"Fighter: Telekinetic Adept":99,"Fighter: Guarded Mind":99,"Fighter: Telekinetic Master":99,"Monk: Hand of Healing":104,"Monk: Hand of Harm":104,"Monk: Physician's Touch":104,"Monk: Hand of Ultimate Mercy":105,"Monk: Shadow Arts":105,"Monk: Shadow Step":105,"Monk: Improved Shadow Step":105,"Monk: Cloak of Shadows":105,"Monk: Elemental Attunement":106,"Monk: Manipulate Elements":106,"Monk: Stride of the Elements":106,"Monk: Elemental Epitome":106,"Monk: Open Hand Technique":107,"Monk: Wholeness of Body":107,"Monk: Fleet Step":107,"Monk: Quivering Palm":107,"Paladin: Sacred Weapon (Channel Divinity)":113,"Paladin: Aura of Devotion":114,"Paladin: Smite of Protection":114,"Paladin: Holy Nimbus":114,"Paladin: Inspiring Smite (Channel Divinity)":111,"Paladin: Aura of Alacrity":115,"Paladin: Glorious Defense":115,"Paladin: Living Legend":115,"Paladin: Nature's Wrath (Channel Divinity)":115,"Paladin: Aura of Warding":116,"Paladin: Undying Sentinel":116,"Paladin: Elder Champion":116,"Paladin: Vow of Enmity (Channel Divinity)":117,"Paladin: Relentless Avenger":117,"Paladin: Soul of Vengeance":117,"Paladin: Avenging Angel":117,"Ranger: Primal Companion":122,"Ranger: Exceptional Training":123,"Ranger: Bestial Fury":123,"Ranger: Share Spells":123,"Ranger: Dreadful Strikes":124,"Ranger: Otherworldly Glamour":121,"Ranger: Beguiling Twist":125,"Ranger: Misty Wanderer":125,"Ranger: Dread Ambusher":125,"Ranger: Umbral Sight":126,"Ranger: Iron Mind":126,"Ranger: Stalker's Flurry":126,"Ranger: Hunter's Prey":127,"Ranger: Defensive Tactics":127,"Ranger: Superior Hunter's Prey":127,"Ranger: Superior Hunter's Defense":127,"Rogue: Mage Hand Legerdemain":133,"Rogue: Magical Ambush":133,"Rogue: Versatile Trickster":133,"Rogue: Spell Thief":133,"Rogue: Assassinate":134,"Rogue: Infiltration Expertise":134,"Rogue: Envenom Weapons":134,"Rogue: Death Strike":134,"Rogue: Psionic Power / Psychic Blades":98,"Rogue: Soul Blades":136,"Rogue: Psychic Veil":136,"Rogue: Rend Mind":136,"Rogue: Fast Hands":137,"Rogue: Second-Story Work":137,"Rogue: Supreme Sneak":137,"Rogue: Use Magic Device":137,"Rogue: Thief's Reflexes":137,"Sorcerer: Telepathic Speech":145,"Sorcerer: Psionic Sorcery":146,"Sorcerer: Psychic Defenses":146,"Sorcerer: Warping Implosion":146,"Sorcerer: Restore Balance":146,"Sorcerer: Bastion of Law":147,"Sorcerer: Trance of Order":147,"Sorcerer: Clockwork Cavalcade":147,"Sorcerer: Draconic Resilience":148,"Sorcerer: Elemental Affinity":148,"Sorcerer: Dragon Wings":148,"Sorcerer: Dragon Companion":149,"Sorcerer: Wild Magic Surge":150,"Sorcerer: Tides of Chaos":149,"Sorcerer: Bend Luck":149,"Sorcerer: Controlled Chaos":149,"Warlock: Steps of the Fey":159,"Warlock: Misty Escape":159,"Warlock: Beguiling Defenses":159,"Warlock: Bewitching Magic":160,"Warlock: Healing Light":160,"Warlock: Radiant Soul":160,"Warlock: Celestial Resilience":161,"Warlock: Searing Vengeance":161,"Warlock: Dark One's Blessing":161,"Warlock: Dark One's Own Luck":162,"Warlock: Fiendish Resilience":162,"Warlock: Hurl Through Hell":162,"Warlock: Awakened Mind":162,"Warlock: Psychic Spells":163,"Warlock: Clairvoyant Combatant":163,"Warlock: Create Thrall":163,"Wizard: Arcane Ward":172,"Wizard: Projected Ward":172,"Wizard: Spell Breaker":173,"Wizard: Spell Resistance":173,"Wizard: Portent":173,"Wizard: Expert Divination":173,"Wizard: The Third Eye":173,"Wizard: Greater Portent":173,"Wizard: Sculpt Spells":174,"Wizard: Potent Cantrip":174,"Wizard: Empowered Evocation":174,"Wizard: Overchannel":174,"Wizard: Improved Illusions":175,"Wizard: Phantasmal Creatures":175,"Wizard: Illusory Self":175,"Wizard: Illusory Reality":175,"Barbarian: Primal Champion":53,"Bard: Magical Secrets":61,"Warlock: Armor of Shadows":155,"Warlock: Eldritch Mind":155,"Warlock: Pact of the Blade":156,"Warlock: Pact of the Chain":157,"Warlock: Pact of the Tome":157,"Warlock: Eldritch Spear":155,"Warlock: Fiendish Vigor":155,"Warlock: Mask of Many Faces":156,"Warlock: Misty Visions":156,"Warlock: Otherworldly Leap":156,"Warlock: Agonizing Blast":155,"Warlock: Devil's Sight":155,"Warlock: Repelling Blast":157,"Warlock: Lance of Lethargy":215,"Warlock: Gaze of Two Minds":156,"Warlock: Gift of the Depths":156,"Warlock: Far Scribe":184,"Warlock: Eldritch Smite":155,"Warlock: Ascendant Step":155,"Warlock: Master of Myriad Forms":156,"Warlock: One with Shadows":156,"Warlock: Whispers of the Grave":157,"Warlock: Investment of the Chain Master":156,"Warlock: Thirsting Blade":157,"Warlock: Gift of the Protectors":156,"Warlock: Visions of Distant Realms":157,"Warlock: Lifedrinker":156,"Warlock: Devouring Blade":155,"Warlock: Witch Sight":157,"Bard: Magical Discoveries":66,"Barbarian|Path of the Berserker|Frenzy":54,"Barbarian|Path of the Berserker|Mindless Rage":54,"Barbarian|Path of the Berserker|Intimidating Presence":54,"Barbarian|Path of the Berserker|Retaliation":54,"Barbarian|Path of the Wild Heart|Rage of the Wilds":55,"Barbarian|Path of the Wild Heart|Aspect of the Wilds":55,"Barbarian|Path of the Wild Heart|Nature Speaker":55,"Barbarian|Path of the Wild Heart|Power of the Wilds":55,"Barbarian|World Tree|Vitality of the Tree":56,"Barbarian|World Tree|Branches of the Tree":56,"Barbarian|World Tree|Battering Roots":56,"Barbarian|World Tree|Travel along the Tree":56,"Barbarian|Path of the Zealot|Divine Fury":57,"Barbarian|Path of the Zealot|Warrior of the Gods":57,"Barbarian|Path of the Zealot|Fanatical Focus":57,"Barbarian|Path of the Zealot|Rage of the Gods":57,"Bard|College of Dance|Dazzling Footwork":64,"Bard|College of Dance|Inspiring Movement":64,"Bard|College of Dance|Tandem Footwork":64,"Bard|College of Dance|Leading Evasion":65,"Bard|College of Glamour|Mantle of Inspiration":65,"Bard|College of Glamour|Beguiling Magic":65,"Bard|College of Glamour|Mantle of Majesty":65,"Bard|College of Glamour|Unbreakable Majesty":66,"Bard|College of Lore|Cutting Words":66,"Bard|College of Lore|Bonus Skills":40,"Bard|College of Lore|Peerless Skill":67,"Bard|College of Lore|Words of Creation":61,"Bard|College of Lore|Magical Discoveries":66,"Bard|College of Valor|Combat Inspiration":67,"Bard|College of Valor|Extra Attack":53,"Bard|College of Valor|Battle Magic":67,"Cleric|Life Domain|Disciple of Life":73,"Cleric|Life Domain|Preserve Life (Channel Divinity)":73,"Cleric|Life Domain|Blessed Healer":74,"Cleric|Life Domain|Supreme Healing":74,"Cleric|Light Domain|Warding Flare":74,"Cleric|Light Domain|Radiance of the Dawn (Channel Divinity)":74,"Cleric|Light Domain|Improved Warding Flare":75,"Cleric|Light Domain|Corona of Light":75,"Cleric|Trickery Domain|Blessing of the Trickster":75,"Cleric|Trickery Domain|Invoke Duplicity (Channel Divinity)":75,"Cleric|Trickery Domain|Trickster’s Transposition":76,"Cleric|Trickery Domain|Improved Duplicity":76,"Cleric|War Domain|War Priest":77,"Cleric|War Domain|Guided Strike (Channel Divinity)":77,"Cleric|War Domain|War God’s Blessing":77,"Cleric|War Domain|Avatar of Battle":77,"Druid|Circle of the Land|Land's Aid":85,"Druid|Circle of the Land|Natural Recovery":85,"Druid|Circle of the Land|Nature's Ward":85,"Druid|Circle of the Land|Nature's Sanctuary":86,"Druid|Circle of the Moon|Circle Forms":86,"Druid|Circle of the Moon|Improved Circle Forms":87,"Druid|Circle of the Moon|Moonlight Step":87,"Druid|Circle of the Moon|Lunar Form":87,"Druid|Circle of the Sea|Wrath of the Sea":87,"Druid|Circle of the Sea|Aquatic Affinity":87,"Druid|Circle of the Sea|Stormborn":87,"Druid|Circle of the Sea|Oceanic Gift":88,"Druid|Circle of the Stars|Star Map":88,"Druid|Circle of the Stars|Starry Form":88,"Druid|Circle of the Stars|Cosmic Omen":89,"Druid|Circle of the Stars|Full of Stars":89,"Fighter|Battle Master|Combat Superiority (maneuvers)":93,"Fighter|Battle Master|Know Your Enemy":94,"Fighter|Battle Master|Improved Combat Superiority":94,"Fighter|Battle Master|Relentless":94,"Fighter|Champion|Improved Critical":96,"Fighter|Champion|Remarkable Athlete":96,"Fighter|Champion|Additional Fighting Style":96,"Fighter|Champion|Survivor":96,"Fighter|Eldritch Knight|War Bond":98,"Fighter|Eldritch Knight|War Magic":98,"Fighter|Eldritch Knight|Arcane Charge":98,"Fighter|Eldritch Knight|Improved War Magic":98,"Fighter|Psi Warrior|Psionic Power":98,"Fighter|Psi Warrior|Telekinetic Adept":99,"Fighter|Psi Warrior|Guarded Mind":99,"Fighter|Psi Warrior|Telekinetic Master":99,"Monk|Warrior of Mercy|Hand of Healing":104,"Monk|Warrior of Mercy|Hand of Harm":104,"Monk|Warrior of Mercy|Physician's Touch":104,"Monk|Warrior of Mercy|Hand of Ultimate Mercy":105,"Monk|Warrior of Shadow|Shadow Arts":105,"Monk|Warrior of Shadow|Shadow Step":105,"Monk|Warrior of Shadow|Improved Shadow Step":105,"Monk|Warrior of Shadow|Cloak of Shadows":105,"Monk|Warrior of the Elements|Elemental Attunement":106,"Monk|Warrior of the Elements|Manipulate Elements":106,"Monk|Warrior of the Elements|Stride of the Elements":106,"Monk|Warrior of the Elements|Elemental Epitome":106,"Monk|Warrior of the Open Hand|Open Hand Technique":107,"Monk|Warrior of the Open Hand|Wholeness of Body":107,"Monk|Warrior of the Open Hand|Fleet Step":107,"Monk|Warrior of the Open Hand|Quivering Palm":107,"Paladin|Oath of Devotion|Sacred Weapon (Channel Divinity)":113,"Paladin|Oath of Devotion|Aura of Devotion":114,"Paladin|Oath of Devotion|Smite of Protection":114,"Paladin|Oath of Devotion|Holy Nimbus":114,"Paladin|Oath of Glory|Inspiring Smite (Channel Divinity)":111,"Paladin|Oath of Glory|Aura of Alacrity":115,"Paladin|Oath of Glory|Glorious Defense":115,"Paladin|Oath of Glory|Living Legend":115,"Paladin|Oath of the Ancients|Nature's Wrath (Channel Divinity)":115,"Paladin|Oath of the Ancients|Aura of Warding":116,"Paladin|Oath of the Ancients|Undying Sentinel":116,"Paladin|Oath of the Ancients|Elder Champion":116,"Paladin|Oath of Vengeance|Vow of Enmity (Channel Divinity)":117,"Paladin|Oath of Vengeance|Relentless Avenger":117,"Paladin|Oath of Vengeance|Soul of Vengeance":117,"Paladin|Oath of Vengeance|Avenging Angel":117,"Ranger|Beast Master|Primal Companion":122,"Ranger|Beast Master|Exceptional Training":123,"Ranger|Beast Master|Bestial Fury":123,"Ranger|Fey Wanderer|Dreadful Strikes":124,"Ranger|Fey Wanderer|Otherworldly Glamour":121,"Ranger|Fey Wanderer|Beguiling Twist":125,"Ranger|Fey Wanderer|Misty Wanderer":125,"Ranger|Gloom Stalker|Dread Ambusher":125,"Ranger|Gloom Stalker|Umbral Sight":126,"Ranger|Gloom Stalker|Iron Mind":126,"Ranger|Gloom Stalker|Stalker's Flurry":126,"Ranger|Hunter|Hunter's Prey":127,"Ranger|Hunter|Defensive Tactics":127,"Ranger|Hunter|Superior Hunter's Prey":127,"Ranger|Hunter|Superior Hunter's Defense":127,"Rogue|Arcane Trickster|Mage Hand Legerdemain":133,"Rogue|Arcane Trickster|Magical Ambush":133,"Rogue|Arcane Trickster|Versatile Trickster":133,"Rogue|Arcane Trickster|Spell Thief":133,"Rogue|Assassin|Assassinate":134,"Rogue|Assassin|Infiltration Expertise":134,"Rogue|Assassin|Envenom Weapons":134,"Rogue|Assassin|Death Strike":134,"Rogue|Soulknife|Psionic Power / Psychic Blades":98,"Rogue|Soulknife|Soul Blades":136,"Rogue|Soulknife|Psychic Veil":136,"Rogue|Soulknife|Rend Mind":136,"Rogue|Thief|Fast Hands":137,"Rogue|Thief|Second-Story Work":137,"Rogue|Thief|Supreme Sneak":137,"Rogue|Thief|Use Magic Device":137,"Rogue|Thief|Thief's Reflexes":137,"Sorcerer|Aberrant Sorcery|Telepathic Speech":145,"Sorcerer|Aberrant Sorcery|Psionic Sorcery":146,"Sorcerer|Aberrant Sorcery|Psychic Defenses":146,"Sorcerer|Aberrant Sorcery|Warping Implosion":146,"Sorcerer|Clockwork Sorcery|Restore Balance":146,"Sorcerer|Clockwork Sorcery|Bastion of Law":147,"Sorcerer|Clockwork Sorcery|Trance of Order":147,"Sorcerer|Clockwork Sorcery|Clockwork Cavalcade":147,"Sorcerer|Draconic Sorcery|Draconic Resilience":148,"Sorcerer|Draconic Sorcery|Elemental Affinity":148,"Sorcerer|Draconic Sorcery|Dragon Wings":148,"Sorcerer|Draconic Sorcery|Dragon Companion":149,"Sorcerer|Wild Magic Sorcery|Wild Magic Surge":150,"Sorcerer|Wild Magic Sorcery|Tides of Chaos":149,"Sorcerer|Wild Magic Sorcery|Bend Luck":149,"Sorcerer|Wild Magic Sorcery|Controlled Chaos":149,"Warlock|Archfey Patron|Steps of the Fey":159,"Warlock|Archfey Patron|Misty Escape":159,"Warlock|Archfey Patron|Beguiling Defenses":159,"Warlock|Archfey Patron|Bewitching Magic":160,"Warlock|Celestial Patron|Healing Light":160,"Warlock|Celestial Patron|Radiant Soul":160,"Warlock|Celestial Patron|Celestial Resilience":161,"Warlock|Celestial Patron|Searing Vengeance":161,"Warlock|Fiend Patron|Dark One's Blessing":161,"Warlock|Fiend Patron|Dark One's Own Luck":162,"Warlock|Fiend Patron|Fiendish Resilience":162,"Warlock|Fiend Patron|Hurl Through Hell":162,"Warlock|Great Old One Patron|Awakened Mind":162,"Warlock|Great Old One Patron|Clairvoyant Combatant":163,"Warlock|Great Old One Patron|Create Thrall":163,"Wizard|Abjurer|Arcane Ward":172,"Wizard|Abjurer|Projected Ward":172,"Wizard|Abjurer|Spell Breaker":173,"Wizard|Abjurer|Spell Resistance":173,"Wizard|Diviner|Portent":173,"Wizard|Diviner|Expert Divination":173,"Wizard|Diviner|The Third Eye":173,"Wizard|Diviner|Greater Portent":173,"Wizard|Evoker|Potent Cantrip":174,"Wizard|Evoker|Empowered Evocation":174,"Wizard|Evoker|Overchannel":174,"Wizard|Illusionist|Improved Illusions":175,"Wizard|Illusionist|Phantasmal Creatures":175,"Wizard|Illusionist|Illusory Self":175,"Wizard|Illusionist|Illusory Reality":175,"Aasimar: Celestial Revelation":186,"Aasimar: Healing Hands":186,"Aasimar: Light Bearer (Light cantrip)":186,"Dragonborn: Draconic flight":187,"Dwarf: Stonecunning / tremorsense":188,"Elf: Drow darkvision 120 ft":186,"Goliath: Large Form":192,"Goliath: Long Stride (Speed 35)":239,"Halfling: Brave":193,"Halfling: Naturally Stealthy":193,"Human: Heroic Inspiration":13,"Tiefling: Thaumaturgy cantrip":333,"Dragonborn: Larger breath dice (L5)":187,"Dragonborn: Larger breath dice (L11)":187,"Dragonborn: Larger breath dice (L17)":187,"Gnome: Rock Clockwork Device":191};
-function renderCharSheet(b,r,ctx){
-  ctx=ctx||{};var m=r.mods,H=[];var A=_CSABCOL;
-  var _fx=function(kind,key){return ctx.fx?_fxBtn(_lsFx(kind,key)):'';};   // ⓘ — Live Sheet only (CharGen's copy passes no ctx.fx)
-  var lvl=b.hd, tier=r.tier;
-  // ----- header -----
-  H.push('<div class="cs-head">'+
-    '<div class="cs-fld" style="grid-column:1 / span 1"><label>Character Name</label><div style="font-size:18px;font-weight:800;color:var(--navytx)">'+_csEsc(b.name||'New Character')+(ctx.nameEdit||'')+'</div></div>'+
-    '<div class="cs-fld"><label>Class &amp; Level</label><div class="shsmall">'+_csEsc(b.originClass+(b.originClass2&&b.originClass2!=='(none)'?' / '+b.originClass2:'')+'  ·  Lv '+lvl+' (T'+tier+')')+'</div></div>'+
-    '<div class="cs-fld"><label>Player Name</label>'+_mfIn('playerName',(b.appearance||{}).playerName||'','','your name')+'</div>'+
-    '<div class="cs-fld"><label>Species / Heritage</label><div class="shsmall">'+_csEsc((b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+'  ·  '+(r.size||'Medium'))+'</div></div>'+
-    '<div class="cs-fld"><label>Alignment</label>'+_mfIn('alignment',(b.appearance||{}).alignment||'','','e.g. NG')+'</div>'+
-    '<div class="cs-fld"><label>Background / Other</label>'+_mfIn('bg',(b.appearance||{}).background||'','','background')+'</div>'+
-  '</div>');
-  H.push('<div class="shsub" style="margin:-4px 0 8px">'+_csEsc(ctx.apText||'')+'</div>');
-  // feat/livesheet-sheet-view-desc: Live Sheet passes ctx.descBlock — the Character panel's collapsed Appearance & description
-  // block — in place of the Appearance / Background & Personality / Allies / Backstory boxes below (CharGen passes none).
-  if(ctx.descBlock)H.push('<div class="shbox">'+ctx.descBlock+'</div>');
-  else{var ap=b.appearance||{};
-   H.push('<div class="shbox"><h5>Appearance</h5><div class="cs-grid3">'+
-     [['Gender','ap_gender'],['Age','ap_age'],['Height','ap_height'],['Build','ap_build'],['Hair','ap_hair'],['Eyes','ap_eyes'],['Skin','ap_skin'],['Marks','ap_marks'],['Voice','ap_voice']].map(function(f){var key=f[1].slice(3);return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],ap[key]||'','','')+'</div>';}).join('')+'</div></div>');
-  }
-  H.push('<div class="shcols2">');
-  // ===== LEFT column: abilities, inspiration/prof, saves, skills, passive, profs, tools =====
-  H.push('<div class="shcol">');
-  H.push('<div class="shbox"><h5>Abilities</h5><div class="shabrow">'+ABILS.map(function(a){var sc=(r.effScore&&r.effScore[a])||b.stats[a];return '<div class="shab"><div class="shk" style="color:'+A[a]+'">'+a+'</div><div class="shsc" style="color:'+A[a]+'">'+_sgn(m[a])+'</div><div class="shmod">'+sc+'</div></div>';}).join('')+'</div></div>');
-  H.push('<div class="shbox"><div class="cs-insp"><b style="color:var(--blue)">Inspiration</b> '+_mfCk('insp',false,'Inspiration')+'<span class="grow"></span><b style="color:var(--blue)">Prof Bonus</b> <span style="font-size:15px;font-weight:800;color:var(--navytx)">'+_sgn(r.prof)+'</span></div></div>');
-  H.push('<div class="shbox"><h5>Saving Throws</h5>'+saveMods(b,r).map(function(s){var a=s.ab,pro=s.prof;return '<div class="shrow'+(pro?' on':'')+'"><span style="color:'+A[a]+';font-weight:'+(pro?'700':'400')+'">'+(pro?'●':'○')+' '+a+'</span><span>'+_sgn(s.total)+'</span></div>';}).join('')+'</div>');
-  if((b.ki||0)>0)H.push('<div class="shbox"><h5>Ki / Focus Points</h5><div class="shrow on"><span>● Total Ki / Focus points</span><span>'+(b.ki||0)+'</span></div></div>');if((b.sorcery||0)>0)H.push('<div class="shbox"><h5>Sorcery Points</h5><div class="shrow on"><span>● Total sorcery points</span><span>'+(b.sorcery||0)+'</span></div></div>');H.push('<div class="shbox"><h5>Skills</h5>'+DATA.skillList.map(function(s){var bo=(b.skills||[]).includes(s[0]),ex=(b.expertise||[]).includes(s[0]);var bn=m[s[1]]+(bo?r.prof:0)+(ex?r.prof:0);return '<div class="shrow'+(bo?' on':'')+'"><span>'+(bo?'●':'○')+' '+s[0]+' <i style="color:'+A[s[1]]+'">('+s[1]+')</i>'+(ex?' ✦':'')+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
-  {var perc=(b.skills||[]).includes("Perception"),pex=(b.expertise||[]).includes("Perception");var pp=10+m.WIS+(perc?r.prof:0)+(pex?r.prof:0);
-   H.push('<div class="shbox"><h5>Passive Perception</h5><div class="shsmall" style="font-size:20px;font-weight:800;text-align:center;color:var(--navytx)">'+pp+'</div></div>');}
-  H.push('<div class="shbox"><h5>Proficiencies &amp; Languages</h5><div class="shsmall">Languages: '+((b.languageNames&&b.languageNames.filter(Boolean).length)?b.languageNames.filter(Boolean).map(_csEsc).join(', ')+' ('+(b.languages||1)+')':(b.languages||1))+
-    '<br>Weapons: '+([(b.weaponProf&&b.weaponProf.simple?'Simple':''),(b.weaponProf&&b.weaponProf.allMartial?'All martial':(b.weaponProf&&b.weaponProf.martial?b.weaponProf.martial+' martial':'')),(b.weaponProf&&b.weaponProf.improvised?'Improvised':'')].filter(Boolean).join(', ')||'—')+
-    '<br>Armour: '+([(b.armour&&b.armour.light?'Light':''),(b.armour&&b.armour.medium?'Medium':''),(b.armour&&b.armour.heavy?'Heavy':''),(b.armour&&b.armour.shield?'Shield':'')].filter(Boolean).join(', ')||'—')+
-    '<br>Masteries: '+((b.masteries||[]).map(function(x){return _csEsc(x)+_fx('mastery',x);}).join(', ')||'—')+'</div></div>');
-  {var tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
-   if(tl.length)H.push('<div class="shbox"><h5>Tools &amp; Instruments</h5>'+tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t];var tex=(b.toolExpertise||[]).includes(t);var bn=ab?(m[ab]+r.prof+(tex?r.prof:0)):null;return '<div class="shrow on"><span>● '+_csEsc(t)+(ab?' <i style="color:'+A[ab]+'">('+ab+')</i>':'')+(tex?' ✦':'')+'</span><span>'+(bn!=null?_sgn(bn):'')+'</span></div>';}).join('')+'</div>');}
-  // fix/livesheet-pack-spells: a lineage's spell-likes are listed in Spellcasting ("From heritage & other sources"); this box
-  // keeps only the lineages that are not spells (Dragonborn / Goliath ancestries).
-  {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _lfx=(!_lin.length&&b.lineage&&DATA.lineageFx&&DATA.lineageFx[b.lineage])||'';if(_lfx)H.push('<div class="shbox"><h5>Ancestry — '+_csEsc(b.lineage)+' <span class="shtag">ancestry</span></h5><div style="font-size:10.5px">'+_csEsc(_lfx)+'</div></div>');}
-  H.push('</div>');
-  // ===== MIDDLE column: combat, HP, attacks (EDITABLE), equipment (EDITABLE) =====
-  H.push('<div class="shcol">');
-  H.push('<div class="shbox"><h5>Combat</h5><div class="shkpis">'+[['AC',r.ac],['Init',_sgn(r.init)],['Speed',r.speed+'ft'],['Prof',_sgn(r.prof)],['Hit Die',lvl+'d6'],['Tier','T'+tier]].map(function(k){return '<div class="shkpi"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>';}).join('')+'</div>'+
-    '<div class="cs-hpbox"><div class="cs-hp big"><label>Current HP  ·  (max '+r.hp+')</label>'+_mfIn('curHP',String(r.hp),'cs-num','','Current HP')+'</div>'+
-    '<div class="cs-hp"><label>Temp HP</label>'+_mfIn('tempHP','','cs-num','','Temporary HP')+'</div>'+
-    '<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(lvl),'cs-num','','Hit Dice remaining')+'</div></div>'+
-    // fix/livesheet-hp-sync-hint (2026-08-22, shallow half of the HP-sync audit finding): these three
-    // fields are device-local scratch (plain localStorage, same bucket as Player Name/Backstory Notes)
-    // — they do NOT round-trip through cloud sync or Save/Load like the rest of the character. Switching
-    // devices silently resets Current HP to max with nothing telling the player why. This note makes
-    // that visible; it doesn't close the gap (a LOG-backed migration would) — see the NEXT-board task
-    // for the deeper fix, deliberately out of scope here pending an owner decision.
-    '<div style="font-size:10px;color:var(--grey);margin-top:2px">📱 This device only — not saved to the cloud or shared with other devices</div>'+
-    '<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span></div></div>');
-  // attacks / weapons table (editable, persisted)
-  var wrows='';for(var i=0;i<6;i++){var wn=i+1;wrows+='<tr><td>'+_mfIn('wpn'+i+'_name','','','','Weapon '+wn+' name')+'</td><td>'+_mfIn('wpn'+i+'_atk','','','','Weapon '+wn+' attack bonus')+'</td><td>'+_mfIn('wpn'+i+'_dmg','','','','Weapon '+wn+' damage and type')+'</td></tr>';}
-  H.push('<div class="shbox"><h5>Attacks &amp; Spellcasting</h5><table class="wtbl"><colgroup><col><col class="cw-atk"><col class="cw-dmg"></colgroup><tr><th>Name</th><th>Atk Bonus</th><th>Damage / Type</th></tr>'+wrows+'</table></div>');
-  H.push('<div class="shbox"><h5>Equipment</h5>'+_mfTa('equip','',"weapons, armour, gear…",160)+
-    '<div class="cs-coins">'+[['CP','cp'],['SP','sp'],['GP','gp'],['PP','pp']].map(function(c){return '<div class="cs-coin"><label>'+c[0]+'</label>'+_mfIn(c[1],'','','',c[0]+' coins')+'</div>';}).join('')+'</div>'+
-    '<div class="shsmall" style="margin-top:4px;color:var(--grey)">Starting gold from AP: <b>'+r.goldGp+' gp</b></div></div>');
-  var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0),i:_fx('feature',l)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0),i:_fx('feature',k)});});(function(){var _pk=(typeof packTraitsFor==='function')?packTraitsFor(b.species,b.species2):[];var _seen={};return (b.racialTraits||[]).concat(_pk).filter(function(l){if(_seen[l])return false;_seen[l]=1;return true;});})().forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0),i:_fx('feature',l)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):''),i:_fx('boon',x)});});
-  H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>'+(x.i||'');}).join('<br>'):'—')+'</div></div>');
-  if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d)+_fx('drawback',d);}).join('<br>')+'</div></div>');
-  {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
-  {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
-  {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}
-  // bonds — recorded + shown (lightweight; no demand-ladder engine)
-  {var _mag=[];(b.traditions||[]).forEach(function(t){if(t&&t.name&&t.name!=='(none)')(t.disciplines||[]).forEach(function(d){if(d&&d.bound&&d.name&&d.name!=='(none)')_mag.push(t.name+' › '+d.name);});});
-   var _mar=(b.martiallyBound&&b.martiallyBound!=='(none)')?b.martiallyBound:null;
-   if(_mag.length||_mar){var _bb='<div class="shbox bondbox"><h5>Bonds</h5>';
-     _mag.forEach(function(s){_bb+='<div class="bondline"><span class="bbk">⛓ Magical</span>'+_csEsc(s)+'</div>';});
-     if(_mar)_bb+='<div class="bondline"><span class="bbk">⚔ Martial</span>'+_csEsc(_mar)+'</div>';
-     _bb+='<div class="cs-fld" style="margin-top:5px"><label>Bound to (source)</label>'+_mfIn('bondSource','','','e.g. The Maw, The Iron Pact')+'</div>';
-     _bb+='<div class="cs-fld" style="margin-top:4px"><label>Obligations / notes</label>'+_mfTa('bondNotes','','demands, tithe, the band you owe…',46)+'</div>';
-     _bb+='</div>';H.push(_bb);}}
-  // spellcasting (computed)
-  var discs=[];(b.traditions||[]).forEach(function(t){if(t&&t.name&&t.name!=='(none)')(t.disciplines||[]).forEach(function(d){if(d&&d.name&&d.name!=='(none)')discs.push({t:t,d:d});});});
-  // fix/livesheet-pack-spells: lineage, species-trait, subclass, choice-grant, fighting-style and innate spells come from the engine's
-  // grantedSpells(b), each labelled with its source — the section shows even when the character has no tradition.
-  var _GS=(typeof grantedSpells==='function')?grantedSpells(b):[];var _dns=discs.map(function(x){return x.d.name;});
-  var _gsO=_GS.filter(function(g){return !(g.kind==='subclass'&&_dns.indexOf(g.disc)>=0);});
-  if((discs.length||_gsO.length)&&!ctx.noSpell){var _sps='<div class="spellsec"><div class="sphd">Spellcasting</div><div class="splegend">● spell · ◆ cantrip · ✦ always prepared — spells from a lineage, species trait, subclass or grant say where they came from.</div><div class="spbody">';
-    discs.forEach(function(x,i){var di=r.discInfo[i];if(!di)return;var dd=x.d;var rank=x.t.rank;var castAt=rank>0?(DATA.hdGate[rank-1]||(2*rank-1)):'—';
-      _sps+='<div class="spdisc"><div class="spname">'+_csEsc(x.t.name+' › '+x.d.name)+(di.isOrigin?' ★':'')+(di.bound?' <span class="bbadge">⛓ Bound</span>':'')+'</div>';
-      _sps+='<div class="spstrip"><div class="spstat"><small>Ability</small><b style="color:'+(A[di.castAb]||'var(--navy)')+'">'+di.castAb+'</b></div>'+
-        '<div class="spstat"><small>Save DC</small><b>'+di.saveDC+'</b></div>'+
-        '<div class="spstat"><small>Spell Atk</small><b>'+_sgn(di.spellAtk)+'</b></div>'+
-        '<div class="spstat"><small>Rank · Cast</small><b>'+rank+'<span style="font-size:9px;font-weight:600;color:var(--grey)"> · Lv'+castAt+'</span></b></div></div>';
-      if(di.isWarlock){_sps+='<div class="slotgrid"><div class="slotcell" style="grid-column:1 / span 9"><div class="lv">PACT SLOTS</div><div class="n">'+(dd.pactSlots||0)+' @ L'+di.pactLevel+'</div></div></div>';}
-      else{_sps+='<div class="slotgrid">';for(var L=1;L<=9;L++){var sl=(dd.slots||[])[L-1]||0;_sps+='<div class="slotcell'+(sl?'':' empty')+'"><div class="lv">L'+L+'</div><div class="n">'+(sl||'—')+'</div></div>';}_sps+='</div>';}
-      var groups=[];var cn=dd.cantrips||0;
-      if(cn){var ch='';for(var c=0;c<cn;c++){var cv=((dd.cantripNames||[])[c]||'').trim();ch+='<div class="sprow cant'+(cv?'':' ph')+'"><span class="bul">'+(cv?'◆':'○')+'</span><span>'+(cv?_csEsc(cv):('cantrip '+(c+1)))+'</span></div>';}groups.push('<div class="splevel"><div class="lh"><span>Cantrips</span><span class="sl">'+cn+' · at will</span></div>'+ch+'</div>');}
-      if(!di.isWarlock){for(var L2=1;L2<=9;L2++){var slot=(dd.slots||[])[L2-1]||0;var kn=(dd.known||[])[L2-1]||0;if(!slot&&!kn)continue;var rows='';
-        if(di.prepared){for(var p=0;p<slot;p++)rows+='<div class="sprow ph"><span class="bul">○</span><span>L'+L2+' prepared slot</span></div>';}
-        else{for(var k=0;k<kn;k++){var kv=(((dd.knownNames||[])[L2-1]||[])[k]||'').trim();rows+='<div class="sprow'+(kv?'':' ph')+'"><span class="bul">'+(kv?'●':'○')+'</span><span>'+(kv?_csEsc(kv):('L'+L2+' spell '+(k+1)))+'</span></div>';}}
-        var tag=di.prepared?'prepared':(kn+' known');groups.push('<div class="splevel"><div class="lh"><span>Level '+L2+'</span><span class="sl">'+slot+' slot'+(slot!==1?'s':'')+' · '+tag+'</span></div>'+rows+'</div>');}}
-      pactGrantedBundleGroups(_GS.filter(function(g){return g.kind==='subclass'&&g.disc===x.d.name;}),b.hd).forEach(function(g){groups.push(g);});
-      var cols=[[],[],[]];groups.forEach(function(g,gi){cols[gi%3].push(g);});
-      _sps+='<div class="spcols">'+cols.map(function(cc){return '<div>'+cc.join('')+'</div>';}).join('')+'</div>';
-      if(di.prepared){_sps+=_mfTa('spp_'+i,'','list the spells you prepare…',38)+'<div class="phnote">Greyed rows show prepared-slot capacity — type your prepared spells above.</div>';}
-      _sps+='</div>';});
-    _sps+=pactGrantedOtherBlock(_gsO,b.hd);
-    _sps+='</div></div>';H.push(_sps);}
-  if(r.dabbler>0){var _df='';for(var _d=0;_d<r.dabbler;_d++){var _nm=String(((b.dabblerCantripNames||[])[_d])||'').trim();if(_nm)_df+='<div class="shrow on"><span>'+_csEsc(_nm)+'</span><span style="color:var(--grey)">cantrip</span></div>';}H.push('<div class="shbox"><h5>Cantrips (no Foundation) <span class="shtag">spell</span></h5><div class="shsmall" style="margin-bottom:3px">'+r.dabbler+' Wizard-list cantrips · cast with INT · Save DC '+r.saveDC+'</div>'+_df+'</div>');}
-  if(!ctx.noSpell)H.push('<div class="shbox"><h5>Spell Slots &amp; Known / Prepared</h5><div class="cs-grid3" style="margin-bottom:4px">'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<div class="cs-fld"><label>L'+L+'</label>'+_mfIn('slot_L'+L,'','','','Level '+L+' slots (total / used)')+'</div>';}).join('')+'</div>'+_mfTa('spelllist','','cantrips and spells — known or prepared, by level…',180)+'</div>');
-  H.push('</div>');
-  H.push('</div>');
-  if(!ctx.descBlock){
-  {var ap=b.appearance||{};
-   H.push('<div class="shbox"><h5>Background &amp; Personality</h5><div class="cs-grid2">'+
-     [['Home town','ap_hometown',ap.hometown],['Faith','ap_faith',ap.faith],['Ambition','ap_ambition',ap.ambition],['Greatest fear','ap_fear',ap.fear],['Prized possession','ap_prized',ap.prized],['Companion','ap_companion',ap.companion]].map(function(f){return '<div class="cs-fld"><label>'+f[0]+'</label>'+_mfIn(f[1],f[2]||'','','')+'</div>';}).join('')+'</div>'+'<div class="cs-fld" style="margin-top:6px"><label>Description</label>'+_mfTa('ap_overall',ap.overall||'','one-paragraph description of how the character looks and comes across…',110)+'</div></div>');}
-  H.push('<div class="shbox"><h5>Allies &amp; Organisations</h5>'+_mfTa('allies',(b.appearance||{}).allies||'','people and factions…',54)+'</div>');
-  H.push('<div class="shbox"><h5>Backstory &amp; Notes</h5>'+_mfTa('notes',(b.appearance||{}).backstory||'','backstory, session notes, treasure…',80)+'</div>');
-  }
-  H.push('<div class="shbox"><h5 title="Priced at TODAY&rsquo;S rules — this can differ from the header&rsquo;s AP left figure (the frozen ledger, what was actually paid) whenever prices or rules moved since a purchase.">AP Ledger</h5><table class="shledger">'+r.lines.filter(function(l){return l[1]!==0;}).map(function(l){return '<tr><td>'+_csEsc(l[0])+'</td><td>'+l[1]+'</td></tr>';}).join('')+'<tr class="tot"><td>TOTAL</td><td>'+r.total+'</td></tr></table></div>');
-  return H.join('');
-}
-
 // ===== Shared AI portrait-prompt builder (IDENTICAL logic in both tools) =====
 var CLASS_GEAR={Barbarian:'wielding a great axe',Fighter:'holding a longsword',Monk:'in a martial stance, bare-handed',
  Rogue:'gripping a pair of daggers',Paladin:'bearing a holy blade',Ranger:'holding a longbow',Bard:'carrying a lute',
