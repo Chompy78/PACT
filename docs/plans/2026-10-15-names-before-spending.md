@@ -39,6 +39,12 @@ Assumed (not checked; the reviewer should treat as shaky):
 7. Both tools show the reason where a purchase is refused, with a button that opens the names dialog.
 8. Players Guide: state the rule where languages and spells are bought, in both the served copy and the master copy.
 
+## Owner decisions after review (2026-10-15)
+- I1: a slot with zero legal candidates (empty strict language list, no eligible spell) counts as named. `unnamedChoices` skips it, so no character can be stuck. The engine must therefore know each slot's candidate pool; step 1 returns it with each slot.
+- J1: characters in no campaign are gated like any other. The I1 rule is their escape.
+- K1: one plan, two branches/PRs. PR 1 (`refactor/names-slot-helper`): steps 1-2 only, no behaviour change. PR 2 (`feat/names-before-spending`): steps 3-8, the gate and DM switch, which turns the block on for everyone.
+- Release day: write a short DM note (in the changelog and PR body) saying the block is on and where the switch is.
+
 ## Files involved
 `js/engine.js` (new helper, gate, export list); `tools/PACT-CharGen-Webtool.html` and `tools/PACT-Live-Char-Sheet.html` (dialogs, buy paths, Finish creating); `tools/DM-Console.html` (the switch); `docs/PACT-Players-Guide.html` plus its master copy in a separate project; a new end-to-end test script under `testing/`; `CHANGELOG.md`, a decision record.
 
