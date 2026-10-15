@@ -1,4 +1,4 @@
-# D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins
+# D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins (+ Defense, Draconic HP)
 
 Status: Active. Engine, Live Sheet, CharGen, Players Guide (served copy and the `pact-guide` master) in this change.
 `DATA.version` v0.376 → v0.377 (`compute()`'s `ac` changes for characters who own an unarmoured class feature and wear no armour).
@@ -59,11 +59,30 @@ worn choices are inputs in the LOG (like appearance), never stored derived value
 
 ## Gates
 
-`engine-parity` 113/0 (8 new `CG-071`–`CG-078` fixtures with a new optional `_expectAc` assertion in both the Node and browser
-runners; 5 fail on the old engine), `worn-armour-ac-ci.mjs` 23/0 (14 new checks), new `livesheet-armour-ac-e2e.mjs` 23/0 across
+`engine-parity` 117/0 (12 new `CG-071`–`CG-082` fixtures with a new optional `_expectAc` assertion in both the Node and browser
+runners; 5 fail on the old engine), `worn-armour-ac-ci.mjs` 34/0 (25 new checks), new `livesheet-armour-ac-e2e.mjs` 27/0 across
 all three tools (7 fail on old code), tool-pricing, legality, priceOf, post-lock parity fuzz (0 mismatches), guide checks.
 
-## Open (owner questions)
+## Addendum — owner decision AP1 (2026-10-15, after review of #670): Defense and Draconic Resilience HP
 
-- The Defense Fighting Style (+1 AC while wearing armour) is still "apply manually" on the sheet, as are magic items.
-- Draconic Resilience's hit-point increase is not applied by `compute()` (AC only, as requested).
+Same PR, same v0.377 bump.
+
+- **Defense Fighting Style: +1 AC while wearing armour** (Mage Armor is not armour). Owned either as a bought art (`b.arts`, not
+  Hit-Dice blocked) or as the style named in `fightingStyleNames` for a counted Fighting Style feature slot (Fighter / Paladin /
+  Ranger: Fighting Style, Fighter: Additional Fighting Style — only as many names as owned slots). Never stacks with itself.
+  Reported as `acInfo.defense`; the Live Sheet no longer lists Defense under "apply manually".
+- **Draconic Resilience HP: +1 per Hit Die.** 2024 PHB wording: "Your Hit Point maximum increases by 3, and it increases by 1
+  whenever you gain another Sorcerer level", gained at Sorcerer level 3 — so the bonus equals the Sorcerer level. PACT is
+  classless and a character's level is its Hit Dice (the ability itself needs 3 Hit Dice, T3), so the engine adds `hd` HP: +3 at
+  3 HD, +1 per Hit Die after. Applied after the Frail / Glass Frame suppression (it is neither Vigor nor Grit). New `hpDraconic`
+  in `compute()`'s result; the Live Sheet HP tooltip shows it. Same counted-ownership rule as the AC formula.
+- **Monk nudge (display only):** `acInfo.nudge` when the shield is in hand and Monk Unarmored Defense would beat shield + current
+  formula; the Live Sheet's Wearing row shows it. The shield stays the player's choice.
+- **CharGen:** "Shield in hand" touched-state is reset on every new-character and load path (they all go through `applyBuild()`
+  → `_cgShieldWornLoad()`); the e2e now proves it for New Character and for loading another character.
+- Fixtures `CG-079`–`CG-082` (Defense: art in Chain Mail 17, art unarmoured 12, named for a Fighting Style slot 14, named with
+  no slot 13) and an optional `_expectHp` assertion (`CG-077` HP 23, `CG-078` blocked HP 6).
+- **Blast radius:** no live character owns Defense (as an art or a named style) or Draconic Resilience (checked 2026-10-15), so
+  the live impact is unchanged: Anders Pipeleaf and his two DM copies, AC 13 → 14. Existing fixtures: 0 of 105 change.
+- **Merge note:** `feat/campaign-house-rules` also bumps to v0.377 and uses `CG-071`–`CG-075`, `EV-035`–`EV-040`; the board
+  entry "feat/campaign-house-rules merge — rules version and parity fixture ids collide…" says what the second to merge must do.

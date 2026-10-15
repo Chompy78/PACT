@@ -36,7 +36,8 @@
 - Owner decision AK1. Free LOG inputs: `wornArmour` (now also `MAGE_ARMOR`) and new `shieldWorn` (absent = carried when trained, so no
   shield bonus moves). With no armour, `compute()` takes the best of 10 + Dex, Mage Armor 13 + Dex, Barbarian UD 10 + Dex + Con, Monk UD
   10 + Dex + Wis (no shield), Draconic Resilience 10 + Dex + Cha — counted ownership only; no new warnings (advice in `acInfo`). Live
-  Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
+  Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". Owner AP1 adds Defense (+1 AC in armour) and Draconic Resilience HP
+  (+1 per Hit Die = 2024's Sorcerer-level bonus). v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
