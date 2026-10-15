@@ -2414,6 +2414,7 @@ function buildForm(F){
       '<button class="btn ghost" type="button" onclick="cgCopyAppearance()" title="Copy every appearance &amp; description field, to paste onto another character">📋 Copy appearance</button>'+
       '<button class="btn ghost" type="button" onclick="cgPasteAppearance()" title="Replace this character\'s appearance &amp; description with one you copied (you see the changes first; the name is kept; Undo reverts it)">📥 Paste appearance</button>'+
       '<span class="hint">Each field has its own 🎲 — species &amp; class steer the roll; height &amp; age use PHB ranges.</span></div>'+
+    '<div id="cgCharImgs" data-charimg="" data-charimg-edit="1"></div>'+   // feat/character-images
     '<div class="sublab2">Appearance</div>'+
     '<div class="apcols">'+
       apField('ap_gender','Gender','gender',false)+apField('ap_age','Age','age',true)+
@@ -7055,10 +7056,17 @@ function _cgCeilingAccept(){
 // was built from the form BEFORE that correction, so without a re-sync the LOG keeps — and charges — the
 // value the form no longer shows (Elf + Elf: 17 AP instead of 7). fix/chargen-livesheet-data-loss.
 let _cgIdentityFixed=false;
+// feat/character-images (D-GH-2026-10-15-character-images): point the Setup panel's pictures placeholder at this character
+// and let js/character-images.js fill it (cached, so a repaint costs no request). Pictures live in cloud storage by
+// character id, never in the LOG — Undo, Paste appearance and Randomise never touch them.
+function _cgCharImgs(){var el=$('cgCharImgs');if(!el)return;var id=__charId||'';
+  if(el.getAttribute('data-charimg')!==id)el.setAttribute('data-charimg',id);
+  if(window._charImg)window._charImg.hydrateAll(el);}
 function render(){
   if(_cgCeilingCheck()) return;      // refused: restoreFrame() has already repainted the accepted state
   _cgIdentityFixed=false;
   _cgRenderAll();
+  try{_cgCharImgs();}catch(e){}   // feat/character-images
   _cgCeilingAccept();
   if(_cgIdentityFixed){ _cgIdentityFixed=false;
     // Not while a repaint/whole-build write is in progress (applyBuild rebuilds the LOG from the corrected form
@@ -7628,6 +7636,13 @@ document.addEventListener('engine-ready',_cgPaintInfoVersions);
       window.addEventListener('focus', () => reg.update());
     });
   }
+</script>
+<script type="module">
+  // feat/character-images (D-GH-2026-10-15-character-images): up to two pictures per cloud character. Loaded on its own
+  // and dynamically, so a failure costs only the pictures — never the cloud bridge or the tool. Fills every
+  // [data-charimg] placeholder now; the tool re-calls hydrateAll() after each repaint.
+  import('../js/character-images.js').then(function(m){ window._charImg = m; m.hydrateAll(document); })
+    .catch(function(e){ console.warn('PACT: character pictures unavailable', e); });
 </script>
 <script type="module">
   // In-app feedback widget (feat/feedback-widget). Self-contained; independent of

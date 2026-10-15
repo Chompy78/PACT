@@ -2180,6 +2180,8 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span>'+lockIconHTML(s)+'</div>' +
+        // feat/character-images: read-only thumbnails, filled by js/character-images.js (one signed-url request per roster)
+        (dm ? '<div class="pci sm" data-charimg="'+esc(r.id)+'"></div>' : '') +
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
@@ -2950,6 +2952,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     // unbind-then-award together. Centralizing the call here means no future cloudRoster-mutating
     // caller of this function can reintroduce the same gap.
     renderCampAwardAp();
+    Promise.resolve().then(function(){ if(window._charImg) window._charImg.hydrateAll(container); });   // feat/character-images: after the paint below
     var npcs = npcSectionHTML(cloudCardHTML);
     if(!cloudRoster.length){ container.innerHTML = _cloudEmptyHTML() + npcs; return; }
     // Hiding is a display-only DM preference (see hiddenCards above) — it never drops a character out
@@ -6202,6 +6205,13 @@ document.addEventListener('campaign-ready', function () {
       window.addEventListener('focus', () => reg.update());
     });
   }
+</script>
+<script type="module">
+  // feat/character-images (D-GH-2026-10-15-character-images): up to two pictures per cloud character. Loaded on its own
+  // and dynamically, so a failure costs only the pictures — never the cloud bridge or the tool. Fills every
+  // [data-charimg] placeholder now; the tool re-calls hydrateAll() after each repaint.
+  import('../js/character-images.js').then(function(m){ window._charImg = m; m.hydrateAll(document); })
+    .catch(function(e){ console.warn('PACT: character pictures unavailable', e); });
 </script>
 <script type="module">
   // In-app feedback widget (feat/feedback-widget). Self-contained; independent of

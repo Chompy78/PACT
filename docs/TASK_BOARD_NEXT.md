@@ -1637,25 +1637,22 @@ compute() (never re-derived). Keep it readable on a phone.
 ```
 **Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
-## feat/character-images — upload up to 2 images per character — TODO
-Branch feat/character-images. **Effort:** medium–high · **Risk:** medium — new server storage + access rules (security), files cross users (DM / campaign).
+## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
+Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
 
 ```text
-Owner request 2026-10-14. A spot on the character (Live Sheet Character panel / 📋 Sheet, and CharGen's appearance area) to
-upload character images — at most 2 per character — shown on the sheet and on the DM Console card.
-Decide with the owner first (plan + cold review — this adds backend storage):
-  - Storage: Supabase Storage bucket (e.g. `character-images/<owner_id>/<character_id>/<n>.webp`) with RLS: the owner can
-    write/delete their own; the owner and the DMs of the character's campaign can read; nobody else. Never put the image
-    bytes in stats/LOG (bloats every save and sync). Store only the 2 object paths (e.g. as appearance keys or a small
-    column) — and remember appearance copy/paste (#662) copies text fields: decide whether image paths travel.
-  - Limits: max 2 per character, file types (jpg/png/webp), max size (e.g. 2 MB), resize/compress in the browser before upload.
-  - Signed-out / local-only characters: no upload (or local-only data URL kept out of the LOG) — decide.
-  - Deleting/archiving a character and DM copies/NPC duplicates (#665): what happens to the files.
-  - Serve via short-lived signed URLs; never render a user-supplied URL unescaped (esc() rule).
-After approval: migration (bucket + storage policies, NOT applied until the owner approves; run get_advisors), client upload/
-replace/remove UI in both player tools, display in DM Console, e2e.
+The client half shipped in feat/character-images (D-GH-2026-10-15-character-images): Live Sheet / CharGen upload, replace
+and remove up to 2 pictures; DM Console thumbnails. Until the migration is applied, uploading says "pictures aren't switched
+on for this server yet". Remaining (owner approval needed for the database steps):
+  1. Apply sql/migrations/2026-10-15-character-images.sql (bucket + 3 helpers + 4 storage.objects policies; purely additive).
+     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (45 cases) on the branch being applied.
+  2. Run get_advisors (security + performance) and skim get_logs.
+  3. Spot-check the Storage API limits the Docker harness cannot reach: as a signed-in owner, an upload > 2 MB and an
+     image/svg+xml upload must both be refused; a fellow campaign player can read, an outsider cannot.
+  4. Fold the statements into sql/rls-policies.sql (a short "Storage" section) per sql/migrations/README.md.
+  5. Optional follow-up: a sweep for orphaned pictures (characters deleted offline or by a DM — unreadable by anyone, ≤4 MB each).
 ```
-**Done when:** a signed-in player can upload, replace and remove up to 2 images on a character; a third is refused; the images show on the Live Sheet, CharGen and the DM's card; another user who is not the owner or the campaign's DM cannot read them (tested); storage policies applied with owner approval and advisors clean.
+**Done when:** the migration is applied with owner approval, advisors are clean, the two Storage-limit spot-checks refuse, and `rls-policies.sql` carries the fold.
 
 ## feat/boon-drawback-notes — compulsory description on certain boons/drawbacks, locked once the DM approves it — TODO
 Branch feat/boon-drawback-notes. **Effort:** medium–high · **Risk:** medium — new DM approval state that must be server-enforced (a player-written LOG), and touches buy/save flows in all three tools.

@@ -51,3 +51,13 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 | `award-shims.sql` | Supabase stand-ins (auth schema, roles, `auth.users`, `auth.uid()` from `request.jwt.claims`, pgcrypto) |
 | `award-cases.sql` | 39 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus `2026-09-03-dm-zero-player-ap.sql`, so `dm_edit_character_log`, `award_ap`, `award_ap_and_seal`, `dm_zero_player_ap`, the budget check and the history lock all run beside the rule: player-award attacks, the CharGen Budget singleton moves (incl. the live 77-AP-after-the-lock shape), DM paths, solo, reopened, `ignore_player_ap` campaigns, and award amounts that are not JSON numbers ("NaN", "500", "Infinity", a NaN planted before the lock) |
 | `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
+
+## Character images — added 2026-10-15 (NOT applied to the live database)
+
+`sql/migrations/2026-10-15-character-images.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-15-character-images`. A private Storage bucket and four `storage.objects` policies: the character's owner reads and writes `<character id>/1|2`; its campaign's DMs and the campaign's other players read (an NPC's pictures: DMs only); nobody else.
+
+| File | What |
+|---|---|
+| `images-storage-shim.sql` | stand-ins for `storage.buckets` / `storage.objects` with RLS on (the Storage API's size and MIME limits are NOT in the database, so not tested here) |
+| `images-cases.sql` | 45 cases on the real fresh-install path: who reads (owner, DM, co-DM, fellow player, outsider, other campaign's DM/player, anon, NPC), who writes (third slot, bad names, other characters, DM, anon, rename/move), and access following the character live (unbind, move, ownership transfer, deleted row) |
+| `run-images.sh` | `BEFORE` (17 rows fail: the feature isn't there) → apply → `AFTER` (all 45 pass) → re-run (idempotent) → rollback (back to the BEFORE counts). In CI's `freeze-rehearsal` job |
