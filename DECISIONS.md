@@ -27,9 +27,10 @@
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-weapons.md`.
 ## D-GH-2026-10-15-character-images — up to two pictures per cloud character, in private storage keyed by character id
 - A private Storage bucket; object names exactly `<character uuid>/1|2` (so a third is impossible); nothing stored in the
-  LOG or on the row. Read: owner, campaign DMs, other campaign players (NPC pictures: DMs only); write: owner only (AI2).
-  Shrunk in the browser to ≤1600 px WebP under 2 MB; shown only via 10-minute signed urls. Archive keeps files; the
-  owner's permanent delete removes them first; NPC duplicates and appearance paste don't copy them. Migration NOT APPLIED.
+  LOG or on the row. Read: owner, campaign DMs, other campaign players, NPCs included (AI2, AQ2); write: owner only.
+  Each object is bound to the row incarnation (`objects.created_at >= characters.created_at`), so recreating a deleted
+  row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
+  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration NOT APPLIED.
   Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the

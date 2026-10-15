@@ -1645,14 +1645,28 @@ The client half shipped in feat/character-images (D-GH-2026-10-15-character-imag
 and remove up to 2 pictures; DM Console thumbnails. Until the migration is applied, uploading says "pictures aren't switched
 on for this server yet". Remaining (owner approval needed for the database steps):
   1. Apply sql/migrations/2026-10-15-character-images.sql (bucket + 3 helpers + 4 storage.objects policies; purely additive).
-     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (45 cases) on the branch being applied.
+     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (55 cases) on the branch being applied.
   2. Run get_advisors (security + performance) and skim get_logs.
-  3. Spot-check the Storage API limits the Docker harness cannot reach: as a signed-in owner, an upload > 2 MB and an
-     image/svg+xml upload must both be refused; a fellow campaign player can read, an outsider cannot.
+  3. Run the live post-apply spot-check list in decisions/2026/D-GH-2026-10-15-character-images.md (missing-bucket
+     message, owner Replace = upsert, a > 2 MB and an SVG upload via the REST API both refused, fellow player reads,
+     outsider does not).
   4. Fold the statements into sql/rls-policies.sql (a short "Storage" section) per sql/migrations/README.md.
-  5. Optional follow-up: a sweep for orphaned pictures (characters deleted offline or by a DM — unreadable by anyone, ≤4 MB each).
 ```
-**Done when:** the migration is applied with owner approval, advisors are clean, the two Storage-limit spot-checks refuse, and `rls-policies.sql` carries the fold.
+**Done when:** the migration is applied with owner approval, advisors are clean, every spot-check in the decision record passes, and `rls-policies.sql` carries the fold.
+
+## chore/character-images-orphan-sweep — remove pictures left behind by deleted characters — TODO
+Branch chore/character-images-orphan-sweep. **Effort:** low–medium · **Risk:** low–medium — deletes user files (service role), but only ones no policy can reach.
+
+```text
+After feat/character-images (D-GH-2026-10-15-character-images) is applied: pictures of a character deleted offline (the
+tombstone replay in js/sync.js doesn't remove them) or deleted by a campaign DM stay in the private character-images bucket.
+They are unreachable through the API (no row, or a recreated row with a newer created_at), cost ≤4 MB each, and block that
+slot for a recreated row with the same uuid. Build a sweep that lists objects whose `<uuid>` has no characters row, or whose
+created_at is older than the row's created_at, and deletes them with the service role through the Storage API (SQL cannot
+delete storage objects) — e.g. a documented dashboard/CLI procedure or a scheduled job; never ship the service key to the
+browser. Report counts before deleting; dry-run first.
+```
+**Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
 
 ## feat/boon-drawback-notes — compulsory description on certain boons/drawbacks, locked once the DM approves it — TODO
 Branch feat/boon-drawback-notes. **Effort:** medium–high · **Risk:** medium — new DM approval state that must be server-enforced (a player-written LOG), and touches buy/save flows in all three tools.

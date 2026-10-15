@@ -12,6 +12,6 @@ drop policy if exists character_images_insert on storage.objects;
 drop policy if exists character_images_update on storage.objects;
 drop policy if exists character_images_delete on storage.objects;
 
-drop function if exists public.can_read_character_image(text);
-drop function if exists public.can_write_character_image(text);
+drop function if exists public.can_read_character_image(text, timestamptz);
+drop function if exists public.can_write_character_image(text, timestamptz);
 drop function if exists public.character_image_character(text);

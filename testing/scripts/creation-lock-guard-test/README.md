@@ -54,10 +54,10 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 
 ## Character images — added 2026-10-15 (NOT applied to the live database)
 
-`sql/migrations/2026-10-15-character-images.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-15-character-images`. A private Storage bucket and four `storage.objects` policies: the character's owner reads and writes `<character id>/1|2`; its campaign's DMs and the campaign's other players read (an NPC's pictures: DMs only); nobody else.
+`sql/migrations/2026-10-15-character-images.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-15-character-images`. A private Storage bucket and four `storage.objects` policies: the character's owner reads and writes `<character id>/1|2`; its campaign's DMs and the campaign's other players read (NPCs included); nobody else; and an object older than its character row (a leftover from a deleted row whose uuid was recreated) is untouchable by everyone.
 
 | File | What |
 |---|---|
 | `images-storage-shim.sql` | stand-ins for `storage.buckets` / `storage.objects` with RLS on (the Storage API's size and MIME limits are NOT in the database, so not tested here) |
-| `images-cases.sql` | 45 cases on the real fresh-install path: who reads (owner, DM, co-DM, fellow player, outsider, other campaign's DM/player, anon, NPC), who writes (third slot, bad names, other characters, DM, anon, rename/move), and access following the character live (unbind, move, ownership transfer, deleted row) |
-| `run-images.sh` | `BEFORE` (17 rows fail: the feature isn't there) → apply → `AFTER` (all 45 pass) → re-run (idempotent) → rollback (back to the BEFORE counts). In CI's `freeze-rehearsal` job |
+| `images-cases.sql` | 55 cases on the real fresh-install path: who reads (owner, DM, co-DM, fellow player, outsider, other campaign's DM/player, anon, NPC), who writes (third slot, bad names, other characters, DM, anon, rename/move, Storage-API-style upsert), access following the character live (unbind, move, ownership transfer, deleted row), and a recreated row with a deleted character's uuid inheriting nothing |
+| `run-images.sh` | `BEFORE` (20 rows fail: the feature isn't there) → apply → `AFTER` (all 55 pass) → re-run (idempotent) → rollback (back to the BEFORE counts). In CI's `freeze-rehearsal` job |

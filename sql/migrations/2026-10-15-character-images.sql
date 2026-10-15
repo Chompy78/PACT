@@ -20,15 +20,23 @@
 --     access with it, with no file renamed;
 --   * the path has no owner-id prefix for exactly that reason (an owner prefix strands the files on transfer).
 --
--- WHO MAY DO WHAT (owner decision AI2, 2026-10-14)
+-- WHO MAY DO WHAT (owner decisions AI2 2026-10-14, AQ2 2026-10-15)
 --   read   : the character's owner; any DM of its campaign (campaign_dms, so co-DMs too); the OTHER PLAYERS of
---            that campaign (is_campaign_member — a non-NPC character in it). An NPC's pictures are NOT shown to
---            players: an NPC is the DM's prep, and is_campaign_member() itself already keeps NPC rows out of
---            "membership". Nobody else, and never `anon`.
+--            that campaign (is_campaign_member — a player character in it). NPCs are the same as player characters
+--            (AQ2): the whole campaign sees them. Nobody else, and never `anon`.
 --   write  : (insert / update / delete) the character's owner only — not the DM, not other players.
---   A character row that no longer exists grants nothing: its leftover files (if any) are readable and
---   writable by nobody through the API. The owner's own permanent delete removes the files first
---   (tools/characters.html); see the decision record for the archive / DM-delete / NPC-duplicate rules.
+--
+-- A PICTURE BELONGS TO ONE INCARNATION OF THE ROW. Character ids are chosen by the client (characters.id is in the
+-- insert grant), so if a row is deleted and its pictures are left behind (an offline delete, a DM delete), anyone
+-- could insert a NEW row with the SAME uuid and inherit them. Every policy therefore passes the object's
+-- created_at, and the helpers require objects.created_at >= characters.created_at: an object older than the current
+-- row is invisible and untouchable to everyone. Neither timestamp is client-settable (characters.created_at is
+-- not in the insert grant and defaults to now(); storage.objects is written only by the Storage API). So: a
+-- leftover picture of a deleted row is unreadable and undeletable through the API by anyone — including whoever
+-- recreates the id — and only the service role (dashboard / a sweep) can remove it. A restore that brings the
+-- row back with its ORIGINAL created_at brings its pictures back; a recreate with a new created_at does not. The
+-- owner's own permanent delete removes the files first (tools/characters.html); see the decision record for the
+-- archive / DM-delete / NPC-duplicate rules.
 --
 -- BLAST RADIUS: purely additive. No existing table, function, policy or grant is changed; no existing write can
 -- start failing. Safe to re-run (create or replace / drop policy if exists / on conflict do update).
@@ -51,54 +59,57 @@ returns uuid language sql immutable set search_path = public, pg_temp as $$
   end;
 $$;
 
-create or replace function public.can_read_character_image(p_name text)
+-- p_created = the OBJECT's created_at (from the policy). NULL fails closed.
+create or replace function public.can_read_character_image(p_name text, p_created timestamptz)
 returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
     select 1 from characters c
     where c.id = character_image_character(p_name)
+      and p_created >= c.created_at
       and (
             c.owner_id = auth.uid()
          or is_campaign_dm(c.campaign_id)
-         or (not c.is_npc and is_campaign_member(c.campaign_id))
+         or is_campaign_member(c.campaign_id)
       )
   );
 $$;
 
-create or replace function public.can_write_character_image(p_name text)
+create or replace function public.can_write_character_image(p_name text, p_created timestamptz)
 returns boolean language sql stable security definer set search_path = public, pg_temp as $$
   select exists (
     select 1 from characters c
     where c.id = character_image_character(p_name)
+      and p_created >= c.created_at
       and c.owner_id = auth.uid()
   );
 $$;
 
 revoke all on function public.character_image_character(text) from public, anon;
-revoke all on function public.can_read_character_image(text)  from public, anon;
-revoke all on function public.can_write_character_image(text) from public, anon;
+revoke all on function public.can_read_character_image(text, timestamptz)  from public, anon;
+revoke all on function public.can_write_character_image(text, timestamptz) from public, anon;
 grant execute on function public.character_image_character(text) to authenticated;
-grant execute on function public.can_read_character_image(text)  to authenticated;
-grant execute on function public.can_write_character_image(text) to authenticated;
+grant execute on function public.can_read_character_image(text, timestamptz)  to authenticated;
+grant execute on function public.can_write_character_image(text, timestamptz) to authenticated;
 
 -- Upload with upsert (the client's "Replace") needs SELECT + INSERT + UPDATE; the owner holds all three.
 drop policy if exists character_images_select on storage.objects;
 create policy character_images_select on storage.objects
   for select to authenticated
-  using (bucket_id = 'character-images' and public.can_read_character_image(name));
+  using (bucket_id = 'character-images' and public.can_read_character_image(name, created_at));
 
 drop policy if exists character_images_insert on storage.objects;
 create policy character_images_insert on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'character-images' and public.can_write_character_image(name));
+  with check (bucket_id = 'character-images' and public.can_write_character_image(name, created_at));
 
 -- WITH CHECK as well as USING: a rename/move may not land on another character or on a third slot.
 drop policy if exists character_images_update on storage.objects;
 create policy character_images_update on storage.objects
   for update to authenticated
-  using (bucket_id = 'character-images' and public.can_write_character_image(name))
-  with check (bucket_id = 'character-images' and public.can_write_character_image(name));
+  using (bucket_id = 'character-images' and public.can_write_character_image(name, created_at))
+  with check (bucket_id = 'character-images' and public.can_write_character_image(name, created_at));
 
 drop policy if exists character_images_delete on storage.objects;
 create policy character_images_delete on storage.objects
   for delete to authenticated
-  using (bucket_id = 'character-images' and public.can_write_character_image(name));
+  using (bucket_id = 'character-images' and public.can_write_character_image(name, created_at));

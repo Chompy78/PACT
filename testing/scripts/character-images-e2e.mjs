@@ -45,12 +45,27 @@ const A = 'aaaaaaaa-0000-4000-8000-000000000001';
 const B = 'aaaaaaaa-0000-4000-8000-000000000002';
 const C = 'aaaaaaaa-0000-4000-8000-000000000003';
 const D = 'aaaaaaaa-0000-4000-8000-000000000004';
+const E = 'aaaaaaaa-0000-4000-8000-000000000005';   // someone else's character (the DM / a fellow player sees it)
+const F = 'aaaaaaaa-0000-4000-8000-000000000006';   // a uuid never saved to the cloud (no row)
+const OTHER = '22222222-2222-4222-8222-222222222222';
 
 // A fake supabase-js: signed-in (unless window.__sbSignedOut is set before load), an in-memory Storage bucket
 // (window.__sb.store: path -> {type,size,width,height,n}), and every other call a harmless empty answer.
 const STUB = `
 const SUPA = ${JSON.stringify(SUPA)};
 const sb = window.__sb = window.__sb || { store: {}, uploads: [], signCalls: [], removes: [] };
+// characters rows the signed-in user can see: id -> owner_id (F has no row)
+sb.owners = sb.owners || ${JSON.stringify({ [A]: UID, [B]: UID, [C]: UID, [D]: UID, [E]: OTHER })};
+function from(table) {
+  let ids = null;
+  const h = { get(_t, p) {
+      if (p === 'then') { const r = (table === 'characters' && ids) ? { data: ids.filter(i => sb.owners[i]).map(i => ({ id: i, owner_id: sb.owners[i] })), error: null } : { data: [], error: null };
+        return (res, rej) => Promise.resolve(r).then(res, rej); }
+      if (p === 'catch' || p === 'finally') return (cb) => Promise.resolve({ data: [], error: null })[p](cb);
+      return (...a) => { if (p === 'in' && a[0] === 'id') ids = a[1]; return px; }; } };
+  const px = new Proxy({}, h);
+  return px;
+}
 function chain(result) {
   const h = { get(_t, p) {
       if (p === 'then') return (res, rej) => Promise.resolve(result).then(res, rej);
@@ -65,6 +80,7 @@ const bucketApi = (bucket) => ({
   async upload(path, blob, opts) {
     if (window.__sbBucketMissing) return err('Bucket not found', '404');
     if (!/^[0-9a-f-]{36}\\/[12]$/.test(path) || window.__sbDenyWrites) return err('new row violates row-level security policy', '403');
+    (sb.attempts = sb.attempts || []).push({ path, upsert: !!(opts && opts.upsert) });
     if (sb.store[path] && !(opts && opts.upsert)) return err('The resource already exists', '409');
     let width = 0, height = 0;
     try { const bm = await createImageBitmap(blob); width = bm.width; height = bm.height; } catch (e) {}
@@ -90,7 +106,7 @@ export function createClient() {
     getUser: async () => ({ data: { user: session() && session().user }, error: null }),
     onAuthStateChange: (cb) => { setTimeout(() => cb(session() ? 'SIGNED_IN' : 'SIGNED_OUT', session()), 0); return { data: { subscription: { unsubscribe() {} } } }; },
   };
-  const client = { auth, storage: { from: bucketApi } };
+  const client = { auth, storage: { from: bucketApi }, from };
   return new Proxy(client, { get(t, p) { return p in t ? t[p] : chain({ data: [], error: null }); } });
 }
 `;
@@ -146,7 +162,7 @@ const waitMsg = (page, host, re) => page.waitForFunction(([h, src]) => {
   check('it lands in slot 1 of this character', !!st, JSON.stringify(st));
   check('...shrunk to WebP, ≤ 2 MB', st && st.type === 'image/webp' && st.size <= 2 * 1024 * 1024, st && (st.type + ' ' + st.size));
   check('...at most 1600 px on the long edge, aspect kept', st && st.width === 1600 && st.height === 1067, st && (st.width + 'x' + st.height));
-  check('...uploaded as an upsert with its content type', await page.evaluate(() => { const u = window.__sb.uploads[0]; return u.upsert && u.contentType === 'image/webp'; }));
+  check('...Add uploads WITHOUT upsert (never overwrites), with its content type', await page.evaluate(() => { const u = window.__sb.uploads[0]; return !u.upsert && u.contentType === 'image/webp'; }));
   check('the picture shows from a signed url', await page.evaluate(([h, s]) => { const i = document.querySelector(h + ' img'); return !!i && i.src.indexOf(s + '/storage/v1/object/sign/character-images/') === 0; }, [H, SUPA]));
   await page.waitForFunction((h) => { const i = document.querySelector(h + ' img'); return i && i.complete && i.naturalWidth > 0; }, H, { timeout: 10000 });
   check('...and actually loads (no CSP or referrer rule blocks it)', true);
@@ -169,7 +185,7 @@ const waitMsg = (page, host, re) => page.waitForFunction(([h, src]) => {
   const n1 = await page.evaluate((a) => window.__sb.store[a + '/1'].n, A);
   await choose(page, H + ' button[data-act=replace][data-slot="1"]', { name: 'new.webp', mimeType: 'image/png', buffer: png });
   await page.waitForFunction(([a, n]) => window.__sb.store[a + '/1'].n !== n, [A, n1], { timeout: 15000 });
-  check('Replace overwrites slot 1 (an upsert), still two pictures', await page.evaluate(() => Object.keys(window.__sb.store).length === 2));
+  check('Replace overwrites slot 1 (an upsert), still two pictures', await page.evaluate(() => Object.keys(window.__sb.store).length === 2 && window.__sb.uploads.slice(-1)[0].upsert === true));
   await page.waitForFunction(([h, a]) => { const i = document.querySelector(h + ' img[data-slot="1"]'); return i && /token=t3$/.test(i.src); }, [H, A], { timeout: 10000 });
   check('...and the panel re-signs it (a new url, so no stale cached picture)', true);
   await page.click(H + ' button[data-act=remove][data-slot="2"]');
@@ -180,6 +196,42 @@ const waitMsg = (page, host, re) => page.waitForFunction(([h, src]) => {
   await waitMsg(page, H, /Use a JPG, PNG or WebP/);
   check('an SVG is refused in plain words and never uploaded', await page.evaluate(() => window.__sb.uploads.every(u => u.type !== 'image/svg+xml') && !window.__xss));
   check('the LOG is byte-identical after all of it — pictures never enter the save', await page.evaluate((l) => JSON.stringify(LOG) === l, log0));
+
+  console.log('Live Sheet — Add never overwrites (stale cache), pixel bombs refused');
+  await page.evaluate((a) => { window.__sb.store[a + '/2'] = { type: 'image/webp', size: 1, n: 500 }; }, A);   // filled elsewhere; our cache says empty
+  await choose(page, H + ' button[data-act=add]', { name: 'late.png', mimeType: 'image/png', buffer: png });
+  await waitMsg(page, H, /filled from another tab/);
+  check('Add into a slot filled elsewhere is refused (no upsert), not overwritten', await page.evaluate((a) => window.__sb.store[a + '/2'].n === 500 && window.__sb.attempts.slice(-1)[0].upsert === false, A));
+  await page.waitForFunction((h) => document.querySelectorAll(h + ' img').length === 2, H, { timeout: 10000 });
+  check('...and the panel is refreshed: both pictures, no Add button', await page.evaluate((h) => !document.querySelector(h + ' button[data-act=add]'), H));
+  await page.evaluate((a) => { delete window.__sb.store[a + '/2']; window._charImg.signedImageUrls([a], { force: true }).then(() => render()); }, A);
+  await page.waitForSelector(H + ' button[data-act=add]', { timeout: 10000 });
+  // A 30 000 x 30 000 PNG header (decodes to 3.6 GB) — must be refused from the header, before any decode.
+  const bomb = Buffer.alloc(64); Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex').copy(bomb, 0); bomb.writeUInt32BE(30000, 16); bomb.writeUInt32BE(30000, 20);
+  const nUp = await page.evaluate(() => window.__sb.uploads.length);
+  await choose(page, H + ' button[data-act=add]', { name: 'bomb.png', mimeType: 'image/png', buffer: bomb });
+  await waitMsg(page, H, /too large to process/);
+  check('a 30 000 × 30 000 px header is refused before decoding, nothing uploaded', await page.evaluate((n) => window.__sb.uploads.length === n, nUp));
+  const sizes = await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const out = {};
+    out.png = await window._charImg.readImageSize(new File([bytes], 'p.png', { type: 'image/png' }));
+    const c = document.createElement('canvas'); c.width = 321; c.height = 123;
+    for (const t of ['image/jpeg', 'image/webp']) { const bl = await new Promise(r => c.toBlob(r, t, 0.8)); out[t] = await window._charImg.readImageSize(bl); }
+    return out;
+  }, png.toString('base64'));
+  check('the header reader gets PNG, JPEG and WebP sizes right', sizes.png.width === 3000 && sizes.png.height === 2000
+    && sizes['image/jpeg'].width === 321 && sizes['image/jpeg'].height === 123 && sizes['image/webp'].width === 321 && sizes['image/webp'].height === 123, JSON.stringify(sizes));
+
+  console.log('Live Sheet — not the owner, or never saved');
+  await page.evaluate((e) => { window.__sb.store[e + '/1'] = { type: 'image/webp', size: 1, n: 600 }; __charId = e; render(); }, E);
+  await page.waitForFunction((h) => document.querySelectorAll(h + ' img').length === 1, H, { timeout: 10000 });
+  check('someone else\'s character (a DM editing it): the picture shows, but no Add/Replace/Remove', await page.evaluate((h) => !document.querySelector(h + ' button'), H));
+  await page.evaluate((f) => { __charId = f; render(); }, F);
+  await page.waitForFunction((h) => /Save this character to the cloud/.test(document.querySelector(h).textContent), H, { timeout: 10000 });
+  check('a uuid never saved to the cloud: a "save to the cloud" hint and no Add button', await page.evaluate((h) => !document.querySelector(h + ' button'), H));
+  await page.evaluate((a) => { __charId = a; render(); }, A);
+  await page.waitForFunction((h) => document.querySelectorAll(h + ' img').length === 1, H, { timeout: 10000 });
 
   console.log('Live Sheet — 📋 Sheet, the DM view');
   await page.evaluate(() => toggleSheet());

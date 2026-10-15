@@ -38,6 +38,9 @@ create or replace function upd(p_path text) returns text language sql as $$
   select format($q$with x as (update storage.objects set metadata='{"mimetype":"image/jpeg"}' where bucket_id='character-images' and name=%L returning 1) select count(*)::int from x$q$, p_path) $$;
 create or replace function mv(p_from text, p_to text) returns text language sql as $$
   select format($q$with x as (update storage.objects set name=%L where bucket_id='character-images' and name=%L returning 1) select count(*)::int from x$q$, p_to, p_from) $$;
+-- what the Storage API's upsert does: insert, or on a name clash update the existing row
+create or replace function ups(p_path text) returns text language sql as $$
+  select format($q$with x as (insert into storage.objects(bucket_id, name, metadata) values ('character-images', %L, '{"mimetype":"image/webp"}') on conflict (bucket_id, name) do update set metadata = excluded.metadata returning 1) select count(*)::int from x$q$, p_path) $$;
 create or replace function del(p_path text) returns text language sql as $$
   select format($q$with x as (delete from storage.objects where bucket_id='character-images' and name=%L returning 1) select count(*)::int from x$q$, p_path) $$;
 
@@ -92,7 +95,9 @@ select t('nobody else reads a solo picture (p1)',           'no',  :p1, rd(:'X' 
 select t('nobody else reads a solo picture (DM d1)',        'no',  :d1, rd(:'X' || '/1'));
 select t('NPC picture: its DM owner reads',                 'yes', :d1, rd(:'N' || '/1'));
 select t('NPC picture: the co-DM reads',                    'yes', :d2, rd(:'N' || '/1'));
-select t('NPC picture: a player of the campaign cannot',    'no',  :p1, rd(:'N' || '/1'));
+select t('NPC picture: a player of the campaign reads (AQ2)','yes', :p1, rd(:'N' || '/1'));
+select t('NPC picture: an outsider cannot',                 'no',  :p3, rd(:'N' || '/1'));
+select t('NPC picture: a player cannot replace it',         'no',  :p1, upd(:'N' || '/1'));
 select t('the policies stay in their bucket (other bucket)','no',  :p1, format($q$select count(*)::int from storage.objects where bucket_id='other-bucket'$q$));
 
 -- WRITE --------------------------------------------------------------------------------------------------
@@ -109,6 +114,8 @@ select t('the campaign DM cannot upload to a player''s character','refused', :d1
 select t('anon cannot upload',                              'refused', 'anon', ins(:'A' || '/2'));
 select t('the DM uploads to their own NPC',                 'yes',     :d1, ins(:'N' || '/2'));
 select t('owner replaces (updates) slot 1',                 'yes',     :p1, upd(:'A' || '/1'));
+select t('owner replaces slot 1 the Storage-API way (upsert)','yes',    :p1, ups(:'A' || '/1'));
+select t('another player cannot upsert over slot 1',        'refused', :p2, ups(:'A' || '/1'));
 select t('another player cannot replace slot 1',            'no',      :p2, upd(:'A' || '/1'));
 select t('the campaign DM cannot replace slot 1',           'no',      :d1, upd(:'A' || '/1'));
 select t('owner cannot rename slot 1 to a third slot',      'refused', :p1, mv(:'A' || '/1', :'A' || '/3'));
@@ -137,6 +144,16 @@ select t('after transfer: the old owner cannot read',       'no',      :p1, rd(:
 delete from characters where id = :'X';
 select t('deleted character: the former owner cannot read', 'no', :p3, rd(:'X' || '/1'));
 select t('deleted character: the former owner cannot delete','no', :p3, del(:'X' || '/1'));
+-- TAKEOVER ATTEMPT: someone recreates a row with the deleted character's (client-chosen) uuid. The leftover picture
+-- predates the new row, so it stays invisible and untouchable; the new row only gets pictures uploaded after it.
+insert into characters(id, owner_id, campaign_id, name, stats)
+  values (:'X', :p1, null, 'X-again', '{"SEQ":2,"LOG":[{"seq":1,"type":"name","name":"X-again"}]}');
+select t('recreated row: the new owner cannot read the leftover',   'no',      :p1, rd(:'X' || '/1'));
+select t('recreated row: the new owner cannot replace it (update)', 'no',      :p1, upd(:'X' || '/1'));
+select t('recreated row: the new owner cannot upsert over it',      'refused', :p1, ups(:'X' || '/1'));
+select t('recreated row: the new owner cannot delete it',           'no',      :p1, del(:'X' || '/1'));
+select t('recreated row: the old owner still cannot read it',       'no',      :p3, rd(:'X' || '/1'));
+select t('recreated row: a NEW upload to a free slot works',        'yes',     :p1, ins(:'X' || '/2'));
 
 \set QUIET off
 select n, verdict, expect, got, name from res order by n;

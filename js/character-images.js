@@ -7,7 +7,7 @@
 //
 // Who can do what is decided by the storage policies in sql/migrations/2026-10-15-character-images.sql,
 // not here: the character's OWNER reads and writes; the DMs of its campaign and the other players of that
-// campaign read (an NPC's pictures are DM-only); nobody else. The server also refuses any name other than
+// campaign read (an NPC's too — owner decision AQ2); nobody else. The server also refuses any name other than
 // `<uuid>/1` and `<uuid>/2`, so a third picture is impossible, not just hidden. This module only makes the
 // friendly path pleasant: it shrinks the picture in the browser first (≤1600 px, WebP — JPEG where the
 // browser cannot encode WebP — under the bucket's 2 MB cap; re-encoding also drops EXIF/GPS metadata),
@@ -30,12 +30,18 @@ export const MAX_IMAGE_BYTES = 2 * 1024 * 1024;      // the bucket's file_size_l
 export const MAX_IMAGE_EDGE = 1600;
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_INPUT_BYTES = 25 * 1024 * 1024;            // before shrinking — a phone photo is fine, a 200 MB TIFF is not
+// Decoded size is width × height × 4 bytes, whatever the file size: a tiny PNG can claim 50 000 × 50 000 px (10 GB
+// decoded) and kill a phone tab. The header is read and checked BEFORE anything decodes.
+const MAX_INPUT_PIXELS = 64 * 1000 * 1000;            // a 64 MP photo decodes to ~256 MB — the most we ever ask for
+const MAX_INPUT_EDGE = 16384;
 const SIGN_SECONDS = 600;                             // signed url lifetime
 const CACHE_MS = 8 * 60 * 1000;                       // re-sign well before the url expires
 const SLOTS = [1, 2];
 
 export const UNAVAILABLE_MESSAGE = 'Character pictures aren’t switched on for this server yet — the site owner still needs to enable picture storage.';
 export const OWNER_ONLY_MESSAGE = 'Only the character’s owner can change its pictures, and only once it has been saved to the cloud.';
+export const TOO_MANY_PIXELS_MESSAGE = 'That picture is too large to process (64 megapixels at most) \u2014 try a smaller one.';
+export const SLOT_TAKEN_MESSAGE = 'That slot was filled from another tab or device \u2014 the pictures above are refreshed; press Add again if there is still room.';
 export const FULL_MESSAGE = 'A character can have at most ' + MAX_CHAR_IMAGES + ' pictures — remove or replace one first.';
 
 export const imagePath = (charId, slot) => String(charId).toLowerCase() + '/' + slot;
@@ -82,8 +88,42 @@ async function _currentUserId() {
 // ---------------------------------------------------------------------------------------------------
 // Shrinking (browser-side, before upload)
 // ---------------------------------------------------------------------------------------------------
-async function _decode(file) {
+// Width/height from the file HEADER (PNG IHDR, JPEG SOFn, WebP VP8/VP8L/VP8X) — no decoding. null = unreadable.
+export async function readImageSize(file) {
+  const buf = new Uint8Array(await file.slice(0, 512 * 1024).arrayBuffer());
+  const u16 = (i) => (buf[i] << 8) | buf[i + 1];
+  const u32 = (i) => ((buf[i] << 24) >>> 0) + (buf[i + 1] << 16) + (buf[i + 2] << 8) + buf[i + 3];
+  const le16 = (i) => buf[i] | (buf[i + 1] << 8);
+  const le24 = (i) => buf[i] | (buf[i + 1] << 8) | (buf[i + 2] << 16);
+  if (buf.length >= 24 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47 && String.fromCharCode(...buf.slice(12, 16)) === 'IHDR')
+    return { width: u32(16), height: u32(20) };
+  if (buf.length >= 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const m = buf[i + 1];
+      if (m === 0xff) { i++; continue; }
+      if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+      if ((m >= 0xc0 && m <= 0xcf) && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { width: u16(i + 7), height: u16(i + 5) };
+      i += 2 + u16(i + 2);
+    }
+    return null;
+  }
+  if (buf.length >= 30 && String.fromCharCode(...buf.slice(0, 4)) === 'RIFF' && String.fromCharCode(...buf.slice(8, 12)) === 'WEBP') {
+    const fmt = String.fromCharCode(...buf.slice(12, 16));
+    if (fmt === 'VP8X') return { width: 1 + le24(24), height: 1 + le24(27) };
+    if (fmt === 'VP8L') { const b = buf.slice(21, 25); return { width: 1 + (((b[1] & 0x3f) << 8) | b[0]), height: 1 + (((b[3] & 0x0f) << 10) | (b[2] << 2) | ((b[1] & 0xc0) >> 6)) }; }
+    if (fmt === 'VP8 ') return { width: le16(26) & 0x3fff, height: le16(28) & 0x3fff };
+  }
+  return null;
+}
+
+async function _decode(file, w, h) {
   if (typeof createImageBitmap === 'function') {
+    // Ask for the target size directly: lets the browser decode at reduced size instead of full resolution.
+    const s = Math.min(1, MAX_IMAGE_EDGE / Math.max(w, h));
+    try { return await createImageBitmap(file, { resizeWidth: Math.max(1, Math.round(w * s)), resizeHeight: Math.max(1, Math.round(h * s)), resizeQuality: 'high' }); }
+    catch { /* fall through */ }
     try { return await createImageBitmap(file); } catch { /* fall through to <img> */ }
   }
   return await new Promise((resolve, reject) => {
@@ -105,8 +145,11 @@ export async function prepareImage(file) {
   const type = String(file.type || '').toLowerCase();
   if (ACCEPTED_IMAGE_TYPES.indexOf(type) < 0) throw new Error('Use a JPG, PNG or WebP picture.');
   if (file.size > MAX_INPUT_BYTES) throw new Error('That file is too big to shrink (25 MB at most).');
+  const dim = await readImageSize(file).catch(() => null);
+  if (!dim || !dim.width || !dim.height) throw new Error('That file isn\u2019t a picture this browser can read.');
+  if (dim.width > MAX_INPUT_EDGE || dim.height > MAX_INPUT_EDGE || dim.width * dim.height > MAX_INPUT_PIXELS) throw new Error(TOO_MANY_PIXELS_MESSAGE);
   let img;
-  try { img = await _decode(file); } catch { throw new Error('That file isn’t a picture this browser can read.'); }
+  try { img = await _decode(file, dim.width, dim.height); } catch { throw new Error('That file isn’t a picture this browser can read.'); }
   const w0 = img.width || img.naturalWidth, h0 = img.height || img.naturalHeight;
   if (!w0 || !h0) throw new Error('That file isn’t a picture this browser can read.');
   const canvas = document.createElement('canvas');
@@ -153,8 +196,14 @@ export async function signedImageUrls(charIds, { force = false } = {}) {
     p = (async () => {
       const paths = [];
       need.forEach(id => SLOTS.forEach(s => paths.push(imagePath(id, s))));
-      const { data, error } = await _bucket().createSignedUrls(paths, SIGN_SECONDS);
+      // Who owns each character (RLS lets the owner and the campaign's DMs see the row; a fellow player or a
+      // never-saved uuid gets nothing) — only the owner is offered Add/Replace/Remove. Display-only: the
+      // storage policies are what actually refuse a non-owner.
+      const ownersP = Promise.resolve(supabase.from('characters').select('id, owner_id').in('id', need))
+        .then(r => (r && !r.error && Array.isArray(r.data)) ? r.data : null).catch(() => null);
+      const [{ data, error }, owners] = await Promise.all([_bucket().createSignedUrls(paths, SIGN_SECONDS), ownersP]);
       if (error) { if (_isBucketMissing(error)) _unavailable = true; throw error; }
+      const ownerOf = new Map((owners || []).map(r => [String(r.id).toLowerCase(), r.owner_id]));
       const res = new Map(need.map(id => [id, { 1: null, 2: null }]));
       (data || []).forEach(row => {
         if (!row || row.error || !row.path) return;
@@ -163,7 +212,7 @@ export async function signedImageUrls(charIds, { force = false } = {}) {
         if (res.has(id) && (slot === '1' || slot === '2') && isSafeSignedUrl(url)) res.get(id)[slot] = url;
       });
       const at = Date.now();
-      res.forEach((urls, id) => _cache.set(id, { at, urls }));
+      res.forEach((urls, id) => _cache.set(id, { at, urls, owner: ownerOf.has(id) ? ownerOf.get(id) : null }));
       return res;
     })().finally(() => _inflight.delete(key));
     _inflight.set(key, p);
@@ -176,21 +225,27 @@ export async function signedImageUrls(charIds, { force = false } = {}) {
 function _forget(charId) { _cache.delete(String(charId).toLowerCase()); }
 
 /** Upload (or replace) the picture in one slot. `file` is the raw File; it is shrunk first. */
-export async function uploadCharacterImage(charId, slot, file) {
+export async function uploadCharacterImage(charId, slot, file, { replace = true } = {}) {
   if (!isCloudCharId(charId)) throw new Error('Save this character to the cloud before adding pictures.');
   if (SLOTS.indexOf(Number(slot)) < 0) throw new Error(FULL_MESSAGE);
   if (_unavailable) throw new Error(UNAVAILABLE_MESSAGE);
   const { blob, type } = await prepareImage(file);
-  const { error } = await _bucket().upload(imagePath(charId, Number(slot)), blob, { upsert: true, contentType: type, cacheControl: '60' });
+  // Replace overwrites its own slot (upsert). Add never does: a slot that looked empty in a stale cache but was
+  // filled from another tab/device answers 409, and the caller refreshes instead of silently overwriting it.
+  const { error } = await _bucket().upload(imagePath(charId, Number(slot)), blob, { upsert: !!replace, contentType: type, cacheControl: '60' });
   _forget(charId);
-  if (error) throw new Error(friendlyImageError(error));
+  if (error) {
+    const m = String(error.message || error.error || ''), code = String(error.statusCode || error.status || '');
+    if (!replace && (code === '409' || /already exists|duplicate/i.test(m))) { const e = new Error(SLOT_TAKEN_MESSAGE); e.slotTaken = true; throw e; }
+    throw new Error(friendlyImageError(error));
+  }
 }
 
 /** Add a picture in the first empty slot; refuses a third. `current` = {1: url|null, 2: url|null}. */
 export async function addCharacterImage(charId, file, current) {
   const free = SLOTS.find(s => !(current && current[s]));
   if (!free) throw new Error(FULL_MESSAGE);
-  return uploadCharacterImage(charId, free, file);
+  return uploadCharacterImage(charId, free, file, { replace: false });
 }
 
 export async function removeCharacterImage(charId, slot) {
@@ -255,9 +310,16 @@ function _paint(host, st) {
   }
   const urls = st.urls || { 1: null, 2: null };
   const filled = SLOTS.filter(s => urls[s]);
-  if (!edit && !filled.length) return;   // read-only and nothing to show: stay invisible
-  if (edit) host.appendChild(_el('div', 'pci-hd', '🖼 Pictures (' + filled.length + '/' + MAX_CHAR_IMAGES + ')'));
-  if (st.loading && !st.urls) { host.appendChild(_el('div', 'pci-msg', 'Loading pictures…')); return; }
+  // The edit controls are for the character's OWNER only (a DM's view, a fellow player, a uuid never saved to the
+  // cloud see the pictures, if any, without them). st.owner: undefined = not known yet, null = no row visible.
+  if (edit && st.loaded && st.owner == null && !_unavailable && !filled.length) {
+    host.appendChild(_el('div', 'pci-msg', 'Save this character to the cloud to add up to ' + MAX_CHAR_IMAGES + ' pictures.'));
+    return;
+  }
+  const mine = edit && (_unavailable || (st.owner != null && st.owner === _userId));
+  if (!mine && !filled.length) return;   // read-only and nothing to show: stay invisible
+  if (mine) host.appendChild(_el('div', 'pci-hd', '\uD83D\uDDBC Pictures (' + filled.length + '/' + MAX_CHAR_IMAGES + ')'));
+  if (st.loading && !st.urls && !_unavailable) { host.appendChild(_el('div', 'pci-msg', 'Loading pictures\u2026')); return; }
   filled.forEach(slot => {
     const fig = _el('figure', 'pci-fig');
     const a = document.createElement('a');
@@ -273,7 +335,7 @@ function _paint(host, st) {
     img.src = urls[slot];
     a.appendChild(img);
     fig.appendChild(a);
-    if (edit) {
+    if (mine) {
       const btns = _el('div', 'pci-btns');
       const rep = _el('button', null, 'Replace'); rep.type = 'button'; rep.setAttribute('data-act', 'replace'); rep.setAttribute('data-slot', String(slot));
       const rm = _el('button', null, 'Remove'); rm.type = 'button'; rm.setAttribute('data-act', 'remove'); rm.setAttribute('data-slot', String(slot));
@@ -285,13 +347,14 @@ function _paint(host, st) {
     }
     host.appendChild(fig);
   });
-  if (edit && !_unavailable && filled.length < MAX_CHAR_IMAGES) {
+  if (mine && !_unavailable && filled.length < MAX_CHAR_IMAGES) {
     const add = _el('button', null, '+ Add picture'); add.type = 'button'; add.setAttribute('data-act', 'add');
     add.disabled = !!st.busy;
     add.title = 'JPG, PNG or WebP. It is shrunk to at most ' + MAX_IMAGE_EDGE + ' px and 2 MB before upload. Your DM and the other players in this character’s campaign can see it.';
     add.onclick = () => _pick(host, st, null);
     host.appendChild(add);
   }
+  if (!mine) return;
   if (_unavailable) host.appendChild(_el('div', 'pci-msg bad', UNAVAILABLE_MESSAGE));
   else if (st.busy) host.appendChild(_el('div', 'pci-msg', st.busy));
   else if (m) host.appendChild(_el('div', 'pci-msg' + (m.bad ? ' bad' : ''), m.text));
@@ -341,7 +404,7 @@ function _refill(id, extra) {
     const s = _state(h);
     if (s.id !== id) continue;
     const c = _cache.get(id);
-    _paint(h, Object.assign(s, { signedIn: !!_userId, urls: c ? c.urls : null, loading: !c }, extra || {}));
+    _paint(h, Object.assign(s, { signedIn: !!_userId, urls: c ? c.urls : null, owner: c ? c.owner : undefined, loaded: !!c, loading: !c }, extra || {}));
   }
 }
 
@@ -369,7 +432,7 @@ export async function hydrateAll(root) {
     const s = _state(h);
     const c = _cache.get(s.id);
     const fresh = c && Date.now() - c.at < CACHE_MS;
-    _paint(h, Object.assign(s, { signedIn: !!uid, urls: c ? c.urls : null, loading: !fresh }));
+    _paint(h, Object.assign(s, { signedIn: !!uid, urls: c ? c.urls : null, owner: c ? c.owner : undefined, loaded: !!c, loading: !fresh }));
     if (uid && isCloudCharId(s.id) && !fresh) need.push(s.id);
   });
   if (!need.length) return;
