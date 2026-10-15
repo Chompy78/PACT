@@ -30,6 +30,7 @@ on:
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
       - "testing/scripts/livesheet-weapons-e2e.mjs"
       - "testing/scripts/livesheet-pack-spells-e2e.mjs"
+      - "testing/scripts/livesheet-saves-stats-card-e2e.mjs"
       - "testing/scripts/campaign-language-list-e2e.mjs"
       - "testing/scripts/appearance-copy-paste-e2e.mjs"
       - "testing/scripts/livesheet-armour-ac-e2e.mjs"
@@ -88,6 +89,9 @@ jobs:
 
       - name: Spells from a lineage, species trait or grant in every spell list (Live Sheet + CharGen)
         run: node testing/scripts/livesheet-pack-spells-e2e.mjs
+
+      - name: Saving throws in the Live Sheet Stats card (desktop + phone)
+        run: node testing/scripts/livesheet-saves-stats-card-e2e.mjs
 
       - name: Campaign language list (all three tools)
         run: node testing/scripts/campaign-language-list-e2e.mjs
