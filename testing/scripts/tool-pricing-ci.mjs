@@ -2108,12 +2108,12 @@ try {
     await cg3.close();
 
     const ls3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
-    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderCharSheet==='function'&&typeof packTraitsFor==='function'`))))
+    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderSheet==='function'&&typeof packTraitsFor==='function'`))))
       throw new Error('Live Sheet never became ready for the heritage-pack check');
     check('the Live Sheet character sheet lists both pack traits',
       await ls3.evaluate(`(()=>{
         window.confirm=()=>true; buy('species',{v:'Dwarf'});
-        const b=foldBuild(null); const html=String(renderCharSheet(b,compute(b,_dmOpts()),{}));
+        const b=foldBuild(null); const html=String(renderSheet());   // feat/livesheet-sheet-layout: the 📋 Sheet's renderer
         return [/Dwarven Resilience/.test(html), /Darkvision 60 ft/.test(html), (b.racialTraits||[]).length];})()`),
       [true, true, 0]);
     await ls3.close();

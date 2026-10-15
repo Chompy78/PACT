@@ -125,10 +125,10 @@ try {
   // ============================ Live Sheet ============================
   {
     const ls = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
-    if (!(await ls.evaluate(READY(`window._engineFold&&window.DATA&&typeof renderCharSheet==='function'&&typeof validate==='function'`))))
+    if (!(await ls.evaluate(READY(`window._engineFold&&window.DATA&&typeof _lsCharBody==='function'&&typeof validate==='function'`))))
       throw new Error('Live Sheet never became ready');
 
-    // 1) renderCharSheet duplicate — same three fields as CharGen
+    // 1) the 📋 Sheet renderer — the Character panel's body + the Sheet extras (feat/livesheet-sheet-layout; renderCharSheet is CharGen-only)
     const r1 = await ls.evaluate(`(function(){
       window.__xss = 0;
       var b = baseBuild();
@@ -139,7 +139,8 @@ try {
       b.skills = [${JSON.stringify(XSS_TAG)}];
       b.tools = [${JSON.stringify(XSS_TAG)}];
       var r = compute(b);
-      var html = renderCharSheet(b, r, {apText:''});
+      var eco = {spent:0};
+      var html = _lsCharBody(b, r, eco, {sheet:1}) + _lsTableExtras(b, r, eco, 0);
       var div = document.createElement('div');
       document.body.appendChild(div);
       div.innerHTML = html;
@@ -148,8 +149,8 @@ try {
       document.body.removeChild(div);
       return {fired: fired, containsRawTag: containsRawTag};
     })()`);
-    check('Live Sheet renderCharSheet: languageNames/masteries/drawbacks/saves/skills/tools payload does not execute', r1.fired === 0, `window.__xss=${r1.fired}`);
-    check('Live Sheet renderCharSheet: raw <img> tag never reaches the HTML string', !r1.containsRawTag, 'raw tag found in output');
+    check('Live Sheet Sheet renderer: languageNames/masteries/drawbacks/saves/skills/tools payload does not execute', r1.fired === 0, `window.__xss=${r1.fired}`);
+    check('Live Sheet Sheet renderer: raw <img> tag never reaches the HTML string', !r1.containsRawTag, 'raw tag found in output');
 
     // 2) validate() issue text -> #tray.innerHTML (the LOG-driven path: a buy event referencing a
     //    feature/boon/drawback no longer in DATA — exactly how a tampered/imported LOG reaches this).

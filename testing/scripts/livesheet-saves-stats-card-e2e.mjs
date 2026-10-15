@@ -69,9 +69,9 @@ for (const e of exp.saves) {
 check('the engine\'s saveMods() gives the same numbers', await page.evaluate(() => { const b = foldBuild(null), r = compute(b);
   return saveMods(b, r).map(s => s.total).join() === ['STR','DEX','CON','INT','WIS','CHA'].map(a => r.mods[a] + ((b.saves||[]).includes(a) ? r.prof : 0) + r.saveAdj).join(); }));
 check('the old "Saves: DEX, INT" line is gone', await page.evaluate(() => !/Saves:/.test(document.querySelector('#sheet .shstats').innerText)));
-const sheet = await page.evaluate(() => { toggleSheet(); const box = [...document.querySelectorAll('#sheetbody .shbox')].find(x => /Saving Throws/.test(x.textContent));
-  const t = box ? [...box.querySelectorAll('.shrow')].map(e => e.innerText.replace(/\s+/g, ' ').trim()) : []; toggleSheet(); return t; });
-check('📋 Sheet Saving Throws box matches', sheet.join('|') === exp.saves.map(e => (e.prof ? '● ' : '○ ') + e.ab + ' ' + sg(e.total)).join('|'), JSON.stringify(sheet));
+// feat/livesheet-sheet-layout: the 📋 Sheet renders the panel's own Stats card, saves included.
+const sheet = await page.evaluate(() => { toggleSheet(); const t = [...document.querySelectorAll('#sheetbody .shstats .absv')].map(e => e.textContent.trim()); toggleSheet(); return t; });
+check('📋 Sheet shows the same saves', sheet.join('|') === exp.saves.map(e => (e.prof ? '●' : '○') + 'Save ' + sg(e.total)).join('|'), JSON.stringify(sheet));
 check('no page errors', !errs.length, errs.join(' | '));
 if (process.env.SHOT_DIR) await page.locator('#sheet .shstats').screenshot({ path: path.join(process.env.SHOT_DIR, 'saves-desktop.png') });
 await ctx.close();
