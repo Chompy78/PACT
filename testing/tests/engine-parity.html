@@ -111,7 +111,11 @@
         { id: "CG-075", path: "../fixtures/builds/CG-075-barbarian-unarmored-defense-wearing-chain-mail.json" },
         { id: "CG-076", path: "../fixtures/builds/CG-076-mage-armor-with-shield.json" },
         { id: "CG-077", path: "../fixtures/builds/CG-077-draconic-resilience-subclass-door.json" },
-        { id: "CG-078", path: "../fixtures/builds/CG-078-draconic-resilience-hd-blocked-grants-nothing.json" }
+        { id: "CG-078", path: "../fixtures/builds/CG-078-draconic-resilience-hd-blocked-grants-nothing.json" },
+        { id: "CG-079", path: "../fixtures/builds/CG-079-defense-style-art-in-chain-mail.json" },
+        { id: "CG-080", path: "../fixtures/builds/CG-080-defense-style-art-unarmoured.json" },
+        { id: "CG-081", path: "../fixtures/builds/CG-081-defense-named-for-fighting-style-slot.json" },
+        { id: "CG-082", path: "../fixtures/builds/CG-082-defense-named-without-a-slot.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
@@ -184,7 +188,7 @@
             warningsArr: r.warnings,
             remaining: r.remaining,
             ok: r.remaining >= 0,
-            ac: r.ac, expectAc: build._expectAc,   // optional per-fixture AC assertion (feat/livesheet-armour-ac)
+            ac: r.ac, expectAc: build._expectAc, hp: r.hp, expectHp: build._expectHp,   // optional per-fixture AC / HP assertions (feat/livesheet-armour-ac)
             error: null
           });
         } catch (e) {
@@ -332,6 +336,8 @@
 
           if (row.expectAc !== undefined && row.ac !== row.expectAc)
             failures.push(`ac: got ${row.ac}, expected ${row.expectAc}`);
+          if (row.expectHp !== undefined && row.hp !== row.expectHp)
+            failures.push(`hp: got ${row.hp}, expected ${row.expectHp}`);
 
           // CG-003: must be over-budget (warning text itself is covered by the exact-array check above)
           if (row.id === "CG-003") {

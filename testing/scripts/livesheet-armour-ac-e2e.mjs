@@ -50,6 +50,7 @@ const BARB = mkLog('Barbarian', 'Barbarian: Unarmored Defense', { STR: 16, DEX: 
 const MONK = mkLog('Monk', 'Monk: Unarmored Defense', { STR: 10, DEX: 16, CON: 10, INT: 8, WIS: 16, CHA: 8 },
   { light: false, medium: false, heavy: false, shield: true }, 'Monk');
 
+const MONK_LOG = MONK;
 const browser = await launchChromium();
 async function lsPage(id, LOG) {
   const ctx = await browser.newContext();
@@ -116,10 +117,13 @@ section('2. Live Sheet — Monk Unarmored Defense needs the shield set down');
   const { ctx, page, errs } = await lsPage('id-monk', MONK);
   let a = await lsAc(page);
   check('Monk with a shield in hand: AC 15 (10 + Dex 3 + shield 2 — Unarmored Defense off)', a.shown === 15, JSON.stringify(a));
+  const nudge = await page.evaluate(() => (document.getElementById('lsAcNudge') || {}).textContent || '');
+  check('the Wearing row shows a nudge: setting the shield down would give AC 16', /Set the shield down: Monk Unarmored Defense would give AC 16 \(now 15\)/.test(nudge), nudge);
   if (await page.evaluate(() => !!document.getElementById('lsShieldWorn'))) {
     await shield(page, false); await page.waitForTimeout(200);
     a = await lsAc(page);
     check('shield set down: AC 16 = 10 + Dex 3 + Wis 3', a.shown === 16 && a.engine === 16, JSON.stringify(a));
+    check('...and the nudge is gone', await page.evaluate(() => !document.getElementById('lsAcNudge')));
   } else check('shield set down: AC 16 = 10 + Dex 3 + Wis 3', false, 'no Shield box');
   check('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();
@@ -155,6 +159,24 @@ async function cgPage(env) {
     await page.waitForTimeout(400);
     const r3 = await page.evaluate(() => ({ form: compute(readBuild()).ac, w: foldBuild(LOG).wornArmour }));
     check('Mage Armor picked in CharGen: kept in the LOG, AC 15', r3.w === 'Mage Armor' && r3.form === 15, JSON.stringify(r3));
+    // The "Shield in hand" box must not carry its touched state into the next character (New Character, or a load).
+    const armourKeys = () => page.evaluate(() => ({ box: document.getElementById('shieldWorn').checked, sw: readBuild().shieldWorn,
+      keys: LOG.filter(e => e.cat === 'patch' && e.payload && e.payload.patch && 'armour' in e.payload.patch).map(e => Object.keys(e.payload.patch).sort().join(',')) }));
+    await page.evaluate(() => resetBuild()); await page.waitForTimeout(600);
+    await page.evaluate(() => { const c = document.getElementById('a_shield'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });
+    await page.waitForTimeout(400);
+    const r4 = await armourKeys();
+    check('New Character after touching the box: box ticked, shieldWorn unset, a new Armour patch has no shieldWorn key',
+      r4.box === true && r4.sw === undefined && r4.keys.length > 0 && r4.keys.every(k => k === 'armour,wornArmour'), JSON.stringify(r4));
+    await page.evaluate(() => { const c = document.getElementById('shieldWorn'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); });
+    await page.waitForTimeout(300);
+    await page.evaluate(env => _cgApplyEnvelope(env, { clearHistory: true }), { schema: 'pact-character/1', name: 'Other', id: 'id-other', LOG: MONK_LOG, SEQ: 9 });
+    await page.waitForTimeout(600);
+    await page.evaluate(() => { const c = document.getElementById('a_light'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });
+    await page.waitForTimeout(400);
+    const r5 = await armourKeys();
+    check('loading another character after touching the box: reset too (no shieldWorn key written)',
+      r5.box === true && r5.sw === undefined && r5.keys.every(k => k === 'armour,wornArmour'), JSON.stringify(r5));
   }
   check('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();

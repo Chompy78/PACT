@@ -1583,6 +1583,25 @@ livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponLis
 ```
 **Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
 
+## feat/campaign-house-rules merge — rules version and parity fixture ids collide with feat/livesheet-armour-ac (#670) — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-armour-ac (#670) merges into preview SECOND. **Effort:** small · **Risk:** medium — a wrong merge silently drops parity fixtures or a rules bump.
+
+```text
+Merge coordination, recorded 2026-10-15 from PR #670 (feat/livesheet-armour-ac). Both branches bump DATA.version v0.376 → v0.377,
+and their parity fixture ids collide: #670 adds CG-071..CG-082; feat/campaign-house-rules adds CG-071..CG-075 and EV-035..EV-040
+(#670 adds no EV fixtures). Whichever of the two merges SECOND must:
+  1. re-bump to v0.378 at every display site (js/engine-data.js `version`, CharGen <title> "Rules" half and #cgPactver chip,
+     Live Sheet #lsRulesVer — docs/VERSION-SYNC.md "Rules version display sites"; version-label-ci.mjs asserts them);
+  2. renumber its own colliding fixtures (files, expected-results.csv rows, expected-warnings.json keys, the FIXTURES list in
+     testing/tests/engine-parity.html);
+  3. merge the parity runners' optional per-fixture assertions — #670 adds `_expectAc`/`_expectHp` to both
+     testing/scripts/engine-parity-ci.mjs and testing/tests/engine-parity.html; keep the other branch's `_expect*` fields alongside;
+  4. rebaseline testing/expected/ on the COMBINED engine (re-run every fixture, old and new, against the merged js/engine.js) and
+     record the second bump in its CHANGELOG line and decision record.
+```
+**Done when:** after both have merged, preview's DATA.version is v0.378 at every display site, fixture ids are unique, and
+engine-parity reports 0 failed with every fixture from both branches present.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
