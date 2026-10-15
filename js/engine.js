@@ -424,6 +424,18 @@ export function skillMods(b, r) {
   });
 }
 
+// saveMods(b, r?) — the six saving throws for display (feat/livesheet-saves-in-stats-card), in STR..CHA order:
+// { ab, abMod, prof (true when proficient), total }. total = the ability modifier + proficiency (if proficient) + compute()'s
+// saveAdj (Weak-Willed's −1 to every save). Display only, like skillMods(); pass compute(b)'s result as r.
+export function saveMods(b, r) {
+  r = r || compute(b);
+  const mods = r.mods || {}, prof = r.prof || 0, adj = r.saveAdj || 0, sv = b.saves || [];
+  return ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(ab => {
+    const p = sv.includes(ab), abMod = mods[ab] || 0;
+    return { ab, abMod, prof: p, total: abMod + (p ? prof : 0) + adj };
+  });
+}
+
 // weaponAttack(b, r, w) — to-hit and damage bonus for a weapon or attack on the player's sheet (feat/livesheet-center-panel;
 // the standard weapons are in WEAPONS below, feat/livesheet-weapons). w = { ab: 'STR'|'DEX'|'FIN'|'SPELL'|'none',
 // prof: bool, bonus: number (magic +N) }. 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier +

@@ -1632,16 +1632,6 @@ Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime �
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
 
-## feat/livesheet-saves-in-stats-card — Live Sheet centre panel: saving throws in the stats card, colour-coded — TODO
-Branch feat/livesheet-saves-in-stats-card. **Effort:** low · **Risk:** low — display only.
-
-```text
-Owner report 2026-10-14. The Live Sheet centre panel doesn't show saving throws properly. Move them into the stats (ability)
-card: each ability shows its saving throw next to it, colour-coded with that ability's colour (the tools already use one
-colour per ability — e.g. CharGen's _CSABCOL STR/DEX/CON/INT/WIS/CHA), with proficient saves clearly marked. Values come from
-compute() (never re-derived). Keep it readable on a phone.
-```
-**Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
 ## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
 Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
