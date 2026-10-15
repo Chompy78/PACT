@@ -2962,6 +2962,68 @@ export function purchaseLegality(cur, cat, payload, opts) {
   return { warnings, followup, rest, hard, soft, dup: dup || dupOrigin };
 }
 
+// allNameableSlots(build) — every language and spell slot a character owns, named or blank, in the order the
+// ✎ Name spells & languages dialog lists them (refactor/names-slot-helper; docs/plans/2026-10-15-names-before-spending.md).
+//
+// WHY ONE COPY HERE. Each tool's openNames() used to count the slots itself, so anything that needed "which slots does this
+// character own, and which are still blank" (the names-before-spending gate) would have had to re-count them a third time and
+// could drift from what the dialog actually shows. The dialogs now build their rows from this list, and the gate reads the same
+// list. testing/scripts/names-dialog-e2e.mjs checks both tools' rows against it.
+//
+// SCOPE (owner decision M1, 2026-10-15): languages and spells only — language, out-of-tradition (dabbler) cantrip, innate
+// spell, discipline cantrip, known spell, Mystic Arcanum. NOT here: fighting styles and the cantrips they grant, Metamagic,
+// maneuvers, choice-grant spells (free, not bought) and the epic-boon ability — those rows stay in the dialogs and are not gated.
+//
+// Each slot: {kind, key, label, name, level, ti, di}.
+//   key    the dialog's `data-k` for the row ('lang::0', 'inn::2::1', 'tr::0::1::k::3::0', …) — saveNames() reads these.
+//   name   the current name, '' when blank (never null).
+//   level  the spell level (0 for a cantrip; absent for a language); ti/di only on discipline slots (tradition/discipline index).
+// `b.languages||1` mirrors the dialogs exactly: a character always has at least one language slot.
+export const NAMEABLE_KINDS = Object.freeze(['language', 'dabbler', 'innate', 'cantrip', 'known', 'arcanum']);
+export function allNameableSlots(b) {
+  const out = [];
+  const nm = v => (v == null ? '' : String(v));
+  const nl = b.languages || 1;
+  for (let i = 0; i < nl; i++) out.push({ kind: 'language', key: 'lang::' + i, label: 'Language ' + (i + 1), name: nm((b.languageNames || [])[i]) });
+  const dc = b.dabblerCantrips || 0;
+  for (let i = 0; i < dc; i++) out.push({ kind: 'dabbler', key: 'dab::' + i, label: 'Cantrip ' + (i + 1), name: nm((b.dabblerCantripNames || [])[i]), level: 0 });
+  for (let L = 1; L <= 9; L++) {
+    const ic = (b.innate || [])[L - 1] || 0;
+    for (let i = 0; i < ic; i++) out.push({ kind: 'innate', key: 'inn::' + L + '::' + i, label: 'L' + L + ' spell ' + (i + 1), name: nm((((b.innateNames || [])[L - 1]) || [])[i]), level: L });
+  }
+  (b.traditions || []).forEach((t, ti) => {
+    (t.disciplines || []).forEach((d, di) => {
+      if (!d.name || d.name === '(none)') return;
+      const cn = d.cantrips || 0;
+      for (let i = 0; i < cn; i++) out.push({ kind: 'cantrip', key: 'tr::' + ti + '::' + di + '::c::' + i, label: 'Cantrip ' + (i + 1), name: nm((d.cantripNames || [])[i]), level: 0, ti, di });
+      for (let L = 1; L <= 9; L++) {
+        const kn = (d.known || [])[L - 1] || 0;
+        for (let i = 0; i < kn; i++) out.push({ kind: 'known', key: 'tr::' + ti + '::' + di + '::k::' + L + '::' + i, label: 'L' + L + ' spell ' + (i + 1), name: nm((((d.knownNames || [])[L - 1]) || [])[i]), level: L, ti, di });
+      }
+      for (let ai = 0; ai < 4; ai++) {
+        const aL = 6 + ai, ac = (d.arcanum || [])[ai] || 0;
+        for (let aj = 0; aj < ac; aj++) out.push({ kind: 'arcanum', key: 'tr::' + ti + '::' + di + '::a::' + ai + '::' + aj, label: 'L' + aL + ' arcanum ' + (aj + 1), name: nm((((d.arcanumNames || [])[ai]) || [])[aj]), level: aL, ti, di });
+      }
+    });
+  });
+  return out;
+}
+
+// unnamedChoices(build, opts) — the slots from allNameableSlots() that are still blank (whitespace-only counts as blank).
+//   opts.kinds     only these kinds (default: all of NAMEABLE_KINDS). Each tool passes the kinds ITS dialog can render, so a
+//                  slot a tool cannot show is never counted against it (CharGen has no Arcanum rows yet — see the board task
+//                  feat/chargen-names-arcanum-rows).
+//   opts.poolSize  optional (slot) => number of legal names for that slot. A slot with NO legal choice (0) is skipped, so a
+//                  character can never be stuck on a slot it cannot fill (owner decision I1). The tools own the spell-list
+//                  logic (eligibleSpells), so they pass it in; omitted = every slot has a pool. Languages never need it: the
+//                  campaign list falls back to STANDARD_LANGUAGES, so it is never empty (campaignLanguages()).
+export function unnamedChoices(b, opts) {
+  const o = opts || {};
+  const kinds = Array.isArray(o.kinds) ? o.kinds : NAMEABLE_KINDS;
+  return allNameableSlots(b).filter(s => kinds.indexOf(s.kind) >= 0 && !s.name.trim()
+    && !(typeof o.poolSize === 'function' && Number(o.poolSize(s)) <= 0));
+}
+
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so
 // its ledger telescopes back to compute().total.
 //

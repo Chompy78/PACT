@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-15-names-slot-helper — one engine list of the language and spell slots a character owns; the names gate counts languages and spells only
+- `allNameableSlots(build)` / `unnamedChoices(build, {kinds, poolSize})` in `js/engine.js`; both ✎ Name dialogs build their
+  language and spell rows from it. The two dialogs differ (CharGen has no Arcanum, fighting-style, Metamagic or maneuver
+  rows), so the gate counts languages and spells only (M1) and each tool passes the kinds it can render (N1); a slot with no
+  legal name is skipped (I1). No behaviour change, no `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-15-names-slot-helper.md`.
 ## D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon stays linked to its definition
 - `WEAPONS` (38 PHB weapons + Unarmed Strike), `weaponSheetDefaults()` and `campaignWeapons()` are engine exports beside
   `weaponAttack()`, not `DATA` (never read by `compute()`, no version bump; `engine-data.js` is one shared line). A sheet
