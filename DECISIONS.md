@@ -32,6 +32,12 @@
   row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
   10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration NOT APPLIED.
   Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
+## D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins
+- Owner decision AK1. Free LOG inputs: `wornArmour` (now also `MAGE_ARMOR`) and new `shieldWorn` (absent = carried when trained, so no
+  shield bonus moves). With no armour, `compute()` takes the best of 10 + Dex, Mage Armor 13 + Dex, Barbarian UD 10 + Dex + Con, Monk UD
+  10 + Dex + Wis (no shield), Draconic Resilience 10 + Dex + Cha — counted ownership only; no new warnings (advice in `acInfo`). Live
+  Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
+  Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
   Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one

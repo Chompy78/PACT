@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.666 · Rules v0.376</title><style>
+<title>PACT Character Generator — Web Tool v1.666 · Rules v0.377</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.666</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.376</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.666</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.377</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -2492,7 +2492,7 @@ function buildForm(F){
     '<label class="ck">&nbsp;<input type="checkbox" id="a_heavy"> Heavy (+6 AP)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="a_shield"> Shield (2 AP)</label>'+
     '<span class="price" id="armp"></span></div>'+
-    '<div class="row" style="margin-top:6px"><label class="l">Worn armour</label><select id="wornArmour"><option value="">— none / unarmoured (10 + Dex) —</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'">'+an+' — AC '+aa.base+' ('+aa.cat+')</option>';}).join('')+'</select><span class="hint">sets your exact AC base; needs the matching armour proficiency</span></div>'+
+    '<div class="row" style="margin-top:6px"><label class="l">Worn armour</label><select id="wornArmour"><option value="">— none / unarmoured (10 + Dex) —</option><option value="Mage Armor">Mage Armor (spell up — 13 + Dex)</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'">'+an+' — AC '+aa.base+' ('+aa.cat+')</option>';}).join('')+'</select><label class="ck" title="A shield in hand gives +2 AC (needs Shield training). Monk Unarmored Defense needs it set down.">&nbsp;<input type="checkbox" id="shieldWorn" checked> Shield in hand</label><span class="hint">sets your exact AC base; needs the matching armour proficiency. With none worn, the best of your unarmoured formulas applies (Unarmored Defense, Draconic Resilience, Mage Armor)</span></div>'+
     '<div class="sublab" style="margin-top:8px">Weapon proficiency &amp; mastery</div>'+
     '<div class="row"><label class="l">Proficiency</label>'+
     '<label class="ck"><input type="checkbox" id="wp_simple"> Simple (1 AP)</label>'+
@@ -3630,6 +3630,8 @@ function _cgPostLockSteps(slot,patch,cur){
     });
     if(!refuse&&patch.wornArmour!=null&&(patch.wornArmour||'')!==(cur.wornArmour||''))   // what you are wearing is a choice, not a purchase: free, both ways
       steps.push({cat:'wornArmour',payload:{v:patch.wornArmour||''},label:patch.wornArmour?('Worn armour \u2014 '+patch.wornArmour):'Worn armour \u2014 none (unarmoured)'});
+    if(!refuse&&patch.shieldWorn!==undefined&&(patch.shieldWorn!==false)!==(cur.shieldWorn!==false))   // a shield in hand: free, both ways, like the worn armour
+      steps.push({cat:'shieldWorn',payload:{v:patch.shieldWorn!==false},label:patch.shieldWorn!==false?'Shield \u2014 in hand':'Shield \u2014 set down'});
   }else if(slot==='weaponProf'){
     var cw=Object.assign({},cur.weaponProf||{}), nw=Object.assign({},(patch.weaponProf)||{});
     if(nw.allMartial) nw.simple=true;   // All martial includes Simple (the Live Sheet's tile sets both); the form's Simple box can still be unticked after an All-martial purchase
@@ -3709,7 +3711,7 @@ function _cgPostLockAppend(steps){
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;
-    if(st.cat==='wornArmour'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
+    if(st.cat==='wornArmour'||st.cat==='shieldWorn'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
     else{
       // The Live Sheet's own "may this be bought" rule (js/engine.js purchaseLegality, moved there from the Live Sheet): an already-owned
       // single-instance proficiency, any hard rules violation, and a soft warning the player must confirm. This used to block only warnings
@@ -4241,7 +4243,7 @@ const PATCH_FIELD_SLOT={
   hd:PATCH_SLOTS.HD_PROF,profBonus:PATCH_SLOTS.HD_PROF,
   hardy:PATCH_SLOTS.VIGOR,tough:PATCH_SLOTS.VIGOR,
   wp_simple:PATCH_SLOTS.WEAPON_PROF,wp_martial:PATCH_SLOTS.WEAPON_PROF,wp_all:PATCH_SLOTS.WEAPON_PROF,wp_improv:PATCH_SLOTS.WEAPON_PROF,
-  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,
+  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,shieldWorn:PATCH_SLOTS.ARMOUR,
   languages:PATCH_SLOTS.LANGUAGES,attune:PATCH_SLOTS.ATTUNEMENT,ki:PATCH_SLOTS.KI,sorcery:PATCH_SLOTS.SORCERY,
   gold:PATCH_SLOTS.ECONOMY,
   martiallyBound:PATCH_SLOTS.MISC,dabblerCantrips:PATCH_SLOTS.MISC,
@@ -4267,6 +4269,13 @@ function _cgPatchSlotForId(id){
 // guard (Category F) directly in the constructed patch: the OLD DOM-side auto-correction in
 // _cgRenderInner() bypasses change events (same class of gap Chunk 1 hit with annotate()'s force-unchecks),
 // so without this, a stale illegal armour patch could sit in LOG until the next unrelated armour edit.
+// feat/livesheet-armour-ac: "Shield in hand" (b.shieldWorn). The field is ABSENT on every save made before rules v0.377 and means
+// "carried whenever trained", so the box only becomes a real value once the player touches it or a loaded build already carries one —
+// otherwise reading the form would add a new key to every character's Armour patch (and the server freezes pre-lock patch keys).
+let _cgShieldExplicit=false;
+function _cgShieldWornRead(){const e=$('shieldWorn');return (e&&_cgShieldExplicit)?!!e.checked:undefined;}
+function _cgShieldWornLoad(b){const e=$('shieldWorn');_cgShieldExplicit=!!b&&b.shieldWorn!==undefined;if(e)e.checked=!b||b.shieldWorn!==false;}
+document.addEventListener('change',function(ev){if(ev.target&&ev.target.id==='shieldWorn')_cgShieldExplicit=true;},true);   // capture: set before the slot sync reads the form
 function _cgSlotPatch(slot,dom){
   switch(slot){
     case PATCH_SLOTS.STATS: return {stats:dom.stats};
@@ -4276,7 +4285,8 @@ function _cgSlotPatch(slot,dom){
     case PATCH_SLOTS.ARMOUR:{
       const armour=Object.assign({},dom.armour);
       if(((dom.stats&&dom.stats.STR)||10)<10){armour.medium=false;armour.heavy=false;}
-      return {armour:armour,wornArmour:dom.wornArmour};
+      const _ap={armour:armour,wornArmour:dom.wornArmour};if(dom.shieldWorn!==undefined)_ap.shieldWorn=dom.shieldWorn;   // feat/livesheet-armour-ac: absent = carried when trained (every older save)
+      return _ap;
     }
     case PATCH_SLOTS.LANGUAGES: return {languages:dom.languages};
     case PATCH_SLOTS.ATTUNEMENT: return {attune:dom.attune};
@@ -4523,7 +4533,7 @@ function _domReadBuild(){
     subSpellBundles:[...document.querySelectorAll('.subbundlerow')].map(e=>e.value).filter(Boolean),
     freeSub:(()=>{const o={};document.querySelectorAll('.freesub').forEach(s=>{if(s.value)o[s.dataset.cls]=s.value;});return o;})(),
     drawbacks:ckVals('drawck'),gold:+val('gold'),dabblerCantrips:+(val('dabblerCantrips')||0),
-    attune:+(val('attune')||0),ki:+(val('ki')||0),sorcery:+(val('sorcery')||0),wornArmour:val('wornArmour')||'',martiallyBound:val('martiallyBound')||'(none)',
+    attune:+(val('attune')||0),ki:+(val('ki')||0),sorcery:+(val('sorcery')||0),wornArmour:val('wornArmour')||'',shieldWorn:_cgShieldWornRead(),martiallyBound:val('martiallyBound')||'(none)',
     boons:ckVals('boonck'),innate:[...Array(9)].map((_,i)=>+(val('innate_'+(i+1))||0)),
     appearance:{gender:val('ap_gender'),age:val('ap_age'),height:val('ap_height'),build:val('ap_build'),
       hair:val('ap_hair'),eyes:val('ap_eyes'),nose:val('ap_nose'),skin:val('ap_skin'),marks:val('ap_marks'),
@@ -4975,7 +4985,7 @@ function _buildEventBurst(b,opts){
   if(customProfs.length)emitPatch('Tools & instruments',{customProfs:C(customProfs)});
   tools.forEach(v=>evItem('Tool — '+v,'tool',v));instruments.forEach(v=>evItem('Instrument — '+v,'instrument',v));
   emitPatch('Weapon proficiency',{weaponProf:b.weaponProf});(b.masteries||[]).forEach(v=>evItem('Weapon mastery — '+v,'mastery',v));
-  emitPatch('Armour',{armour:b.armour,wornArmour:b.wornArmour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
+  emitPatch('Armour',b.shieldWorn!==undefined?{armour:b.armour,wornArmour:b.wornArmour,shieldWorn:b.shieldWorn}:{armour:b.armour,wornArmour:b.wornArmour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
   emitPatch('Subclasses',{freeSub:C(b.freeSub||{})});(b.subAbilities||[]).forEach(v=>evItem('Subclass ability — '+v,'subabil',v));(b.subSpellBundles||[]).forEach(v=>evItem('Subclass spell bundle — '+v,'subbundle',v));
   emitPatch('Spellcasting',{traditions:b.traditions,dabblerCantrips:b.dabblerCantrips});(b.arts||[]).forEach(v=>evItem('Art / Technique — '+v,'art',v));
   emitPatch('Lineage & racial spells',{lineage:b.lineage||''});(b.racialSpells||[]).forEach(v=>evItem('Racial spell — '+v,'racialspell',v));
@@ -5033,7 +5043,7 @@ function applyBuild(b,opts){
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
   for(const a of ABILS)set('st_'+a,(b.stats&&b.stats[a])||10);
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('hardy',b.hardy||0);set('tough',b.tough||0);(function(){var u=(b.unlockedClasses&&b.unlockedClasses.length)?b.unlockedClasses:[];document.querySelectorAll('.classunlock').forEach(function(cb){cb.checked=u.indexOf(cb.dataset.cls)>=0;});})();set('gold',b.gold||0);set('dabblerCantrips',b.dabblerCantrips||0);set('languages',b.languages!=null?b.languages:1);
-  set('attune',b.attune||0);set('ki',b.ki||0);set('sorcery',b.sorcery||0);set('wornArmour',b.wornArmour||'');set('martiallyBound',b.martiallyBound||'(none)');
+  set('attune',b.attune||0);set('ki',b.ki||0);set('sorcery',b.sorcery||0);set('wornArmour',b.wornArmour||'');_cgShieldWornLoad(b);set('martiallyBound',b.martiallyBound||'(none)');
   // restore DM house-rules, then rebuild the boon/drawback grids so custom items exist before we tick them
   HOUSE=(b.houseRules&&typeof b.houseRules==='object')?{boons:b.houseRules.boons||{},draws:b.houseRules.draws||{},disabled:{boons:(b.houseRules.disabled&&b.houseRules.disabled.boons)||[],draws:(b.houseRules.disabled&&b.houseRules.disabled.draws)||[]}}:{boons:{},draws:{},disabled:{boons:[],draws:[]}};
   // Restore DM-call toggles
