@@ -340,3 +340,43 @@ function pactComposeDescription(ap, who){
   if(misc.length)pcs.push('They '+_pactJoinList(misc)+'.');
   return pcs.join(' ');
 }
+
+/* Spells and cantrips from somewhere other than a tradition's own lists (fix/livesheet-pack-spells) — the rows come
+   from the engine's grantedSpells(b); these only turn them into the same .splevel/.sprow markup the spell lists
+   already use, so the Live Sheet's Character panel, its 📋 Sheet and CharGen's Sheet tab all show them one way.
+   Every row names where it came from. Every name and source passes through esc(). */
+function pactGrantedSpellRow(g, hd) {
+  var cant = g.level === 0, later = (g.needHD || 1) > (hd || 1), note = g.note || '';
+  if (later && note.indexOf('needs') < 0) note += (note ? ' · ' : '') + 'needs ' + g.needHD + ' HD';
+  return '<div class="sprow' + (cant ? ' cant' : '') + (later ? ' ph' : '') + '" data-grant="' + esc(g.kind) + '">' +
+    '<span class="bul">' + (g.kind === 'subclass' ? '✦' : (cant ? '◆' : '●')) + '</span>' +
+    '<span>' + esc(g.name) + ' <em class="spsrc" style="font-style:normal;font-size:9.5px;color:var(--grey)">from ' + esc(g.source) +
+    (note ? ' · ' + esc(note) : '') + '</em></span></div>';
+}
+// One .splevel group per spell level (cantrips first; spells missing from the spell data last).
+function pactGrantedSpellGroups(rows, hd) {
+  var by = {};
+  (rows || []).forEach(function (g) { var k = g.level == null ? 'x' : String(g.level); (by[k] = by[k] || []).push(g); });
+  return Object.keys(by).sort(function (a, b) { return (a === 'x' ? 99 : +a) - (b === 'x' ? 99 : +b); }).map(function (k) {
+    return '<div class="splevel"><div class="lh"><span>' + (k === '0' ? 'Cantrips' : (k === 'x' ? 'Other' : 'Level ' + k)) +
+      '</span><span class="sl">' + (k === '0' ? 'at will' : '') + '</span></div>' +
+      by[k].map(function (g) { return pactGrantedSpellRow(g, hd); }).join('') + '</div>';
+  });
+}
+// A discipline's always-prepared subclass bundles, one group per subclass.
+function pactGrantedBundleGroups(rows, hd) {
+  var by = {}, order = [];
+  (rows || []).forEach(function (g) { if (!by[g.source]) { by[g.source] = []; order.push(g.source); } by[g.source].push(g); });
+  return order.map(function (s) {
+    return '<div class="splevel"><div class="lh"><span>' + esc(s) + ' — always prepared</span><span class="sl">subclass</span></div>' +
+      by[s].map(function (g) { return pactGrantedSpellRow(g, hd); }).join('') + '</div>';
+  });
+}
+// The "From heritage & other sources" block: every granted row not already shown under its own discipline.
+function pactGrantedOtherBlock(rows, hd) {
+  if (!rows || !rows.length) return '';
+  var cols = [[], [], []];
+  pactGrantedSpellGroups(rows, hd).forEach(function (g, i) { cols[i % 3].push(g); });
+  return '<div class="spdisc spgrants"><div class="spname">From heritage &amp; other sources</div>' +
+    '<div class="spcols">' + cols.map(function (c) { return '<div>' + c.join('') + '</div>'; }).join('') + '</div></div>';
+}

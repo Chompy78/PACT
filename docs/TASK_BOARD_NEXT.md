@@ -1632,19 +1632,6 @@ Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime �
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
 
-## fix/livesheet-pack-spells — Live Sheet and the 📋 Sheet don't show cantrips/spells that came from heritage packs (or other grants) — TODO
-Branch fix/livesheet-pack-spells. **Effort:** low–medium · **Risk:** low — display only (no pricing), but must read the same fold the engine prices.
-
-```text
-Owner report 2026-10-14. Cantrips and spells a character gets as part of a heritage/species pack — or any other non-direct
-source (origin/racial grant, subclass, feature) — are missing from the Live Sheet's spell list and from the 📋 Sheet view;
-only spells bought directly show. DO: find every place the engine grants a spell/cantrip (grep js/engine.js / engine-data.js
-for pack contents, racial spells, granted cantrips — use the engine's own fold/compute output, never re-derive rules in the
-tool) and list them in both views alongside bought ones, each marked with where it came from (e.g. "from Wood Elf heritage").
-Escape every name. Check CharGen's Sheet tab for the same gap.
-```
-**Done when:** e2e: a character with a heritage pack that grants a cantrip (and one granting a levelled spell) shows them in the Live Sheet spell list and the 📋 Sheet, labelled with their source; bought spells unchanged; `engine-parity-ci` 0 failed.
-
 ## feat/livesheet-saves-in-stats-card — Live Sheet centre panel: saving throws in the stats card, colour-coded — TODO
 Branch feat/livesheet-saves-in-stats-card. **Effort:** low · **Risk:** low — display only.
 
