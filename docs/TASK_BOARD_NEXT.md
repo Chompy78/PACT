@@ -1686,6 +1686,21 @@ Coordinate with feat/campaign-house-rules (its DM-family forgery guard must free
 ```
 **Done when:** buying Code of Honour requires a description; the DM sees and approves it in DM Console; after approval the player can't change it in either tool and a direct server write changing it is refused (tested); a DM unlock re-opens it; names/notes escaped; `engine-parity-ci` 0 failed.
 
+## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
+Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.
+
+```text
+Owner decision AR1 (2026-10-15, review of #672). Since feat/livesheet-sheet-layout the Live Sheet's 📋 Sheet renders the
+Character panel's own body (_lsCharBody in render(), plus _lsTableExtras) — see D-GH-2026-10-15-livesheet-sheet-layout.
+CharGen's Sheet tab still uses its own renderCharSheet(b,r,ctx), the last copy of the old fillable layout. DO: move the
+body renderer somewhere both tools load (e.g. js/ui-helpers.js, or a new shared classic script — it needs esc, the colour
+map _CSABCOL, skillMods/saveMods/grantedSpells from the engine bridge, _lsFx/_fxBtn for ⓘ, and the description block),
+call it from CharGen's Sheet tab, and delete CharGen's renderCharSheet(). Keep CharGen's tool-specific bits as opts (no
+rename button, CharGen's AP line, no playerSheet editing unless CharGen gains it). Keep the device-local "at the table"
+fields and the AP ledger. Every player value escaped; check phone width.
+```
+**Done when:** CharGen's Sheet tab and the Live Sheet's 📋 Sheet render through one shared function (no renderCharSheet left in either tool); an e2e asserts both tools show the same section outline for the same character; ledger-xss / esc-gap-verify / tool-pricing-ci updated and green; `engine-parity-ci` 0 failed.
+
 
 ## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
 Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.

@@ -45,8 +45,8 @@ coins, and an AP ledger. #653 had already made the two share one block (the desc
   request did not cover. The file-header "shared, duplicated code" note says so.
 - Skills use one ability-colour map, `_CSABCOL`, the same one the Stats card, its saves and the spell strip read
   (`feat/livesheet-saves-in-stats-card` made the panel use it).
-- The description block is a plain `div.lsdesc`. The paragraph sits outside the fold, and `details.lsdfold` holds the
-  fields and the backstory (open state `LS_DESC_OPEN`). Player name, Alignment and Background are in the fields in both
+- The description block is a plain `div.lsdesc`. The paragraph and the backstory sit outside the fold, and `details.lsdfold`
+  holds the individual fields (open state `LS_DESC_OPEN`). Player name, Alignment and Background are in the fields in both
   views now, since the Sheet header that also carried them is gone.
 
 ## Why
@@ -62,5 +62,5 @@ coins, and an AP ledger. #653 had already made the two share one block (the desc
 
 - CharGen's Sheet tab still uses `renderCharSheet()`. Bringing it onto the same body would need the panel's renderer outside
   the Live Sheet (e.g. `js/ui-helpers.js`), and the request did not ask for it.
-- The Backstory paragraph folds with the fields (the owner named only the description paragraph). If wanted, moving it
-  outside the fold is a one-line change in `_lsDescBlock()`.
+- Owner AR1 (2026-10-15): the backstory stays visible too, like the description paragraph; only the individual fields
+  fold. CharGen's Sheet tab moving onto the shared body is now a board task, `feat/chargen-shared-sheet-body`.

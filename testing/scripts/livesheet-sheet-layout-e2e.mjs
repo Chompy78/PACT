@@ -1,6 +1,8 @@
 /* PACT — Live Sheet layout (feat/livesheet-sheet-layout, owner request 2026-10-14).
  *   1. Skills are colour-coded by ability, with the same colour map as the Stats card and its saves (_CSABCOL).
- *   2. The description PARAGRAPH is always shown; only the individual fields (and the backstory) fold away.
+ *   2. The description PARAGRAPH and the backstory are always shown; only the individual fields fold away (owner AR1).
+ *   Review of #672: tools/instruments/custom proficiencies keep their check bonus and ✦; typed slot boxes are never hidden;
+ *   a Sheet redraw keeps the focused field; the class/species line is escaped; starting gold from AP is shown.
  *   3. The Character panel and the 📋 Sheet show the same sections in the same order, with the same labels and styling —
  *      one renderer (_lsCharBody) — and the Sheet then adds only its at-the-table extras (HP, death saves, AP ledger).
  *
@@ -36,6 +38,7 @@ const LOG = [
     payload: { patch: { name: 'Wren', species: 'Tiefling', lineage: 'Infernal', originClass: 'Rogue', hd: 3, languages: 2, languageNames: ['Common', XSS],
       stats: { STR: 8, DEX: 16, CON: 12, INT: 14, WIS: 12, CHA: 13 }, saves: ['DEX', 'INT'], skills: ['Stealth', 'Perception', 'Arcana'], expertise: ['Stealth'],
       racialSpells: ['Fire Bolt'], racialTraits: ['Tiefling: Thaumaturgy cantrip'], weaponProf: { simple: true }, armour: { light: true },
+      tools: ["Thieves' tools"], toolExpertise: ["Thieves' tools"], customProfs: ['Ship rigging ' + XSS],
       boons: ['Boon of Combat Prowess'], drawbacks: ['Asthmatic'],
       traditions: [{ name: 'Arcane', rank: 1, disciplines: [{ name: 'Wizard', cantrips: 1, slots: [2,0,0,0,0,0,0,0,0], known: [1,0,0,0,0,0,0,0,0], cantripNames: ['Mage Hand'], knownNames: [['Magic Missile']] }] }],
       appearance: { overall: 'A wiry tiefling with a crooked grin.', hair: 'black', backstory: 'Grew up on the docks.' } } } },
@@ -77,12 +80,19 @@ const outline = (page, root) => page.evaluate((root) => {
   check('Passive Perception (from skillMods) under the skills', pp[1] && pp[1].includes(String(pp[0])), JSON.stringify(pp));
 
   // 2. description paragraph always visible; only the fields fold
-  const d = await page.evaluate(() => { const box = document.querySelector('#sheet .lsdesc'), ta = box.querySelector('[data-lsd="overall"]'), hair = box.querySelector('[data-lsd="hair"]'), f = box.querySelector('details.lsdfold');
-    return { para: ta && ta.checkVisibility() && ta.value, folded: f && !f.open, hairHidden: hair && !hair.checkVisibility(), paraOutside: f && !f.contains(ta) }; });
-  check('the description paragraph is shown with the fields folded', d.para === 'A wiry tiefling with a crooked grin.' && d.folded && d.hairHidden && d.paraOutside, JSON.stringify(d));
+  const d = await page.evaluate(() => { const box = document.querySelector('#sheet .lsdesc'), ta = box.querySelector('[data-lsd="overall"]'), bs = box.querySelector('[data-lsd="backstory"]'), hair = box.querySelector('[data-lsd="hair"]'), f = box.querySelector('details.lsdfold');
+    return { para: ta && ta.checkVisibility() && ta.value, back: bs && bs.checkVisibility() && bs.value, folded: f && !f.open, hairHidden: hair && !hair.checkVisibility(), outside: f && !f.contains(ta) && !f.contains(bs) }; });
+  check('the description paragraph and the backstory are shown with the fields folded', d.para === 'A wiry tiefling with a crooked grin.' && d.back === 'Grew up on the docks.' && d.folded && d.hairHidden && d.outside, JSON.stringify(d));
   await page.click('#sheet .lsdfold summary');
   check('opening "Details" shows the fields', await page.evaluate(() => document.querySelector('#sheet [data-lsd="hair"]').checkVisibility()));
   await page.click('#sheet .lsdfold summary');
+
+  // review of #672: tools keep their bonus and ✦, custom proficiencies are listed, starting gold is shown
+  const tl = await page.evaluate(() => { const seg = [...document.querySelectorAll('#sheet .seg')].find(x => /^Tools\/Instr:/.test(x.innerText)); const b = foldBuild(null), r = compute(b);
+    return { t: seg ? seg.innerText : '', exp: '(DEX +' + (r.mods.DEX + 2 * r.prof) + ') ✦', gold: [...document.querySelectorAll('#sheet .seg')].some(x => x.innerText === 'Starting gold from AP: ' + r.goldGp + ' gp') }; });
+  check('Tools line: a tool shows its check bonus and ✦ expertise', tl.t.includes("Thieves' tools " + tl.exp), tl.t);
+  check('…custom proficiencies are listed (escaped)', /Ship rigging <img src=x/.test(tl.t), tl.t);
+  check('Starting gold from AP is shown', tl.gold);
 
   // 3. the Character panel and the 📋 Sheet: same sections, same order, same labels, same styling
   const mid = await outline(page, '#sheet');
@@ -99,6 +109,11 @@ const outline = (page, root) => page.evaluate((root) => {
   check('older device-only notes are still shown, never hidden', await page.evaluate(() => (document.querySelector('#sheetbody [data-mf="equip"]') || {}).value === 'Rope, lantern'));
   check('player text is escaped in both views', await page.evaluate(() => !window.__pwn && !document.querySelector('#sheet img[src="x"], #sheetbody img[src="x"]') && /<img src=x/.test(document.querySelector('#sheetbody').innerText)));
 
+  // a Sheet redraw keeps the focused field (review of #672)
+  await page.focus('#sheetbody [data-mf="tempHP"]');
+  await page.evaluate(() => render());
+  check('a redraw while the Sheet is open keeps the focused field', await page.evaluate(() => document.activeElement && document.activeElement.getAttribute('data-mf') === 'tempHP' && document.getElementById('sheetbody').contains(document.activeElement)));
+
   // an edit made in the Sheet shows in both views
   await page.evaluate(() => { const t = document.querySelector('#sheetbody [data-lsd="overall"]'); t.value = 'Edited in the Sheet.'; t.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.waitForTimeout(100);
@@ -108,6 +123,18 @@ const outline = (page, root) => page.evaluate((root) => {
   if (process.env.SHOT_DIR) await page.locator('#sheet').screenshot({ path: path.join(process.env.SHOT_DIR, 'layout-panel-desktop.png') });
   check('no page errors', !errs.length, errs.join(' | '));
   await ctx.close();
+}
+
+// a non-caster with slot numbers typed on this device still sees them (review of #672)
+{
+  const save = LOG[1].payload.patch.traditions; delete LOG[1].payload.patch.traditions;
+  const { ctx, page, errs } = await open({ width: 1400, height: 1000 }, { slot_L1: '2/1' });
+  await openSheet(page);
+  check('typed spell-slot boxes stay visible on a non-caster', await page.evaluate(() => (document.querySelector('#sheetbody [data-mf="slot_L1"]') || {}).value === '2/1'));
+  await closeSheet(page);
+  check('no page errors (non-caster)', !errs.length, errs.join(' | '));
+  await ctx.close();
+  LOG[1].payload.patch.traditions = save;
 }
 
 // phone width: neither view scrolls sideways
