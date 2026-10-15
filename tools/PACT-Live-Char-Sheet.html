@@ -2064,7 +2064,7 @@ function render(){
   // b.name/LOG, purely rendered here so two characters that legitimately share a name (e.g. a stray
   // unbound draft and the real campaign one, exactly the confusion that prompted this) are visually
   // distinguishable the moment the sheet is open, without having to check My Characters first.
-  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+(b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>'+(opts.sheet?'':_lsSheetPointer());
+  let sh='<div class="shname">'+esc(b.name||'New Character')+_lsRenameBtn()+(window._lsCampaignName?' <span class="shcampsuffix" title="Bound to campaign: '+esc(window._lsCampaignName)+'">— '+esc(window._lsCampaignName)+'</span>':'')+'</div><div class="shsub">'+esc((b.originClass2&&b.originClass2!=='(none)'?b.originClass+' / '+b.originClass2:b.originClass)+' · '+(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species))+' · Level '+b.hd+' (T'+r.tier+') · ≈ Track-Level '+trackLevel(eco.spent,_lvlCurve)+' · Prof +'+r.prof+'</div>'+(opts.sheet?'':_lsSheetPointer());
   const _abGov={STR:'Melee attack & damage · Athletics · carrying & grappling',DEX:'AC (light/medium) · finesse & ranged attacks · Initiative · Acrobatics, Stealth',CON:'Hit Points · concentration · Constitution saves',INT:'Arcana, History, Investigation, Nature, Religion · Wizard-style casting',WIS:'Perception, Insight, Medicine, Survival · Cleric/Druid/Ranger casting',CHA:'Persuasion, Deception, Intimidation, Performance · Bard/Sorcerer/Warlock/Paladin casting'};
   // feat/livesheet-centre-columns: name + class line on top, then three columns — Stats · Skills · General
   // (features, drawbacks, DM fields, description) — then Spellcasting, then coins/weapons/notes. Needs review stays below the card.
@@ -2122,8 +2122,13 @@ function render(){
    if(_lfx)sh+='<div class="seg"><b>Ancestry — '+esc(b.lineage)+':</b> '+esc(_lfx)+'</div>';
    const _bd=[];(b.traditions||[]).forEach(function(t){if(t&&t.name&&t.name!=='(none)')(t.disciplines||[]).forEach(function(d){if(d&&d.bound&&d.name&&d.name!=='(none)')_bd.push('⛓ Magical — '+t.name+' › '+d.name);});});
    if(b.martiallyBound&&b.martiallyBound!=='(none)')_bd.push('⚔ Martial — '+b.martiallyBound);
-   if(_bd.length)sh+='<div class="seg"><b>Bonds:</b> '+_bd.map(esc).join(' · ')+'</div>';}
-  if(b.tools.length||b.instruments.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+b.tools.concat(b.instruments).map(esc).join(', ')+'</div>';
+   if(_bd.length)sh+='<div class="seg"><b>Bonds:</b> '+_bd.map(esc).join(' · ')+'</div>';
+   sh+='<div class="seg"><b>Starting gold from AP:</b> '+esc(String(r.goldGp))+' gp</div>';}
+  // Tools, instruments and custom proficiencies, each with its check bonus (ability + proficiency, doubled with ✦ expertise)
+  // where the rules data names the tool's ability — what the old 📋 Sheet's Tools & Instruments box showed.
+  {const _tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
+   if(_tl.length)sh+='<div class="seg"><b>Tools/Instr:</b> '+_tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t],tex=(b.toolExpertise||[]).includes(t);
+     return '<span class="tlx">'+esc(t)+(ab?' <i style="color:'+(ABCOL[ab]||'inherit')+'">('+ab+' '+sgn(m[ab]+r.prof+(tex?r.prof:0))+')</i>':'')+(tex?' ✦':'')+'</span>';}).join(', ')+'</div>';}
   if(feats.length)sh+='<div class="seg"><b>Features:</b> '+feats.join(' · ')+'</div>';
   // V1: Arts & Techniques / Maneuvers / Metamagic — these carry full effect text (DATA.*.fx)
   const _aTip=(name,kind)=>{var fx=_lsFx(kind,name);return _ftip(name,fx)+_fxI(fx);};
@@ -2545,7 +2550,8 @@ function _lsTableExtras(b,r,eco,avail){
   H+='<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span>'
     +' <span class="cs-insp"><b>Inspiration</b> '+_mfCk('insp',false,'Inspiration')+'</span></div>';
   var caster=(b.traditions||[]).some(function(t){return t&&t.name&&t.name!=='(none)';});
-  if(caster&&!LS_noSpell)H+='<div class="lstsub">Spell slots used</div><div class="cs-grid3 lstslots">'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<div class="cs-fld"><label>L'+L+'</label>'+_mfIn('slot_L'+L,'','','','Level '+L+' slots (total / used)')+'</div>';}).join('')+'</div>';
+  var _st0=csLoad(_csKey(currentCharId())),_slotTyped=[1,2,3,4,5,6,7,8,9].some(function(L){var v=_st0['slot_L'+L];return v!=null&&String(v).trim()!=='';});
+  if((caster&&!LS_noSpell)||_slotTyped)H+='<div class="lstsub">Spell slots used</div><div class="cs-grid3 lstslots">'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<div class="cs-fld"><label>L'+L+'</label>'+_mfIn('slot_L'+L,'','','','Level '+L+' slots (total / used)')+'</div>';}).join('')+'</div>';
   var bonded=(b.martiallyBound&&b.martiallyBound!=='(none)')||(b.traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.bound;});});
   if(bonded)H+='<div class="lstsub">Bonds</div><div class="cs-fld"><label>Bound to (source)</label>'+_mfIn('bondSource','','','e.g. The Maw, The Iron Pact')+'</div>'
     +'<div class="cs-fld" style="margin-top:4px"><label>Obligations / notes</label>'+_mfTa('bondNotes','','demands, tithe, the band you owe…',46)+'</div>';
@@ -2561,8 +2567,13 @@ function _lsTableExtras(b,r,eco,avail){
   return H;
 }
 // render() redraws the Character panel; while the 📋 Sheet is open it is redrawn too, so an edit made in either shows in both.
+// The field that had focus (by its data-mf / data-ps / data-lsd key) gets it back, caret included, so a redraw never steals it.
 function _lsSheetViewRefresh(){var ov=$('sheetview'),bd=$('sheetbody');if(!ov||!bd||ov.style.display!=='block'||!_lsCharBody)return;
-  var y=ov.scrollTop;bd.innerHTML=renderSheet();hydrateSheet(currentCharId());ov.scrollTop=y;_lsDescRestoreFocus('sheetbody');}
+  var a=document.activeElement,key=null,sel=null;
+  if(a&&bd.contains(a))['data-mf','data-ps','data-lsd'].some(function(k){var v=a.getAttribute&&a.getAttribute(k);if(v!=null){key='['+k+'="'+String(v).replace(/["\\]/g,'\\$&')+'"]';return true;}return false;});
+  try{if(key&&typeof a.selectionStart==='number')sel=[a.selectionStart,a.selectionEnd];}catch(e){}
+  var y=ov.scrollTop;bd.innerHTML=renderSheet();hydrateSheet(currentCharId());ov.scrollTop=y;_lsDescRestoreFocus('sheetbody');
+  if(key){var el=bd.querySelector(key);if(el&&el!==document.activeElement&&el.focus){el.focus({preventScroll:true});try{if(sel)el.setSelectionRange(sel[0],sel[1]);}catch(e){}}}}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{_lsSheetTipDone();$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
@@ -2796,8 +2807,8 @@ var LS_DESC_FIELDS=[['gender','Gender'],['age','Age'],['height','Height'],['buil
 var LS_DESC_LONG={allies:1};
 var LS_DESC_OPEN=false, _lsDescFocus=null;
 // The SAME block renders in the Character panel (host "sheet") and in the 📋 Sheet view (host "sheetbody", opts.sheet) — so the
-// two can't drift (feat/livesheet-sheet-view-desc). feat/livesheet-sheet-layout: the description PARAGRAPH is always shown; only
-// the individual fields and the backstory fold away (details.lsdfold, open state LS_DESC_OPEN). Both views now carry Player
+// two can't drift (feat/livesheet-sheet-view-desc). feat/livesheet-sheet-layout: the description PARAGRAPH and the backstory are
+// always shown (owner AR1); only the individual fields fold away (details.lsdfold, open state LS_DESC_OPEN). Both views now carry Player
 // name / Alignment / Background here (the old Sheet header that also had them is gone — the Sheet renders the panel's body).
 function _lsDescBlock(b,opts){
   opts=opts||{};
@@ -2810,15 +2821,14 @@ function _lsDescBlock(b,opts){
   var grid=LS_DESC_FIELDS.map(function(f){
     if(f[2])return inp(f[0]+'Label','Custom field label','e.g. Lucky number')+inp(f[0]+'Text',filled(ap[f[0]+'Label'])?ap[f[0]+'Label']:'Custom field value');
     return inp(f[0],f[1]);}).join('');
-  if(filled(ap.backstory))n++;
   var regen=ro?'':'<button type="button" class="btn g" style="padding:1px 7px;font-size:11px" onclick="lsRegenDesc()" title="Write the paragraph again from the fields below (the same writer as the Character Creator\'s 🪶 Auto-write)">🪶 Regenerate paragraph</button>';
   return '<div class="lsdesc" data-lshost="'+(opts.sheet?'sheetbody':'sheet')+'">'
     +'<div class="lsdhd lsdtop"><b>Appearance &amp; description</b>'+regen+_lsApCopyBtns(ro)+'</div>'
     +'<textarea rows="4" data-lsd="overall" onchange="_lsDescEdit(this)" aria-label="Description paragraph" placeholder="A one-paragraph description — write your own, or fill in the details below and press 🪶 Regenerate paragraph."'+ro+'>'+E(ap.overall)+'</textarea>'
-    +'<details class="lsdfold"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary>Details — looks, family, background, backstory <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
-    +'<div class="lsdgrid">'+grid+'</div>'
     +'<div class="lsdhd"><span>Backstory &amp; notes</span></div>'
-    +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea></details></div>';
+    +'<textarea rows="3" data-lsd="backstory" onchange="_lsDescEdit(this)" aria-label="Backstory and notes"'+ro+'>'+E(ap.backstory)+'</textarea>'
+    +'<details class="lsdfold"'+(LS_DESC_OPEN?' open':'')+' ontoggle="LS_DESC_OPEN=this.open"><summary>Details — looks, family, background <span class="hint">'+(n?n+' filled':'nothing written yet')+'</span></summary>'
+    +'<div class="lsdgrid">'+grid+'</div></details></div>';
 }
 // feat/appearance-copy-paste (AF1): copy every text appearance field to the clipboard / paste a copied one over this
 // character's (shared code: js/ui-helpers.js pactAppearanceCopy/pactAppearancePaste). Name, coins and weapons never travel.
@@ -2851,9 +2861,9 @@ function _lsDescEdit(el){
     _lsDescRefreshSheetView();
   },0);
 }
-// render() only redraws #sheet; the 📋 Sheet view's copy of the block is redrawn here (the rest of the Sheet is left alone so
-// its other fields keep their focus and typed text).
-function _lsDescRefreshSheetView(){   // feat/livesheet-sheet-layout: render() redraws the whole Sheet now (_lsSheetViewRefresh)
+// feat/livesheet-sheet-layout: render() now redraws the whole open 📋 Sheet (_lsSheetViewRefresh, which also keeps the focused
+// field), so this only hands focus back to the description field that was being edited.
+function _lsDescRefreshSheetView(){
   _lsDescRestoreFocus('sheetbody');
 }
 function _lsDescRestoreFocus(host){
