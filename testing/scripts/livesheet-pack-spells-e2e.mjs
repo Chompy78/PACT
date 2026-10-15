@@ -39,7 +39,7 @@ const base = { species: 'Tiefling', lineage: 'Infernal', originClass: 'Rogue', h
   racialSpells: ['Fire Bolt', 'Hellish Rebuke'], racialTraits: ['Tiefling: Thaumaturgy cantrip'] };
 const caster = { traditions: [{ name: 'Arcane', rank: 1, disciplines: [{ name: 'Wizard', cantrips: 1, slots: [2,0,0,0,0,0,0,0,0],
   known: [1,0,0,0,0,0,0,0,0], cantripNames: ['Mage Hand'], knownNames: [['Magic Missile']] }] }],
-  grantNames: { 'Rogue: Arcane Trickster': [XSS] } };
+  freeSub: { Rogue: 'Arcane Trickster' }, grantNames: { 'Rogue: Arcane Trickster': [XSS] } };
 const logOf = (patch) => [
   { type: 'award', amount: 600, seq: 1, label: 'Award' },
   { type: 'buy', cat: 'patch', cost: 0, level: 3, seq: 2, label: 'Identity', payload: { patch } },
@@ -98,6 +98,37 @@ const has = (rows, re) => rows.some(t => re.test(t));
   check('phone width: the granted block fits without sideways scrolling', over >= 0 && over <= 1, String(over));
   if (process.env.SHOT_DIR) await ph.page.locator('#sheet .spgrants').screenshot({ path: path.join(process.env.SHOT_DIR, 'pack-spells-phone.png') });
   await ph.ctx.close();
+}
+
+// 2b. Only what the build still GRANTS is listed (review of #668): grantedSpells() on hand-made builds, in the page's engine.
+{
+  const { ctx, page, errs } = await open(logOf(base));
+  const probe = await page.evaluate(() => { const B = (o) => Object.assign(baseBuild(), o), names = (o) => grantedSpells(B(o)).map(g => g.name).sort().join(',');
+    return {
+      staleLineage: names({ species: 'Elf', lineage: 'High', racialSpells: ['Fire Bolt', 'Prestidigitation'] }),
+      crossTrait: names({ species: 'Elf', racialTraits: ['Tiefling: Thaumaturgy cantrip'] }),
+      ownTrait: names({ species: 'Tiefling', racialTraits: ['Tiefling: Thaumaturgy cantrip'] }),
+      grantNotHeld: names({ originClass: 'Rogue', hd: 5, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
+      grantHeld: names({ originClass: 'Rogue', hd: 5, freeSub: { Rogue: 'Arcane Trickster' }, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
+      secretsHd9: names({ originClass: 'Bard', hd: 9, features: ['Bard: Magical Secrets'], grantNames: { 'Bard: Magical Secrets': ['Fireball'] } }),
+      secretsHd10: names({ originClass: 'Bard', hd: 10, features: ['Bard: Magical Secrets'], grantNames: { 'Bard: Magical Secrets': ['Fireball'] } }),
+      styleNoSlot: names({ fightingStyleNames: ['Blessed Warrior'], fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light'] } }),
+      styleOneSlot: names({ features: ['Paladin: Fighting Style'], fightingStyleNames: ['Blessed Warrior', 'Druidic Warrior'],
+        fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light', 'Sacred Flame'], 'Druidic Warrior': ['Druidcraft'] } }),
+      dialogUsesEngine: _ownedGrants(B({ originClass: 'Bard', hd: 9, features: ['Bard: Magical Secrets'] })).length === 0
+                     && _ownedGrants(B({ originClass: 'Bard', hd: 10, features: ['Bard: Magical Secrets'] })).length === 1,
+    }; });
+  check('a spell left over from an old lineage is not listed', probe.staleLineage === 'Prestidigitation', probe.staleLineage);
+  check('an origin-race-only cantrip trait on another species is not listed', probe.crossTrait === '', probe.crossTrait);
+  check('…but is on its own species', probe.ownTrait === 'Thaumaturgy', probe.ownTrait);
+  check('a choice grant the character does not hold is not listed', probe.grantNotHeld === '', probe.grantNotHeld);
+  check('…and is once the subclass is held', probe.grantHeld === 'Shield', probe.grantHeld);
+  check('Magical Secrets picks only from 10 Hit Dice (the grant\'s charLevel)', probe.secretsHd9 === '' && probe.secretsHd10 === 'Fireball', JSON.stringify([probe.secretsHd9, probe.secretsHd10]));
+  check('fighting-style cantrips need an owned Fighting Style slot', probe.styleNoSlot === '', probe.styleNoSlot);
+  check('…only the styles within the slots, at most the style\'s own cantrip count', probe.styleOneSlot === 'Guidance,Light', probe.styleOneSlot);
+  check('the ✎ Name dialog\'s owned-grant list is the engine\'s (same level gate)', probe.dialogUsesEngine);
+  check('no page errors', !errs.length, errs.join(' | '));
+  await ctx.close();
 }
 
 // 3. CharGen's Sheet tab renders through its own copy of renderCharSheet — it must list them too.
