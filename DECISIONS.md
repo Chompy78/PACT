@@ -15,7 +15,8 @@
   `weaponAttack()`, not `DATA` (never read by `compute()`, no version bump; `engine-data.js` is one shared line). A sheet
   weapon keeps a `ref` and its stats are refreshed from the current definition (owner AL2 — overwrites player edits to
   them) and read-only (AM2); free-text and older entries stay editable. DM weapons (stable ids, max 50) are
-  `rules.customWeapons`, the campaign's standard-weapon list is `rules.weaponList {list, strict}`; both carried by DM
+  `rules.customWeapons`, the campaign's standard-weapon list is `rules.weaponList {list, strict, none}` ([] = all, as for
+  languages; "only these" also stops typed-in weapons, AO1; magic bonus stays the player's, AN1); both carried by DM
   Console's whole-blob Save rules — keep them when `feat/campaign-house-rules` merges.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-weapons.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text

@@ -961,9 +961,10 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                     <button type="button" class="btn sm ghost" id="ruleWeaponsNone">Untick all</button>
                   </div>
                   <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0 8px;cursor:pointer">
-                    <input type="checkbox" id="ruleWeaponsStrict"> Only offer the ticked weapons <button type="button" class="infobtn" title="Off: players are offered every standard weapon (the ticks are ignored). On: only the ticked ones, plus your own weapons and the Unarmed Strike. Either way, a weapon already on a sheet stays there.">&#9432;</button>
+                    <input type="checkbox" id="ruleWeaponsStrict"> Only offer the ticked weapons <button type="button" class="infobtn" title="Off: players are offered every standard weapon (the ticks are ignored) and can type in weapons of their own. On: only the ticked ones, plus your own weapons, the Unarmed Strike and spell attacks — and players can't type in weapons of their own. Either way, a weapon already on a sheet stays there.">&#9432;</button>
                   </label>
                   <div id="ruleWeaponsStrictHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin:-4px 0 8px">⚠ Unticked weapons are still offered to players — tick <b>Only offer the ticked weapons</b> to hide them.</div>
+                  <div id="ruleWeaponsNoneHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin:-4px 0 8px">No standard weapon is ticked — players can pick only your own weapons below and the Unarmed Strike.</div>
                   <div style="font-size:11.5px;color:var(--muted);margin:0 0 4px">Your own weapons:</div>
                   <div id="ruleCustomWeapons"></div>
                   <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">
@@ -4054,12 +4055,19 @@ document.addEventListener('campaign-ready', function () {
     if(ruleMultiDisc.disabled) el.querySelectorAll('input').forEach(function(cb){ cb.disabled = true; });
   }
   function _collectWeaponList(){
-    // Every standard weapon ticked = the untouched full list, saved as [] (same convention as rules.languages).
-    var std = _wpStd(), ticked = getRuleGridChecked('ruleWeaponsStd'), strict = !!(document.getElementById('ruleWeaponsStrict') || {}).checked;
-    var list = ticked.length === std.length ? [] : ticked;
-    if(window.campaignWeapons) list = window.campaignWeapons({ weaponList: { list: list } }).chosen;
-    return { list: list, strict: strict, unticked: std.length - ticked.length };
+    // Every standard weapon ticked = the untouched full list, saved as [] (same convention as rules.languages — the engine's
+    // campaignWeapons() reads [] as "every standard weapon"). Nothing ticked is its own value, none:true, so it can never be
+    // mistaken for "all". Only ids of real standard weapons are kept.
+    var std = _wpStd(), ids = {}, ticked, strict = !!(document.getElementById('ruleWeaponsStrict') || {}).checked;
+    std.forEach(function(w){ ids[w.id] = 1; });
+    ticked = getRuleGridChecked('ruleWeaponsStd').filter(function(id){ return ids[id]; });
+    var none = !ticked.length, all = ticked.length === std.length;
+    var out = { list: (all || none) ? [] : ticked, strict: strict, unticked: std.length - ticked.length };
+    if(none) out.none = true;
+    return out;
   }
+  // What players are actually offered, read back through the engine — so the panel and the players can't disagree.
+  function _weaponListOffered(wl){ return window.campaignWeapons ? window.campaignWeapons({ weaponList: wl }).chosen : []; }
   function _cwFromDom(){
     var el = document.getElementById('ruleCustomWeapons'); if(!el) return _cwRows.slice();
     return Array.prototype.map.call(el.querySelectorAll('.cwrow'), function(row){
@@ -4119,8 +4127,9 @@ document.addEventListener('campaign-ready', function () {
     var rows = document.querySelectorAll('#ruleCustomWeapons .cwrow').length;
     if(c) c.textContent = (n ? (n + ' own weapon' + (n === 1 ? '' : 's') + ' to save') : '') + (rows >= _cwMax ? ' — the most a campaign can have is ' + _cwMax : '');
     var add = document.getElementById('ruleAddCustomWeapon'); if(add && !ruleMultiDisc.disabled) add.disabled = rows >= _cwMax;
-    var wl = _collectWeaponList(), h = document.getElementById('ruleWeaponsStrictHint');
+    var wl = _collectWeaponList(), h = document.getElementById('ruleWeaponsStrictHint'), h2 = document.getElementById('ruleWeaponsNoneHint');
     if(h) h.style.display = (!wl.strict && wl.unticked) ? 'block' : 'none';
+    if(h2) h2.style.display = (wl.strict && wl.none) ? 'block' : 'none';
   }
   document.getElementById('ruleAddCustomWeapon').addEventListener('click', function(){
     _cwRows = _cwFromDom(); if(_cwRows.length >= _cwMax) return;
@@ -4159,9 +4168,9 @@ document.addEventListener('campaign-ready', function () {
     document.getElementById('ruleLanguagesStrict').checked = _lg.strict === true;
     _updateLanguagesCount();
     // feat/livesheet-weapons: the standard-weapon ticks (an empty saved list = all ticked) and the DM's own weapons.
-    var _wl = r.weaponList || {}, _wlList = Array.isArray(_wl.list) ? _wl.list : [];
+    var _wl = r.weaponList || {};
     _renderWeaponGrid();
-    setRuleGridChecked('ruleWeaponsStd', _wlList.length ? _wlList : _wpStd().map(function(w){ return w.id; }));
+    setRuleGridChecked('ruleWeaponsStd', _weaponListOffered(_wl));   // the engine's reading: [] = all, none:true = none
     document.getElementById('ruleWeaponsStrict').checked = _wl.strict === true;
     // A pre-id entry gets its stable id here, from the engine (the same 'n-<name>' id players' sheets already link to).
     _cwRows = window.campaignWeapons ? _collectFrom(r.customWeapons) : (Array.isArray(r.customWeapons) ? r.customWeapons.map(function(w){ return Object.assign({}, w); }) : []);
@@ -4722,7 +4731,7 @@ document.addEventListener('campaign-ready', function () {
       // feat/livesheet-weapons — cleaned by the engine's campaignWeapons(). MERGE NOTE: feat/campaign-house-rules also
       // touches this literal (charHouseRules); whichever lands second keeps customWeapons, weaponList AND charHouseRules.
       customWeapons: _collectCustomWeapons(),   // [{id,n,dice,type,cat,kind,props,rn,rl,reach}]
-      weaponList: (function(){ var w = _collectWeaponList(); return { list: w.list, strict: w.strict }; })(),   // {list, strict}
+      weaponList: (function(){ var w = _collectWeaponList(), o = { list: w.list, strict: w.strict }; if(w.none) o.none = true; return o; })(),   // {list, strict, none?}
       postLockDrawbacks: rulePostLockDrawbacks.checked,
       postLockBindings: rulePostLockBindings.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.

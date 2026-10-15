@@ -196,10 +196,38 @@ check('…a weapon already on the sheet is kept, marked "not on this campaign\'s
   (await topLine(page, 3)).includes("not on this campaign's weapon list") && !(await topLine(page, 1)).includes('not on this'), await topLine(page, 3));
 check('…and its picker still shows it', (await page.evaluate(() => document.querySelectorAll('.pswpick')[3].value)) === 'std:halberd');
 
+// Blocking-bug regression (re-review of 447222a): DM Console saves "every box ticked" as [] — that must mean ALL weapons.
+await setRules(page, { customWeapons: EDITED, weaponList: { list: [], strict: true } });
+check('"only these" ON with every weapon ticked (saved as []): every standard weapon is offered', (await groupIds(page, 0, 'Martial melee')).length === 18 &&
+  (await groupIds(page, 0, 'Simple melee')).length === 10 && !(await topLine(page, 3)).includes('not on'));
+await setRules(page, { customWeapons: EDITED, weaponList: { list: [], none: true, strict: true } });
+check('"only these" ON with nothing ticked: no standard weapon, only the campaign\'s own + Unarmed Strike + spell attack',
+  (await groupIds(page, 0, 'Simple melee')) === null && (await groupIds(page, 0, 'Martial ranged')) === null &&
+  (await groupIds(page, 0, "This campaign's weapons")).length === 3 && JSON.stringify(await groupIds(page, 0, 'Other attacks')) === '["Unarmed Strike","Spell attack"]');
+// AO1: with "only these" ON a player can't type in a weapon of their own.
+await setRules(page, { customWeapons: EDITED, weaponList: { list: ['dagger'], strict: true } });
+check('AO1: typed-in weapons already on the sheet stay, flagged as off-list', (await sheetWeapons(page))[4].n === 'Thrown chair' &&
+  (await topLine(page, 4)).includes("not on this campaign's weapon list") && (await topLine(page, 0)).includes("not on this campaign's weapon list"));
+await addWeapon(page);   // #9
+check('AO1: a new entry\'s name box is shut until a weapon is picked', await disabled(page, 'weapons.9.n'));
+await setPs(page, 'weapons.9.n', 'Homemade spear');
+check('AO1: …and a forced name is refused', (await sheetWeapons(page))[9].n === '' && /only allows weapons from its list/.test(await page.evaluate(() => (document.getElementById('flashmsg') || {}).textContent || '')));
+await pick(page, 9, 'std:unarmed-strike');
+w = (await sheetWeapons(page))[9];
+check('AO1: the Unarmed Strike is still allowed', w.ref === 'std:unarmed-strike' && w.n === 'Unarmed Strike' && w.prof === true && !(await topLine(page, 9)).includes('not on'));
+await setRules(page, { customWeapons: EDITED, weaponList: { list: ['dagger'], strict: false } });
+check('AO1: with "only these" OFF, typed-in weapons are fine again (no flag, name editable)', !(await topLine(page, 4)).includes('not on') && !(await disabled(page, 'weapons.4.n')));
+// Several renders before the queued save runs make ONE save (coalesced).
+const saves = await page.evaluate(R => { let n = 0; const orig = window._psCommit; window._psCommit = function (p) { n++; return orig(p); };
+  window._cloudCampaignRules = R; render(); render(); render();
+  return new Promise(res => setTimeout(() => { window._psCommit = orig; res(n); }, 200)); },
+  { customWeapons: EDITED.map(c => c.id === 'hg1' ? Object.assign({}, c, { rn: 100 }) : c), weaponList: { list: ['dagger'], strict: false } });
+check('a DM edit seen over several renders is saved once', saves === 1 && (await sheetWeapons(page))[7].rn === 100, `saves=${saves}`);
+
 await setRules(page, null);
 check('leaving the campaign: the picker shows the standard list only…', (await groupIds(page, 0, "This campaign's weapons")) === null && (await groupIds(page, 0, 'Martial melee')).length === 18);
 w = (await sheetWeapons(page))[6];
-check('…a campaign weapon already on the sheet stays, with its last stats, flagged', w.dice === '2d6' && (await topLine(page, 6)).includes("not on this campaign's weapon list"));
+check('…a campaign weapon already on the sheet stays, with its last stats, flagged', w.dice === '2d6' && (await topLine(page, 6)).includes('not on the campaign weapon list'), await topLine(page, 6));
 check('…and, with nothing left to update it, becomes editable', !(await disabled(page, 'weapons.6.dice')));
 check('Live Sheet: no page errors', errs.length === 0, errs.join(' | '));
 if (process.env.SHOT_DIR) await page.locator('#sheet .pssec').nth(1).screenshot({ path: path.join(process.env.SHOT_DIR, 'livesheet-weapons-desktop.png') });
@@ -270,6 +298,24 @@ await ctx.close();
   check('DM: a campaign with none shows the standard-list note, every weapon ticked, and saves []', /standard Players Handbook/.test(await page.textContent('#ruleCustomWeapons')) &&
     (await ticked()).length === 38 && JSON.stringify(await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons())) === '[]' &&
     JSON.stringify((await page.evaluate(() => window._dmRulesPanel.collectWeaponList())).list) === '[]');
+  // Blocking-bug regression: the panel shows exactly what players get, via the engine.
+  const offered = wl => page.evaluate(wl => window.campaignWeapons({ weaponList: wl }).chosen.length, wl);
+  await page.evaluate(() => window._dmRulesPanel.load({ weaponList: { list: [], strict: true } }));
+  wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: all ticked + "only these": loads all ticked, saves [] — and players get every weapon', (await ticked()).length === 38 && JSON.stringify(wl.list) === '[]' && !wl.none && wl.strict && (await offered(wl)) === 38);
+  await page.evaluate(() => window._dmRulesPanel.load({ weaponList: { list: ['dagger', 'whip'], strict: true } }));
+  wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: some ticked + "only these": round-trips, players get those', JSON.stringify(await ticked()) === '["dagger","whip"]' && JSON.stringify(wl.list) === '["dagger","whip"]' && (await offered(wl)) === 2);
+  await page.evaluate(() => window._dmRulesPanel.load({ weaponList: { list: [], none: true, strict: true } }));
+  wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: none ticked + "only these": loads none ticked, saves none:true — players get no standard weapon', (await ticked()).length === 0 && wl.none === true && (await offered(wl)) === 0 &&
+    await page.evaluate(() => getComputedStyle(document.getElementById('ruleWeaponsNoneHint')).display !== 'none'));
+  await page.evaluate(() => { if (document.getElementById('ruleWeaponsAll').disabled) document.getElementById('ruleLockBtn').click(); document.getElementById('ruleWeaponsAll').click(); document.getElementById('ruleWeaponsNone').click(); });
+  wl = await page.evaluate(() => window._dmRulesPanel.collectWeaponList());
+  check('DM: "Untick all" saves none:true, never [] (which would mean all)', wl.none === true && JSON.stringify(wl.list) === '[]' && (await offered(wl)) === 0);
+  await page.evaluate(() => window._dmRulesPanel.load({ customWeapons: [{ n: 'R&D gun' }, { n: 'R D gun' }] }));
+  const dup = await page.evaluate(() => window._dmRulesPanel.collectCustomWeapons().map(w => w.id + '=' + w.n));
+  check('DM: two older weapons whose names make the same id are both kept (numbered), "&" kept', JSON.stringify(dup) === '["n-r-d-gun=R&D gun","n-r-d-gun-2=R D gun"]', JSON.stringify(dup));
   // The whole-blob Save rules must carry both keys, or every save would silently wipe them.
   const src = fs.readFileSync(path.join(REPO, 'tools/DM-Console.html'), 'utf8');
   const st = src.indexOf("getElementById('ruleSaveBtn').addEventListener"), saveBlock = src.slice(st, src.indexOf('B.setCampaignRules', st));

@@ -66,7 +66,8 @@ every weapon saved before this stay fully editable — no data loss. If a linked
 or the character left the campaign) the entry keeps its last stats, is flagged, and becomes editable, since nothing can
 update it any more.
 
-**The campaign weapon list** — `rules.weaponList = {list:[standard ids], strict}`, modelled on `rules.languages`. DM
+**The campaign weapon list** — `rules.weaponList = {list:[standard ids], strict, none?}`, modelled on `rules.languages`
+(see Addendum 2 for how "all" and "none" are stored). DM
 Console ticks the standard weapons (all ticked saves `[]`); "Only offer the ticked weapons" (strict) OFF offers every
 standard weapon, ON only the ticked ones. The campaign's own weapons and the Unarmed Strike are always offered. A weapon
 already on a sheet is never removed: it shows "not on this campaign's weapon list" (and stays selected in its picker).
@@ -82,3 +83,25 @@ off deterministically. ✎ is hidden on an unnamed row; the open/closed row stat
 `feat/campaign-house-rules` merges second must keep **both** `customWeapons` and `weaponList` in that literal **and** the
 house-rules branch's `charHouseRules` handling (`_rulesBlobForSave()` / `_rulesKeepChr()`). Tracked on
 `docs/TASK_BOARD_NEXT.md` ("feat/campaign-house-rules merge — keep customWeapons + weaponList…").
+
+## Addendum 2 (2026-10-15) — the empty-list bug, owner decisions AN1 / AO1, nits
+
+**Blocking bug, fixed at the root.** DM Console saved "every box ticked" as `[]` (the language-list convention) while
+`campaignWeapons()` read `[]` under "only these" as "nothing ticked" — so a DM who ticked everything and switched "only
+these" on hid every standard weapon, and the reverse ("nothing ticked") reloaded as all ticked. Now the engine reads an
+empty `list` as **every standard weapon**, exactly like `campaignLanguages()`, and "nothing ticked" is its own value,
+`none: true`. DM Console loads its tick boxes from the engine's own reading (`campaignWeapons(...).chosen`), so the panel
+shows exactly what players get, and warns when "only these" is on with nothing ticked (players then get only the
+campaign's own weapons, the Unarmed Strike and spell attacks — a deliberate, allowed setup).
+
+**AN1 — the magic bonus stays editable on linked weapons** (as built): it describes the player's own weapon, not the
+weapon type, so a DM's edit never touches it.
+
+**AO1 — with "only these" ON a player can't type in a weapon of their own**, as with strict languages: an unlinked entry's
+name box is disabled ("Pick from the list first") and a forced name is refused with a message. The Unarmed Strike and
+spell attacks stay allowed. Typed-in weapons already on a sheet are never removed; they are flagged like off-list weapons.
+
+**Nits.** A character outside any campaign sees "not on the campaign weapon list" (not "this campaign's"). Pre-id campaign
+weapons whose names make the same derived id are both kept, numbered `-2`, `-3`… in list order, instead of the later one
+being dropped. The refresh save is coalesced: however many renders happen before it runs, it saves once, and only if the
+sheet still differs.

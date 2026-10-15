@@ -420,9 +420,11 @@ export function weaponSheetDefaults(w, b) {
 // campaignWeapons(rules) — the weapons a character in this campaign may pick from, and how to find any weapon a sheet
 // entry refers to (feat/livesheet-weapons; owner decisions AL2/AM2 + the campaign weapon list, 2026-10-15).
 //   rules.customWeapons = [{id, n, dice, type, cat, kind, props, rn, rl, reach}] — the DM's own weapons (DM Console).
-//   rules.weaponList    = {list:[standard weapon ids], strict} — like rules.languages: strict OFF offers every standard
-//                         weapon (the ticks are ignored), strict ON offers only the ticked ones. The campaign's own weapons
-//                         and the 'other' attacks (Unarmed Strike) are always offered.
+//   rules.weaponList    = {list:[standard weapon ids], strict, none} — like rules.languages, an EMPTY list means "every
+//                         standard weapon" (what DM Console saves when every box is ticked); none:true means "no standard
+//                         weapon" (every box unticked). strict OFF offers every standard weapon (the ticks are ignored),
+//                         strict ON offers only the ticked ones — and (owner AO1) a player may not type in a weapon of
+//                         their own. The campaign's own weapons and the 'other' attacks (Unarmed Strike) are always offered.
 // Solo characters (rules null) get the standard list only. Custom entries are DM-typed text that renders in players'
 // browsers (REV-12): markup characters are stripped, lengths capped, numbers coerced to whole feet (or null) and unknown
 // fields dropped; at most CUSTOM_WEAPON_MAX are kept (rules are copied into every bound character's LOG as a
@@ -430,7 +432,7 @@ export function weaponSheetDefaults(w, b) {
 // keeps every sheet linked to it — and may share a standard weapon's name (it is a different weapon with its own ref).
 // Every entry carries ref: 'std:<id>' or 'camp:<id>' — what a sheet entry stores to stay linked to its definition.
 // Returns { list (offered), all (every standard + campaign weapon, for resolving refs), custom (cleaned, what DM Console
-// saves back), chosen, strict, byRef(ref), isOffered(ref) }.
+// saves back), chosen (the ticked standard ids — every one for an empty list), strict, none, byRef(ref), isOffered(ref) }.
 export const CUSTOM_WEAPON_MAX = 50;
 export function campaignWeapons(rules) {
   const R = (rules && typeof rules === 'object') ? rules : {};
@@ -443,8 +445,10 @@ export function campaignWeapons(rules) {
     const n = txt(c.n, 40);
     if (!n) return;
     let id = String(c.id == null ? '' : c.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
-    if (!id) id = 'n-' + n.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 38);   // a pre-id entry: keyed by its name
-    if (ids.has(id)) return;
+    if (!id) id = 'n-' + n.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 34);   // a pre-id entry: keyed by its name
+    // Two entries on one id (two pre-id names that slug alike, e.g. "R&D gun" / "R D gun"): keep both, numbering the later
+    // ones in list order (-2, -3…) so neither is dropped and the numbering is stable while the list is.
+    if (ids.has(id)) { let k = 2; while (ids.has(id + '-' + k)) k++; id = id + '-' + k; }
     ids.add(id);
     const kind = c.kind === 'ranged' ? 'ranged' : 'melee';
     // Split on commas OUTSIDE brackets, so "Ammunition (Arrow, Bolt)" stays one property.
@@ -456,12 +460,14 @@ export function campaignWeapons(rules) {
   });
   const wl = (R.weaponList && typeof R.weaponList === 'object') ? R.weaponList : {};
   const stdIds = new Set(WEAPONS.filter(w => w.cat !== 'other').map(w => w.id));
-  const chosen = [...new Set((Array.isArray(wl.list) ? wl.list : []).map(String).filter(id => stdIds.has(id)))];
+  const none = wl.none === true;
+  let chosen = [...new Set((Array.isArray(wl.list) ? wl.list : []).map(String).filter(id => stdIds.has(id)))];
+  if (none) chosen = []; else if (!chosen.length) chosen = [...stdIds];   // empty = every standard weapon (like languages)
   const strict = wl.strict === true, pick = new Set(chosen);
   const std = WEAPONS.map(w => Object.assign({}, w, { ref: 'std:' + w.id }));
   const list = std.filter(w => w.cat === 'other' || !strict || pick.has(w.id)).concat(custom);
   const all = std.concat(custom), byRefMap = new Map(all.map(w => [w.ref, w])), offered = new Set(list.map(w => w.ref));
-  return { list, all, custom, chosen, strict,
+  return { list, all, custom, chosen, strict, none: none,
     byRef: ref => byRefMap.get(String(ref == null ? '' : ref)) || null,
     isOffered: ref => offered.has(String(ref == null ? '' : ref)) };
 }
