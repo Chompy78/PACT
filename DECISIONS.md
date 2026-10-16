@@ -10,6 +10,14 @@
 
 ## Index
 
+## D-GH-2026-10-17-names-before-spending — a locked character cannot spend AP while a language or spell slot is unnamed; on by default everywhere, a campaign can switch it off
+- Engine `namesGate()` / `namesOutstanding()` / `requireNamesOn()`; applied in the Live Sheet's `buy()`, buy-off and buy panel and in
+  CharGen's after-lock path and **Finish creating**. From the creation lock on; purchases that cost AP only (free ones, drawbacks, DM
+  awards and the naming itself pass); languages and spells only; a slot with no legal name never blocks. `rules.requireNames`, **on
+  when absent** — on in every existing campaign and for characters in no campaign (owner E2, no grace period); only an explicit
+  `false` (DM Console checkbox) turns it off. CharGen skips Arcanum until it can render those rows. Client-side only, like the other
+  play-time legality rules. No `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-17-names-before-spending.md`.
 ## D-GH-2026-10-15-names-slot-helper — one engine list of the language and spell slots a character owns; the names gate counts languages and spells only
 - `allNameableSlots(build)` / `unnamedChoices(build, {kinds, poolSize})` in `js/engine.js`; both ✎ Name dialogs build their
   language and spell rows from it. The two dialogs differ (CharGen has no Arcanum, fighting-style, Metamagic or maneuver
