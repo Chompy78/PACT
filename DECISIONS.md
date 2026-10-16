@@ -25,6 +25,13 @@
   languages; "only these" also stops typed-in weapons, AO1; magic bonus stays the player's, AN1); both carried by DM
   Console's whole-blob Save rules — keep them when `feat/campaign-house-rules` merges.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-weapons.md`.
+## D-GH-2026-10-15-character-images — up to two pictures per cloud character, in private storage keyed by character id
+- A private Storage bucket; object names exactly `<character uuid>/1|2` (so a third is impossible); nothing stored in the
+  LOG or on the row. Read: owner, campaign DMs, other campaign players, NPCs included (AI2, AQ2); write: owner only.
+  Each object is bound to the row incarnation (`objects.created_at >= characters.created_at`), so recreating a deleted
+  row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
+  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration NOT APPLIED.
+  Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
   Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one

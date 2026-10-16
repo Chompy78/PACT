@@ -2081,6 +2081,7 @@ function render(){
   const _cfRows=Object.keys(_cfDefs).filter(k=>_cfDefs[k]&&_cfDefs[k].label&&_cfVals[k]!=null&&_cfVals[k]!=='').map(k=>esc(_cfDefs[k].label)+': '+esc(String(_cfVals[k])));
   if(_cfRows.length)sh+='<div class="seg"><b>From your DM:</b> '+_cfRows.join(' · ')+'</div>';
   sh+=_lsDescBlock(b);
+  sh+=_lsCharImgSlot('sheet');   // feat/character-images
   sh+='</div></div>';   // .shmain, .shcols3
   sh+=spellPanel(b,r);
   sh+=_psPanel(b,r);
@@ -2467,11 +2468,18 @@ function buildBuyPanel(b,r,eco,head){
 // ---------------- full character sheet overlay (shared renderer; see sheet_assets.py) ----------------
 function renderSheet(){const b=foldBuild(null),eco=economy(null),r=compute(b,_dmOpts());
   const avail=_apRemaining(r.spendable,eco.spent);
-  return renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell,nameEdit:_lsRenameBtn(),descBlock:_lsDescBlock(b,{sheet:1}),fx:1});}
+  return _lsCharImgSlot('sheetbody')+renderCharSheet(b,r,{apText:eco.spent+' AP spent / '+avail+' available  ·  ≈ Track-Level '+trackLevel(eco.spent),noSpell:LS_noSpell,nameEdit:_lsRenameBtn(),descBlock:_lsDescBlock(b,{sheet:1}),fx:1});}
 function toggleSheet(){const ov=$('sheetview');if(!ov)return;if(ov.style.display==='block'){ov.style.display='none';}else{_lsSheetTipDone();$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());ov.style.display='block';}}
 // B1 (v0.100): LS-only "no-Spellcasting" sheet view — full sheet vs hide the computed Spellcasting section + manual slot box. CharGen never sets ctx.noSpell, so its sheet is unchanged (parity holds).
 var LS_noSpell=(function(){try{return localStorage.getItem('pactLSnoSpell')==='1';}catch(e){return false;}})();
 function _lsSpellTogLabel(){var b=document.getElementById('miSpellTog');if(b)b.textContent=(LS_noSpell?'✦ Show spellcasting on sheet':'🚫 Hide spellcasting on sheet');}
+// feat/character-images (D-GH-2026-10-15-character-images): the pictures placeholder for the Character panel (host "sheet")
+// and the 📋 Sheet (host "sheetbody"). js/character-images.js fills it after this render: pictures come from the cloud by
+// character id (never from the LOG), so time travel does not change them; the DM's read-only view gets no edit buttons.
+function _lsCharImgSlot(host){
+  if(typeof queueMicrotask==='function')queueMicrotask(function(){var el=$(host);if(el&&window._charImg)window._charImg.hydrateAll(el);});
+  return '<div class="lsimgs" data-charimg="'+esc(peekCharId()||'')+'"'+(VIEW_ONLY?'':' data-charimg-edit="1"')+'></div>';
+}
 function toggleSheetSpell(){LS_noSpell=!LS_noSpell;try{localStorage.setItem('pactLSnoSpell',LS_noSpell?'1':'0');}catch(e){}_lsSpellTogLabel();var ov=$('sheetview');if(ov&&ov.style.display==='block'){$('sheetbody').innerHTML=renderSheet();hydrateSheet(currentCharId());}}
 const BONDS={magical:[
 {n:'The Kindled Dawn',t:'mag',align:'Lawful Good',binds:'clerics and paladins, Divine.',cls:["Cleric", "Paladin"],trad:'Divine',ranks:[{r:'Initiate',lo:1,hi:4,d:'Keep the dawn prayer; observe the holy days; carry the faith\'s light openly; speak a rite over the dead you make.'},{r:'Sworn',lo:5,hi:9,d:'Tithe a tenth; destroy undeath where you find it; never abandon an innocent to the dark; minister where the church sends you.'},{r:'Anointed',lo:10,hi:14,d:'Lead a congregation or chapter; the tithe rises to a quarter, or you fund and staff a chapel; a bishop assigns you a named darkness to break; the church\'s call comes before your own plans.'},{r:'Exalted',lo:15,hi:null,d:'Raised to high office — made a prelate of a see, handed a cathedral and a diocese to govern. You ordain priests, sit the synods, settle points of doctrine, and steward the church\'s lands and coffers. The church recalls you from the field to take your seat. Long stretches now go to administering the faithful, and the open road becomes something you snatch between duties.'}]},
@@ -3941,6 +3949,13 @@ document.addEventListener('sync-ready', function () {
       window.addEventListener('focus', () => reg.update());
     });
   }
+</script>
+<script type="module">
+  // feat/character-images (D-GH-2026-10-15-character-images): up to two pictures per cloud character. Loaded on its own
+  // and dynamically, so a failure costs only the pictures — never the cloud bridge or the tool. Fills every
+  // [data-charimg] placeholder now; the tool re-calls hydrateAll() after each repaint.
+  import('../js/character-images.js').then(function(m){ window._charImg = m; m.hydrateAll(document); })
+    .catch(function(e){ console.warn('PACT: character pictures unavailable', e); });
 </script>
 <script type="module">
   // In-app feedback widget (feat/feedback-widget). Self-contained; independent of

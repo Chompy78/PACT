@@ -1637,25 +1637,36 @@ compute() (never re-derived). Keep it readable on a phone.
 ```
 **Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
-## feat/character-images — upload up to 2 images per character — TODO
-Branch feat/character-images. **Effort:** medium–high · **Risk:** medium — new server storage + access rules (security), files cross users (DM / campaign).
+## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
+Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
 
 ```text
-Owner request 2026-10-14. A spot on the character (Live Sheet Character panel / 📋 Sheet, and CharGen's appearance area) to
-upload character images — at most 2 per character — shown on the sheet and on the DM Console card.
-Decide with the owner first (plan + cold review — this adds backend storage):
-  - Storage: Supabase Storage bucket (e.g. `character-images/<owner_id>/<character_id>/<n>.webp`) with RLS: the owner can
-    write/delete their own; the owner and the DMs of the character's campaign can read; nobody else. Never put the image
-    bytes in stats/LOG (bloats every save and sync). Store only the 2 object paths (e.g. as appearance keys or a small
-    column) — and remember appearance copy/paste (#662) copies text fields: decide whether image paths travel.
-  - Limits: max 2 per character, file types (jpg/png/webp), max size (e.g. 2 MB), resize/compress in the browser before upload.
-  - Signed-out / local-only characters: no upload (or local-only data URL kept out of the LOG) — decide.
-  - Deleting/archiving a character and DM copies/NPC duplicates (#665): what happens to the files.
-  - Serve via short-lived signed URLs; never render a user-supplied URL unescaped (esc() rule).
-After approval: migration (bucket + storage policies, NOT applied until the owner approves; run get_advisors), client upload/
-replace/remove UI in both player tools, display in DM Console, e2e.
+The client half shipped in feat/character-images (D-GH-2026-10-15-character-images): Live Sheet / CharGen upload, replace
+and remove up to 2 pictures; DM Console thumbnails. Until the migration is applied, uploading says "pictures aren't switched
+on for this server yet". Remaining (owner approval needed for the database steps):
+  1. Apply sql/migrations/2026-10-15-character-images.sql (bucket + 3 helpers + 4 storage.objects policies; purely additive).
+     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (55 cases) on the branch being applied.
+  2. Run get_advisors (security + performance) and skim get_logs.
+  3. Run the live post-apply spot-check list in decisions/2026/D-GH-2026-10-15-character-images.md (missing-bucket
+     message, owner Replace = upsert, a > 2 MB and an SVG upload via the REST API both refused, fellow player reads,
+     outsider does not).
+  4. Fold the statements into sql/rls-policies.sql (a short "Storage" section) per sql/migrations/README.md.
 ```
-**Done when:** a signed-in player can upload, replace and remove up to 2 images on a character; a third is refused; the images show on the Live Sheet, CharGen and the DM's card; another user who is not the owner or the campaign's DM cannot read them (tested); storage policies applied with owner approval and advisors clean.
+**Done when:** the migration is applied with owner approval, advisors are clean, every spot-check in the decision record passes, and `rls-policies.sql` carries the fold.
+
+## chore/character-images-orphan-sweep — remove pictures left behind by deleted characters — TODO
+Branch chore/character-images-orphan-sweep. **Effort:** low–medium · **Risk:** low–medium — deletes user files (service role), but only ones no policy can reach.
+
+```text
+After feat/character-images (D-GH-2026-10-15-character-images) is applied: pictures of a character deleted offline (the
+tombstone replay in js/sync.js doesn't remove them) or deleted by a campaign DM stay in the private character-images bucket.
+They are unreachable through the API (no row, or a recreated row with a newer created_at), cost ≤4 MB each, and block that
+slot for a recreated row with the same uuid. Build a sweep that lists objects whose `<uuid>` has no characters row, or whose
+created_at is older than the row's created_at, and deletes them with the service role through the Storage API (SQL cannot
+delete storage objects) — e.g. a documented dashboard/CLI procedure or a scheduled job; never ship the service key to the
+browser. Report counts before deleting; dry-run first.
+```
+**Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
 
 ## feat/boon-drawback-notes — compulsory description on certain boons/drawbacks, locked once the DM approves it — TODO
 Branch feat/boon-drawback-notes. **Effort:** medium–high · **Risk:** medium — new DM approval state that must be server-enforced (a player-written LOG), and touches buy/save flows in all three tools.
