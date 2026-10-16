@@ -894,6 +894,9 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                 <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
                   <input type="checkbox" id="ruleDrawbackCountAdvice"> Warn players who take more than 3 drawbacks <button type="button" class="infobtn" title="Shows players the advice &quot;N drawbacks chosen — most DMs cap this at 2–3&quot;. It is a guideline, not a rule: untick it if you allow more drawbacks in this campaign and the warning would only be noise. The AP cap above still applies either way.">?</button>
                 </label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:8px 0;cursor:pointer">
+                  <input type="checkbox" id="ruleRequireNames"> Players must name their spells and languages before spending AP <button type="button" class="infobtn" title="On by default. Once a character has finished creation it cannot spend more AP while any language or spell slot it owns is still blank; it has to be named in the sheet&#39;s &#9998; Name spells &amp; languages dialog first. Your own AP awards are never blocked. Untick it if your table would rather name things later; characters can then spend with blank slots, as before.">?</button>
+                </label>
                 <div class="ruleblock">
                   <div class="lbl">Gold &amp; downtime economy</div>
                   <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0;cursor:pointer">
@@ -3784,6 +3787,7 @@ document.addEventListener('campaign-ready', function () {
   var ruleDrawCapOn = document.getElementById('ruleDrawbackCapOn');
   var ruleDrawCapAp = document.getElementById('ruleDrawbackCapAp');
   var ruleDrawCountAdvice = document.getElementById('ruleDrawbackCountAdvice');
+  var ruleRequireNames = document.getElementById('ruleRequireNames');
   var ruleHouseRules = document.getElementById('ruleHouseRules');
   var ruleHouseRuleName = document.getElementById('ruleHouseRuleName');
   var ruleSaveStatus = document.getElementById('ruleSaveStatus');
@@ -4186,6 +4190,7 @@ document.addEventListener('campaign-ready', function () {
     var _dc = r.drawbackCap || {};
     ruleDrawCapOn.checked = _dc.enabled !== false;
     ruleDrawCountAdvice.checked = r.drawbackCountAdvice !== false;   // absent = on
+    ruleRequireNames.checked = r.requireNames !== false;   // absent = on (feat/names-before-spending: engine requireNamesOn())
     ruleDrawCapAp.value = Number.isFinite(+_dc.ap) ? +_dc.ap : (window.DATA ? DATA.drawbackCap : 12);
     // Advancement dials (feat/advancement-tracks) — display/config-only, per campaign.
     var bc = r.levelBudgetCurve || {};
@@ -4751,6 +4756,7 @@ document.addEventListener('campaign-ready', function () {
         return eco;
       })(),
       drawbackCountAdvice: ruleDrawCountAdvice.checked,
+      requireNames: ruleRequireNames.checked,
       drawbackCap: { enabled: ruleDrawCapOn.checked,
                      ap: parseInt(ruleDrawCapAp.value, 10) || (window.DATA ? DATA.drawbackCap : 12) },
       houseRules: currentHouseRules,

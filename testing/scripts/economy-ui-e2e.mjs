@@ -482,6 +482,7 @@ const buyoff = await page.evaluate(() => {
   LOG.push({ type: 'award', amount: 30, seq: SEQ++, ts: 150 });   // headroom for the cross-buy + the buyoff itself
   LOG.push({ type: 'buy', cat: 'feature', cost: 6, payload: { v: 'cross' }, label: 'cross', seq: SEQ++, ts: 200 }); // last creation buy
   LOG.push({ type: 'creationLocked', label: 'Creation finished', seq: SEQ++, ts: 250 });
+  LOG.push({ type: 'names', lang: ['Common'], cost: 0, label: 'Named', seq: SEQ++, ts: 260 });   // a buy-off spends AP, so the names-before-spending gate needs the language named
   LOG.push({ type: 'buy', cat: 'drawback', cost: -(DATA.drawbacks[dv] || 0), payload: { v: dv }, label: 'Drawback — ' + dv, seq: SEQ++, ts: 300 });
   render();
   const origConfirm = window.confirm; window.confirm = () => true;
