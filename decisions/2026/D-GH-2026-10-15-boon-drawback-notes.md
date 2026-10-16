@@ -26,7 +26,7 @@ DM unlocks it. Shown on the Live Sheet, the 📋 Sheet, CharGen and the DM's car
 The test: does the effect text refer to something specific that the rules leave undefined (a "what / who / which"), or did
 the owner name it? Flagged items get `DATA.notePrompts[cat][name]` = the question asked.
 
-**Flagged — 16 drawbacks**
+**Flagged — 20 drawbacks** (16 from the first review + 4 the owner added on 2026-10-17)
 
 | Drawback | Why it needs a description | Question asked |
 |---|---|---|
@@ -46,6 +46,10 @@ the owner name it? Flagged items get `DATA.notePrompts[cat][name]` = the questio
 | Prophesied Doom | applies only against the doom "the DM chooses at creation" — it must be recorded | What is your foretold doom? (Your DM chooses it at creation — record it here.) |
 | Truename Known | "a recurring enemy … name them with your DM" | Who has learned your true name? |
 | Two Souls | "the other personality surfaces" — who it is is undefined | Who is the other soul — what is the second personality like? |
+| Doppelganger | *owner, 2026-10-17:* the duplicate and the crimes in your name are the story the table plays | Who or what is your double, and what has it done in your name so far? |
+| Soul Debt | *owner, 2026-10-17:* "a fiend skims the interest" — which fiend, and how the debt arose | Which fiend holds your debt, and how did your character come to owe it? |
+| Missing Arm | *owner, 2026-10-17:* which arm matters at the table (shield/weapon hand), and how it was lost | Which arm is missing, and how did your character lose it? |
+| Withered Arm | *owner, 2026-10-17:* which arm, and what withered it | Which arm is withered, and what withered it? |
 
 **Flagged — 7 boons**
 
@@ -62,13 +66,15 @@ the owner name it? Flagged items get `DATA.notePrompts[cat][name]` = the questio
 **Deliberately NOT flagged (the borderline ones, with the reason)**
 
 - Oath of Poverty (permanent) — owner: self-explanatory; its text says exactly what is forbidden.
-- Doppelganger, Soul Debt, Cursed Wealth, Echo, Weather-Bringer, Geas of the Road — the effect is complete; the specifics
-  are the DM's plot hooks, not a player choice.
+- Cursed Wealth, Echo, Weather-Bringer, Geas of the Road — the effect is complete; the specifics are the DM's plot hooks,
+  not a player choice. (Doppelganger and Soul Debt were in this group until the owner added them on 2026-10-17.)
 - Honest to a Fault, Merciful, Berserk Temper, Quick to Quarrel, Reckless, Squeamish, Bad Liar — the behaviour is fully
   described by the text.
 - Claustrophobic, Agoraphobic, Fear of the Dark, Fear of the Dead, Fear of Being Alone, Crawling Things, No Head for
   Heights, Gun Shy — named, already-defined phobias (unlike Haunted / Phobia, which leaves the fear open).
-- Every injury, wound and Affliction (Missing Arm, Peg Leg, Burned Eye, Affliction — Clumsy, …) — fully defined.
+- Every other injury, wound and Affliction (Peg Leg, Burned Eye, Mangled Arm, Affliction — Clumsy, …) — fully defined.
+  (Missing Arm and Withered Arm were here until the owner added them on 2026-10-17.)
+- The owner confirmed on 2026-10-17 that the two weakest flags, Nightmares and Conspicuous, stay.
 - All other boons — complete effects (Folk Renown, Ear to the Ground, Scrounger, Animal Friend …: the DM adjudicates,
   nothing for the player to pin down). Epic boons that need an ability score already have their own pick in the Names
   dialog.
@@ -98,7 +104,7 @@ display-only change.
 
 ## Decision
 
-**Data.** `DATA.notePrompts = {drawback:{name: question}, boon:{name: question}}` (23 entries above). Display-only.
+**Data.** `DATA.notePrompts = {drawback:{name: question}, boon:{name: question}}` (27 entries above). Display-only.
 
 **Events** (in the character's LOG):
 - `{type:'itemNote', cat, refVal, text}` — player-written; 1–500 characters after trimming; the latest is the note.
@@ -110,8 +116,14 @@ display-only change.
   `pactNoteStates()` / `pactNoteItems()` in all three tools; `pact_item_note_state()` on the server.
 
 **Tools.**
-- Live Sheet `buy()` and CharGen's checkbox ask for the description after every other check has passed (browser
-  `prompt()`, re-asked when blank or over 500 characters); Cancel = not bought. An approved note on a campaign character
+- Live Sheet `buy()` and CharGen's checkbox ask for the description after every other check has passed (in CharGen too, after
+  the post-lock legality/affordability/wallet checks — #673 review E), in a small modal (owner decision AU1, 2026-10-17):
+  the item's question, a multi-line `<textarea>` capped at 500 with a live counter, OK / Cancel; focus starts in the box and
+  stays in the dialog, Esc = Cancel, Ctrl/Cmd+Enter = OK, Enter = new line; a blank or over-long text is refused inside the
+  dialog. Cancel = not bought. It is asynchronous (`pactAskNote(name, question, current, done)`), so the purchase is
+  recorded from its callback; tests drive the real dialog or replace `window.pactAskNote` with a stub. In CharGen the
+  purchase and its note are one undo step (`_cgEmitAll`); in the Live Sheet they are two events, so Undo takes the note
+  back first, then the purchase. An approved note on a campaign character
   is kept as is when the item is re-bought.
 - The note shows on the Live Sheet Character panel ("Descriptions"), the Live Sheet and CharGen 📋 Sheets, CharGen's build
   panel (under the drawbacks) and DM Console (a "Descriptions awaiting your approval" list above the cards, and a section
@@ -126,8 +138,27 @@ types (target must be held; approve needs a pending note; unlock needs an approv
 stamp). `pact_enforce_item_note_lock()` (BEFORE INSERT OR UPDATE): only the campaign's DM may change approval events; on a
 campaign character only its DM may change the `itemNote` events of an approved description; new notes 1–500 characters;
 no inserting a campaign character carrying approvals made there. Identity by WHO writes (`is_campaign_dm`), admin
-sessions exempt. Harness: `testing/scripts/creation-lock-guard-test/run-notes.sh` — 40 cases, 20 fail before (the gap),
+sessions exempt. Harness: `testing/scripts/creation-lock-guard-test/run-notes.sh` — 46 cases, 22 fail before (the gap; the 7 review-fix cases also fail on the first version of the migration),
 all pass after, rollback byte-identical.
+
+## Review fixes (#673 review, 2026-10-16, each proven in Postgres and now covered by a harness/e2e case)
+
+- **A — approved text could be swapped.** DM approves, unbinds; the solo player rewrote the stored note in place (solo is
+  never frozen); after rebinding, the swapped text read as approved and locked. Now an approval counts only when its stored
+  text is exactly the current note at that point, in both readers (`pactNoteStates`, `pact_item_note_state`).
+- **B — a DM could approve text they never saw** (the server copied whatever was stored at call time). DM Console now sends
+  the text it displayed, and `dm_edit_character_log` refuses when the stored note differs ("…changed since this page
+  loaded — reload…"); the console maps that refusal to a reload message.
+- **C — an honest claim was refused.** `redeem_character_claim()` copying a DM's pregen with approved descriptions hit the
+  INSERT check. Options: (C1) exempt approvals "stamped by a DM of the target campaign" — rejected: the stamp (`dmId`) is a
+  field in the inserted row, so a player could forge it; (C2) strip approvals in `redeem_character_claim()`'s copy —
+  rejected: redefines a second security-definer function and leaves every other insert path refusing; **(C3) chosen:** the
+  trigger DROPS that campaign's approval/unlock events from a non-DM INSERT instead of refusing it. Safest because nothing a
+  player inserts can arrive looking approved (forged or genuine), no other function is redefined, and the only cost is that
+  a claimed pregen's descriptions wait for the DM's approval again — which is right, since the player now owns them.
+- **D — CharGen Randomise and the Live-Sheet-file load dropped the note events.** Both now carry them verbatim (same
+  seq/ts, SEQ moved past them), and an approval counts as protected in the file-load keep-id rule (the file opens as a copy).
+- **E — CharGen asked before its post-lock checks.** Now asked last, as in the Live Sheet; buy + note are one undo step.
 
 ## Deploy order
 
@@ -151,10 +182,7 @@ migration's rollback at the first one's definitions.
 - A solo character is unchecked on insert and joining a campaign does not compare its log, so hand-crafted approvals
   stamped with a campaign's id can arrive with it. Effect: only that player's own note looks approved and is frozen for
   them; no AP moves. Same class as the house-rules migration's residual.
-- CharGen's Randomise/New rebuild the log and drop note events; on a campaign character with approved notes the save is
-  refused (as it already is for other DM events).
-- The prompt is the browser's own single-line `prompt()`, consistent with the tools' alert/confirm purchase questions.
-  A multi-line editor is a possible follow-up.
+- CharGen's New Character starts a different character, so it has no notes by design (Randomise and file load carry them).
 - An approval is an undo barrier (like every DM edit): the player cannot undo past it.
 - Blast radius not measured (no database access this session); expected 0 rows carrying the new event types — the
   migration header has the query.

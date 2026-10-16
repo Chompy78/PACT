@@ -47,10 +47,12 @@ const note = (seq, text, cat = 'drawback', name = 'Code of Honour') => ({ type: 
 const approve = (seq, text, cat = 'drawback', name = 'Code of Honour') => ({ type: 'dmApproveNote', cat, refVal: name, text, campaignId: 'camp-1', seq, dmEdit: true, dmId: 'dm', label: 'DM approved description — ' + name });
 const unlockN = (seq, cat = 'drawback', name = 'Code of Honour') => ({ type: 'dmUnlockNote', cat, refVal: name, note: 'new oath', campaignId: 'camp-1', seq, dmEdit: true, dmId: 'dm', label: 'DM unlocked description — ' + name });
 
-// Every prompt()/alert() is answered from a queue the test sets, and recorded.
+// The description box (js/ui-helpers.js pactAskNote, a modal) is replaced by a stub answered from a queue the test sets —
+// except where a test drives the REAL modal (window.pactAskNote = window.__realAsk). alert()s are recorded.
 const DIALOG_STUBS = () => {
   window.__answers = []; window.__prompts = []; window.__alerts = [];
-  window.prompt = (m, d) => { window.__prompts.push(String(m)); return window.__answers.length ? window.__answers.shift() : null; };
+  window.__realAsk = window.pactAskNote;
+  window.pactAskNote = (name, q, cur, done) => { window.__prompts.push(String(q)); done(window.__answers.length ? window.__answers.shift() : null); };
   window.alert = (m) => { window.__alerts.push(String(m)); };
   window.confirm = () => true;
 };
@@ -78,19 +80,42 @@ console.log('Live Sheet — buying a flagged drawback asks for its description')
   const { page, errs, close } = await openLS([award, oclass]);
   check('DATA.notePrompts flags Code of Honour (and not Oath of Poverty)',
     await page.evaluate(() => !!DATA.notePrompts.drawback['Code of Honour'] && !DATA.notePrompts.drawback['Oath of Poverty (permanent)']));
+  check('the owner\'s 2026-10-17 additions are flagged (Doppelganger, Soul Debt, Missing Arm, Withered Arm): 27 in all',
+    await page.evaluate(() => ['Doppelganger', 'Soul Debt', 'Missing Arm', 'Withered Arm'].every(n => !!DATA.notePrompts.drawback[n])
+      && Object.keys(DATA.notePrompts.drawback).length + Object.keys(DATA.notePrompts.boon).length === 27));
+  // The REAL description box (owner decision AU1): multi-line, capped with a counter, Esc = Cancel, Ctrl+Enter = OK.
+  await page.evaluate(() => { window.pactAskNote = window.__realAsk; });
   const n0 = (await lsLog(page)).length;
-  await page.evaluate(() => { window.__answers = ['   ', null]; takeDrawback('Code of Honour'); });
-  check('an empty answer is refused with a message, then Cancel buys nothing',
-    (await lsLog(page)).length === n0 && (await page.evaluate(() => window.__alerts.some(a => /required/i.test(a)))));
-  check('...and the question shown is the item\'s own prompt',
-    await page.evaluate(() => /code of honour/i.test(window.__prompts[0] || '')));
-  await page.evaluate(() => { window.__answers = ['x'.repeat(501), 'Never strike an unarmed foe.']; window.__alerts = []; takeDrawback('Code of Honour'); });
+  await page.evaluate(() => takeDrawback('Code of Honour'));
+  const dlg = await page.evaluate(() => { const d = document.getElementById('pactNoteDlg'), ta = document.getElementById('pactNoteDlgTa');
+    return d && { q: document.getElementById('pactNoteDlgQ').textContent, focused: document.activeElement === ta, max: ta.getAttribute('maxlength'),
+      count: document.getElementById('pactNoteDlgN').textContent, role: d.querySelector('[role=dialog]') ? 1 : 0, tag: ta.tagName }; });
+  check('buying opens a modal with a multi-line box, the item\'s own question, focus in the box, a 500 cap and a counter',
+    !!dlg && dlg.tag === 'TEXTAREA' && /code of honour/i.test(dlg.q) && dlg.focused && dlg.max === '500' && dlg.count === '0 / 500' && dlg.role === 1, JSON.stringify(dlg));
+  await page.click('#pactNoteDlgOk');
+  check('OK with nothing written shows "required" in the dialog, keeps it open and buys nothing', await page.evaluate(() =>
+    !!document.getElementById('pactNoteDlg') && /required/i.test(document.getElementById('pactNoteDlgE').textContent)) && (await lsLog(page)).length === n0);
+  await page.keyboard.press('Escape');
+  check('Esc cancels: the dialog closes and nothing is bought', await page.evaluate(() => !document.getElementById('pactNoteDlg')) && (await lsLog(page)).length === n0);
+  await page.evaluate(() => takeDrawback('Code of Honour'));
+  await page.evaluate(() => { const ta = document.getElementById('pactNoteDlgTa'); ta.removeAttribute('maxlength'); ta.value = 'x'.repeat(501); ta.dispatchEvent(new Event('input')); });
+  await page.click('#pactNoteDlgOk');
+  check('a 501-character text is refused in the dialog (the counter shows 501 / 500)', await page.evaluate(() =>
+    /500 characters/.test(document.getElementById('pactNoteDlgE').textContent) && document.getElementById('pactNoteDlgN').textContent === '501 / 500')
+    && (await lsLog(page)).length === n0);
+  await page.fill('#pactNoteDlgTa', '');
+  await page.type('#pactNoteDlgTa', 'Never strike an unarmed foe.');
+  await page.keyboard.press('Enter');
+  await page.type('#pactNoteDlgTa', 'Never lie.');
+  check('Enter is a new line, not OK', await page.evaluate(() => !!document.getElementById('pactNoteDlg')));
+  await page.keyboard.press('Control+Enter');
   const log = await lsLog(page);
-  check('a 501-character answer is refused and re-asked', await page.evaluate(() => window.__alerts.some(a => /500 characters/.test(a))));
   const last2 = log.slice(-2);
-  check('the purchase and its note are recorded together (buy, then itemNote)',
+  check('Ctrl+Enter = OK: the purchase and its multi-line note are recorded together (buy, then itemNote)',
     last2[0].type === 'buy' && last2[0].v === 'Code of Honour' && last2[1].type === 'itemNote'
-    && last2[1].refVal === 'Code of Honour' && last2[1].cat === 'drawback' && last2[1].text === 'Never strike an unarmed foe.', JSON.stringify(last2));
+    && last2[1].refVal === 'Code of Honour' && last2[1].cat === 'drawback' && last2[1].text === 'Never strike an unarmed foe.\nNever lie.', JSON.stringify(last2));
+  check('...and the dialog is gone', await page.evaluate(() => !document.getElementById('pactNoteDlg')));
+  await page.evaluate(() => { window.pactAskNote = (name, q, cur, done) => { window.__prompts.push(String(q)); done(window.__answers.length ? window.__answers.shift() : null); }; });
   check('the note shows on the Character panel', await page.evaluate(() =>
     [...document.querySelectorAll('#sheet .lsnote-text')].some(d => /unarmed foe/.test(d.textContent))));
   const before = (await lsLog(page)).length;
@@ -162,8 +187,11 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
   const cgLog = () => page.evaluate(() => LOG.map(e => ({ type: e.type, cat: e.cat, v: e.payload && e.payload.v, refVal: e.refVal, text: e.text })));
   const box = (v) => `input.drawck[value="${v}"]`;
   const n0 = (await cgLog()).length;
-  await page.evaluate(() => { window.__answers = [null]; });
+  await page.evaluate(() => { window.__stubAsk = window.pactAskNote; window.pactAskNote = window.__realAsk; });
   await page.click(box('Code of Honour'));
+  check('CharGen opens the same description box', await page.evaluate(() => !!document.getElementById('pactNoteDlgTa')));
+  await page.click('#pactNoteDlgCancel');
+  await page.evaluate(() => { window.pactAskNote = window.__stubAsk; });
   check('Cancel leaves the box unticked and buys nothing',
     !(await page.isChecked(box('Code of Honour'))) && !(await cgLog()).some(e => e.type === 'buy' && e.v === 'Code of Honour'), `log ${n0} -> ${(await cgLog()).length}`);
   await page.evaluate((x) => { window.__answers = [x]; }, XSS);

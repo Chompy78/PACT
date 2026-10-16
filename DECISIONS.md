@@ -40,7 +40,7 @@
   (+1 per Hit Die = 2024's Sorcerer-level bonus). v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
 ## D-GH-2026-10-15-boon-drawback-notes — some boons and drawbacks need a player-written description, which the DM approves and so locks
-- 23 items flagged after reading every boon and drawback (16 drawbacks e.g. Code of Honour, Haunted / Phobia, Nightmares;
+- 27 items flagged after reading every boon and drawback, plus the owner's 4 additions (20 drawbacks e.g. Code of Honour, Haunted / Phobia, Nightmares, Soul Debt;
   7 boons e.g. Patron, Font of Will; NOT Oath of Poverty) in display-only `DATA.notePrompts`. Append-only `itemNote`
   events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock are DM events through
   `dm_edit_character_log`, stamped with and counted only in the current campaign. Locked in both tools and, once the

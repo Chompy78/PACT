@@ -416,16 +416,47 @@ function pactCheckNoteText(t){
 function pactNoteEvent(cat, name, text){
   return { type: 'itemNote', cat: cat, refVal: name, text: text, label: 'Note — ' + name };
 }
-// Ask for a note with the browser's own prompt (the tools already use alert/confirm for purchase questions). Re-asks on
-// an empty or over-long answer; returns the trimmed text, or null when the player cancels.
-function pactAskNote(name, question, current){
-  var v = current || '';
-  for(;;){
-    var r = window.prompt(name + ' — ' + question + '\n\n(Required, up to ' + PACT_NOTE_MAX + ' characters. Your DM sees it and approves it.)', v);
-    if(r == null) return null;
-    var c = pactCheckNoteText(r);
-    if(c.ok) return c.text;
-    window.alert(c.error);
-    v = r;
-  }
+// Ask for a note in a small modal with a multi-line box (owner decision AU1, 2026-10-17): the item's question, a <textarea>
+// capped at PACT_NOTE_MAX with a live counter, OK / Cancel. Keyboard: the box has focus on open, Tab moves between it and
+// the buttons, Esc = Cancel, Ctrl/Cmd+Enter = OK (Enter alone is a new line). OK re-checks the text (required, capped) and
+// shows the problem in the dialog instead of closing. done(text) on OK with the trimmed text, done(null) on Cancel/Esc.
+// ASYNCHRONOUS: callers continue in `done`. Tests may replace window.pactAskNote with a stub that calls done() directly.
+function pactAskNote(name, question, current, done){
+  if(typeof done !== 'function') done = function(){};
+  if(document.getElementById('pactNoteDlg')) return;   // one at a time; the open one keeps focus
+  var prev = document.activeElement;
+  var ov = document.createElement('div');
+  ov.id = 'pactNoteDlg';
+  ov.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px');
+  var box = document.createElement('div');
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'pactNoteDlgT');
+  box.setAttribute('style', 'background:var(--panel,var(--card,var(--bg,#fff)));color:var(--ink,var(--text,inherit));border:1px solid var(--line,#888);border-radius:8px;max-width:520px;width:100%;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.35);font:inherit');
+  box.innerHTML = '<div id="pactNoteDlgT" style="font-weight:700;margin-bottom:4px"></div>'
+    + '<label for="pactNoteDlgTa" id="pactNoteDlgQ" style="display:block;font-size:13px;margin-bottom:6px"></label>'
+    + '<textarea id="pactNoteDlgTa" rows="5" maxlength="' + PACT_NOTE_MAX + '" aria-describedby="pactNoteDlgN pactNoteDlgE" style="width:100%;box-sizing:border-box;font:inherit;resize:vertical"></textarea>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin:4px 0 10px;gap:8px">'
+    + '<span>Required. Your DM sees it and approves it. <span style="opacity:.75">Ctrl+Enter = OK, Esc = Cancel</span></span><span id="pactNoteDlgN" aria-live="polite"></span></div>'
+    + '<div id="pactNoteDlgE" role="alert" style="color:var(--bad,#b00);font-size:12px;min-height:1em;margin-bottom:6px"></div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" id="pactNoteDlgCancel">Cancel</button><button type="button" class="btn" id="pactNoteDlgOk">OK</button></div>';
+  ov.appendChild(box); document.body.appendChild(ov);
+  box.querySelector('#pactNoteDlgT').textContent = name;      // textContent: never markup
+  box.querySelector('#pactNoteDlgQ').textContent = question;
+  var ta = box.querySelector('#pactNoteDlgTa'), cnt = box.querySelector('#pactNoteDlgN'), err = box.querySelector('#pactNoteDlgE');
+  ta.value = current || '';
+  var upd = function(){ cnt.textContent = ta.value.length + ' / ' + PACT_NOTE_MAX; };
+  upd();
+  var fin = function(v){ ov.remove(); try { if(prev && prev.focus) prev.focus(); } catch(e){} done(v); };
+  var ok = function(){ var c = pactCheckNoteText(ta.value); if(!c.ok){ err.textContent = c.error; ta.focus(); return; } fin(c.text); };
+  ta.addEventListener('input', function(){ upd(); err.textContent = ''; });
+  box.querySelector('#pactNoteDlgOk').addEventListener('click', ok);
+  box.querySelector('#pactNoteDlgCancel').addEventListener('click', function(){ fin(null); });
+  ov.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ e.preventDefault(); fin(null); }
+    else if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); ok(); }
+    else if(e.key === 'Tab'){   // keep focus inside the dialog
+      var f = [ta, box.querySelector('#pactNoteDlgCancel'), box.querySelector('#pactNoteDlgOk')], k = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+    }
+  });
+  ta.focus();
 }

@@ -34,7 +34,11 @@ DATA.notePrompts = {
     'Vulnerable': 'Which damage type is your character vulnerable to? (Your DM picks one that appears in the campaign.)',
     'Prophesied Doom': 'What is your foretold doom? (Your DM chooses it at creation — record it here.)',
     'Truename Known': 'Who has learned your true name?',
-    'Two Souls': 'Who is the other soul — what is the second personality like?'
+    'Two Souls': 'Who is the other soul — what is the second personality like?',
+    'Doppelganger': 'Who or what is your double, and what has it done in your name so far?',
+    'Soul Debt': 'Which fiend holds your debt, and how did your character come to owe it?',
+    'Missing Arm': 'Which arm is missing, and how did your character lose it?',
+    'Withered Arm': 'Which arm is withered, and what withered it?'
   },
   boon: {
     'Contacts': 'Which region are your contacts in, and who is one of them?',

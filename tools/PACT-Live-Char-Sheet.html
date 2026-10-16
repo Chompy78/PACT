@@ -1117,20 +1117,26 @@ function buy(cat,payload,label){
   // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts can't be bought without its description (asked LAST,
   // after every check above has passed, so a refused purchase never asks). An approved note from an earlier copy of the
   // same item is kept as it is while the character is in a campaign (the server freezes it there) — nothing to ask.
-  var _noteQ=(cat==='boon'||cat==='drawback')?pactNotePrompt(DATA,cat,payload.v):'', _noteT=null;
+  // The description box is asynchronous (owner decision AU1), so the purchase is recorded from its callback.
+  var _commit=function(_noteT){
+    emit(Object.assign({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest},
+                       _gt?{gp:_gt.gp,days:_gt.days}:{}));
+    if(_noteT!=null) emit(pactNoteEvent(cat,payload.v,_noteT));
+    if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
+    if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
+  };
+  var _noteQ=(cat==='boon'||cat==='drawback')?pactNotePrompt(DATA,cat,payload.v):'';
   if(_noteQ){
     var _noteSt=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,payload.v)]||null;
     if(!pactNoteLocked(_noteSt,!!window._lsCampaignId)){
-      _noteT=pactAskNote(payload.v,_noteQ,_noteSt?_noteSt.text:'');
-      if(_noteT==null){ flash('Not bought \u2014 '+payload.v+' needs a description.'); return; }
-      if(_noteSt&&_noteSt.status!=='none'&&_noteSt.text===_noteT) _noteT=null;   // unchanged: no second copy of the same note
+      pactAskNote(payload.v,_noteQ,_noteSt?_noteSt.text:'',function(t){
+        if(t==null){ flash('Not bought \u2014 '+payload.v+' needs a description.'); return; }
+        _commit((_noteSt&&_noteSt.status!=='none'&&_noteSt.text===t)?null:t);   // unchanged: no second copy of the same note
+      });
+      return;
     }
   }
-  emit(Object.assign({type:'buy',cat,payload,cost,label:label||(cat+' '+JSON.stringify(payload)),level:b0.hd,warns:rest},
-                     _gt?{gp:_gt.gp,days:_gt.days}:{}));
-  if(_noteT!=null) emit(pactNoteEvent(cat,payload.v,_noteT));
-  if(followup.length)flash('✎ Now open Names and pick the ability — '+followup.join('; '));
-  if(_preSwap&&_preSwap.avail>0)flash('⚠ You still had '+_preSwap.avail+' free swap'+(_preSwap.avail>1?'s':'')+' at Hit Die '+_preSwap.hd+' — leveling resets them (non-banking). Undo if you meant to swap a spell first.');
+  _commit(null);
 }
 function takeDrawback(v){ buy('drawback',{v},'Drawback — '+v); }
 // feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): the descriptions some boons/drawbacks need. Write or
@@ -1141,10 +1147,12 @@ function lsEditItemNote(cat,name){
   var q=pactNotePrompt(DATA,cat,name); if(!q) return;
   var st=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,name)]||null;
   if(pactNoteLocked(st,!!window._lsCampaignId)){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
-  var t=pactAskNote(name,q,st?st.text:''); if(t==null) return;
-  if(st&&st.text===t&&st.status!=='none') return;
-  emit(pactNoteEvent(cat,name,t));
-  flash(window._lsCampaignId?'\u270E Description saved \u2014 your DM will see it and approve it.':'\u270E Description saved.');
+  pactAskNote(name,q,st?st.text:'',function(t){
+    if(t==null) return;
+    if(st&&st.text===t&&st.status!=='none') return;
+    emit(pactNoteEvent(cat,name,t));
+    flash(window._lsCampaignId?'\u270E Description saved \u2014 your DM will see it and approve it.':'\u270E Description saved.');
+  });
 }
 function _lsItemNotesHTML(b,edit){
   var rows=pactNoteItems(b,LOG,DATA,window._lsCampaignId); if(!rows.length) return '';

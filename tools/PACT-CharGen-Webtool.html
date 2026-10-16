@@ -3754,10 +3754,13 @@ function _cgPostLockAppend(steps,opts){
   }
   // feat/boon-drawback-notes: a last question once every check above has passed (the description a flagged boon needs).
   // false = the player cancelled: nothing is appended. Extra events land with the purchase as one undo step.
+  // Asynchronous: beforeCommit(go) calls go(false) to abandon or go(extraEvents) to record. Returns true (pending).
   if(opts&&typeof opts.beforeCommit==='function'){
-    var _extra=opts.beforeCommit();
-    if(_extra===false){ _cgRepaint(); return false; }
-    if(_extra&&_extra.length){ _cgEmitAll(evs.concat(_extra)); return true; }
+    opts.beforeCommit(function(_extra){
+      if(_extra===false){ _cgRepaint(); return; }
+      if(_extra&&_extra.length) _cgEmitAll(evs.concat(_extra)); else evs.forEach(function(ev){ emit(ev); });
+    });
+    return true;
   }
   evs.forEach(function(ev){ emit(ev); });
   return true;
@@ -4051,21 +4054,24 @@ function _cgIsNoteFam(e){ return !!e && (e.type==='itemNote'||e.type==='dmApprov
 function _cgCarryNotes(evs){
   (evs||[]).forEach(function(e){ LOG.push(JSON.parse(JSON.stringify(e))); var q=Number(e.seq); if(Number.isFinite(q)&&q>=SEQ) SEQ=q+1; });
 }
-function _cgAskItemNote(cat,v){
-  if(cat!=='boon'&&cat!=='drawback') return null;
-  var q=pactNotePrompt(DATA,cat,v); if(!q) return null;
+// Asynchronous (the description box, owner decision AU1): cb(null) = no note needed or the approved one is kept,
+// cb(false) = cancelled, otherwise cb(text).
+function _cgAskItemNote(cat,v,cb){
+  if(cat!=='boon'&&cat!=='drawback') return cb(null);
+  var q=pactNotePrompt(DATA,cat,v); if(!q) return cb(null);
   var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,v)]||null;
-  if(pactNoteLocked(st,_cgNoteBound())) return null;
-  var t=pactAskNote(v,q,st?st.text:''); if(t==null) return false;
-  return (st&&st.status!=='none'&&st.text===t)?null:t;
+  if(pactNoteLocked(st,_cgNoteBound())) return cb(null);
+  pactAskNote(v,q,st?st.text:'',function(t){ if(t==null) return cb(false); cb((st&&st.status!=='none'&&st.text===t)?null:t); });
 }
 function cgEditItemNote(cat,name){
   var q=pactNotePrompt(DATA,cat,name); if(!q) return;
   var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,name)]||null;
   if(pactNoteLocked(st,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
-  var t=pactAskNote(name,q,st?st.text:''); if(t==null) return;
-  if(st&&st.text===t&&st.status!=='none') return;
-  emit(pactNoteEvent(cat,name,t));
+  pactAskNote(name,q,st?st.text:'',function(t){
+    if(t==null) return;
+    if(st&&st.text===t&&st.status!=='none') return;
+    emit(pactNoteEvent(cat,name,t));
+  });
 }
 // The held items that need a description, with their notes. `edit`: the build-panel copy, with buttons; the 📋 Sheet copy
 // is text only. Player-written text the DM's browser renders too, so every note goes through esc().
@@ -4111,20 +4117,21 @@ function onChecklistToggle(el){
     // check, legality, affordability and the wallet question, as the Live Sheet does (#673 review E) — and the purchase and its
     // note land as ONE undo step (_cgEmitAll). Cancel puts the tick back. Never asked while the form is only being repainted.
     var _noteFail=function(){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); };
-    var _noteAsk=function(){ var t=_histSuspended?null:_cgAskItemNote(cat,v); return t===false?false:(t?[pactNoteEvent(cat,v,t)]:[]); };
+    var _noteAsk=function(cb){ if(_histSuspended) return cb([]); _cgAskItemNote(cat,v,function(t){ cb(t===false?false:(t?[pactNoteEvent(cat,v,t)]:[])); }); };
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
       if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
-      var _noteRefused=false;
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}],
-                            {beforeCommit:function(){ var x=_noteAsk(); if(x===false) _noteRefused=true; return x; }})){ if(_noteRefused) _noteFail(); else el.checked=false; }
+                            {beforeCommit:function(go){ _noteAsk(function(x){ if(x===false) _noteFail(); go(x); }); }})) el.checked=false;
     }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
-    var _noteEvs=_noteAsk(); if(_noteEvs===false){ _noteFail(); return; }
-    _cgEmitAll([{type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}].concat(_noteEvs));
+    _noteAsk(function(_noteEvs){ if(_noteEvs===false){ _noteFail(); return; }
+      _cgEmitAll([{type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}].concat(_noteEvs));
+      _cgReconcileChecklistDependents(); });   // synchronous when no description is needed, exactly as before
+    return;
     }
   }else{
     // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
