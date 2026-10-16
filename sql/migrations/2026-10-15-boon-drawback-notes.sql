@@ -35,11 +35,11 @@
 -- WHAT THIS ADDS / CHANGES
 --   1. pact_item_note_state(log, cat, name, campaign) (new, internal): the state of one description, read in log order
 --      exactly as js/ui-helpers.js pactNoteStates() reads it — a player 'itemNote' {cat, refVal, text} makes it 'pending'
---      (or 'none' when blank), a DM-stamped 'dmApproveNote' made in that campaign makes a written note 'approved', a
+--      (or 'none' when blank), a DM-stamped 'dmApproveNote' made in that campaign makes the note 'approved' only if its text is exactly the current note's, a
 --      DM-stamped 'dmUnlockNote' made in that campaign makes an approved note 'pending' again.
---   2. dm_edit_character_log() accepts 'dmApproveNote' {cat, refVal} and 'dmUnlockNote' {cat, refVal, note?}. The
---      character must hold a buy of that boon/drawback; an approval needs a note awaiting approval and records the text
---      it approved; an unlock needs an approved note (its optional note is at most 200 characters). Both are rebuilt from
+--   2. dm_edit_character_log() accepts 'dmApproveNote' {cat, refVal, text} and 'dmUnlockNote' {cat, refVal, note?}. The
+--      character must hold a buy of that boon/drawback; an approval needs a note awaiting approval whose current text is
+--      exactly the `text` the DM was shown (else "changed since this page loaded"), and records it; an unlock needs an approved note (its optional note is at most 200 characters). Both are rebuilt from
 --      a whitelist and stamped with the campaign (campaignId) plus seq/ts/dmEdit/dmId like every other event.
 --   3. pact_enforce_item_note_lock() + trg_pact_item_note_lock (new, BEFORE INSERT OR UPDATE on characters):
 --      * nobody but a DM of the character's campaign (writing in that campaign) may add, change, remove or reorder a
@@ -47,7 +47,8 @@
 --      * on a campaign character, nobody but its DM may add, change or remove the itemNote events of a description that
 --        is approved in that campaign (the lock); a solo character's notes are never locked (owner, provisional);
 --      * a new itemNote's text must be a string of 1 to 500 characters after trimming (the tools' cap);
---      * a character may not be INSERTED into a campaign carrying approvals made in that campaign (a non-DM insert).
+--      * a character INSERTED into a campaign by anyone but its DM loses the approvals made in that campaign (they are
+--        dropped from the new row, so a claimed pregen's descriptions wait for the DM's approval again).
 --      Identity is WHO writes (is_campaign_dm), never a flag in the event. Admin sessions (no JWT) are exempt, like
 --      pact_enforce_creation_lock(): a hand repair is not refused.
 --   pact_ap_ledger_protected() is NOT changed: a note moves no AP, and the trigger above already freezes what must not move.
@@ -60,9 +61,10 @@
 --     hand-crafts approval events stamped with a campaign's id, inserts the character solo and then joins that campaign
 --     arrives with descriptions that look approved. The only effect is on their own note (shown approved, and frozen for
 --     them); no AP moves. Same class as the house-rules migration's documented residual; closed by the same follow-up.
---   * CharGen's Randomise / New rebuild the log from the form and drop note events; on a campaign character with approved
---     notes the save is then refused by the trigger (as it already is for other DM events). Rare; the refusal is the
---     correct outcome.
+--   * CharGen's New Character starts a different character (no notes, by design). Randomise and the Live-Sheet-file load
+--     branch carry the note events verbatim (#673 review D), so they no longer drop them.
+--   * #673 review A/B/C: an approval counts only for the exact text it approved (a note rewritten in place while solo is
+--     pending again); the DM must send the text they were shown; a claimed pregen's approvals are dropped, not refused.
 --
 -- BLAST RADIUS. NOT MEASURED — this session cannot reach the database. Before applying, run (read-only):
 --   select count(*) from characters c, jsonb_array_elements(case when jsonb_typeof(c.stats->'LOG')='array' then c.stats->'LOG' else '[]'::jsonb end) e
@@ -100,7 +102,8 @@ begin
         status := case when btrim(note) = '' then 'none' else 'pending' end;
       end if;
     elsif e->'dmEdit' = 'true'::jsonb and p_campaign is not null and e->>'campaignId' = p_campaign then
-      if e->>'type' = 'dmApproveNote' and status <> 'none' then
+      -- only an approval OF THIS TEXT counts (#673 review A): a note rewritten in place after approval stays pending
+      if e->>'type' = 'dmApproveNote' and status <> 'none' and jsonb_typeof(e->'text') = 'string' and e->>'text' = note then
         status := 'approved';
       elsif e->>'type' = 'dmUnlockNote' and status = 'approved' then
         status := 'pending';
@@ -323,6 +326,11 @@ begin
         if v_nstatus is distinct from 'pending' then
           raise exception 'dm_edit_character_log: no description of % "%" awaiting approval (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
         end if;
+        -- The DM approves the text they were SHOWN (#673 review B): DM Console sends it, and a note the player changed
+        -- since the page loaded is refused rather than approved unseen.
+        if jsonb_typeof(v_ev->'text') is distinct from 'string' or v_ev->>'text' is distinct from v_ntext then
+          raise exception 'dm_edit_character_log: the description of % "%" changed since this page loaded — reload and read it again', v_tcat, v_name;
+        end if;
         v_ev := jsonb_build_object('type', 'dmApproveNote', 'cat', v_tcat, 'refVal', v_name, 'text', v_ntext,
                                    'campaignId', v_campaign::text,
                                    'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM approved description — ' || v_name), 120));
@@ -403,11 +411,18 @@ begin
       using hint = 'Shorten the description and save again.';
   end if;
 
+  -- INSERT into a campaign by anyone but its DM: approvals made in that campaign are DROPPED from the new row, not
+  -- refused (#673 review C). The honest case is redeem_character_claim() copying a DM's pregen whose descriptions that
+  -- DM approved; refusing broke it. Dropping is the safer of the two fixes: nothing a player inserts can arrive looking
+  -- approved (a hand-crafted approval is removed the same way), the copy's notes simply wait for the DM's approval
+  -- again, and redeem_character_claim() is not redefined. Approvals stamped with another campaign never count here.
   if TG_OP = 'INSERT' then
     if NEW.campaign_id is not null and not public.is_campaign_dm(NEW.campaign_id)
        and exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
                     where e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text) then
-      raise exception 'PACT: a character cannot join a campaign carrying approved descriptions';
+      NEW.stats := jsonb_set(NEW.stats, '{LOG}',
+        (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_new_log) with ordinality as t(e, ord)
+          where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text)));
     end if;
     return NEW;
   end if;

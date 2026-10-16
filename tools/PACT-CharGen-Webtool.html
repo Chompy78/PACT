@@ -3146,6 +3146,8 @@ window.cgFinishCreating = cgFinishCreating;
 // cannot forget one.
 function _cgRepriceDraft(){LOG=repriceDraft(LOG);}   // no auto-lock: see the note above cgFinishCreating()
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
+// Several events as ONE undo step (one history frame), e.g. a purchase and the description it needs (feat/boon-drawback-notes).
+function _cgEmitAll(evs){_cgEnsureLockArmed();commitHistory();evs.forEach(function(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);});_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
 // pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
@@ -3700,7 +3702,7 @@ function _cgPostLockSteps(slot,patch,cur){
 // refusal leaves nothing half-applied; then append them (one undo frame — commitHistory latches per handler turn). Returns true when
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
 // path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
-function _cgPostLockAppend(steps){
+function _cgPostLockAppend(steps,opts){
   // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
@@ -3749,6 +3751,13 @@ function _cgPostLockAppend(steps){
       if(!confirm((evs.length>1?'This edit':'This purchase')+' costs '+(Q.gp?Q.gp.toLocaleString()+' gp':'no gold')+' and '+(Q.days?Q.time:'no downtime')+', and you are '+bits.join(' \u00b7 ')+'.\n\n'
         +'Buy anyway? Your DM can waive or defer the cost \u2014 the shortfall will simply show on your sheet.'+_cgWalletNote())){ _cgRepaint(); return false; }
     }
+  }
+  // feat/boon-drawback-notes: a last question once every check above has passed (the description a flagged boon needs).
+  // false = the player cancelled: nothing is appended. Extra events land with the purchase as one undo step.
+  if(opts&&typeof opts.beforeCommit==='function'){
+    var _extra=opts.beforeCommit();
+    if(_extra===false){ _cgRepaint(); return false; }
+    if(_extra&&_extra.length){ _cgEmitAll(evs.concat(_extra)); return true; }
   }
   evs.forEach(function(ev){ emit(ev); });
   return true;
@@ -4035,6 +4044,13 @@ function raceTraitLegal(v,domBuild){
 // is the rules picker's selection. Named _cgNote* so the function never shadows those window globals.
 function _cgNoteCampId(){ return (typeof window._cgCampaignId==='string'&&window._cgCampaignId)||null; }
 function _cgNoteBound(){ return !!_cgNoteCampId(); }
+// The note events a whole-log rebuild must carry over VERBATIM (#673 review D): Randomise and the Live-Sheet-file load rebuild
+// the LOG from the form, which would drop them. Verbatim (same seq/ts) because the server compares approval events, and an
+// approved description's notes, exactly; SEQ is moved past them so no later event reuses a seq.
+function _cgIsNoteFam(e){ return !!e && (e.type==='itemNote'||e.type==='dmApproveNote'||e.type==='dmUnlockNote'); }
+function _cgCarryNotes(evs){
+  (evs||[]).forEach(function(e){ LOG.push(JSON.parse(JSON.stringify(e))); var q=Number(e.seq); if(Number.isFinite(q)&&q>=SEQ) SEQ=q+1; });
+}
 function _cgAskItemNote(cat,v){
   if(cat!=='boon'&&cat!=='drawback') return null;
   var q=pactNotePrompt(DATA,cat,v); if(!q) return null;
@@ -4091,22 +4107,24 @@ function onChecklistToggle(el){
     // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
     // entry _domReadBuild() would filter out anyway.
     if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
-    // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts needs its description before it is bought (the Live
-    // Sheet asks the same question). Cancel puts the tick back. Skipped while the form is only being repainted from a build.
-    var _noteT=(_histSuspended||(cat==='drawback'&&_cgIsLocked()&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks))?null:_cgAskItemNote(cat,v);   // a post-lock drawback the campaign refuses is refused below without asking
-    if(_noteT===false){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); return; }
+    // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts needs its description. It is asked LAST — after the lock
+    // check, legality, affordability and the wallet question, as the Live Sheet does (#673 review E) — and the purchase and its
+    // note land as ONE undo step (_cgEmitAll). Cancel puts the tick back. Never asked while the form is only being repainted.
+    var _noteFail=function(){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); };
+    var _noteAsk=function(){ var t=_histSuspended?null:_cgAskItemNote(cat,v); return t===false?false:(t?[pactNoteEvent(cat,v,t)]:[]); };
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
       if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
-      if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
-      else if(_noteT) emit(pactNoteEvent(cat,v,_noteT));
+      var _noteRefused=false;
+      if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}],
+                            {beforeCommit:function(){ var x=_noteAsk(); if(x===false) _noteRefused=true; return x; }})){ if(_noteRefused) _noteFail(); else el.checked=false; }
     }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
-    emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
-    if(_noteT) emit(pactNoteEvent(cat,v,_noteT));
+    var _noteEvs=_noteAsk(); if(_noteEvs===false){ _noteFail(); return; }
+    _cgEmitAll([{type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}].concat(_noteEvs));
     }
   }else{
     // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
@@ -4764,13 +4782,14 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
       // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
       const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
-        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal');});
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote');});   // + DM approvals of descriptions (feat/boon-drawback-notes): server-frozen too
       const _keepId=!!d.id&&!_protected;
       // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
       // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
       if(_keepId)b.id=d.id;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
+      if(d.LOG.some(_cgIsNoteFam)){ _cgCarryNotes(d.LOG.filter(_cgIsNoteFam)); render(); }   // feat/boon-drawback-notes: the rebuild drops the descriptions; carry them verbatim
       // Adopt the file's campaign binding too, as branch 1 does (#634) -- otherwise a campaign character opens at
       // 0 DM AP with every purchase over budget. Keyed on the id this load just gave the character. Not for a copy:
       // a fresh id has no row, and binding a copy would make it a second character in the campaign.
@@ -6164,6 +6183,7 @@ function randomizeRoll(themeKey,lvlWanted){
   // the id and so updates the real row.
   const _isLockFam = function(e){ return !!e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' || e.type === 'creationLockConfig'); };
   const _rollCarry = (LOG||[]).filter(_isLockFam).map(function(e){ return JSON.parse(JSON.stringify(e)); });
+  const _rollNotes = (LOG||[]).filter(_cgIsNoteFam);   // feat/boon-drawback-notes: the same character keeps its descriptions and their approvals
   // fix/livesheet-name-description-notes: the rebuild below re-reads appearance from the 32 Setup controls only, which would
   // drop the player's notes and Live Sheet sheet (same character — keep them). Re-applied after the rebuild.
   const _rollApKeep=(function(){var a={},cur=(foldBuild(LOG).appearance)||{},dk=(_domReadBuild().appearance)||{};
@@ -6221,6 +6241,7 @@ function randomizeRoll(themeKey,lvlWanted){
       _rollCarry.forEach(function(e){ e.seq = SEQ++; e.ts = Date.now(); LOG.push(e); });
       _fresh.forEach(function(e){ LOG.push(e); });
     }
+    _cgCarryNotes(_rollNotes);
     if(Object.keys(_rollApKeep).length){
       var _apN=pactAppearanceIndex(LOG)<0;
       LOG=pactWithAppearance(LOG,Object.assign({},(foldBuild(LOG).appearance)||{},_rollApKeep),{seq:_apN?SEQ++:undefined,ts:Date.now(),rules:DATA.version});

@@ -15,6 +15,8 @@ begin
   exception when others then
     if sqlerrm = 'ROLLBACK_OK' then g := 'allowed';
     elsif sqlerrm like 'PACT: %' or sqlerrm like 'dm_edit_character_log: %' or sqlerrm like 'Only a campaign DM%' or sqlerrm like 'Character is not in a campaign%' then g := 'refused';
+    -- a failed `expect` check, or (BEFORE the migration) the missing state reader: the behaviour under test is absent
+    elsif sqlerrm like 'CHECK FAILED%' or sqlerrm like 'function pact_item_note_state%does not exist' then g := 'check failed';
     else g := 'ERROR: ' || sqlerrm; end if;
   end;
   insert into res(name, expect, got, verdict) values (p_name, p_expect, g, case when g = p_expect then 'PASS' else 'FAIL' end);
@@ -40,7 +42,6 @@ end $$;
 -- `expect` raises unless the condition holds, so a check case reports 'allowed' when it holds.
 create or replace function expect(p_ok boolean, p_what text) returns void language plpgsql as $$
 begin if not coalesce(p_ok, false) then raise exception 'CHECK FAILED: %', p_what; end if; end $$;
-
 select as_admin();
 truncate characters, character_backups, campaign_dms, campaigns cascade;
 insert into campaigns(id, dm_id, name) values
@@ -75,9 +76,11 @@ insert into characters(owner_id, campaign_id, name, kind, ap, stats) values
     {"seq":4,"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Old oath","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}]}');
 
 -- ===== DM: approve / unlock through dm_edit_character_log =====
-select t('DM approves a note awaiting approval', 'allowed', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
+select t('DM approves a note awaiting approval (sending the text shown)', 'allowed', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Never strike an unarmed foe."}]') $b$);
+select t('DM approval with NO text (not the one shown) is refused', 'refused', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
+select t('DM approval of a STALE text (the player changed it since the page loaded) is refused', 'refused', $b$ select owner_append('pending', '{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Something else"}'); select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Never strike an unarmed foe."}]') $b$);
 select t('...the stored approval is DM-stamped, carries the approved text and the campaign, and nothing the client sent', 'allowed', $b$
-  select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"FORGED","cost":50,"amount":9,"campaignId":"x"}]');
+  select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Never strike an unarmed foe.","cost":50,"amount":9,"campaignId":"x"}]');
   select as_admin();
   select expect((select e->>'text' = 'Never strike an unarmed foe.' and e->>'campaignId' = 'c1000000-0000-0000-0000-000000000001'
                         and e->'dmEdit' = 'true'::jsonb and e->>'dmId' = 'd0000000-0000-0000-0000-000000000001'
@@ -89,12 +92,12 @@ select t('DM approves a note for an item the character does not hold', 'refused'
 select t('DM approves with a bad category', 'refused', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"skill","refVal":"Code of Honour"}]') $b$);
 select t('DM approves a note on a SOLO character (no campaign)', 'refused', $b$ select dm_ev('solo', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
 select t('a PLAYER calls dm_edit_character_log to approve their own note', 'refused', $b$ select as_user('a0000000-0000-0000-0000-000000000001'); select dm_edit_character_log((select id from characters where name='pending'), '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]'::jsonb) $b$);
-select t('an approval stamped with ANOTHER campaign does not count: the DM can approve here', 'allowed', $b$ select dm_ev('otherc', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
+select t('an approval stamped with ANOTHER campaign does not count: the DM can approve here', 'allowed', $b$ select dm_ev('otherc', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Old oath"}]') $b$);
 select t('DM unlocks an approved note, with a reason', 'allowed', $b$ select dm_ev('approved', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour","note":"swore a new oath"}]') $b$);
 select t('DM unlocks with no reason', 'allowed', $b$ select dm_ev('approved', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
 select t('DM unlocks a note that is not approved', 'refused', $b$ select dm_ev('pending', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
 select t('DM unlock reason over 200 characters', 'refused', $b$ select dm_ev('approved', format('[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour","note":"%s"}]', repeat('x', 201))) $b$);
-select t('DM approves then unlocks in ONE call', 'allowed', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"},{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
+select t('DM approves then unlocks in ONE call', 'allowed', $b$ select dm_ev('pending', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Never strike an unarmed foe."},{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]') $b$);
 
 -- ===== ATTACKS: a player changes an approved description (refused after; allowed today) =====
 select t('player appends a new note to an approved description', 'refused', $b$ select owner_append('approved', '{"seq":5,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}') $b$);
@@ -104,7 +107,7 @@ select t('player deletes the DM approval', 'refused', $b$ select owner_upd('appr
 select t('player forges a DM approval of their own pending note', 'refused', $b$ select owner_append('pending', '{"seq":6,"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Never strike an unarmed foe.","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}') $b$);
 select t('player forges a DM unlock of their approved note', 'refused', $b$ select owner_append('approved', '{"seq":5,"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}') $b$);
 select t('player forges an unlock AND a new note in one save', 'refused', $b$ select owner_upd('approved', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":5,"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true},{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New"}]'::jsonb) $e$) $b$);
-select t('a campaign character is inserted carrying an approval made in that campaign (player)', 'refused', $b$ select as_user('a0000000-0000-0000-0000-000000000009'); insert into characters(owner_id, campaign_id, name, kind, ap, stats) values ('a0000000-0000-0000-0000-000000000009','c1000000-0000-0000-0000-000000000001','ins','livesheet',0,(select stats from characters where name='approved')) $b$);
+select t('a campaign character inserted by a player carrying an approval made there arrives WITHOUT it (C: dropped, not refused)', 'allowed', $b$ select as_user('a0000000-0000-0000-0000-000000000009'); insert into characters(owner_id, campaign_id, name, kind, ap, stats) values ('a0000000-0000-0000-0000-000000000009','c1000000-0000-0000-0000-000000000001','ins','livesheet',0,(select stats from characters where name='approved')); select as_admin(); select expect((select count(*) = 0 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.name='ins' and e->>'type'='dmApproveNote'), 'forged approval dropped') $b$);
 
 -- ===== description text =====
 select t('player writes a 501-character note', 'refused', $b$ select owner_append('pending', format('{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"%s"}', repeat('x', 501))) $b$);
@@ -119,7 +122,7 @@ select t('approved description: player makes an unrelated purchase', 'allowed', 
 select t('approved description: player buys and describes ANOTHER flagged item', 'allowed', $b$ select owner_upd('approved', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":5,"type":"buy","cat":"boon","cost":4,"payload":{"v":"Patron"}},{"seq":6,"type":"itemNote","cat":"boon","refVal":"Patron","text":"A guild"}]'::jsonb) $e$) $b$);
 select t('approved description: player re-saves unchanged', 'allowed', $b$ select owner_upd('approved', $e$ stats || '{"name":"x"}'::jsonb $e$) $b$);
 select t('after a DM unlock the player changes the note', 'allowed', $b$ select dm_ev('approved', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]'); select owner_append('approved', '{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}') $b$);
-select t('after approval the player cannot change it, after re-approval neither', 'refused', $b$ select dm_ev('approved', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]'); select owner_append('approved', '{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}'); select dm_ev('approved', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour"}]'); select owner_append('approved', '{"seq":9,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Sneaky"}') $b$);
+select t('after approval the player cannot change it, after re-approval neither', 'refused', $b$ select dm_ev('approved', '[{"type":"dmUnlockNote","cat":"drawback","refVal":"Code of Honour"}]'); select owner_append('approved', '{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}'); select dm_ev('approved', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}]'); select owner_append('approved', '{"seq":9,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Sneaky"}') $b$);
 select t('an approval from ANOTHER campaign does not lock the note here', 'allowed', $b$ select owner_append('otherc', '{"seq":5,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}') $b$);
 select t('SOLO character: an approved note stays editable (never locked)', 'allowed', $b$ select owner_append('solo', '{"seq":5,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"New oath"}') $b$);
 select t('SOLO character: the player still cannot remove a DM approval', 'refused', $b$ select owner_upd('solo', $e$ jsonb_set(stats,'{LOG}', (select jsonb_agg(e order by o) from jsonb_array_elements(stats->'LOG') with ordinality x(e,o) where e->>'type' <> 'dmApproveNote')) $e$) $b$);
@@ -127,4 +130,33 @@ select t('a SOLO character is inserted carrying an approval (inert)', 'allowed',
 select t('admin session rewrites an approved note (hand repair)', 'allowed', $b$ select as_admin(); update characters set stats = jsonb_set(stats,'{LOG,2,text}','"Repaired"') where name = 'approved' $b$);
 select t('DM boon grant through dm_edit_character_log still works', 'allowed', $b$ select dm_ev('approved', '[{"type":"buy","cat":"boon","payload":{"v":"Lucky"},"cost":12},{"type":"award","amount":12,"note":"DM boon grant"}]') $b$);
 select t('DM unlock-drawback validation still runs (refuses a player-taken drawback)', 'refused', $b$ select dm_ev('approved', '[{"type":"dmUnlockDrawback","refVal":"Code of Honour","targetSeq":2,"note":"beat"}]') $b$);
+-- ===== #673 review A: approved text swapped while solo =====
+select t('A: DM approves, unbinds; the SOLO player rewrites the approved note in place; rebinds — the swapped note is pending, not approved', 'allowed', $b$
+  select as_admin(); update characters set campaign_id = null where name = 'approved';
+  select owner_upd('approved', $e$ jsonb_set(stats,'{LOG,2,text}','"Swapped oath"') $e$);
+  select as_admin(); update characters set campaign_id = 'c1000000-0000-0000-0000-000000000001' where name = 'approved';
+  select expect((select s.status = 'pending' from characters c, pact_item_note_state(c.stats->'LOG','drawback','Code of Honour','c1000000-0000-0000-0000-000000000001') s where c.name='approved'), 'swapped note pending') $b$);
+select t('A: ...so the player can still change it, and the DM approves the NEW text', 'allowed', $b$
+  select as_admin(); update characters set campaign_id = null where name = 'approved';
+  select owner_upd('approved', $e$ jsonb_set(stats,'{LOG,2,text}','"Swapped oath"') $e$);
+  select as_admin(); update characters set campaign_id = 'c1000000-0000-0000-0000-000000000001' where name = 'approved';
+  select owner_append('approved', '{"seq":5,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Swapped again"}');
+  select dm_ev('approved', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Swapped again"}]') $b$);
+select t('A: an approval whose text differs from the note it follows does not lock it', 'allowed', $b$
+  select as_admin(); update characters set stats = jsonb_set(stats,'{LOG,3,text}','"Not the note"') where name = 'approved';
+  select owner_append('approved', '{"seq":5,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Edited"}') $b$);
+
+-- ===== #673 review C: a player claims a DM's pregen whose descriptions the DM approved =====
+select t('C: redeem_character_claim of an approved pregen succeeds, and the copy''s approvals are dropped (notes pending again)', 'allowed', $b$
+  select as_admin();
+  insert into characters(owner_id, campaign_id, name, kind, ap, stats) values ('d0000000-0000-0000-0000-000000000001','c1000000-0000-0000-0000-000000000002','pregen','livesheet',0,(select stats from characters where name='approved'));
+  update characters set stats = jsonb_set(stats,'{LOG,3,campaignId}','"c1000000-0000-0000-0000-000000000002"') where name='pregen';
+  select as_dm();
+  create temp table tok as select public.create_character_claim((select id from characters where name='pregen'), null) as t;
+  select as_user('a0000000-0000-0000-0000-000000000009');
+  select * from public.redeem_character_claim((select t from tok));
+  select as_admin();
+  select expect((select count(*) = 0 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.owner_id='a0000000-0000-0000-0000-000000000009' and c.campaign_id='c1000000-0000-0000-0000-000000000002' and e->>'type'='dmApproveNote'), 'approvals dropped');
+  select expect((select count(*) = 1 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.owner_id='a0000000-0000-0000-0000-000000000009' and c.campaign_id='c1000000-0000-0000-0000-000000000002' and e->>'type'='itemNote'), 'note kept') $b$);
+
 select as_admin();

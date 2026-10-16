@@ -352,7 +352,7 @@ function pactComposeDescription(ap, who){
      {type:'dmApproveNote', cat, refVal, text, campaignId}  written ONLY by dm_edit_character_log (DM-stamped
                                                 dmEdit:true); `text` is the note as the server read it at approval
      {type:'dmUnlockNote',  cat, refVal, note?, campaignId}  same path; re-opens an approved note for editing
-   A note's state is read in log order: a note makes it 'pending', an approval makes it 'approved', an unlock or a NEWER
+   A note's state is read in log order: a note makes it 'pending', an approval of exactly that text makes it 'approved', an unlock or a NEWER
    note makes it 'pending' again. An approval or unlock counts only when it is DM-stamped AND was made in the campaign the
    character is in now (`campaignId`, stamped by the server) — a character that moves campaign needs its new DM's
    approval, and a solo character (no campaign) has no DM, so its note is required but never locked. The server applies
@@ -378,8 +378,11 @@ function pactNoteStates(log, campaignId){
     } else if(e.dmEdit !== true || !campaignId || String(e.campaignId) !== String(campaignId)){
       return;   // an approval or unlock counts only when the server stamped it, in the character's current campaign
     } else if(e.type === 'dmApproveNote'){
-      if(st.status === 'none') return;
-      st.status = 'approved'; st.approved = { text: typeof e.text === 'string' ? e.text : st.text, ts: e.ts || 0, dmId: e.dmId || null };
+      // Only an approval OF THIS TEXT counts: the server copies the approved text into the event, so a note rewritten in
+      // place afterwards (possible while the character was solo, where nothing is frozen) no longer matches and stays
+      // pending. (#673 review, finding A.)
+      if(st.status === 'none' || typeof e.text !== 'string' || e.text !== st.text) return;
+      st.status = 'approved'; st.approved = { text: e.text, ts: e.ts || 0, dmId: e.dmId || null };
     } else if(st.status === 'approved'){
       st.status = 'pending'; st.unlocked = { note: typeof e.note === 'string' ? e.note : '', ts: e.ts || 0 }; st.approved = null;
     }

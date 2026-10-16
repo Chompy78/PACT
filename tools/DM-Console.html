@@ -2095,7 +2095,9 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var st = r.status === 'none' ? '<span style="color:var(--warn)">not written yet</span>'
       : (r.status === 'approved' ? '<span style="color:var(--good,#2a7)">\uD83D\uDD12 approved</span>' : '<span style="color:var(--warn)">\u23F3 awaiting your approval</span>');
     var act = '';
-    if(dm && r.status === 'pending') act = ' <button type="button" class="btn sm dm-note-approve-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'">Approve</button>';
+    // data-text: the exact text shown here, sent with the approval so the server refuses it if the player has changed the
+    // note since this page loaded (#673 review B) — a DM never approves words they did not see.
+    if(dm && r.status === 'pending') act = ' <button type="button" class="btn sm dm-note-approve-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" data-text="'+esc(r.text)+'">Approve</button>';
     if(dm && r.status === 'approved') act = ' <button type="button" class="btn sm ghost dm-note-unlock-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" title="Lets the player change this description again; they will need your approval again afterwards.">Unlock</button>';
     return '<div class="dm-note-row" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" style="margin:6px 0">' +
       '<b>'+esc(r.name)+'</b> <span style="font-size:11px;color:var(--muted)">('+(r.cat === 'boon' ? 'boon' : 'drawback')+')</span> '+st+act +
@@ -3397,7 +3399,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           nEv = {type:'dmUnlockNote', cat:ncat, refVal:nname, label:'DM unlocked description — '+nname};
           if(nWhy) nEv.note = nWhy;
         } else {
-          nEv = {type:'dmApproveNote', cat:ncat, refVal:nname, label:'DM approved description — '+nname};
+          nEv = {type:'dmApproveNote', cat:ncat, refVal:nname, text:noteBtn.getAttribute('data-text') || '', label:'DM approved description — '+nname};
         }
         noteBtn.disabled = true;
         B.dmEditCharacterLog(ncid, [nEv]).then(function(){
@@ -3406,7 +3408,10 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           noteBtn.disabled = false;
           var nMsg = String(err && err.message || err);
           if(/unsupported event type/i.test(nMsg)) nMsg = 'The server has not been updated to support approving descriptions yet. Ask the app owner to apply the latest database update, then try again.';
-          else if(/no description|not approved|already approved/i.test(nMsg)) nMsg = 'The description changed since this page loaded. Reload the roster and try again.';
+          // The server's refusals (sql/migrations/2026-10-15-boon-drawback-notes.sql): the text changed since this page
+          // loaded, or the note is no longer awaiting approval / no longer approved (someone else acted first).
+          else if(/changed since this page loaded/i.test(nMsg)) nMsg = 'The description changed since this page loaded — reload the roster and read it again before approving.';
+          else if(/awaiting approval|is not approved/i.test(nMsg)) nMsg = 'This description is no longer '+(nUnlock ? 'approved' : 'awaiting approval')+' — reload the roster.';
           alert((nUnlock ? 'Unlock' : 'Approval')+' failed: '+nMsg);
         });
         return;

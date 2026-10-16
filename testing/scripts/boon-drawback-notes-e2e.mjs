@@ -129,6 +129,15 @@ console.log('Live Sheet — an approved note on a campaign character is locked u
   await close();
 }
 {
+  // A: the approved note was rewritten IN PLACE (possible while the character was solo): the approval no longer matches.
+  const { page, errs, close } = await openLS([award, oclass, coh(3), note(4, 'Swapped oath'), approve(5, 'Old oath')]);
+  await page.evaluate(() => { window._lsCampaignId = 'camp-1'; render(); });
+  check('A: an approval of a DIFFERENT text does not approve or lock the current note', await page.evaluate(() => {
+    const r = document.querySelector('#sheet .lsnote'); return !!r && /awaiting DM approval/.test(r.textContent) && !!r.querySelector('.lsnote-edit'); }));
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await close();
+}
+{
   const { page, errs, close } = await openLS([award, oclass, coh(3), note(4, 'Old oath'), approve(5, 'Old oath'), unlockN(6)]);
   await page.evaluate(() => { window._lsCampaignId = 'camp-1'; render(); });
   await page.evaluate(() => { window.__answers = ['New oath']; lsEditItemNote('drawback', 'Code of Honour'); });
@@ -169,6 +178,13 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
   await page.click(box('Heavy Sleeper'));
   check('an unflagged drawback is ticked without a question', (await page.evaluate(() => window.__prompts.length)) === 0
     && (await cgLog()).some(e => e.type === 'buy' && e.v === 'Heavy Sleeper'));
+  const nU = (await cgLog()).length;
+  await page.evaluate(() => { window.__answers = ['Dice, always dice.']; });
+  await page.click(box('Compulsion'));
+  const afterBuy = (await cgLog()).length;
+  await page.evaluate(() => undo());
+  check('E: the purchase and its description are ONE undo step', afterBuy === nU + 2 && (await cgLog()).length === nU
+    && !(await page.isChecked(box('Compulsion'))), `${nU} -> ${afterBuy} -> ${(await cgLog()).length}`);
   await page.evaluate(() => { window.__answers = ['Edited oath']; cgEditItemNote('drawback', 'Code of Honour'); });
   check('the note can be edited before approval', (await cgLog()).slice(-1)[0].text === 'Edited oath');
   // Approved by the DM while in a campaign: locked.
@@ -186,6 +202,41 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
   check('the note helpers never shadow CharGen\'s campaign globals (cloud save reads window._cgCampaignId)',
     await page.evaluate(() => typeof window._cgCampaignId === 'string' && typeof window._cgCampaignBound !== 'function'));
   check('the 📋 Sheet shows the note', await page.evaluate(() => [...document.querySelectorAll('.shnotes')].some(d => /Edited oath/.test(d.textContent))));
+  await page.evaluate(() => { try { toggleSheet(); } catch (e) {} });
+  // D: Randomise rebuilds the log from the form — the descriptions and their approval must come through verbatim.
+  const fam = () => page.evaluate(() => JSON.stringify(LOG.filter(e => ['itemNote', 'dmApproveNote', 'dmUnlockNote'].includes(e.type))));
+  const famBefore = await fam();
+  await page.evaluate(() => { window.confirm = () => true; randomizeRoll(); });
+  await page.waitForTimeout(500);
+  check('D: Randomise keeps every note and approval event verbatim (same seq/ts)', (await fam()) === famBefore,
+    `${famBefore.length} vs ${(await fam()).length}`);
+  check('D: ...and no later event reuses a carried seq', await page.evaluate(() => {
+    const seqs = LOG.filter(e => ['itemNote', 'dmApproveNote'].includes(e.type)).map(e => e.seq); return seqs.every(q => SEQ > q); }));
+  // D: the Live-Sheet-file load branch rebuilds the log too; it must carry the notes, and an approval makes it a copy.
+  const lsFile = { rules: 'v0.376', name: 'Notes file', id: '99999999-2222-3333-4444-555555555555', LOG: [
+    { type: 'buy', cat: 'drawback', payload: { v: 'Code of Honour' }, cost: -3, level: 1, seq: 1, label: 'Drawback — Code of Honour' },
+    { type: 'itemNote', cat: 'drawback', refVal: 'Code of Honour', text: 'File oath', seq: 2 },
+    { type: 'dmApproveNote', cat: 'drawback', refVal: 'Code of Honour', text: 'File oath', campaignId: 'camp-9', seq: 3, dmEdit: true, dmId: 'dm' } ] };
+  await page.setInputFiles('#loadfile', { name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(lsFile)) });
+  await page.waitForFunction(() => LOG.some(e => e.type === 'itemNote' && e.text === 'File oath'), null, { timeout: 8000 }).catch(() => {});
+  check('D: loading a Live Sheet file keeps its note and approval events', await page.evaluate(() =>
+    LOG.some(e => e.type === 'itemNote' && e.text === 'File oath' && e.seq === 2) && LOG.some(e => e.type === 'dmApproveNote' && e.seq === 3)));
+  check('D: ...and, carrying a DM approval, it opens as a separate copy (fresh id)', await page.evaluate(() => currentCharId() !== '99999999-2222-3333-4444-555555555555'));
+  // E (post-lock): a purchase that is refused is never asked about; a cancelled description buys nothing.
+  await page.evaluate(() => { window._cgCampaignId = null; LOG.push({ type: 'creationLocked', seq: SEQ++, ts: Date.now() }); render(); window.__prompts = []; window.__alerts = []; window.__f = []; });
+  const nL0 = (await cgLog()).length;
+  await page.evaluate(() => { window.__answers = ['never used']; const el = document.querySelector('input.boonck[value="Patron"]'); if (el) el.click(); });
+  check('E: after the lock, an UNAFFORDABLE flagged boon is refused WITHOUT asking for a description (asked after the checks)',
+    (await page.evaluate(() => window.__prompts.length)) === 0 && (await cgLog()).length === nL0, String(await page.evaluate(() => window.__prompts.length)));
+  await page.evaluate(() => { window.__answers = []; LOG.push({ type: 'award', amount: 100, label: 'AP', seq: SEQ++, ts: Date.now() }); render(); window.__prompts = []; });
+  const nL = (await cgLog()).length;
+  await page.evaluate(() => { window.__answers = [null]; const el = document.querySelector('input.boonck[value="Patron"]'); if (el) el.click(); });
+  check('E: after the lock, cancelling the description buys nothing',
+    (await page.evaluate(() => window.__prompts.length)) === 1 && (await cgLog()).length === nL);
+  await page.evaluate(() => { window.__answers = ['The Silver Hand']; const el = document.querySelector('input.boonck[value="Patron"]'); if (el) el.click(); });
+  const pl = (await cgLog()).slice(-2);
+  check('E: ...and with one, the post-lock purchase and its note are appended together', pl[0].type === 'buy' && pl[0].v === 'Patron'
+    && pl[1].type === 'itemNote' && pl[1].text === 'The Silver Hand', JSON.stringify(pl));
   check('no page errors', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }
@@ -227,6 +278,7 @@ console.log('DM Console — notes awaiting approval, Approve and Unlock');
   check('Approve sends exactly one dmApproveNote {cat, refVal} for that character',
     c1.length === 1 && c1[0].id === 'c-pending' && c1[0].events.length === 1 && c1[0].events[0].type === 'dmApproveNote'
     && c1[0].events[0].cat === 'drawback' && c1[0].events[0].refVal === 'Code of Honour', JSON.stringify(c1));
+  check('B: ...carrying the exact text the DM was shown', c1[0] && c1[0].events[0].text === XSS);
   check('...and reloads the roster', (await page.evaluate(() => window.__reloads)) === 1);
   await page.evaluate(() => { window.__answers = ['They swore a new oath']; });
   await page.evaluate(() => document.querySelector('.card[data-id="c-approved"] .dm-note-unlock-btn').click());
@@ -240,6 +292,11 @@ console.log('DM Console — notes awaiting approval, Approve and Unlock');
   await page.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
   check('before the migration is applied the DM gets a plain "server not updated" message',
     await page.evaluate(() => /has not been updated/.test(window.__alerts[0] || '')), await page.evaluate(() => window.__alerts[0]));
+  await page.evaluate((rs) => { window.__alerts = []; window.__fail = 'dm_edit_character_log: the description of drawback "Code of Honour" changed since this page loaded — reload and read it again'; window._dmRenderCloudRoster(document.getElementById('campRoster'), rs); }, rows);
+  await page.evaluate(() => document.querySelector('#campNotesPending .dm-note-approve-btn').click());
+  await page.waitForFunction(() => window.__alerts.length > 0, { timeout: 5000 });
+  check('B: the server\'s "changed since this page loaded" refusal reaches the DM as a reload message',
+    await page.evaluate(() => /changed since this page loaded — reload the roster/.test(window.__alerts[0] || '')), await page.evaluate(() => window.__alerts[0]));
   // Archived-campaign peek blocks the write.
   await page.evaluate((rs) => { window.__fail = null; window.__calls = []; window._dmPeekActive = true; window._dmPeekBlocks = () => { window.__blocked = 1; }; window._dmRenderCloudRoster(document.getElementById('campRoster'), rs); }, rows);
   await page.evaluate(() => document.querySelector('#campNotesPending .dm-note-approve-btn').click());   // #campRoster is hidden without a signed-in campaign
