@@ -1632,29 +1632,6 @@ Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime �
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
 
-## fix/livesheet-pack-spells — Live Sheet and the 📋 Sheet don't show cantrips/spells that came from heritage packs (or other grants) — TODO
-Branch fix/livesheet-pack-spells. **Effort:** low–medium · **Risk:** low — display only (no pricing), but must read the same fold the engine prices.
-
-```text
-Owner report 2026-10-14. Cantrips and spells a character gets as part of a heritage/species pack — or any other non-direct
-source (origin/racial grant, subclass, feature) — are missing from the Live Sheet's spell list and from the 📋 Sheet view;
-only spells bought directly show. DO: find every place the engine grants a spell/cantrip (grep js/engine.js / engine-data.js
-for pack contents, racial spells, granted cantrips — use the engine's own fold/compute output, never re-derive rules in the
-tool) and list them in both views alongside bought ones, each marked with where it came from (e.g. "from Wood Elf heritage").
-Escape every name. Check CharGen's Sheet tab for the same gap.
-```
-**Done when:** e2e: a character with a heritage pack that grants a cantrip (and one granting a levelled spell) shows them in the Live Sheet spell list and the 📋 Sheet, labelled with their source; bought spells unchanged; `engine-parity-ci` 0 failed.
-
-## feat/livesheet-saves-in-stats-card — Live Sheet centre panel: saving throws in the stats card, colour-coded — TODO
-Branch feat/livesheet-saves-in-stats-card. **Effort:** low · **Risk:** low — display only.
-
-```text
-Owner report 2026-10-14. The Live Sheet centre panel doesn't show saving throws properly. Move them into the stats (ability)
-card: each ability shows its saving throw next to it, colour-coded with that ability's colour (the tools already use one
-colour per ability — e.g. CharGen's _CSABCOL STR/DEX/CON/INT/WIS/CHA), with proficient saves clearly marked. Values come from
-compute() (never re-derived). Keep it readable on a phone.
-```
-**Done when:** the centre panel's stats card shows all six saves, each in its ability colour, proficient ones marked, values matching compute(); the old separate display removed; e2e/screenshot check at phone and desktop width.
 
 ## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
 Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
@@ -1710,20 +1687,21 @@ Also for the owner: confirm the provisional solo rule (required, never locked). 
 ```
 **Done when:** the migration is applied to production with advisors clean; a player's direct write changing an approved description is refused there; `dm_edit_character_log` on production still contains `assert_campaign_active`, the boon/award match, `dmUnlockDrawback`, `dmDiscount` (and `dmHouseRules` if that migration is live); the baseline fold PR is merged.
 
-## feat/livesheet-sheet-layout — Live Sheet: colour-coded skills, description always visible, centre panel and 📋 Sheet look alike — TODO
-Branch feat/livesheet-sheet-layout. **Effort:** medium · **Risk:** low — display only.
+## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
+Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.
 
 ```text
-Owner request 2026-10-14. Live Sheet presentation:
-  1. Skills: colour-code each skill by its ability, with the same per-ability colours the stats card and saves use
-     (see feat/livesheet-saves-in-stats-card — do them together or share one colour map).
-  2. Appearance & description: the description PARAGRAPH is always shown; only the individual fields (hair, eyes, …) are
-     collapsible. Today the whole block collapses.
-  3. Make the centre panel and the 📋 Sheet view match more closely — same sections, order, labels and styling — so a
-     player sees one character sheet, not two different layouts. Prefer one shared renderer over two copies.
-Values from compute()/the fold only; every player value escaped; check phone width.
+Owner decision AR1 (2026-10-15, review of #672). Since feat/livesheet-sheet-layout the Live Sheet's 📋 Sheet renders the
+Character panel's own body (_lsCharBody in render(), plus _lsTableExtras) — see D-GH-2026-10-15-livesheet-sheet-layout.
+CharGen's Sheet tab still uses its own renderCharSheet(b,r,ctx), the last copy of the old fillable layout. DO: move the
+body renderer somewhere both tools load (e.g. js/ui-helpers.js, or a new shared classic script — it needs esc, the colour
+map _CSABCOL, skillMods/saveMods/grantedSpells from the engine bridge, _lsFx/_fxBtn for ⓘ, and the description block),
+call it from CharGen's Sheet tab, and delete CharGen's renderCharSheet(). Keep CharGen's tool-specific bits as opts (no
+rename button, CharGen's AP line, no playerSheet editing unless CharGen gains it). Keep the device-local "at the table"
+fields and the AP ledger. Every player value escaped; check phone width.
 ```
-**Done when:** skills show in their ability colours; the description paragraph is visible with the fields collapsed; the centre panel and 📋 Sheet show the same sections in the same order and style (screenshot check at phone and desktop width); existing Live Sheet e2e green.
+**Done when:** CharGen's Sheet tab and the Live Sheet's 📋 Sheet render through one shared function (no renderCharSheet left in either tool); an e2e asserts both tools show the same section outline for the same character; ledger-xss / esc-gap-verify / tool-pricing-ci updated and green; `engine-parity-ci` 0 failed.
+
 
 ## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
 Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.

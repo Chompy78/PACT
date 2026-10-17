@@ -48,11 +48,18 @@
   stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (provisional). Migration NOT
   applied; must be reconciled with the house-rules migration (whichever applies second rebuilds on the other).
   Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
+## D-GH-2026-10-15-livesheet-sheet-layout — the Live Sheet's 📋 Sheet IS the Character panel's body (one renderer)
+- `render()`'s panel block runs as `_lsCharBody(b,r,eco,opts)`, defined in place, and `renderSheet()` calls it, followed by
+  at-the-table extras (HP, death saves, slots used, AP ledger). The old Sheet-only content (languages, proficiencies,
+  species traits, subclass abilities, bonds, passive Perception) moved into the panel. Old device-local notes are shown
+  only when present, never hidden. The Live Sheet's `renderCharSheet()` copy is deleted; CharGen keeps its own.
+  Display only. Full record: `decisions/2026/D-GH-2026-10-15-livesheet-sheet-layout.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
   Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one
   lookup, `_lsFx()`: rules-data text where it exists, otherwise a PHB page, never ad-hoc rules text (the ~600 missing
-  summaries are `feat/feature-effect-text`). Display-only; released in `v1.657`.
+  summaries are `feat/feature-effect-text`). Display-only; released in `v1.657`. Sheet-view half superseded by
+  `D-GH-2026-10-15-livesheet-sheet-layout`.
   Full record: `decisions/2026/D-GH-2026-10-13-livesheet-sheet-view-desc.md`.
 ## D-GH-2026-10-13-dm-ap-discount — a DM can take AP off any purchase, and the total given is recorded
 - A `dmDiscount` event {targetSeq, targetCat, amount, note}, DM-only through `dm_edit_character_log`, tied to one purchase

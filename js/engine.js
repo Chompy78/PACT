@@ -307,6 +307,102 @@ export function lineageSpellLabel(sp){
        + (need > 1 ? ' · needs ' + need + ' HD' : '');
 }
 
+// ownedChoiceGrants(b) — the choice grants (DATA.spellGrants.choiceGrants) this character actually holds: the class feature
+// (e.g. "Bard: Magical Secrets") or the subclass (free pick or any of its abilities), and only from the grant's charLevel
+// (PACT: required Hit Dice). Wizard: Spellbook is the tradition's own list, never a separate grant. One row per grant:
+// { key, label, from: [class lists], note, charLevel }. Was a byte-identical _ownedGrants() in CharGen and the Live Sheet
+// (minus the level gate); moved here for fix/livesheet-pack-spells so the spell lists and the ✎ Name dialog agree.
+const _GRANT_LISTS = ["Artificer","Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard"];
+export function ownedChoiceGrants(b) {
+  b = b || {};
+  const cg = (DATA.spellGrants && DATA.spellGrants.choiceGrants) || {}, hd = Number(b.hd) || 1, out = [];
+  for (const key of Object.keys(cg)) {
+    if (key === "Wizard: Spellbook") continue;
+    const g = cg[key], [kcls, ksub] = key.split(": ");
+    let owned = false;
+    if ((DATA.features || {})[key]) owned = (b.features || []).indexOf(key) >= 0;
+    else if (ksub) owned = ((b.freeSub || {})[kcls] === ksub) || (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0);
+    if (!owned || hd < (Number(g.charLevel) || 1)) continue;
+    out.push({ key, label: ksub || key, from: _GRANT_LISTS.filter(c => (g.from || "").indexOf(c) >= 0), note: g.from || "", charLevel: Number(g.charLevel) || 1 });
+  }
+  return out;
+}
+
+// grantedSpells(b) — every spell or cantrip the character has from somewhere OTHER than a tradition discipline's own
+// cantrip/known lists (fix/livesheet-pack-spells, owner report 2026-10-14: a Tiefling's lineage Fire Bolt and its
+// Thaumaturgy trait never appeared in the Live Sheet's spell list). Display only — it prices nothing and compute() does not
+// call it; the tools render it so none of them re-derives which grant gives what. One row per spell:
+//   { name, level (0 = cantrip, null = not in the spell data), kind, source, note, needHD, disc? }
+//   kind: 'lineage' (bought lineage spell-like) · 'trait' (a species trait that is a cantrip, e.g. Thaumaturgy) ·
+//         'subclass' (always-prepared bundle; disc = the discipline it belongs to) · 'grant' (a choice-grant pick) ·
+//         'style' (a fighting style's cantrips) · 'innate' (a bought innate spell-like).
+//   needHD > b.hd means the character owns it but cannot use it yet.
+// Unnamed picks (a slot the player has not named) are left out; the "Not named yet" notices already list those. Only what the
+// build still GRANTS is listed: a stale name left behind by a lineage/species change, a grant the character no longer holds
+// (or has not reached the level for) or a style beyond its Fighting Style slots stays out, exactly as compute() ignores it.
+const _FS_FEATURES = ['Fighter: Fighting Style', 'Paladin: Fighting Style', 'Ranger: Fighting Style', 'Fighter: Additional Fighting Style'];
+export function grantedSpells(b) {
+  b = b || {};
+  const out = [], hd = Number(b.hd) || 1;
+  const lvlOf = nm => { const s = (DATA.spells || []).find(x => x.n === nm); return s ? s.l : null; };
+  const nm = v => String(v == null ? '' : v).trim();
+  // Lineage spell-likes (b.racialSpells, priced by the lineage table).
+  const lin = (DATA.lineageSpells || {})[b.lineage] || [];
+  const linRace = Object.keys(DATA.lineageOf || {}).find(r => ((DATA.lineageOf || {})[r] || []).indexOf(b.lineage) >= 0);
+  const linSrc = (b.lineage || '') + (linRace ? ' ' + linRace : '') + ' lineage';
+  for (const n of (b.racialSpells || [])) {
+    const sp = lin.find(x => x[0] === n);
+    if (!sp) continue;   // not in the CURRENT lineage (compute() warns "no longer in the rules data" and prices it 0)
+    out.push({ name: n, level: sp[2], kind: 'lineage', source: linSrc, note: lineageSpellLabel(sp), needHD: lineageSpellHD(sp) });
+  }
+  // Species traits that ARE a cantrip (DATA.spellGrants.racialCantrips), whether bought or held through the heritage pack.
+  // The index names the trait without its suffix ("Tiefling: Thaumaturgy" for the trait "Tiefling: Thaumaturgy cantrip").
+  const owned = (b.racialTraits || []).concat(packTraitsFor(b.species, b.species2));
+  const rc = (DATA.spellGrants && DATA.spellGrants.racialCantrips) || {};
+  for (const key of Object.keys(rc)) {
+    const lab = owned.find(t => t === key || t.indexOf(key + ' ') === 0);
+    if (!lab) continue;
+    const race = (DATA.racial[lab] || {}).race || key.split(': ')[0];
+    if (race !== b.species && race !== b.species2) continue;   // origin-race-only (cross: null): compute() refuses it on another species
+    for (const s of (rc[key].spells || []))
+      out.push({ name: s.name, level: lvlOf(s.name) ?? 0, kind: 'trait', source: race + ' trait — ' + (lab.split(': ')[1] || lab),
+                 note: 'at will', needHD: Number(s.charLevel) || 1 });
+  }
+  // Subclass always-prepared spell bundles ("Discipline|Subclass|terrain").
+  const ss = (DATA.spellGrants && DATA.spellGrants.subclassSpells) || {};
+  for (const bk of (b.subSpellBundles || [])) {
+    const p = String(bk).split('|'); const g = ss[p[0] + ': ' + p[1] + (p[2] ? ' (' + p[2] + ')' : '')];
+    if (!g || !g.spells) continue;
+    g.spells.slice().sort((a, c) => (a.spellLevel - c.spellLevel) || (a.name < c.name ? -1 : 1)).forEach(s =>
+      out.push({ name: s.name, level: s.spellLevel || 0, kind: 'subclass', source: p[1] + (p[2] ? ' (' + p[2] + ')' : ''),
+                 note: 'always prepared', needHD: Number(s.charLevel) || 1, disc: p[0] }));
+  }
+  // Choice grants the player has named (b.grantNames — e.g. "Rogue: Arcane Trickster" → Wizard spells).
+  const gm = b.grantNames || {}, held = new Set(ownedChoiceGrants(b).map(g => g.key));
+  for (const gk of Object.keys(gm)) if (held.has(gk)) for (const v of (gm[gk] || [])) {
+    const n = nm(v); if (!n) continue;
+    out.push({ name: n, level: lvlOf(n), kind: 'grant', source: gk.split(': ')[1] || gk, note: 'free — from a choice grant', needHD: 1 });
+  }
+  // Fighting styles that grant cantrips (Blessed Warrior, Druidic Warrior).
+  // Only the styles named into the character's Fighting Style feature slots (the ✎ Name dialog's own rule), and only a style
+  // whose granting feature is owned; at most the style's own cantrip count.
+  const fsc = b.fsCantripNames || {};
+  const fsSlots = (b.features || []).filter(f => _FS_FEATURES.indexOf(f) >= 0).length;
+  for (const st of (b.fightingStyleNames || []).slice(0, fsSlots)) {
+    const a = (DATA.arts || {})[st] || {}, gc = a.grantCantrips; if (!gc) continue;
+    if (a.reqFeat && (b.features || []).indexOf(a.reqFeat) < 0) continue;
+    for (const v of (fsc[st] || []).slice(0, gc.n || 2)) { const n = nm(v); if (n)
+      out.push({ name: n, level: 0, kind: 'style', source: st + ' fighting style', note: gc.list + ' list · cast with ' + gc.ab, needHD: 1 }); }
+  }
+  // Bought innate spell-likes (b.innate counts per level, b.innateNames their names).
+  for (let L = 1; L <= 9; L++) {
+    const c = (b.innate || [])[L - 1] || 0;
+    for (let i = 0; i < c; i++) { const n = nm(((b.innateNames || [])[L - 1] || [])[i]); if (n)
+      out.push({ name: n, level: L, kind: 'innate', source: 'Innate spell-like', note: '1 / long rest', needHD: 1 }); }
+  }
+  return out;
+}
+
 // Character size (0 AP). Halfling & Gnome packs are Small. A Halfling is ALWAYS Small (even as a second origin). A Halfling
 // or Gnome paired with a non-small second origin race may CHOOSE Small or Medium (default Small); a Tiefling chooses (default
 // Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
@@ -325,6 +421,18 @@ export function skillMods(b, r) {
     const ab = (skill === 'Initiative' && !p) ? 'DEX' : ab0;
     const abMod = mods[ab] || 0;
     return { skill, ab, abMod, prof: p, total: abMod + p * prof };
+  });
+}
+
+// saveMods(b, r?) — the six saving throws for display (feat/livesheet-saves-in-stats-card), in STR..CHA order:
+// { ab, abMod, prof (true when proficient), total }. total = the ability modifier + proficiency (if proficient) + compute()'s
+// saveAdj (Weak-Willed's −1 to every save). Display only, like skillMods(); pass compute(b)'s result as r.
+export function saveMods(b, r) {
+  r = r || compute(b);
+  const mods = r.mods || {}, prof = r.prof || 0, adj = r.saveAdj || 0, sv = b.saves || [];
+  return ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(ab => {
+    const p = sv.includes(ab), abMod = mods[ab] || 0;
+    return { ab, abMod, prof: p, total: abMod + (p ? prof : 0) + adj };
   });
 }
 
