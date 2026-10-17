@@ -103,7 +103,19 @@
         { id: "CG-067", path: "../fixtures/builds/CG-067-martially-bound-ranger-fighting-style-flat.json" },
         { id: "CG-068", path: "../fixtures/builds/CG-068-martially-bound-fighter-ordinary-feature-still-discounted.json" },
         { id: "CG-069", path: "../fixtures/builds/CG-069-staunch-the-bleeding-costs-2.json" },
-        { id: "CG-070", path: "../fixtures/builds/CG-070-quick-patch-still-costs-3.json" }
+        { id: "CG-070", path: "../fixtures/builds/CG-070-quick-patch-still-costs-3.json" },
+        { id: "CG-071", path: "../fixtures/builds/CG-071-barbarian-unarmored-defense-with-shield.json" },
+        { id: "CG-072", path: "../fixtures/builds/CG-072-monk-unarmored-defense.json" },
+        { id: "CG-073", path: "../fixtures/builds/CG-073-monk-unarmored-defense-shield-in-hand.json" },
+        { id: "CG-074", path: "../fixtures/builds/CG-074-monk-unarmored-defense-shield-set-down.json" },
+        { id: "CG-075", path: "../fixtures/builds/CG-075-barbarian-unarmored-defense-wearing-chain-mail.json" },
+        { id: "CG-076", path: "../fixtures/builds/CG-076-mage-armor-with-shield.json" },
+        { id: "CG-077", path: "../fixtures/builds/CG-077-draconic-resilience-subclass-door.json" },
+        { id: "CG-078", path: "../fixtures/builds/CG-078-draconic-resilience-hd-blocked-grants-nothing.json" },
+        { id: "CG-079", path: "../fixtures/builds/CG-079-defense-style-art-in-chain-mail.json" },
+        { id: "CG-080", path: "../fixtures/builds/CG-080-defense-style-art-unarmoured.json" },
+        { id: "CG-081", path: "../fixtures/builds/CG-081-defense-named-for-fighting-style-slot.json" },
+        { id: "CG-082", path: "../fixtures/builds/CG-082-defense-named-without-a-slot.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
@@ -176,6 +188,7 @@
             warningsArr: r.warnings,
             remaining: r.remaining,
             ok: r.remaining >= 0,
+            ac: r.ac, expectAc: build._expectAc, hp: r.hp, expectHp: build._expectHp,   // optional per-fixture AC / HP assertions (feat/livesheet-armour-ac)
             error: null
           });
         } catch (e) {
@@ -320,6 +333,11 @@
           } else if (JSON.stringify(row.warningsArr) !== JSON.stringify(expWarnTexts)) {
             failures.push(`warning text mismatch: got ${JSON.stringify(row.warningsArr)}, expected ${JSON.stringify(expWarnTexts)}`);
           }
+
+          if (row.expectAc !== undefined && row.ac !== row.expectAc)
+            failures.push(`ac: got ${row.ac}, expected ${row.expectAc}`);
+          if (row.expectHp !== undefined && row.hp !== row.expectHp)
+            failures.push(`hp: got ${row.hp}, expected ${row.expectHp}`);
 
           // CG-003: must be over-budget (warning text itself is covered by the exact-array check above)
           if (row.id === "CG-003") {

@@ -93,6 +93,10 @@ export { DATA };
  * map is what keeps those characters whole. Applied at both funnels — MUT.feature (so replay
  * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
  * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
+/* The value b.wornArmour holds while Mage Armor is up (feat/livesheet-armour-ac). Not an armour — the character is unarmoured —
+ * so it is never a key of DATA.armours: armourEligible() and the campaign armour ban list both ignore it. Picked from the same
+ * "worn armour" list in every tool, because the spell is a choice the player makes (it can be cast by an ally, and lasts 8 hours). */
+export const MAGE_ARMOR = 'Mage Armor';
 export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
 
 /* One ability, two purchase doors (feat/subclass-double-purchase-guard, owner decision P3, 2026-10-05).
@@ -1232,11 +1236,49 @@ export function compute(b, opts){
   const init=(b.skills||[]).includes("Initiative")?(mod.WIS+prof+((b.expertise||[]).includes("Initiative")?prof:0)):dexMod;
   // v74: medium/heavy armour give no benefit unless STR >= 10
   const strOK=(st.STR||10)>=10;
-  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];let ac;if(_wa){if(_wa.cat==="heavy")ac=_wa.base;else if(_wa.cat==="medium")ac=_wa.base+Math.min(dexMod,2);else ac=_wa.base+dexMod;if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}else{ac=10+dexMod;}   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */if(arm.shield)ac+=2;if(dset["Thin-Skinned"])ac-=1;
+  // ----- Armour Class (feat/livesheet-armour-ac, D-GH-2026-10-15-livesheet-armour-ac) -----
+  // Three inputs, all free (cost-0) choices the player makes on the sheet: the armour WORN (b.wornArmour — an armour name, "" for
+  // none, or MAGE_ARMOR while that spell is up), and whether the shield is IN HAND (b.shieldWorn). The AC is then the BEST base
+  // formula that applies, plus 2 for a shield in hand, minus 1 for Thin-Skinned. The unarmoured formulas come from owned class
+  // features — and "owned" means counted, exactly as the pricing loops count it: a feature blocked by its Hit-Dice gate or a missing
+  // prerequisite, or the uncounted second copy of a two-door subclass ability, grants nothing.
+  //   - no armour: 10 + Dex;  Mage Armor (picked on the sheet — cast by you or an ally): 13 + Dex;
+  //   - Barbarian Unarmored Defense: 10 + Dex + Con (a shield is allowed);
+  //   - Monk Unarmored Defense: 10 + Dex + Wis (no armour AND no shield);
+  //   - Draconic Resilience: 10 + Dex + Cha (a shield is allowed).
+  //   Any worn armour replaces all of these with its own base (heavy: no Dex; medium: Dex up to +2; light: full Dex).
+  // b.shieldWorn: false = shield set down; absent (every save before v0.377) = carried whenever trained, so no existing
+  // character's shield bonus moves. A shield gives +2 only with shield training. Nothing here adds a warning: warnings feed
+  // purchaseLegality(), and owning a shield must never make buying Monk Unarmored Defense look illegal — advice goes in acInfo.notes.
+  const _shieldOn=!!arm.shield&&b.shieldWorn!==false;
+  const _ownsEff=lab=>(_ownedFeatSet.has(lab)&&!_blockedFeat.has(lab)&&!_dupFeat.has(lab))||(b.subAbilities||[]).some(function(k){const a=DATA.subAbilMap[k];return !!a&&_subIdent(a)===lab&&!_dupSub.has(k)&&!_subWhy(a).length;});
+  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];const _acC=[];const _acNotes=[];let _monkAc=null;
+  if(_wa){const _dx=_wa.cat==="heavy"?0:_wa.cat==="medium"?Math.min(dexMod,2):dexMod;_acC.push({src:b.wornArmour,base:_wa.base,parts:_wa.cat==="heavy"?[]:[["Dex",_dx]]});if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}
+  else{   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */
+    _acC.push({src:"Unarmoured",base:10,parts:[["Dex",dexMod]]});
+    if(b.wornArmour===MAGE_ARMOR)_acC.push({src:"Mage Armor",base:13,parts:[["Dex",dexMod]]});
+    if(_ownsEff("Barbarian: Unarmored Defense"))_acC.push({src:"Unarmored Defense (Barbarian)",base:10,parts:[["Dex",dexMod],["Con",mod.CON]]});
+    if(_ownsEff("Monk: Unarmored Defense")){if(_shieldOn){_acNotes.push("Monk Unarmored Defense does not work with a shield in hand");_monkAc=10+dexMod+mod.WIS;}else _acC.push({src:"Unarmored Defense (Monk)",base:10,parts:[["Dex",dexMod],["Wis",mod.WIS]]});}
+    if(_ownsEff("Sorcerer: Draconic Resilience"))_acC.push({src:"Draconic Resilience",base:10,parts:[["Dex",dexMod],["Cha",mod.CHA]]});}
+  _acC.forEach(function(c){c.ac=c.base+c.parts.reduce(function(s,p){return s+p[1];},0);});
+  const _acBest=_acC.reduce(function(a,c){return c.ac>a.ac?c:a;},_acC[0]);   // ties keep the earlier (simpler) formula
+  // Defense Fighting Style (owner decision AP1, 2026-10-15): +1 AC while WEARING armour (Mage Armor is not armour). Owned either as a
+  // bought art (not Hit-Dice blocked) or as the style named for a counted "Fighting Style" feature slot; it never stacks with itself.
+  const _fsSlots=["Fighter: Fighting Style","Paladin: Fighting Style","Ranger: Fighting Style","Fighter: Additional Fighting Style"].filter(_ownsEff).length;
+  const _defense=!!_wa&&(((b.arts||[]).indexOf("Defense")>=0&&!_blockedArt.has("Defense"))||(b.fightingStyleNames||[]).slice(0,_fsSlots).indexOf("Defense")>=0);
+  let ac=_acBest.ac;if(_defense)ac+=1;if(_shieldOn)ac+=2;if(dset["Thin-Skinned"])ac-=1;
+  // A nudge, never a rule: the shield stays the player's choice. Shown only when setting it down would actually raise AC.
+  const _nudge=(_monkAc!=null&&_monkAc>_acBest.ac+2)?("Set the shield down: Monk Unarmored Defense would give AC "+(_monkAc+(dset["Thin-Skinned"]?-1:0))+" (now "+ac+")"):null;
+  const acInfo={src:_acBest.src,base:_acBest.base,parts:_acBest.parts,defense:_defense?1:0,shield:_shieldOn?2:0,shieldTrained:!!arm.shield,thinSkinned:dset["Thin-Skinned"]?-1:0,
+    options:_acC.map(function(c){return {src:c.src,ac:c.ac};}),notes:_acNotes,nudge:_nudge};
+  // Draconic Resilience's hit points (owner decision AP1; 2024 PHB: "Your Hit Point maximum increases by 3, and it increases by 1
+  // whenever you gain another Sorcerer level" — gained at Sorcerer level 3, so the bonus equals that level). PACT is classless and a
+  // character's level is its Hit Dice, and the ability needs 3 Hit Dice (T3), so the bonus is +1 HP per Hit Die: +3 at 3 HD, +1 per HD after.
+  const _hpDraconic=_ownsEff("Sorcerer: Draconic Resilience")?hd:0;
   if((arm.medium||arm.heavy)&&!strOK) W.push("⛔ Medium armour requires Strength 10 (STR is "+(st.STR||10)+")");
   // §14: Frail and Glass Frame are HP-reduction drawbacks that do not stack (and may not be taken together)
   if(dset["Frail"]&&dset["Glass Frame"]) W.push("Frail and Glass Frame can't be taken together — their HP penalties don't stack");
-  let hp2=hp; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
+  let hp2=hp+_hpDraconic; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
   let _spB=DATA.speed[b.species]||30,_spF=_spB; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spdSet&&rr.spdSet>_spF)_spF=rr.spdSet;}); var _lsp=(DATA.lineageSpeed&&DATA.lineageSpeed[b.lineage]); if(_lsp&&_lsp>_spF)_spF=_lsp; let speed=_spF; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spd)speed+=rr.spd;}); if(dset["Slow-Footed"])speed-=5; if(dset["Lame"])speed-=10;
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
@@ -1244,7 +1286,7 @@ export function compute(b, opts){
   return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
-    ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
+    ac,acInfo,hpDraconic:_hpDraconic,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
     saveDC:hasDC?(8+prof+castMod):null,spellAtk:hasDC?(prof+castMod):null,hardyCap:vgcap,conMod:cm,goldGp:DATA.goldPurse+(b.gold||0)*50,
     status: remaining<0?("OVER BUDGET by "+(-remaining)+" AP"):remaining===0?"exact — fully spent":(remaining+" AP under budget")};
 }
@@ -1297,7 +1339,7 @@ export const MUT = {
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
- lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
+ lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v,shieldWorn:(b,p)=>b.shieldWorn=!!p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
  feat:()=>0, feature:(b,p)=>{const l=FEAT_ALIAS(p.v);b.features.push(l);_noteDoor(b,l,'f');}, art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
  tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
  language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,

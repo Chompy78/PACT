@@ -1583,6 +1583,25 @@ livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponLis
 ```
 **Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
 
+## feat/campaign-house-rules merge — rules version and parity fixture ids collide with feat/livesheet-armour-ac (#670) — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-armour-ac (#670) merges into preview SECOND. **Effort:** small · **Risk:** medium — a wrong merge silently drops parity fixtures or a rules bump.
+
+```text
+Merge coordination, recorded 2026-10-15 from PR #670 (feat/livesheet-armour-ac). Both branches bump DATA.version v0.376 → v0.377,
+and their parity fixture ids collide: #670 adds CG-071..CG-082; feat/campaign-house-rules adds CG-071..CG-075 and EV-035..EV-040
+(#670 adds no EV fixtures). Whichever of the two merges SECOND must:
+  1. re-bump to v0.378 at every display site (js/engine-data.js `version`, CharGen <title> "Rules" half and #cgPactver chip,
+     Live Sheet #lsRulesVer — docs/VERSION-SYNC.md "Rules version display sites"; version-label-ci.mjs asserts them);
+  2. renumber its own colliding fixtures (files, expected-results.csv rows, expected-warnings.json keys, the FIXTURES list in
+     testing/tests/engine-parity.html);
+  3. merge the parity runners' optional per-fixture assertions — #670 adds `_expectAc`/`_expectHp` to both
+     testing/scripts/engine-parity-ci.mjs and testing/tests/engine-parity.html; keep the other branch's `_expect*` fields alongside;
+  4. rebaseline testing/expected/ on the COMBINED engine (re-run every fixture, old and new, against the merged js/engine.js) and
+     record the second bump in its CHANGELOG line and decision record.
+```
+**Done when:** after both have merged, preview's DATA.version is v0.378 at every display site, fixture ids are unique, and
+engine-parity reports 0 failed with every fixture from both branches present.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1704,21 +1723,6 @@ Owner request 2026-10-14. Live Sheet presentation:
 Values from compute()/the fold only; every player value escaped; check phone width.
 ```
 **Done when:** skills show in their ability colours; the description paragraph is visible with the fields collapsed; the centre panel and 📋 Sheet show the same sections in the same order and style (screenshot check at phone and desktop width); existing Live Sheet e2e green.
-
-## feat/livesheet-armour-ac — armour-worn dropdown; AC follows class features (e.g. Barbarian Unarmored Defense) — TODO
-Branch feat/livesheet-armour-ac. **Effort:** medium · **Risk:** medium — AC is a rules value: if compute() output changes it is a rules change (DATA.version bump, fixtures, Players Guide).
-
-```text
-Owner request 2026-10-14. On the Live Sheet: a dropdown for the armour the character is WEARING (none, each owned/standard
-armour, shield on/off), and the AC shown follows it AND the character's class features: Barbarian Unarmored Defense
-(10 + DEX + CON with no armour, shield allowed), Monk Unarmored Defense (10 + DEX + WIS, no armour or shield), Draconic
-Resilience, Mage Armor, etc. — the best applicable formula. FIRST check what js/engine.js already does (recent work: "worn
-armour — none", fix/roller-wears-armour, the engine's AC calculation): AC must come from compute(), never computed in the
-tool. If the engine lacks the worn-armour input or these class formulas, add them there (additive compute() option or a
-build field), with parity fixtures, a DATA.version bump if outputs change, and the Players Guide updated. Where is the worn
-choice stored: a cost-0 field in the LOG (like appearance) so it syncs and the DM sees it.
-```
-**Done when:** the dropdown changes the worn armour and the AC updates; a Barbarian with no armour shows 10+DEX+CON (with a shield +2), a Monk 10+DEX+WIS; AC matches compute() in the Live Sheet, CharGen and DM Console; parity 0 failed with new fixtures.
 
 ## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
 Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.
