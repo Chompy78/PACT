@@ -963,6 +963,7 @@ try {
   check('cgFinishCreating() ends creation, and is idempotent',
     await cg.evaluate(`(()=>{const _c=window.confirm,_a=window.alert;
       window.confirm=()=>true; window.alert=()=>{};
+      window.requireNamesOn=()=>false;   /* this check is about the lock, not naming */
       try{ cgFinishCreating(); cgFinishCreating(); }finally{ window.confirm=_c; window.alert=_a; }
       return [LOG.filter(e=>e&&e.type==='creationLocked').length, isCreationDraft(LOG)];})()`),
     [1, false]);

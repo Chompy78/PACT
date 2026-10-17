@@ -209,11 +209,12 @@ async function setup(fx, b, econ, wallet) {
     applyBuild(b);
     if (econ) { LOG.push({ type: 'econSetting', payload: { band: 'standard' }, cost: 0, noLock: true, seq: SEQ++, ts: 5, label: 'Coin & calendar — Standard' });
       LOG.push({ type: 'wealth', payload: { gp: wallet.gp, days: wallet.days }, cost: 0, noLock: true, seq: SEQ++, ts: 6, label: 'Wallet' }); }
+    window.requireNamesOn = () => false; window.namesGate = () => ({ blocked: false, missing: [], reason: '' });   // the fuzz is about pricing parity, not naming
     cgFinishCreating(true);
   }, { b, econ, wallet });
   await cg.waitForTimeout(250);
   const env = await cg.evaluate(() => JSON.stringify(_cgEnvelope(false)));
-  await ls.evaluate(e => { localStorage.setItem('pactLiveSheet', e); load(); render(); if (typeof refreshBuy === 'function') refreshBuy(); }, env);
+  await ls.evaluate(e => { window.namesGate = () => ({ blocked: false, missing: [], reason: '' }); localStorage.setItem('pactLiveSheet', e); load(); render(); if (typeof refreshBuy === 'function') refreshBuy(); }, env);
   await ls.waitForTimeout(250);
   const s0 = await Promise.all([cg.evaluate(CG_SNAP), ls.evaluate(LS_SNAP)]);
   // the two tools must also see the SAME folded build, not just the same totals
