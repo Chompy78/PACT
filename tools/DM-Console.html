@@ -948,6 +948,30 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
                   </label>
                   <div id="ruleLanguagesStrictHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin-top:6px">⚠ Unticked languages are only hidden from the suggestions — players can still type them. Tick <b>Only allow languages on this list</b> to stop that.</div>
                 </div>
+                <!-- Campaign weapons (feat/livesheet-weapons) — rules.weaponList {list, strict} (which standard weapons the campaign
+                     offers, like rules.languages) and rules.customWeapons [{id,n,dice,type,cat,kind,props,rn,rl,reach}] (the DM's own,
+                     each with a stable id so a rename keeps every sheet linked). Both are read by the engine's campaignWeapons() and
+                     carried by the whole-blob Save rules. A linked weapon on a sheet takes its stats from here (owner decision AL2). -->
+                <div class="ruleblock">
+                  <div class="lbl">⚔ Weapons <button type="button" class="infobtn" title="The weapons your players can pick in the Live Sheet's Weapons &amp; attacks panel. Untick standard weapons this campaign doesn't use and tick “Only offer the ticked weapons” to hide them; add weapons of your own below. A weapon a player already has is never removed — it is marked “not on this campaign's weapon list”. Your own weapons' stats are copied onto players' sheets and kept up to date when you change them here (a player's own edits to those stats are overwritten).">&#9432;</button></div>
+                  <div style="font-size:11.5px;color:var(--muted);margin:2px 0 4px">Standard weapons — untick any this campaign doesn’t use:</div>
+                  <div class="rulegrid" id="ruleWeaponsStd"></div>
+                  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:5px 0 4px">
+                    <button type="button" class="btn sm ghost" id="ruleWeaponsAll">Tick all</button>
+                    <button type="button" class="btn sm ghost" id="ruleWeaponsNone">Untick all</button>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);margin:4px 0 8px;cursor:pointer">
+                    <input type="checkbox" id="ruleWeaponsStrict"> Only offer the ticked weapons <button type="button" class="infobtn" title="Off: players are offered every standard weapon (the ticks are ignored) and can type in weapons of their own. On: only the ticked ones, plus your own weapons, the Unarmed Strike and spell attacks — and players can't type in weapons of their own. Either way, a weapon already on a sheet stays there.">&#9432;</button>
+                  </label>
+                  <div id="ruleWeaponsStrictHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin:-4px 0 8px">⚠ Unticked weapons are still offered to players — tick <b>Only offer the ticked weapons</b> to hide them.</div>
+                  <div id="ruleWeaponsNoneHint" style="display:none;font-size:11.5px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:5px 8px;margin:-4px 0 8px">No standard weapon is ticked — players can pick only your own weapons below and the Unarmed Strike.</div>
+                  <div style="font-size:11.5px;color:var(--muted);margin:0 0 4px">Your own weapons:</div>
+                  <div id="ruleCustomWeapons"></div>
+                  <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">
+                    <button type="button" class="btn sm ghost" id="ruleAddCustomWeapon">+ Add weapon</button>
+                    <span id="ruleCustomWeaponsCount" style="font-size:11px;color:var(--muted)"></span>
+                  </div>
+                </div>
                 <div class="ruleblock">
                   <div class="lbl">House-rule toggles</div>
                   <div id="ruleHouseRules"></div>
@@ -1307,6 +1331,9 @@ function dmAnalyze(exported, apOpts){
       });
       return out;
     })(),
+    // feat/boon-drawback-notes: the held boons/drawbacks that need a player-written description, with each note's
+    // state (none / pending / approved), read by the shared pactNoteItems() exactly as the player's tools read it.
+    itemNotes: (typeof pactNoteItems==='function') ? pactNoteItems(b, LOG, DATA, (window._dmCampaignApRules||{}).campaignId || null) : [],
     discountEvents: LOG.filter(function(e){ return e.type==='dmDiscount' && e.dmEdit===true; })
       .map(function(e){ return {targetSeq:e.targetSeq, amount:Number(e.amount)||0, note:e.note||'', ts:e.ts||0}; }),
     dmDiscounted: eco.discounted||0, apValue: eco.apValue!=null?eco.apValue:eco.spent, apPaid: eco.apPaid!=null?eco.apPaid:eco.spent,
@@ -1349,7 +1376,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
 (function(){
   "use strict";
   var LS_KEY = 'pactDMConsole_v1';
-  var TOOL_VERSION = 'v1.666';   // console build version — bump on each non-trivial change
+  var TOOL_VERSION = 'v1.676';   // console build version — bump on each non-trivial change
   var roster = [];        // locally-imported .json files — [{id, fileName, summary, raw}]
   var cloudRoster = [];   // the currently-selected campaign's live cloud characters — never persisted
                           // to localStorage (always re-fetched on campaign select/refresh); see loadRoster().
@@ -2056,10 +2083,49 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     return ((s&&s.lines)||[]).filter(function(l){ return /^Spell list — /.test(l[0]); })
       .map(function(l){ return l[0].replace(/^Spell list — /,'')+' · '+(l[1]||0)+' AP'; });
   }
+  // feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): the descriptions some boons/drawbacks need ("Code of
+  // Honour": what is the code?). The DM reads each one and approves it (it is then locked for the player) or unlocks an
+  // approved one again. Both go through dm_edit_character_log, which re-checks everything against the stored log. Every
+  // note is the PLAYER's free text rendered in the DM's browser, so it is esc()'d. `dm` false = no write controls.
+  function itemNotesTitle(s){
+    var n = ((s && s.itemNotes) || []).filter(function(r){ return r.status === 'pending'; }).length;
+    return 'Boon & drawback descriptions' + (n ? ' — ' + n + ' awaiting your approval' : '');
+  }
+  function itemNoteRowHTML(id, r, dm){
+    var st = r.status === 'none' ? '<span style="color:var(--warn)">not written yet</span>'
+      : (r.status === 'approved' ? '<span style="color:var(--good,#2a7)">\uD83D\uDD12 approved</span>' : '<span style="color:var(--warn)">\u23F3 awaiting your approval</span>');
+    var act = '';
+    // data-text: the exact text shown here, sent with the approval so the server refuses it if the player has changed the
+    // note since this page loaded (#673 review B) — a DM never approves words they did not see.
+    if(dm && r.status === 'pending') act = ' <button type="button" class="btn sm dm-note-approve-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" data-text="'+esc(r.text)+'">Approve</button>';
+    if(dm && r.status === 'approved') act = ' <button type="button" class="btn sm ghost dm-note-unlock-btn" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" title="Lets the player change this description again; they will need your approval again afterwards.">Unlock</button>';
+    return '<div class="dm-note-row" data-cid="'+esc(id)+'" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" style="margin:6px 0">' +
+      '<b>'+esc(r.name)+'</b> <span style="font-size:11px;color:var(--muted)">('+(r.cat === 'boon' ? 'boon' : 'drawback')+')</span> '+st+act +
+      '<div class="dm-note-text" style="white-space:pre-wrap;font-size:12px">'+(r.text ? esc(r.text) : '<i style="color:var(--muted)">'+esc(r.prompt)+'</i>')+'</div></div>';
+  }
+  function itemNotesBody(id, s, dm){
+    var rows = (s && s.itemNotes) || [];
+    if(!rows.length) return '';
+    return rows.map(function(r){ return itemNoteRowHTML(id, r, dm); }).join('') +
+      '<span class="dm-status" data-cid="'+esc(id)+'" data-kind="item-note" style="font-size:11px;color:var(--muted)"></span>';
+  }
+  // The campaign's notes awaiting approval, across every player character (hidden ones too — hiding is display-only),
+  // shown above the cards so a DM doesn't have to open every card to find them.
+  function campNotesHTML(){
+    var items = [];
+    cloudRoster.forEach(function(r){
+      ((r.summary && r.summary.itemNotes) || []).forEach(function(n){ if(n.status === 'pending') items.push({rec:r, n:n}); });
+    });
+    if(!items.length) return '';
+    return '<div class="grantnote" id="campNotesPending" style="margin:0 0 8px"><b>\uD83D\uDCDD Descriptions awaiting your approval ('+items.length+')</b>' +
+      items.map(function(x){ return '<div class="dm-note-pending"><span style="font-size:12px">'+esc(_rosterDisplayName(x.rec))+':</span>'+itemNoteRowHTML(x.rec.id, x.n, true)+'</div>'; }).join('') +
+      '</div>';
+  }
   function buildSections(s, id, dm){
     var h = '';
     if(dm) h += secBlock('DM tools (private)', dmToolsBody(id, dm, s.boons, s.creationLock, s.playerAp, s.ignoredPlayerAp, s.lockedDraws, s.drawbacks, s));
-    h += secBlock('Appearance & backstory', appearanceBody(s.appearance));   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
+    h += secBlock('Appearance & backstory', appearanceBody(s.appearance));
+    h += secBlock(itemNotesTitle(s), itemNotesBody(id, s, !!dm));   // feat/boon-drawback-notes   // feat/dm-console-character-notes — collapsed like every .sec; hidden when empty
     h += secBlock('Skills & Tools', chipGroup('Skills',s.skills)+chipGroup('Tools',s.tools)+chipGroup('Instruments',s.instruments));
     h += secBlock('Expertise & Saves', chipGroup('Expertise',s.expertise)+chipGroup('Saves',s.saves)+chipGroup('Masteries',s.masteries));
     h += secBlock('Saving Throws', saveBody(s));
@@ -2156,6 +2222,8 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<div class="cname">'+esc(s.name)+warnIcon+tamperBadge(s)+(dm&&dm.playerLabel?' <span class="tier" title="DM-set player label">'+esc(dm.playerLabel)+'</span>':'')+'</div>' +
         '<div class="csub">'+esc(speciesDisp(s))+' · '+esc(fmtClass(s))+
             ' · Level '+esc(lvl)+' <span class="tier">T'+esc(s.tier)+'</span>'+lockIconHTML(s)+'</div>' +
+        // feat/character-images: read-only thumbnails, filled by js/character-images.js (one signed-url request per roster)
+        (dm ? '<div class="pci sm" data-charimg="'+esc(r.id)+'"></div>' : '') +
         '<div class="cardactions"><button type="button" class="skbtn" data-sk="'+esc(r.id)+'">🎯 Skills</button> <button type="button" class="skbtn" data-tools="'+esc(r.id)+'">🛠 Tools</button>'+(dm?' '+viewBtnHTML(r.id):'')+' '+hideBtnHTML(r.id)+'</div>' +
       '</div>' +
       '<div class="stats">'+statsHTML+'</div>' +
@@ -2926,6 +2994,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     // unbind-then-award together. Centralizing the call here means no future cloudRoster-mutating
     // caller of this function can reintroduce the same gap.
     renderCampAwardAp();
+    Promise.resolve().then(function(){ if(window._charImg) window._charImg.hydrateAll(container); });   // feat/character-images: after the paint below
     var npcs = npcSectionHTML(cloudCardHTML);
     if(!cloudRoster.length){ container.innerHTML = _cloudEmptyHTML() + npcs; return; }
     // Hiding is a display-only DM preference (see hiddenCards above) — it never drops a character out
@@ -2934,7 +3003,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     var hidden = cloudRoster.concat(cloudNpcs).filter(function(r){ return hiddenCards.has(String(r.id)); });
     var strip = hiddenStripHTML(hidden.map(function(r){ return {id:r.id, name:_rosterDisplayName(r)}; }), 'cloud');
     if(!visible.length){ container.innerHTML = strip + '<div class="camp-empty">Every player character in this campaign is hidden. Use Show all above to bring them back.</div>' + npcs; return; }
-    container.innerHTML = strip + campDiscountHTML() + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
+    container.innerHTML = strip + campDiscountHTML() + campNotesHTML() + '<div class="cardgrid">' + visible.map(function(rec){ return cloudCardHTML(rec); }).join('') + '</div>' + npcs;
   }
   // feat/dm-ap-discount: the campaign's running total of DM discounts, across EVERY player character (hidden
   // ones too — hiding is display-only, see above). Shown only once something has been discounted.
@@ -3058,7 +3127,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       // "View sheet" and "AP history" are reads and fall through untouched.
       if(window._dmPeekActive && t.closest &&
          (t.closest('.award-btn') || t.closest('.seal-btn') || t.closest('.declare-btn') || t.closest('.dm-notes-save') || t.closest('.unbind-btn') ||
-          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') || t.closest('.dm-discount-btn') ||
+          t.closest('.dm-grant-boon-btn') || t.closest('.dm-remove-boon-btn') || t.closest('.dm-impose-draw-btn') || t.closest('.dm-impose-draw-open') || t.closest('.dm-unlock-draw-btn') || t.closest('.dm-discount-btn') || t.closest('.dm-note-approve-btn') || t.closest('.dm-note-unlock-btn') ||
           t.closest('.dm-ceiling-btn') || t.closest('.dm-reopen-btn') || t.closest('.zero-ap-btn') ||
           t.closest('.dm-basicmode-btn') || t.closest('.npc-add-go') || t.closest('.npc-dup-btn') ||
           t.closest('.cf-val-save'))){
@@ -3310,6 +3379,40 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           if(/unsupported event type/i.test(udMsg)) udMsg = 'The server has not been updated to support unlocking yet. Ask the app owner to apply the latest database update, then try again.';
           else if(/no single DM-imposed/i.test(udMsg)) udMsg = 'This drawback cannot be unlocked automatically — its event is missing, already unlocked, or its number is not unique in the log. Reload the roster; if it still shows here, ask the app owner to look at the log.';
           alert('Unlock failed: '+udMsg);
+        });
+        return;
+      }
+
+      // feat/boon-drawback-notes: approve a player's description (it is then locked for them) or unlock an approved one.
+      // One event through dm_edit_character_log, keyed by category + name; the server copies the note text it approved
+      // into the event and refuses an approval with nothing to approve, or an unlock of a note that is not approved.
+      var noteBtn = t.closest ? (t.closest('.dm-note-approve-btn') || t.closest('.dm-note-unlock-btn')) : null;
+      if(noteBtn){
+        var ncid = noteBtn.getAttribute('data-cid'), ncat = noteBtn.getAttribute('data-cat'), nname = noteBtn.getAttribute('data-name');
+        var nUnlock = noteBtn.classList.contains('dm-note-unlock-btn');
+        var nEv;
+        if(nUnlock){
+          var nWhy = prompt('Unlock the description of '+nname+'? The player can then change it, and it will need your approval again.\n\nOptional: why (shown to the player, up to 200 characters):', '');
+          if(nWhy == null) return;
+          nWhy = nWhy.trim();
+          if(nWhy.length > 200){ alert('Keep the reason to 200 characters or fewer.'); return; }
+          nEv = {type:'dmUnlockNote', cat:ncat, refVal:nname, label:'DM unlocked description — '+nname};
+          if(nWhy) nEv.note = nWhy;
+        } else {
+          nEv = {type:'dmApproveNote', cat:ncat, refVal:nname, text:noteBtn.getAttribute('data-text') || '', label:'DM approved description — '+nname};
+        }
+        noteBtn.disabled = true;
+        B.dmEditCharacterLog(ncid, [nEv]).then(function(){
+          if(window._dmReloadRoster) window._dmReloadRoster();
+        }).catch(function(err){
+          noteBtn.disabled = false;
+          var nMsg = String(err && err.message || err);
+          if(/unsupported event type/i.test(nMsg)) nMsg = 'The server has not been updated to support approving descriptions yet. Ask the app owner to apply the latest database update, then try again.';
+          // The server's refusals (sql/migrations/2026-10-15-boon-drawback-notes.sql): the text changed since this page
+          // loaded, or the note is no longer awaiting approval / no longer approved (someone else acted first).
+          else if(/changed since this page loaded/i.test(nMsg)) nMsg = 'The description changed since this page loaded — reload the roster and read it again before approving.';
+          else if(/awaiting approval|is not approved/i.test(nMsg)) nMsg = 'This description is no longer '+(nUnlock ? 'approved' : 'awaiting approval')+' — reload the roster.';
+          alert((nUnlock ? 'Unlock' : 'Approval')+' failed: '+nMsg);
         });
         return;
       }
@@ -3667,6 +3770,8 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   DATA.racialFx={"Goliath: Powerful Build":"Count as Large for carrying capacity and for grappling.","Goliath: Giant Ancestry":"Choose one giant boon (Cloud, Fire, Frost, Hill, Stone or Storm) with the Lineage / Ancestry picker; use it Proficiency Bonus times per long rest.","Goliath: Large Form":"Once per long rest, become Large (T4+).","Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger Breath Dice":"Your breath weapon's damage die climbs the chain.","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (DM Console); never read by compute()
   window.DATA = DATA; window.requiredHD = requiredHD; window.FEAT_ALIAS = FEAT_ALIAS; window.compute = compute; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.MUT = MUT; window.creationLockState = creationLockState;
   window.campaignLanguages = campaignLanguages; window.STANDARD_LANGUAGES = STANDARD_LANGUAGES;   // feat/campaign-language-list
+  import { campaignWeapons, WEAPONS, CUSTOM_WEAPON_MAX } from '../js/engine.js';   // feat/livesheet-weapons
+  window.campaignWeapons = campaignWeapons; window.WEAPONS = WEAPONS; window.CUSTOM_WEAPON_MAX = CUSTOM_WEAPON_MAX;
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script type="module">
@@ -4011,6 +4116,110 @@ document.addEventListener('campaign-ready', function () {
   document.getElementById('ruleLanguagesStrict').addEventListener('change', _updateLanguagesCount);
   document.getElementById('ruleLanguagesAll').addEventListener('click', function(){ setRuleGridChecked('ruleLanguagesStd', _lgStd()); _updateLanguagesCount(); });
   document.getElementById('ruleLanguagesNone').addEventListener('click', function(){ setRuleGridChecked('ruleLanguagesStd', []); _updateLanguagesCount(); });
+  // Campaign weapons (feat/livesheet-weapons) — rules.weaponList {list, strict} + rules.customWeapons. One row of inputs per
+  // own weapon, keyed by a stable id kept in a data-cwid attribute (a rename keeps players' sheets linked). Every DM-typed
+  // value is rendered through esc() into value/data attributes; rows are addressed by data-* index, never inside an onclick.
+  var _cwRows = [], _cwMax = (window.CUSTOM_WEAPON_MAX || 50);
+  var _CW_TYPES = ['Acid','Bludgeoning','Cold','Fire','Force','Lightning','Necrotic','Piercing','Poison','Psychic','Radiant','Slashing','Thunder'];
+  function _cwNewId(){ return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function _wpStd(){ return (window.WEAPONS || []).filter(function(w){ return w.cat !== 'other'; }); }
+  function _renderWeaponGrid(){
+    var el = document.getElementById('ruleWeaponsStd'), std = _wpStd();
+    if(!el || !std.length || el.dataset.rgSig === String(std.length)) return;
+    var was = el.dataset.rgSig ? getRuleGridChecked('ruleWeaponsStd') : null;
+    el.dataset.rgSig = String(std.length);
+    el.innerHTML = std.map(function(w){ return '<label><input type="checkbox" value="'+esc(w.id)+'">'+esc(w.n)+'</label>'; }).join('');
+    if(was) setRuleGridChecked('ruleWeaponsStd', was);
+    el.querySelectorAll('input').forEach(function(cb){ cb.addEventListener('change', _updateCustomWeaponsCount); });
+    if(ruleMultiDisc.disabled) el.querySelectorAll('input').forEach(function(cb){ cb.disabled = true; });
+  }
+  function _collectWeaponList(){
+    // Every standard weapon ticked = the untouched full list, saved as [] (same convention as rules.languages — the engine's
+    // campaignWeapons() reads [] as "every standard weapon"). Nothing ticked is its own value, none:true, so it can never be
+    // mistaken for "all". Only ids of real standard weapons are kept.
+    var std = _wpStd(), ids = {}, ticked, strict = !!(document.getElementById('ruleWeaponsStrict') || {}).checked;
+    std.forEach(function(w){ ids[w.id] = 1; });
+    ticked = getRuleGridChecked('ruleWeaponsStd').filter(function(id){ return ids[id]; });
+    var none = !ticked.length, all = ticked.length === std.length;
+    var out = { list: (all || none) ? [] : ticked, strict: strict, unticked: std.length - ticked.length };
+    if(none) out.none = true;
+    return out;
+  }
+  // What players are actually offered, read back through the engine — so the panel and the players can't disagree.
+  function _weaponListOffered(wl){ return window.campaignWeapons ? window.campaignWeapons({ weaponList: wl }).chosen : []; }
+  function _cwFromDom(){
+    var el = document.getElementById('ruleCustomWeapons'); if(!el) return _cwRows.slice();
+    return Array.prototype.map.call(el.querySelectorAll('.cwrow'), function(row){
+      var v = function(f){ var i = row.querySelector('[data-cwf="'+f+'"]'); return i ? i.value : ''; };
+      return { id: row.getAttribute('data-cwid') || '', n: v('n'), dice: v('dice'), type: v('type'), cat: v('cat'), kind: v('kind'), props: v('props'), rn: v('rn'), rl: v('rl'), reach: v('reach') };
+    });
+  }
+  function _collectFrom(raw){ return window.campaignWeapons({ customWeapons: Array.isArray(raw) ? raw : [] }).custom.map(function(w){ return Object.assign({}, w); }); }
+  function _collectCustomWeapons(){
+    // The engine cleans (markup stripped, lengths capped, numbers to whole feet, at most CUSTOM_WEAPON_MAX) and drops
+    // blank-named rows. Stored without the engine's derived ref/custom/mastery fields.
+    var rows = _cwFromDom();
+    if(!window.campaignWeapons) return rows.filter(function(r){ return String(r.n||'').trim(); }).slice(0, _cwMax);
+    return window.campaignWeapons({ customWeapons: rows }).custom.map(function(w){
+      return { id: w.id, n: w.n, dice: w.dice, type: w.type, cat: w.cat, kind: w.kind, props: w.props, rn: w.rn, rl: w.rl, reach: w.reach };
+    });
+  }
+  function _renderCustomWeapons(){
+    var el = document.getElementById('ruleCustomWeapons'); if(!el) return;
+    var opt = function(val, cur, lab){ return '<option value="'+esc(val)+'"'+(String(cur||'')===val?' selected':'')+'>'+esc(lab)+'</option>'; };
+    var inp = 'class="field" style="padding:3px 5px;font-size:12px"';
+    el.innerHTML = _cwRows.length ? _cwRows.map(function(w, i){
+      var types = _CW_TYPES.slice(); if(w.type && types.indexOf(w.type) < 0) types.push(w.type);
+      var props = Array.isArray(w.props) ? w.props.join(', ') : (w.props || '');
+      return '<div class="cwrow" data-cw="'+i+'" data-cwid="'+esc(w.id||'')+'" style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:5px;margin-bottom:5px">'
+        + '<input '+inp+' data-cwf="n" placeholder="Name" aria-label="Weapon name" style="flex:1 1 140px;font-weight:700" value="'+esc(w.n||'')+'">'
+        + '<input '+inp+' data-cwf="dice" placeholder="1d8" aria-label="Damage dice" style="width:60px" value="'+esc(w.dice||'')+'">'
+        + '<select '+inp+' data-cwf="type" aria-label="Damage type">'+opt('', w.type, 'type…')+types.map(function(t){ return opt(t, w.type, t); }).join('')+'</select>'
+        + '<select '+inp+' data-cwf="cat" aria-label="Category">'+opt('simple', w.cat, 'Simple')+opt('martial', w.cat||'martial', 'Martial')+opt('other', w.cat, 'Other')+'</select>'
+        + '<select '+inp+' data-cwf="kind" aria-label="Melee or ranged">'+opt('melee', w.kind||'melee', 'Melee')+opt('ranged', w.kind, 'Ranged')+'</select>'
+        + '<input '+inp+' data-cwf="props" placeholder="Properties (e.g. Finesse, Light)" aria-label="Properties" style="flex:1 1 160px" value="'+esc(props)+'">'
+        + '<span style="font-size:11.5px;color:var(--muted);white-space:nowrap">Reach <input '+inp+' type="number" min="0" step="5" data-cwf="reach" aria-label="Melee reach in feet" placeholder="5" style="width:52px" value="'+esc(w.reach==null?'':w.reach)+'">'
+        + ' Range <input '+inp+' type="number" min="0" step="5" data-cwf="rn" aria-label="Normal range in feet" placeholder="normal" style="width:60px" value="'+esc(w.rn==null?'':w.rn)+'">'
+        + '/<input '+inp+' type="number" min="0" step="5" data-cwf="rl" aria-label="Long range in feet" placeholder="long" style="width:60px" value="'+esc(w.rl==null?'':w.rl)+'"> ft</span>'
+        + '<button type="button" class="btn sm ghost" data-cwdel="'+i+'" aria-label="Remove this weapon" title="Remove this weapon (players who already have it keep it, marked as not on the list)">✕</button>'
+        + '<span class="cwnote" style="flex-basis:100%;font-size:11px;color:var(--muted);display:none"></span></div>';
+    }).join('') : '<div style="font-size:11.5px;color:var(--muted)">None — players pick from the standard Players Handbook weapons.</div>';
+    el.querySelectorAll('button[data-cwdel]').forEach(function(btn){
+      btn.addEventListener('click', function(){ _cwRows = _cwFromDom(); _cwRows.splice(+btn.getAttribute('data-cwdel'), 1); _renderCustomWeapons(); });
+    });
+    el.querySelectorAll('input,select').forEach(function(f){ f.addEventListener('input', _updateCustomWeaponsCount); f.addEventListener('change', _updateCustomWeaponsCount); });
+    // Rows are re-rendered after the panel's lock state was applied, so take the lock from a control it always covers.
+    if(ruleMultiDisc.disabled) el.querySelectorAll('input,select,button').forEach(function(c){ c.disabled = true; });
+    _updateCustomWeaponsCount();
+  }
+  function _updateCustomWeaponsCount(){
+    var n = _collectCustomWeapons().length, c = document.getElementById('ruleCustomWeaponsCount');
+    var stdNames = {}; (window.WEAPONS || []).forEach(function(w){ stdNames[w.n.toLowerCase()] = 1; });
+    // Say so, rather than silently dropping or renaming: a name shared with a standard weapon is allowed (it is its own
+    // weapon, with its own id), but two weapons with one name in the players' picker is worth a second look.
+    document.querySelectorAll('#ruleCustomWeapons .cwrow').forEach(function(row){
+      var nm = String((row.querySelector('[data-cwf="n"]') || {}).value || '').trim().toLowerCase(), note = row.querySelector('.cwnote');
+      if(!note) return;
+      note.textContent = stdNames[nm] ? 'Same name as a standard weapon — players will see both (yours under “This campaign’s weapons”).' : '';
+      note.style.display = note.textContent ? 'block' : 'none';
+    });
+    var rows = document.querySelectorAll('#ruleCustomWeapons .cwrow').length;
+    if(c) c.textContent = (n ? (n + ' own weapon' + (n === 1 ? '' : 's') + ' to save') : '') + (rows >= _cwMax ? ' — the most a campaign can have is ' + _cwMax : '');
+    var add = document.getElementById('ruleAddCustomWeapon'); if(add && !ruleMultiDisc.disabled) add.disabled = rows >= _cwMax;
+    var wl = _collectWeaponList(), h = document.getElementById('ruleWeaponsStrictHint'), h2 = document.getElementById('ruleWeaponsNoneHint');
+    if(h) h.style.display = (!wl.strict && wl.unticked) ? 'block' : 'none';
+    if(h2) h2.style.display = (wl.strict && wl.none) ? 'block' : 'none';
+  }
+  document.getElementById('ruleAddCustomWeapon').addEventListener('click', function(){
+    _cwRows = _cwFromDom(); if(_cwRows.length >= _cwMax) return;
+    _cwRows.push({ id: _cwNewId(), n: '', dice: '1d8', type: 'Slashing', cat: 'martial', kind: 'melee', props: '', rn: null, rl: null, reach: 5 });
+    _renderCustomWeapons();
+    var rows = document.querySelectorAll('#ruleCustomWeapons .cwrow'), last = rows[rows.length - 1];
+    if(last){ var f = last.querySelector('[data-cwf="n"]'); if(f) f.focus(); }
+  });
+  document.getElementById('ruleWeaponsStrict').addEventListener('change', _updateCustomWeaponsCount);
+  document.getElementById('ruleWeaponsAll').addEventListener('click', function(){ setRuleGridChecked('ruleWeaponsStd', _wpStd().map(function(w){ return w.id; })); _updateCustomWeaponsCount(); });
+  document.getElementById('ruleWeaponsNone').addEventListener('click', function(){ setRuleGridChecked('ruleWeaponsStd', []); _updateCustomWeaponsCount(); });
   function loadRulesIntoPanel(rules){
     var r = rules || {};
     renderRuleGrids();
@@ -4037,6 +4246,14 @@ document.addEventListener('campaign-ready', function () {
     _lgOrder = _lgList.slice();
     document.getElementById('ruleLanguagesStrict').checked = _lg.strict === true;
     _updateLanguagesCount();
+    // feat/livesheet-weapons: the standard-weapon ticks (an empty saved list = all ticked) and the DM's own weapons.
+    var _wl = r.weaponList || {};
+    _renderWeaponGrid();
+    setRuleGridChecked('ruleWeaponsStd', _weaponListOffered(_wl));   // the engine's reading: [] = all, none:true = none
+    document.getElementById('ruleWeaponsStrict').checked = _wl.strict === true;
+    // A pre-id entry gets its stable id here, from the engine (the same 'n-<name>' id players' sheets already link to).
+    _cwRows = window.campaignWeapons ? _collectFrom(r.customWeapons) : (Array.isArray(r.customWeapons) ? r.customWeapons.map(function(w){ return Object.assign({}, w); }) : []);
+    _renderCustomWeapons();
     rulePostLockDrawbacks.checked = r.postLockDrawbacks === true;   // absent = refused: only an explicit true allows it (js/engine.js postLockAllowance)
     rulePostLockBindings.checked = r.postLockBindings === true;
     // Absent on every campaign created before v0.351, so default ON at the guide's figure
@@ -4398,7 +4615,7 @@ document.addEventListener('campaign-ready', function () {
   // different startingTier shapes (current, pre-2026-08-04, absent), which is exactly the kind of
   // branch that breaks silently and is impossible to reach from outside this closure. Exposed so
   // testing/scripts/dm-console-ui-e2e.mjs can drive it; nothing in the app calls it through window.
-  window._dmRulesPanel = { load: loadRulesIntoPanel, collectLanguages: _collectLanguages };   // collectLanguages: what Save rules stores
+  window._dmRulesPanel = { load: loadRulesIntoPanel, collectLanguages: _collectLanguages, collectCustomWeapons: _collectCustomWeapons, collectWeaponList: _collectWeaponList };   // collectLanguages: what Save rules stores
   // Test seam: lets economy-ui-e2e.mjs render/inspect the party-wide downtime control without a live
   // Supabase campaign — same reasoning as window._dmRulesPanel immediately above.
   window._dmPartyDowntimeTest = { render: _renderPartyDowntime };
@@ -4590,6 +4807,10 @@ document.addEventListener('campaign-ready', function () {
       // through the engine's campaignLanguages() so the stored names are the same cleaned, de-duplicated
       // names every player tool will read back.
       languages: _collectLanguages(),
+      // feat/livesheet-weapons — cleaned by the engine's campaignWeapons(). MERGE NOTE: feat/campaign-house-rules also
+      // touches this literal (charHouseRules); whichever lands second keeps customWeapons, weaponList AND charHouseRules.
+      customWeapons: _collectCustomWeapons(),   // [{id,n,dice,type,cat,kind,props,rn,rl,reach}]
+      weaponList: (function(){ var w = _collectWeaponList(), o = { list: w.list, strict: w.strict }; if(w.none) o.none = true; return o; })(),   // {list, strict, none?}
       postLockDrawbacks: rulePostLockDrawbacks.checked,
       postLockBindings: rulePostLockBindings.checked,
       // {band:'off'|'standard'|'fast'} — the three settings of Players Guide §16/§17's checklist.
@@ -6060,6 +6281,13 @@ document.addEventListener('campaign-ready', function () {
       window.addEventListener('focus', () => reg.update());
     });
   }
+</script>
+<script type="module">
+  // feat/character-images (D-GH-2026-10-15-character-images): up to two pictures per cloud character. Loaded on its own
+  // and dynamically, so a failure costs only the pictures — never the cloud bridge or the tool. Fills every
+  // [data-charimg] placeholder now; the tool re-calls hydrateAll() after each repaint.
+  import('../js/character-images.js').then(function(m){ window._charImg = m; m.hydrateAll(document); })
+    .catch(function(e){ console.warn('PACT: character pictures unavailable', e); });
 </script>
 <script type="module">
   // In-app feedback widget (feat/feedback-widget). Self-contained; independent of

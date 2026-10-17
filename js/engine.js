@@ -78,7 +78,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.666";
+export const BUILD = "v1.676";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -93,6 +93,10 @@ export { DATA };
  * map is what keeps those characters whole. Applied at both funnels — MUT.feature (so replay
  * normalises the build) and compute()'s lookup (so a build handed in directly still prices).
  * Add an entry here whenever a DATA.features key is renamed or removed; never rename one silently. */
+/* The value b.wornArmour holds while Mage Armor is up (feat/livesheet-armour-ac). Not an armour — the character is unarmoured —
+ * so it is never a key of DATA.armours: armourEligible() and the campaign armour ban list both ignore it. Picked from the same
+ * "worn armour" list in every tool, because the spell is a choice the player makes (it can be cast by an ally, and lasts 8 hours). */
+export const MAGE_ARMOR = 'Mage Armor';
 export const FEAT_ALIAS = lab => (DATA.featureAliases && DATA.featureAliases[lab]) || lab;
 
 /* One ability, two purchase doors (feat/subclass-double-purchase-guard, owner decision P3, 2026-10-05).
@@ -303,6 +307,102 @@ export function lineageSpellLabel(sp){
        + (need > 1 ? ' · needs ' + need + ' HD' : '');
 }
 
+// ownedChoiceGrants(b) — the choice grants (DATA.spellGrants.choiceGrants) this character actually holds: the class feature
+// (e.g. "Bard: Magical Secrets") or the subclass (free pick or any of its abilities), and only from the grant's charLevel
+// (PACT: required Hit Dice). Wizard: Spellbook is the tradition's own list, never a separate grant. One row per grant:
+// { key, label, from: [class lists], note, charLevel }. Was a byte-identical _ownedGrants() in CharGen and the Live Sheet
+// (minus the level gate); moved here for fix/livesheet-pack-spells so the spell lists and the ✎ Name dialog agree.
+const _GRANT_LISTS = ["Artificer","Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard"];
+export function ownedChoiceGrants(b) {
+  b = b || {};
+  const cg = (DATA.spellGrants && DATA.spellGrants.choiceGrants) || {}, hd = Number(b.hd) || 1, out = [];
+  for (const key of Object.keys(cg)) {
+    if (key === "Wizard: Spellbook") continue;
+    const g = cg[key], [kcls, ksub] = key.split(": ");
+    let owned = false;
+    if ((DATA.features || {})[key]) owned = (b.features || []).indexOf(key) >= 0;
+    else if (ksub) owned = ((b.freeSub || {})[kcls] === ksub) || (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0);
+    if (!owned || hd < (Number(g.charLevel) || 1)) continue;
+    out.push({ key, label: ksub || key, from: _GRANT_LISTS.filter(c => (g.from || "").indexOf(c) >= 0), note: g.from || "", charLevel: Number(g.charLevel) || 1 });
+  }
+  return out;
+}
+
+// grantedSpells(b) — every spell or cantrip the character has from somewhere OTHER than a tradition discipline's own
+// cantrip/known lists (fix/livesheet-pack-spells, owner report 2026-10-14: a Tiefling's lineage Fire Bolt and its
+// Thaumaturgy trait never appeared in the Live Sheet's spell list). Display only — it prices nothing and compute() does not
+// call it; the tools render it so none of them re-derives which grant gives what. One row per spell:
+//   { name, level (0 = cantrip, null = not in the spell data), kind, source, note, needHD, disc? }
+//   kind: 'lineage' (bought lineage spell-like) · 'trait' (a species trait that is a cantrip, e.g. Thaumaturgy) ·
+//         'subclass' (always-prepared bundle; disc = the discipline it belongs to) · 'grant' (a choice-grant pick) ·
+//         'style' (a fighting style's cantrips) · 'innate' (a bought innate spell-like).
+//   needHD > b.hd means the character owns it but cannot use it yet.
+// Unnamed picks (a slot the player has not named) are left out; the "Not named yet" notices already list those. Only what the
+// build still GRANTS is listed: a stale name left behind by a lineage/species change, a grant the character no longer holds
+// (or has not reached the level for) or a style beyond its Fighting Style slots stays out, exactly as compute() ignores it.
+const _FS_FEATURES = ['Fighter: Fighting Style', 'Paladin: Fighting Style', 'Ranger: Fighting Style', 'Fighter: Additional Fighting Style'];
+export function grantedSpells(b) {
+  b = b || {};
+  const out = [], hd = Number(b.hd) || 1;
+  const lvlOf = nm => { const s = (DATA.spells || []).find(x => x.n === nm); return s ? s.l : null; };
+  const nm = v => String(v == null ? '' : v).trim();
+  // Lineage spell-likes (b.racialSpells, priced by the lineage table).
+  const lin = (DATA.lineageSpells || {})[b.lineage] || [];
+  const linRace = Object.keys(DATA.lineageOf || {}).find(r => ((DATA.lineageOf || {})[r] || []).indexOf(b.lineage) >= 0);
+  const linSrc = (b.lineage || '') + (linRace ? ' ' + linRace : '') + ' lineage';
+  for (const n of (b.racialSpells || [])) {
+    const sp = lin.find(x => x[0] === n);
+    if (!sp) continue;   // not in the CURRENT lineage (compute() warns "no longer in the rules data" and prices it 0)
+    out.push({ name: n, level: sp[2], kind: 'lineage', source: linSrc, note: lineageSpellLabel(sp), needHD: lineageSpellHD(sp) });
+  }
+  // Species traits that ARE a cantrip (DATA.spellGrants.racialCantrips), whether bought or held through the heritage pack.
+  // The index names the trait without its suffix ("Tiefling: Thaumaturgy" for the trait "Tiefling: Thaumaturgy cantrip").
+  const owned = (b.racialTraits || []).concat(packTraitsFor(b.species, b.species2));
+  const rc = (DATA.spellGrants && DATA.spellGrants.racialCantrips) || {};
+  for (const key of Object.keys(rc)) {
+    const lab = owned.find(t => t === key || t.indexOf(key + ' ') === 0);
+    if (!lab) continue;
+    const race = (DATA.racial[lab] || {}).race || key.split(': ')[0];
+    if (race !== b.species && race !== b.species2) continue;   // origin-race-only (cross: null): compute() refuses it on another species
+    for (const s of (rc[key].spells || []))
+      out.push({ name: s.name, level: lvlOf(s.name) ?? 0, kind: 'trait', source: race + ' trait — ' + (lab.split(': ')[1] || lab),
+                 note: 'at will', needHD: Number(s.charLevel) || 1 });
+  }
+  // Subclass always-prepared spell bundles ("Discipline|Subclass|terrain").
+  const ss = (DATA.spellGrants && DATA.spellGrants.subclassSpells) || {};
+  for (const bk of (b.subSpellBundles || [])) {
+    const p = String(bk).split('|'); const g = ss[p[0] + ': ' + p[1] + (p[2] ? ' (' + p[2] + ')' : '')];
+    if (!g || !g.spells) continue;
+    g.spells.slice().sort((a, c) => (a.spellLevel - c.spellLevel) || (a.name < c.name ? -1 : 1)).forEach(s =>
+      out.push({ name: s.name, level: s.spellLevel || 0, kind: 'subclass', source: p[1] + (p[2] ? ' (' + p[2] + ')' : ''),
+                 note: 'always prepared', needHD: Number(s.charLevel) || 1, disc: p[0] }));
+  }
+  // Choice grants the player has named (b.grantNames — e.g. "Rogue: Arcane Trickster" → Wizard spells).
+  const gm = b.grantNames || {}, held = new Set(ownedChoiceGrants(b).map(g => g.key));
+  for (const gk of Object.keys(gm)) if (held.has(gk)) for (const v of (gm[gk] || [])) {
+    const n = nm(v); if (!n) continue;
+    out.push({ name: n, level: lvlOf(n), kind: 'grant', source: gk.split(': ')[1] || gk, note: 'free — from a choice grant', needHD: 1 });
+  }
+  // Fighting styles that grant cantrips (Blessed Warrior, Druidic Warrior).
+  // Only the styles named into the character's Fighting Style feature slots (the ✎ Name dialog's own rule), and only a style
+  // whose granting feature is owned; at most the style's own cantrip count.
+  const fsc = b.fsCantripNames || {};
+  const fsSlots = (b.features || []).filter(f => _FS_FEATURES.indexOf(f) >= 0).length;
+  for (const st of (b.fightingStyleNames || []).slice(0, fsSlots)) {
+    const a = (DATA.arts || {})[st] || {}, gc = a.grantCantrips; if (!gc) continue;
+    if (a.reqFeat && (b.features || []).indexOf(a.reqFeat) < 0) continue;
+    for (const v of (fsc[st] || []).slice(0, gc.n || 2)) { const n = nm(v); if (n)
+      out.push({ name: n, level: 0, kind: 'style', source: st + ' fighting style', note: gc.list + ' list · cast with ' + gc.ab, needHD: 1 }); }
+  }
+  // Bought innate spell-likes (b.innate counts per level, b.innateNames their names).
+  for (let L = 1; L <= 9; L++) {
+    const c = (b.innate || [])[L - 1] || 0;
+    for (let i = 0; i < c; i++) { const n = nm(((b.innateNames || [])[L - 1] || [])[i]); if (n)
+      out.push({ name: n, level: L, kind: 'innate', source: 'Innate spell-like', note: '1 / long rest', needHD: 1 }); }
+  }
+  return out;
+}
+
 // Character size (0 AP). Halfling & Gnome packs are Small. A Halfling is ALWAYS Small (even as a second origin). A Halfling
 // or Gnome paired with a non-small second origin race may CHOOSE Small or Medium (default Small); a Tiefling chooses (default
 // Medium, v0.194); everyone else is Medium. The stored b.size counts ONLY when `choosable` — otherwise it is ignored, and a tool
@@ -324,17 +424,164 @@ export function skillMods(b, r) {
   });
 }
 
-// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon the PLAYER entered on their sheet (the rules data has no weapon
-// table; feat/livesheet-center-panel). w = { ab: 'STR'|'DEX'|'FIN'|'none', prof: bool, bonus: number (magic +N) }.
-// 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier + proficiency (if proficient) + bonus;
-// damage bonus = ability modifier + bonus. Pass compute(b)'s result as r to avoid a second compute.
+// saveMods(b, r?) — the six saving throws for display (feat/livesheet-saves-in-stats-card), in STR..CHA order:
+// { ab, abMod, prof (true when proficient), total }. total = the ability modifier + proficiency (if proficient) + compute()'s
+// saveAdj (Weak-Willed's −1 to every save). Display only, like skillMods(); pass compute(b)'s result as r.
+export function saveMods(b, r) {
+  r = r || compute(b);
+  const mods = r.mods || {}, prof = r.prof || 0, adj = r.saveAdj || 0, sv = b.saves || [];
+  return ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(ab => {
+    const p = sv.includes(ab), abMod = mods[ab] || 0;
+    return { ab, abMod, prof: p, total: abMod + (p ? prof : 0) + adj };
+  });
+}
+
+// weaponAttack(b, r, w) — to-hit and damage bonus for a weapon or attack on the player's sheet (feat/livesheet-center-panel;
+// the standard weapons are in WEAPONS below, feat/livesheet-weapons). w = { ab: 'STR'|'DEX'|'FIN'|'SPELL'|'none',
+// prof: bool, bonus: number (magic +N) }. 'FIN' (finesse) uses the better of STR and DEX. to-hit = ability modifier +
+// proficiency (if proficient) + bonus; damage bonus = ability modifier + bonus. 'SPELL' (a spell attack) uses compute()'s
+// spellcasting modifier, is always proficient (to-hit = compute()'s spellAtk + bonus) and adds no modifier to damage —
+// a character with no spellcasting gets 0 + bonus. Pass compute(b)'s result as r to avoid a second compute.
 export function weaponAttack(b, r, w) {
   r = r || compute(b); w = w || {};
   const m = r.mods || {}, bonus = Math.trunc(Number(w.bonus)) || 0;
+  if (w.ab === 'SPELL') {
+    const abMod = r.hasDC ? (r.castMod || 0) : 0, prof = r.hasDC ? (r.prof || 0) : 0;
+    return { ab: r.hasDC && r.castAb ? r.castAb : 'SPELL', abMod, prof, toHit: abMod + prof + bonus, dmgBonus: bonus };
+  }
   let ab = w.ab === 'DEX' || w.ab === 'FIN' || w.ab === 'none' ? w.ab : 'STR';
   if (ab === 'FIN') ab = (m.DEX || 0) > (m.STR || 0) ? 'DEX' : 'STR';
   const abMod = ab === 'none' ? 0 : (m[ab] || 0), prof = w.prof ? (r.prof || 0) : 0;
   return { ab, abMod, prof, toHit: abMod + prof + bonus, dmgBonus: abMod + bonus };
+}
+
+// WEAPONS — the standard Players Handbook simple + martial weapons (feat/livesheet-weapons), plus the Unarmed Strike.
+// DISPLAY / SHEET data only: compute() never reads it (weapons cost no AP — only proficiency does, via b.weaponProf), so
+// editing it is not a rules change and does not bump DATA.version. Each entry:
+//   { id, n, cat:'simple'|'martial'|'other', kind:'melee'|'ranged', dice, type, props:[...], rn, rl, reach, mastery }
+// rn/rl = normal/long range in feet (thrown or ammunition weapons; null otherwise); reach = melee reach in feet (null
+// for a ranged weapon). The Live Sheet copies an entry's values onto the player's own sheet when it is picked, so a
+// later change here never rewrites a character's saved weapon.
+const _W = (cat, kind, n, dice, type, props, mastery, rn, rl) => {
+  const reach = kind === 'melee' ? (props.includes('Reach') ? 10 : 5) : null;
+  return Object.freeze({ id: n.toLowerCase().replace(/[^a-z0-9]+/g, '-'), n, cat, kind, dice, type, props: Object.freeze(props.slice()),
+    rn: rn || null, rl: rl || null, reach, mastery: mastery || null });
+};
+export const WEAPONS = Object.freeze([
+  _W('simple', 'melee', 'Club', '1d4', 'Bludgeoning', ['Light'], 'Slow'),
+  _W('simple', 'melee', 'Dagger', '1d4', 'Piercing', ['Finesse', 'Light', 'Thrown'], 'Nick', 20, 60),
+  _W('simple', 'melee', 'Greatclub', '1d8', 'Bludgeoning', ['Two-Handed'], 'Push'),
+  _W('simple', 'melee', 'Handaxe', '1d6', 'Slashing', ['Light', 'Thrown'], 'Vex', 20, 60),
+  _W('simple', 'melee', 'Javelin', '1d6', 'Piercing', ['Thrown'], 'Slow', 30, 120),
+  _W('simple', 'melee', 'Light Hammer', '1d4', 'Bludgeoning', ['Light', 'Thrown'], 'Nick', 20, 60),
+  _W('simple', 'melee', 'Mace', '1d6', 'Bludgeoning', [], 'Sap'),
+  _W('simple', 'melee', 'Quarterstaff', '1d6', 'Bludgeoning', ['Versatile (1d8)'], 'Topple'),
+  _W('simple', 'melee', 'Sickle', '1d4', 'Slashing', ['Light'], 'Nick'),
+  _W('simple', 'melee', 'Spear', '1d6', 'Piercing', ['Thrown', 'Versatile (1d8)'], 'Sap', 20, 60),
+  _W('simple', 'ranged', 'Dart', '1d4', 'Piercing', ['Finesse', 'Thrown'], 'Vex', 20, 60),
+  _W('simple', 'ranged', 'Light Crossbow', '1d8', 'Piercing', ['Ammunition (Bolt)', 'Loading', 'Two-Handed'], 'Slow', 80, 320),
+  _W('simple', 'ranged', 'Shortbow', '1d6', 'Piercing', ['Ammunition (Arrow)', 'Two-Handed'], 'Vex', 80, 320),
+  _W('simple', 'ranged', 'Sling', '1d4', 'Bludgeoning', ['Ammunition (Bullet)'], 'Slow', 30, 120),
+  _W('martial', 'melee', 'Battleaxe', '1d8', 'Slashing', ['Versatile (1d10)'], 'Topple'),
+  _W('martial', 'melee', 'Flail', '1d8', 'Bludgeoning', [], 'Sap'),
+  _W('martial', 'melee', 'Glaive', '1d10', 'Slashing', ['Heavy', 'Reach', 'Two-Handed'], 'Graze'),
+  _W('martial', 'melee', 'Greataxe', '1d12', 'Slashing', ['Heavy', 'Two-Handed'], 'Cleave'),
+  _W('martial', 'melee', 'Greatsword', '2d6', 'Slashing', ['Heavy', 'Two-Handed'], 'Graze'),
+  _W('martial', 'melee', 'Halberd', '1d10', 'Slashing', ['Heavy', 'Reach', 'Two-Handed'], 'Cleave'),
+  _W('martial', 'melee', 'Lance', '1d10', 'Piercing', ['Heavy', 'Reach', 'Two-Handed (unless mounted)'], 'Topple'),
+  _W('martial', 'melee', 'Longsword', '1d8', 'Slashing', ['Versatile (1d10)'], 'Sap'),
+  _W('martial', 'melee', 'Maul', '2d6', 'Bludgeoning', ['Heavy', 'Two-Handed'], 'Topple'),
+  _W('martial', 'melee', 'Morningstar', '1d8', 'Piercing', [], 'Sap'),
+  _W('martial', 'melee', 'Pike', '1d10', 'Piercing', ['Heavy', 'Reach', 'Two-Handed'], 'Push'),
+  _W('martial', 'melee', 'Rapier', '1d8', 'Piercing', ['Finesse'], 'Vex'),
+  _W('martial', 'melee', 'Scimitar', '1d6', 'Slashing', ['Finesse', 'Light'], 'Nick'),
+  _W('martial', 'melee', 'Shortsword', '1d6', 'Piercing', ['Finesse', 'Light'], 'Vex'),
+  _W('martial', 'melee', 'Trident', '1d8', 'Piercing', ['Thrown', 'Versatile (1d10)'], 'Topple', 20, 60),
+  _W('martial', 'melee', 'Warhammer', '1d8', 'Bludgeoning', ['Versatile (1d10)'], 'Push'),
+  _W('martial', 'melee', 'War Pick', '1d8', 'Piercing', ['Versatile (1d10)'], 'Sap'),
+  _W('martial', 'melee', 'Whip', '1d4', 'Slashing', ['Finesse', 'Reach'], 'Slow'),
+  _W('martial', 'ranged', 'Blowgun', '1', 'Piercing', ['Ammunition (Needle)', 'Loading'], 'Vex', 25, 100),
+  _W('martial', 'ranged', 'Hand Crossbow', '1d6', 'Piercing', ['Ammunition (Bolt)', 'Light', 'Loading'], 'Vex', 30, 120),
+  _W('martial', 'ranged', 'Heavy Crossbow', '1d10', 'Piercing', ['Ammunition (Bolt)', 'Heavy', 'Loading', 'Two-Handed'], 'Push', 100, 400),
+  _W('martial', 'ranged', 'Longbow', '1d8', 'Piercing', ['Ammunition (Arrow)', 'Heavy', 'Two-Handed'], 'Slow', 150, 600),
+  _W('martial', 'ranged', 'Musket', '1d12', 'Piercing', ['Ammunition (Bullet)', 'Loading', 'Two-Handed'], 'Slow', 40, 120),
+  _W('martial', 'ranged', 'Pistol', '1d10', 'Piercing', ['Ammunition (Bullet)', 'Loading'], 'Vex', 30, 90),
+  _W('other', 'melee', 'Unarmed Strike', '1', 'Bludgeoning', [], null),
+]);
+
+// weaponSheetDefaults(w, b) — what the Live Sheet fills in when a player picks weapon entry w (from WEAPONS or
+// campaignWeapons()): the attack ability and whether the character is proficient with it.
+//   ab:   'FIN' for a finesse weapon (best of STR/DEX), 'DEX' for a ranged weapon that isn't thrown, else 'STR'.
+//   prof: from b.weaponProf — simple weapons need .simple, martial ones .allMartial; the Unarmed Strike is always
+//         proficient. null when the build can't say (a character who bought N individual martial weapons: the build
+//         doesn't record WHICH ones), so the caller keeps the player's own tick. A campaign weapon with category
+//         'other' is false (the player can tick it).
+export function weaponSheetDefaults(w, b) {
+  w = w || {}; const props = (Array.isArray(w.props) ? w.props : []).map(p => String(p).toLowerCase());
+  const has = p => props.some(x => x === p || x.startsWith(p + ' '));
+  const ab = has('finesse') ? 'FIN' : (w.kind === 'ranged' && !has('thrown')) ? 'DEX' : 'STR';
+  const wp = (b && b.weaponProf) || {};
+  let prof = null;
+  if (w.id === 'unarmed-strike') prof = true;
+  else if (w.cat === 'simple') prof = !!wp.simple;
+  else if (w.cat === 'martial') prof = wp.allMartial ? true : (wp.martial ? null : false);
+  else prof = false;   // a campaign weapon with no simple/martial category: no proficiency the build can show
+  return { ab, prof };
+}
+
+// campaignWeapons(rules) — the weapons a character in this campaign may pick from, and how to find any weapon a sheet
+// entry refers to (feat/livesheet-weapons; owner decisions AL2/AM2 + the campaign weapon list, 2026-10-15).
+//   rules.customWeapons = [{id, n, dice, type, cat, kind, props, rn, rl, reach}] — the DM's own weapons (DM Console).
+//   rules.weaponList    = {list:[standard weapon ids], strict, none} — like rules.languages, an EMPTY list means "every
+//                         standard weapon" (what DM Console saves when every box is ticked); none:true means "no standard
+//                         weapon" (every box unticked). strict OFF offers every standard weapon (the ticks are ignored),
+//                         strict ON offers only the ticked ones — and (owner AO1) a player may not type in a weapon of
+//                         their own. The campaign's own weapons and the 'other' attacks (Unarmed Strike) are always offered.
+// Solo characters (rules null) get the standard list only. Custom entries are DM-typed text that renders in players'
+// browsers (REV-12): markup characters are stripped, lengths capped, numbers coerced to whole feet (or null) and unknown
+// fields dropped; at most CUSTOM_WEAPON_MAX are kept (rules are copied into every bound character's LOG as a
+// rulesSnapshot, so an unbounded list would bloat every character). A custom weapon keeps its own stable id — a rename
+// keeps every sheet linked to it — and may share a standard weapon's name (it is a different weapon with its own ref).
+// Every entry carries ref: 'std:<id>' or 'camp:<id>' — what a sheet entry stores to stay linked to its definition.
+// Returns { list (offered), all (every standard + campaign weapon, for resolving refs), custom (cleaned, what DM Console
+// saves back), chosen (the ticked standard ids — every one for an empty list), strict, none, byRef(ref), isOffered(ref) }.
+export const CUSTOM_WEAPON_MAX = 50;
+export function campaignWeapons(rules) {
+  const R = (rules && typeof rules === 'object') ? rules : {};
+  const raw = Array.isArray(R.customWeapons) ? R.customWeapons : [];
+  const txt = (v, max) => String(v == null ? '' : v).replace(/[<>"`]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const ft = v => { const n = Math.trunc(Number(v)); return (String(v == null ? '' : v).trim() !== '' && Number.isFinite(n) && n > 0) ? Math.min(n, 9999) : null; };
+  const ids = new Set(), custom = [];
+  raw.forEach(c => {
+    if (!c || typeof c !== 'object' || custom.length >= CUSTOM_WEAPON_MAX) return;
+    const n = txt(c.n, 40);
+    if (!n) return;
+    let id = String(c.id == null ? '' : c.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    if (!id) id = 'n-' + n.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 34);   // a pre-id entry: keyed by its name
+    // Two entries on one id (two pre-id names that slug alike, e.g. "R&D gun" / "R D gun"): keep both, numbering the later
+    // ones in list order (-2, -3…) so neither is dropped and the numbering is stable while the list is.
+    if (ids.has(id)) { let k = 2; while (ids.has(id + '-' + k)) k++; id = id + '-' + k; }
+    ids.add(id);
+    const kind = c.kind === 'ranged' ? 'ranged' : 'melee';
+    // Split on commas OUTSIDE brackets, so "Ammunition (Arrow, Bolt)" stays one property.
+    const props = (Array.isArray(c.props) ? c.props : String(c.props == null ? '' : c.props).split(/,(?![^()]*\))/))
+      .map(p => txt(p, 40)).filter(Boolean).slice(0, 12);
+    custom.push({ id, ref: 'camp:' + id, n, cat: c.cat === 'simple' || c.cat === 'martial' ? c.cat : 'other', kind,
+      dice: txt(c.dice, 20), type: txt(c.type, 24), props, rn: ft(c.rn), rl: ft(c.rl),
+      reach: kind === 'melee' ? (ft(c.reach) || 5) : null, mastery: null, custom: true });
+  });
+  const wl = (R.weaponList && typeof R.weaponList === 'object') ? R.weaponList : {};
+  const stdIds = new Set(WEAPONS.filter(w => w.cat !== 'other').map(w => w.id));
+  const none = wl.none === true;
+  let chosen = [...new Set((Array.isArray(wl.list) ? wl.list : []).map(String).filter(id => stdIds.has(id)))];
+  if (none) chosen = []; else if (!chosen.length) chosen = [...stdIds];   // empty = every standard weapon (like languages)
+  const strict = wl.strict === true, pick = new Set(chosen);
+  const std = WEAPONS.map(w => Object.assign({}, w, { ref: 'std:' + w.id }));
+  const list = std.filter(w => w.cat === 'other' || !strict || pick.has(w.id)).concat(custom);
+  const all = std.concat(custom), byRefMap = new Map(all.map(w => [w.ref, w])), offered = new Set(list.map(w => w.ref));
+  return { list, all, custom, chosen, strict, none: none,
+    byRef: ref => byRefMap.get(String(ref == null ? '' : ref)) || null,
+    isOffered: ref => offered.has(String(ref == null ? '' : ref)) };
 }
 
 export function sizeOf(b){
@@ -1097,11 +1344,49 @@ export function compute(b, opts){
   const init=(b.skills||[]).includes("Initiative")?(mod.WIS+prof+((b.expertise||[]).includes("Initiative")?prof:0)):dexMod;
   // v74: medium/heavy armour give no benefit unless STR >= 10
   const strOK=(st.STR||10)>=10;
-  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];let ac;if(_wa){if(_wa.cat==="heavy")ac=_wa.base;else if(_wa.cat==="medium")ac=_wa.base+Math.min(dexMod,2);else ac=_wa.base+dexMod;if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}else{ac=10+dexMod;}   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */if(arm.shield)ac+=2;if(dset["Thin-Skinned"])ac-=1;
+  // ----- Armour Class (feat/livesheet-armour-ac, D-GH-2026-10-15-livesheet-armour-ac) -----
+  // Three inputs, all free (cost-0) choices the player makes on the sheet: the armour WORN (b.wornArmour — an armour name, "" for
+  // none, or MAGE_ARMOR while that spell is up), and whether the shield is IN HAND (b.shieldWorn). The AC is then the BEST base
+  // formula that applies, plus 2 for a shield in hand, minus 1 for Thin-Skinned. The unarmoured formulas come from owned class
+  // features — and "owned" means counted, exactly as the pricing loops count it: a feature blocked by its Hit-Dice gate or a missing
+  // prerequisite, or the uncounted second copy of a two-door subclass ability, grants nothing.
+  //   - no armour: 10 + Dex;  Mage Armor (picked on the sheet — cast by you or an ally): 13 + Dex;
+  //   - Barbarian Unarmored Defense: 10 + Dex + Con (a shield is allowed);
+  //   - Monk Unarmored Defense: 10 + Dex + Wis (no armour AND no shield);
+  //   - Draconic Resilience: 10 + Dex + Cha (a shield is allowed).
+  //   Any worn armour replaces all of these with its own base (heavy: no Dex; medium: Dex up to +2; light: full Dex).
+  // b.shieldWorn: false = shield set down; absent (every save before v0.377) = carried whenever trained, so no existing
+  // character's shield bonus moves. A shield gives +2 only with shield training. Nothing here adds a warning: warnings feed
+  // purchaseLegality(), and owning a shield must never make buying Monk Unarmored Defense look illegal — advice goes in acInfo.notes.
+  const _shieldOn=!!arm.shield&&b.shieldWorn!==false;
+  const _ownsEff=lab=>(_ownedFeatSet.has(lab)&&!_blockedFeat.has(lab)&&!_dupFeat.has(lab))||(b.subAbilities||[]).some(function(k){const a=DATA.subAbilMap[k];return !!a&&_subIdent(a)===lab&&!_dupSub.has(k)&&!_subWhy(a).length;});
+  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];const _acC=[];const _acNotes=[];let _monkAc=null;
+  if(_wa){const _dx=_wa.cat==="heavy"?0:_wa.cat==="medium"?Math.min(dexMod,2):dexMod;_acC.push({src:b.wornArmour,base:_wa.base,parts:_wa.cat==="heavy"?[]:[["Dex",_dx]]});if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}
+  else{   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */
+    _acC.push({src:"Unarmoured",base:10,parts:[["Dex",dexMod]]});
+    if(b.wornArmour===MAGE_ARMOR)_acC.push({src:"Mage Armor",base:13,parts:[["Dex",dexMod]]});
+    if(_ownsEff("Barbarian: Unarmored Defense"))_acC.push({src:"Unarmored Defense (Barbarian)",base:10,parts:[["Dex",dexMod],["Con",mod.CON]]});
+    if(_ownsEff("Monk: Unarmored Defense")){if(_shieldOn){_acNotes.push("Monk Unarmored Defense does not work with a shield in hand");_monkAc=10+dexMod+mod.WIS;}else _acC.push({src:"Unarmored Defense (Monk)",base:10,parts:[["Dex",dexMod],["Wis",mod.WIS]]});}
+    if(_ownsEff("Sorcerer: Draconic Resilience"))_acC.push({src:"Draconic Resilience",base:10,parts:[["Dex",dexMod],["Cha",mod.CHA]]});}
+  _acC.forEach(function(c){c.ac=c.base+c.parts.reduce(function(s,p){return s+p[1];},0);});
+  const _acBest=_acC.reduce(function(a,c){return c.ac>a.ac?c:a;},_acC[0]);   // ties keep the earlier (simpler) formula
+  // Defense Fighting Style (owner decision AP1, 2026-10-15): +1 AC while WEARING armour (Mage Armor is not armour). Owned either as a
+  // bought art (not Hit-Dice blocked) or as the style named for a counted "Fighting Style" feature slot; it never stacks with itself.
+  const _fsSlots=["Fighter: Fighting Style","Paladin: Fighting Style","Ranger: Fighting Style","Fighter: Additional Fighting Style"].filter(_ownsEff).length;
+  const _defense=!!_wa&&(((b.arts||[]).indexOf("Defense")>=0&&!_blockedArt.has("Defense"))||(b.fightingStyleNames||[]).slice(0,_fsSlots).indexOf("Defense")>=0);
+  let ac=_acBest.ac;if(_defense)ac+=1;if(_shieldOn)ac+=2;if(dset["Thin-Skinned"])ac-=1;
+  // A nudge, never a rule: the shield stays the player's choice. Shown only when setting it down would actually raise AC.
+  const _nudge=(_monkAc!=null&&_monkAc>_acBest.ac+2)?("Set the shield down: Monk Unarmored Defense would give AC "+(_monkAc+(dset["Thin-Skinned"]?-1:0))+" (now "+ac+")"):null;
+  const acInfo={src:_acBest.src,base:_acBest.base,parts:_acBest.parts,defense:_defense?1:0,shield:_shieldOn?2:0,shieldTrained:!!arm.shield,thinSkinned:dset["Thin-Skinned"]?-1:0,
+    options:_acC.map(function(c){return {src:c.src,ac:c.ac};}),notes:_acNotes,nudge:_nudge};
+  // Draconic Resilience's hit points (owner decision AP1; 2024 PHB: "Your Hit Point maximum increases by 3, and it increases by 1
+  // whenever you gain another Sorcerer level" — gained at Sorcerer level 3, so the bonus equals that level). PACT is classless and a
+  // character's level is its Hit Dice, and the ability needs 3 Hit Dice (T3), so the bonus is +1 HP per Hit Die: +3 at 3 HD, +1 per HD after.
+  const _hpDraconic=_ownsEff("Sorcerer: Draconic Resilience")?hd:0;
   if((arm.medium||arm.heavy)&&!strOK) W.push("⛔ Medium armour requires Strength 10 (STR is "+(st.STR||10)+")");
   // §14: Frail and Glass Frame are HP-reduction drawbacks that do not stack (and may not be taken together)
   if(dset["Frail"]&&dset["Glass Frame"]) W.push("Frail and Glass Frame can't be taken together — their HP penalties don't stack");
-  let hp2=hp; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
+  let hp2=hp+_hpDraconic; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
   let _spB=DATA.speed[b.species]||30,_spF=_spB; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spdSet&&rr.spdSet>_spF)_spF=rr.spdSet;}); var _lsp=(DATA.lineageSpeed&&DATA.lineageSpeed[b.lineage]); if(_lsp&&_lsp>_spF)_spF=_lsp; let speed=_spF; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spd)speed+=rr.spd;}); if(dset["Slow-Footed"])speed-=5; if(dset["Lame"])speed-=10;
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
@@ -1109,7 +1394,7 @@ export function compute(b, opts){
   return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
-    ac,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
+    ac,acInfo,hpDraconic:_hpDraconic,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
     saveDC:hasDC?(8+prof+castMod):null,spellAtk:hasDC?(prof+castMod):null,hardyCap:vgcap,conMod:cm,goldGp:DATA.goldPurse+(b.gold||0)*50,
     status: remaining<0?("OVER BUDGET by "+(-remaining)+" AP"):remaining===0?"exact — fully spent":(remaining+" AP under budget")};
 }
@@ -1162,7 +1447,7 @@ export const MUT = {
  names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
- lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
+ lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v,shieldWorn:(b,p)=>b.shieldWorn=!!p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
  feat:()=>0, feature:(b,p)=>{const l=FEAT_ALIAS(p.v);b.features.push(l);_noteDoor(b,l,'f');}, art:(b,p)=>(b.arts=b.arts||[]).push(p.v), boon:(b,p)=>b.boons.push(p.v), mvbuy:(b,p)=>{b.maneuverBuys=(b.maneuverBuys||0)+1;},
  tool:(b,p)=>b.tools.push(p.v), instrument:(b,p)=>b.instruments.push(p.v), mastery:(b,p)=>b.masteries.push(p.v),
  language:(b,p)=>b.languages=p.to, vigor:(b,p)=>b.hardy=p.to, grit:(b,p)=>b.tough=p.to,
@@ -2825,6 +3110,68 @@ export function purchaseLegality(cur, cat, payload, opts) {
   // event in the log. Refuse it as a duplicate (fix/livesheet-second-origin-class).
   const dupOrigin = cat === 'unlockclass' && !!payload && payload.v != null && payload.v !== '(none)' && (payload.v === cur.originClass || payload.v === cur.originClass2);
   return { warnings, followup, rest, hard, soft, dup: dup || dupOrigin };
+}
+
+// allNameableSlots(build) — every language and spell slot a character owns, named or blank, in the order the
+// ✎ Name spells & languages dialog lists them (refactor/names-slot-helper; docs/plans/2026-10-15-names-before-spending.md).
+//
+// WHY ONE COPY HERE. Each tool's openNames() used to count the slots itself, so anything that needed "which slots does this
+// character own, and which are still blank" (the names-before-spending gate) would have had to re-count them a third time and
+// could drift from what the dialog actually shows. The dialogs now build their rows from this list, and the gate reads the same
+// list. testing/scripts/names-dialog-e2e.mjs checks both tools' rows against it.
+//
+// SCOPE (owner decision M1, 2026-10-15): languages and spells only — language, out-of-tradition (dabbler) cantrip, innate
+// spell, discipline cantrip, known spell, Mystic Arcanum. NOT here: fighting styles and the cantrips they grant, Metamagic,
+// maneuvers, choice-grant spells (free, not bought) and the epic-boon ability — those rows stay in the dialogs and are not gated.
+//
+// Each slot: {kind, key, label, name, level, ti, di}.
+//   key    the dialog's `data-k` for the row ('lang::0', 'inn::2::1', 'tr::0::1::k::3::0', …) — saveNames() reads these.
+//   name   the current name, '' when blank (never null).
+//   level  the spell level (0 for a cantrip; absent for a language); ti/di only on discipline slots (tradition/discipline index).
+// `b.languages||1` mirrors the dialogs exactly: a character always has at least one language slot.
+export const NAMEABLE_KINDS = Object.freeze(['language', 'dabbler', 'innate', 'cantrip', 'known', 'arcanum']);
+export function allNameableSlots(b) {
+  const out = [];
+  const nm = v => (v == null ? '' : String(v));
+  const nl = b.languages || 1;
+  for (let i = 0; i < nl; i++) out.push({ kind: 'language', key: 'lang::' + i, label: 'Language ' + (i + 1), name: nm((b.languageNames || [])[i]) });
+  const dc = b.dabblerCantrips || 0;
+  for (let i = 0; i < dc; i++) out.push({ kind: 'dabbler', key: 'dab::' + i, label: 'Cantrip ' + (i + 1), name: nm((b.dabblerCantripNames || [])[i]), level: 0 });
+  for (let L = 1; L <= 9; L++) {
+    const ic = (b.innate || [])[L - 1] || 0;
+    for (let i = 0; i < ic; i++) out.push({ kind: 'innate', key: 'inn::' + L + '::' + i, label: 'L' + L + ' spell ' + (i + 1), name: nm((((b.innateNames || [])[L - 1]) || [])[i]), level: L });
+  }
+  (b.traditions || []).forEach((t, ti) => {
+    (t.disciplines || []).forEach((d, di) => {
+      if (!d.name || d.name === '(none)') return;
+      const cn = d.cantrips || 0;
+      for (let i = 0; i < cn; i++) out.push({ kind: 'cantrip', key: 'tr::' + ti + '::' + di + '::c::' + i, label: 'Cantrip ' + (i + 1), name: nm((d.cantripNames || [])[i]), level: 0, ti, di });
+      for (let L = 1; L <= 9; L++) {
+        const kn = (d.known || [])[L - 1] || 0;
+        for (let i = 0; i < kn; i++) out.push({ kind: 'known', key: 'tr::' + ti + '::' + di + '::k::' + L + '::' + i, label: 'L' + L + ' spell ' + (i + 1), name: nm((((d.knownNames || [])[L - 1]) || [])[i]), level: L, ti, di });
+      }
+      for (let ai = 0; ai < 4; ai++) {
+        const aL = 6 + ai, ac = (d.arcanum || [])[ai] || 0;
+        for (let aj = 0; aj < ac; aj++) out.push({ kind: 'arcanum', key: 'tr::' + ti + '::' + di + '::a::' + ai + '::' + aj, label: 'L' + aL + ' arcanum ' + (aj + 1), name: nm((((d.arcanumNames || [])[ai]) || [])[aj]), level: aL, ti, di });
+      }
+    });
+  });
+  return out;
+}
+
+// unnamedChoices(build, opts) — the slots from allNameableSlots() that are still blank (whitespace-only counts as blank).
+//   opts.kinds     only these kinds (default: all of NAMEABLE_KINDS). Each tool passes the kinds ITS dialog can render, so a
+//                  slot a tool cannot show is never counted against it (CharGen has no Arcanum rows yet — see the board task
+//                  feat/chargen-names-arcanum-rows).
+//   opts.poolSize  optional (slot) => number of legal names for that slot. A slot with NO legal choice (0) is skipped, so a
+//                  character can never be stuck on a slot it cannot fill (owner decision I1). The tools own the spell-list
+//                  logic (eligibleSpells), so they pass it in; omitted = every slot has a pool. Languages never need it: the
+//                  campaign list falls back to STANDARD_LANGUAGES, so it is never empty (campaignLanguages()).
+export function unnamedChoices(b, opts) {
+  const o = opts || {};
+  const kinds = Array.isArray(o.kinds) ? o.kinds : NAMEABLE_KINDS;
+  return allNameableSlots(b).filter(s => kinds.indexOf(s.kind) >= 0 && !s.name.trim()
+    && !(typeof o.poolSize === 'function' && Number(o.poolSize(s)) <= 0));
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so

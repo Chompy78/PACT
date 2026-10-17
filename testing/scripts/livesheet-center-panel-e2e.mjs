@@ -140,19 +140,20 @@ check('coins/weapons/notes come after the three columns', await page.evaluate(()
 check('the Character panel has an "Open full sheet" button and a one-time tip', await page.evaluate(() => !!document.querySelector('#sheet .lssheetbtn') && !!document.getElementById('lsSheetTip')));
 await page.evaluate(() => { toggleSheet(); toggleSheet(); render(); });
 check('…opening the Sheet retires the tip (remembered)', await page.evaluate(() => !document.getElementById('lsSheetTip') && localStorage.getItem('pactLsSheetTipSeen') === '1'));
-check('the Sheet view uses the same collapsed Appearance & description block', await page.evaluate(() => { toggleSheet();
-  const d = document.querySelector('#sheetbody .lsdesc'); const ok = !!d && !d.open && !!d.querySelector('[data-lsd="overall"]') && !d.querySelector('[data-lsd="alignment"]')
+// feat/livesheet-sheet-layout: the Sheet renders the panel's body, so the block (with Alignment etc. among its folded fields) is the same.
+check('the Sheet view uses the same Appearance & description block, fields folded', await page.evaluate(() => { toggleSheet();
+  const d = document.querySelector('#sheetbody .lsdesc'); const ok = !!d && !d.querySelector('.lsdfold').open && !!d.querySelector('[data-lsd="overall"]') && !!d.querySelector('.lsdfold [data-lsd="alignment"]')
     && ![...document.querySelectorAll('#sheetbody h5')].some(h => /Personality|Backstory/.test(h.textContent)); toggleSheet(); return ok; }));
 check('the Sheet view gives features, boons and drawbacks an ⓘ', await page.evaluate(() => { toggleSheet();
   const t = [...document.querySelectorAll('#sheetbody .fxi')].map(e => e.title); toggleSheet(); return t.some(x => /miss into a hit/.test(x)) && t.some(x => /Dash/.test(x)); }));
-check('the description is collapsed by default', await page.evaluate(() => !document.querySelector('#sheet .lsdesc').open));
+check('the description fields are folded by default', await page.evaluate(() => !document.querySelector('#sheet .lsdesc .lsdfold').open));
 await page.click('#sheet .lsdesc summary');
 await page.fill('#sheet [data-lsd="hair"]', 'copper "braided" <b>x</b>');
 await page.press('#sheet [data-lsd="hair"]', 'Tab');
 await page.waitForTimeout(150);
 check('editing a description field saves it in the character', await page.evaluate(() => (foldBuild(null).appearance || {}).hair) === 'copper "braided" <b>x</b>');
 check('…the block stays open and focus moves on to the next field', await page.evaluate(() =>
-  document.querySelector('#sheet .lsdesc').open && document.activeElement && document.activeElement.getAttribute('data-lsd') === 'eyes'));
+  document.querySelector('#sheet .lsdesc .lsdfold').open && document.activeElement && document.activeElement.getAttribute('data-lsd') === 'eyes'));
 check('…and the value is escaped (no element injected)', await page.evaluate(() => !document.querySelector('#sheet .lsdesc .lsdgrid b')));
 await page.fill('#sheet [data-lsd="eyes"]', 'grey');
 await page.press('#sheet [data-lsd="eyes"]', 'Tab');

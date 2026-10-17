@@ -202,6 +202,10 @@ jobs:
       - name: Run the wallet extraction gate
         run: node testing/scripts/engine-wallet-ci.mjs
 
+      # refactor/names-slot-helper: pins allNameableSlots()/unnamedChoices() — slot order, dialog keys, blank test, kinds filter.
+      - name: Run the nameable-slots gate
+        run: node testing/scripts/names-slots-ci.mjs
+
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
     # read DATA.version live at engine-ready, so the live labels are right — but the hardcoded FALLBACK

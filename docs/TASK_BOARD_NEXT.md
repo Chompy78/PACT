@@ -1570,6 +1570,38 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
+## feat/campaign-house-rules merge — keep customWeapons + weaponList in DM Console's Save rules — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-weapons (#667) merges into preview SECOND. **Effort:** low · **Risk:** medium — a dropped key silently wipes DM data on the next Save rules.
+
+```text
+DM Console's "Save rules" builds the whole campaigns.rules blob key by key (ruleSaveBtn handler), so any key it doesn't
+name is wiped on save. feat/livesheet-weapons (#667, D-GH-2026-10-15-livesheet-weapons) adds customWeapons and weaponList
+to that literal; feat/campaign-house-rules routes the same save through _rulesBlobForSave()/_rulesKeepChr() for
+charHouseRules. Whichever merges second must resolve the conflict keeping ALL of them: customWeapons, weaponList (written
+by Save rules) AND the charHouseRules handling (never sent by Save rules; kept from the cached copy). Then run
+livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponList" check) and the house-rules DM e2e.
+```
+**Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
+
+## feat/campaign-house-rules merge — rules version and parity fixture ids collide with feat/livesheet-armour-ac (#670) — TODO
+Branch: whichever of feat/campaign-house-rules / feat/livesheet-armour-ac (#670) merges into preview SECOND. **Effort:** small · **Risk:** medium — a wrong merge silently drops parity fixtures or a rules bump.
+
+```text
+Merge coordination, recorded 2026-10-15 from PR #670 (feat/livesheet-armour-ac). Both branches bump DATA.version v0.376 → v0.377,
+and their parity fixture ids collide: #670 adds CG-071..CG-082; feat/campaign-house-rules adds CG-071..CG-075 and EV-035..EV-040
+(#670 adds no EV fixtures). Whichever of the two merges SECOND must:
+  1. re-bump to v0.378 at every display site (js/engine-data.js `version`, CharGen <title> "Rules" half and #cgPactver chip,
+     Live Sheet #lsRulesVer — docs/VERSION-SYNC.md "Rules version display sites"; version-label-ci.mjs asserts them);
+  2. renumber its own colliding fixtures (files, expected-results.csv rows, expected-warnings.json keys, the FIXTURES list in
+     testing/tests/engine-parity.html);
+  3. merge the parity runners' optional per-fixture assertions — #670 adds `_expectAc`/`_expectHp` to both
+     testing/scripts/engine-parity-ci.mjs and testing/tests/engine-parity.html; keep the other branch's `_expect*` fields alongside;
+  4. rebaseline testing/expected/ on the COMBINED engine (re-run every fixture, old and new, against the merged js/engine.js) and
+     record the second bump in its CHANGELOG line and decision record.
+```
+**Done when:** after both have merged, preview's DATA.version is v0.378 at every display site, fixture ids are unique, and
+engine-parity reports 0 failed with every fixture from both branches present.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1599,3 +1631,94 @@ DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed 
 Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
+
+
+## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
+Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
+
+```text
+The client half shipped in feat/character-images (D-GH-2026-10-15-character-images): Live Sheet / CharGen upload, replace
+and remove up to 2 pictures; DM Console thumbnails. Until the migration is applied, uploading says "pictures aren't switched
+on for this server yet". Remaining (owner approval needed for the database steps):
+  1. Apply sql/migrations/2026-10-15-character-images.sql (bucket + 3 helpers + 4 storage.objects policies; purely additive).
+     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (55 cases) on the branch being applied.
+  2. Run get_advisors (security + performance) and skim get_logs.
+  3. Run the live post-apply spot-check list in decisions/2026/D-GH-2026-10-15-character-images.md (missing-bucket
+     message, owner Replace = upsert, a > 2 MB and an SVG upload via the REST API both refused, fellow player reads,
+     outsider does not).
+  4. Fold the statements into sql/rls-policies.sql (a short "Storage" section) per sql/migrations/README.md.
+```
+**Done when:** the migration is applied with owner approval, advisors are clean, every spot-check in the decision record passes, and `rls-policies.sql` carries the fold.
+
+## chore/character-images-orphan-sweep — remove pictures left behind by deleted characters — TODO
+Branch chore/character-images-orphan-sweep. **Effort:** low–medium · **Risk:** low–medium — deletes user files (service role), but only ones no policy can reach.
+
+```text
+After feat/character-images (D-GH-2026-10-15-character-images) is applied: pictures of a character deleted offline (the
+tombstone replay in js/sync.js doesn't remove them) or deleted by a campaign DM stay in the private character-images bucket.
+They are unreachable through the API (no row, or a recreated row with a newer created_at), cost ≤4 MB each, and block that
+slot for a recreated row with the same uuid. Build a sweep that lists objects whose `<uuid>` has no characters row, or whose
+created_at is older than the row's created_at, and deletes them with the service role through the Storage API (SQL cannot
+delete storage objects) — e.g. a documented dashboard/CLI procedure or a scheduled job; never ship the service key to the
+browser. Report counts before deleting; dry-run first.
+```
+**Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
+
+## db/apply-boon-drawback-notes — apply the boon/drawback description lock to production, reconciled with house rules — TODO
+Branch db/apply-boon-drawback-notes. **Effort:** low · **Risk:** medium — redefines `dm_edit_character_log()` on production.
+
+```text
+feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) shipped the client and wrote
+sql/migrations/2026-10-15-boon-drawback-notes.sql (+ rollback) WITHOUT applying it. Until it is applied, an approved
+description is locked by the two player tools only, and DM Console's Approve/Unlock say the server needs updating.
+  1. Read-only blast radius (the migration header has the query; expected 0 rows with itemNote/dmApproveNote/dmUnlockNote
+     before players start writing notes — after that, count them and confirm none is longer than 500 characters).
+  2. Compare md5(pg_get_functiondef(dm_edit_character_log)) on production with run-notes.sh's BASE line. If they differ,
+     rebuild the migration's dm_edit_character_log from the LIVE text (sql/migrations/README.md, the 2026-09-02 incident).
+  3. HOUSE RULES: 2026-10-13-campaign-house-rules-server.sql (feat/campaign-house-rules, not applied either) redefines the
+     same function and adds pact_dm_family(). Whichever is applied SECOND must be rebuilt on the first: union the two
+     dm_edit_character_log allow-lists/validation blocks (keep pact_next_seq()), add 'dmApproveNote' and 'dmUnlockNote' to
+     pact_dm_family()'s DM-only types, keep trg_pact_item_note_lock, and point that migration's rollback at the first
+     one's definitions. Re-run run-notes.sh and run-house-rules.sh on the rebuilt files.
+  4. Owner applies (apply_migration), then get_advisors (security + performance) and get_logs.
+  5. Fold into sql/rls-policies.sql and add the file to the \ir lists of testing/sql/session-seal-test.sql and
+     rls-baseline-test.sql (a later PR, per sql/migrations/README.md); flip the header to APPLIED.
+Solo rule confirmed by the owner 2026-10-17 (required, never locked). The 27-item list was settled with the owner on 2026-10-17.
+```
+**Done when:** the migration is applied to production with advisors clean; a player's direct write changing an approved description is refused there; `dm_edit_character_log` on production still contains `assert_campaign_active`, the boon/award match, `dmUnlockDrawback`, `dmDiscount` (and `dmHouseRules` if that migration is live); the baseline fold PR is merged.
+
+## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
+Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.
+
+```text
+Owner decision AR1 (2026-10-15, review of #672). Since feat/livesheet-sheet-layout the Live Sheet's 📋 Sheet renders the
+Character panel's own body (_lsCharBody in render(), plus _lsTableExtras) — see D-GH-2026-10-15-livesheet-sheet-layout.
+CharGen's Sheet tab still uses its own renderCharSheet(b,r,ctx), the last copy of the old fillable layout. DO: move the
+body renderer somewhere both tools load (e.g. js/ui-helpers.js, or a new shared classic script — it needs esc, the colour
+map _CSABCOL, skillMods/saveMods/grantedSpells from the engine bridge, _lsFx/_fxBtn for ⓘ, and the description block),
+call it from CharGen's Sheet tab, and delete CharGen's renderCharSheet(). Keep CharGen's tool-specific bits as opts (no
+rename button, CharGen's AP line, no playerSheet editing unless CharGen gains it). Keep the device-local "at the table"
+fields and the AP ledger. Every player value escaped; check phone width.
+```
+**Done when:** CharGen's Sheet tab and the Live Sheet's 📋 Sheet render through one shared function (no renderCharSheet left in either tool); an e2e asserts both tools show the same section outline for the same character; ledger-xss / esc-gap-verify / tool-pricing-ci updated and green; `engine-parity-ci` 0 failed.
+
+
+## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
+Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.
+
+```text
+Found 2026-10-15 during refactor/names-slot-helper (PR 1 of docs/plans/2026-10-15-names-before-spending.md). Live Sheet's
+openNames() renders Mystic Arcanum rows (keys tr::<ti>::<di>::a::<ai>::<aj>, spell levels 6-9, Warlock spells, one datalist per
+level). CharGen's openNames() (tools/PACT-CharGen-Webtool.html) has no Arcanum rows: it only carries arcanumNames through on
+save, so a CharGen player cannot name an Arcanum slot at all.
+
+Why it matters: the names-before-spending gate counts languages and spells (owner decision M1, 2026-10-15), which includes
+Arcanum. Until CharGen can name Arcanum, the gate has to skip that kind in CharGen (the engine helper takes a list of kinds),
+which is a standing exception.
+
+DO: add the Arcanum rows to CharGen's openNames() and make saveNames() write them into the `names` event the same way the Live
+Sheet does (payload tr[].an), reusing the Live Sheet's row and datalist shape. Then delete the CharGen skip from the gate so
+both tools pass the full kind list. Do not change what a `names` event means or costs.
+```
+**Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.
+

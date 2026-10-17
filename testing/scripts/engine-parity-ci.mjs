@@ -58,6 +58,9 @@ async function runAll() {
         id, group: 'chargen', path: p,
         total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
         ok: r.remaining >= 0, error: null,
+        // A build fixture may carry `_expectAc` / `_expectHp` (feat/livesheet-armour-ac): the AC / HP compute() must report.
+        // Optional, so the CSV keeps its shape; asserted below and in engine-parity.html alike.
+        ac: r.ac, expectAc: build._expectAc, hp: r.hp, expectHp: build._expectHp,
       });
     } catch (e) {
       rows.push({ id, group: 'chargen', path: p, error: e.message });
@@ -152,6 +155,8 @@ function assertRow(row, expected, expectedWarnings) {
   // (The old hardcoded first-warning-text checks these two used to carry are now subsumed by the
   // exact warning-text-array assertion above; only the remaining-sign assertions, which aren't about
   // warning content, are still fixture-specific.)
+  if (row.expectAc !== undefined && row.ac !== row.expectAc) failures.push(`ac: got ${row.ac}, expected ${row.expectAc}`);
+  if (row.expectHp !== undefined && row.hp !== row.expectHp) failures.push(`hp: got ${row.hp}, expected ${row.expectHp}`);
   if (row.id === 'CG-003') {
     if (row.remaining >= 0) failures.push(`remaining should be < 0, got ${row.remaining}`);
   }
