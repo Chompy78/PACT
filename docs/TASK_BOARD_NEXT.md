@@ -1664,27 +1664,28 @@ browser. Report counts before deleting; dry-run first.
 ```
 **Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
 
-## feat/boon-drawback-notes — compulsory description on certain boons/drawbacks, locked once the DM approves it — TODO
-Branch feat/boon-drawback-notes. **Effort:** medium–high · **Risk:** medium — new DM approval state that must be server-enforced (a player-written LOG), and touches buy/save flows in all three tools.
+## db/apply-boon-drawback-notes — apply the boon/drawback description lock to production, reconciled with house rules — TODO
+Branch db/apply-boon-drawback-notes. **Effort:** low · **Risk:** medium — redefines `dm_edit_character_log()` on production.
 
 ```text
-Owner request 2026-10-14. Some boons and drawbacks only make sense with a player-written description — e.g. the drawback
-"Code of Honour" (js/engine-data.js) needs the actual code spelled out. For those:
-  1. Data: mark them in DATA (e.g. a `needsNote:true` flag + a prompt such as "Write your code of honour"); display-only, so
-     no DATA.version bump unless pricing changes. Owner to list which boons/drawbacks get the flag (start: Code of Honour;
-     candidates: Oath of Poverty, vows/obligations, Enemy, Dependent…).
-  2. Player: buying a flagged item asks for the description (required, non-empty, length cap); it's stored on the purchase
-     (a note on the buy event, or a cost-0 note event that references the purchase by seq). The player can edit it until
-     approved. Shown on the Live Sheet, the 📋 Sheet, CharGen and the DM's card — escaped (esc() rule).
-  3. DM: DM Console lists notes awaiting approval; the DM approves (or asks for changes). Approval is a DM-stamped event via
-     dm_edit_character_log (new allow-listed type, e.g. {type:'dmApproveNote', targetSeq}); after it the note is LOCKED —
-     both tools refuse edits, and the server refuses a player change to an approved note (extend the DM-family / locked-
-     history guards). A DM can unlock it again (story beat), mirroring dmUnlockDrawback.
-  4. Solo characters (no DM): decide — no approval step (note always editable), or self-approve.
-Plan + cold review first (server guard + new event type). Migration NOT applied until the owner approves; get_advisors.
-Coordinate with feat/campaign-house-rules (its DM-family forgery guard must freeze the new approval event too).
+feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) shipped the client and wrote
+sql/migrations/2026-10-15-boon-drawback-notes.sql (+ rollback) WITHOUT applying it. Until it is applied, an approved
+description is locked by the two player tools only, and DM Console's Approve/Unlock say the server needs updating.
+  1. Read-only blast radius (the migration header has the query; expected 0 rows with itemNote/dmApproveNote/dmUnlockNote
+     before players start writing notes — after that, count them and confirm none is longer than 500 characters).
+  2. Compare md5(pg_get_functiondef(dm_edit_character_log)) on production with run-notes.sh's BASE line. If they differ,
+     rebuild the migration's dm_edit_character_log from the LIVE text (sql/migrations/README.md, the 2026-09-02 incident).
+  3. HOUSE RULES: 2026-10-13-campaign-house-rules-server.sql (feat/campaign-house-rules, not applied either) redefines the
+     same function and adds pact_dm_family(). Whichever is applied SECOND must be rebuilt on the first: union the two
+     dm_edit_character_log allow-lists/validation blocks (keep pact_next_seq()), add 'dmApproveNote' and 'dmUnlockNote' to
+     pact_dm_family()'s DM-only types, keep trg_pact_item_note_lock, and point that migration's rollback at the first
+     one's definitions. Re-run run-notes.sh and run-house-rules.sh on the rebuilt files.
+  4. Owner applies (apply_migration), then get_advisors (security + performance) and get_logs.
+  5. Fold into sql/rls-policies.sql and add the file to the \ir lists of testing/sql/session-seal-test.sql and
+     rls-baseline-test.sql (a later PR, per sql/migrations/README.md); flip the header to APPLIED.
+Also for the owner: confirm the provisional solo rule (required, never locked). The 27-item list was settled with the owner on 2026-10-17.
 ```
-**Done when:** buying Code of Honour requires a description; the DM sees and approves it in DM Console; after approval the player can't change it in either tool and a direct server write changing it is refused (tested); a DM unlock re-opens it; names/notes escaped; `engine-parity-ci` 0 failed.
+**Done when:** the migration is applied to production with advisors clean; a player's direct write changing an approved description is refused there; `dm_edit_character_log` on production still contains `assert_campaign_active`, the boon/award match, `dmUnlockDrawback`, `dmDiscount` (and `dmHouseRules` if that migration is live); the baseline fold PR is merged.
 
 ## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
 Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.

@@ -30,6 +30,8 @@ on:
       - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/scripts/ledger-xss-e2e.mjs"
       - "testing/scripts/dm-console-notes-e2e.mjs"
+      - "testing/scripts/boon-drawback-notes-e2e.mjs"
+      - "js/ui-helpers.js"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -82,6 +84,11 @@ jobs:
       # feat/dm-ap-discount: the DM Console control, the Live Sheet display and CharGen's spendable, in one script.
       - name: DM AP discount — DM Console sends it, Live Sheet and CharGen count it
         run: node testing/scripts/dm-ap-discount-e2e.mjs
+
+      # feat/boon-drawback-notes: the description some boons/drawbacks need — asked on buying (Live Sheet + CharGen), shown and
+      # editable until approved, and DM Console's Approve/Unlock. Same cost profile as the steps above.
+      - name: Boon & drawback descriptions — required on buying, DM approval locks them
+        run: node testing/scripts/boon-drawback-notes-e2e.mjs
 
       # feat/permanent-wounds: players can't pick the four wound-only drawbacks in CharGen or the Live Sheet, and a DM can
       # impose all of them (grouped, defaulting to Locked + flat) from the DM Console. Same cost profile as the steps above.

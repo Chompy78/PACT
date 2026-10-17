@@ -39,6 +39,15 @@
   Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". Owner AP1 adds Defense (+1 AC in armour) and Draconic Resilience HP
   (+1 per Hit Die = 2024's Sorcerer-level bonus). v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
   Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
+## D-GH-2026-10-15-boon-drawback-notes — some boons and drawbacks need a player-written description, which the DM approves and so locks
+- 27 items in display-only `DATA.notePrompts`: 23 flagged after reading every boon and drawback, plus 4 the owner added
+  (20 drawbacks e.g. Code of Honour, Haunted / Phobia, Nightmares, Soul Debt; 7 boons e.g. Patron, Font of Will; NOT Oath
+  of Poverty). Append-only `itemNote` events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock
+  are DM events through `dm_edit_character_log`, carrying the text the DM was shown, and an approval counts only for that
+  exact text in the campaign it was made in. Joining a campaign (insert or move, by anyone but its DM) drops approvals
+  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (provisional). Migration NOT
+  applied; must be reconciled with the house-rules migration (whichever applies second rebuilds on the other).
+  Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
 ## D-GH-2026-10-15-livesheet-sheet-layout — the Live Sheet's 📋 Sheet IS the Character panel's body (one renderer)
 - `render()`'s panel block runs as `_lsCharBody(b,r,eco,opts)`, defined in place, and `renderSheet()` calls it, followed by
   at-the-table extras (HP, death saves, slots used, AP ledger). The old Sheet-only content (languages, proficiencies,

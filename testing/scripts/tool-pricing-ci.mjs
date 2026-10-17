@@ -270,6 +270,7 @@ try {
   const LS_SETUP = `window.__a=[];window.__c=[];window.__f=[];
     window.alert=m=>window.__a.push(String(m));window.confirm=m=>{window.__c.push(String(m));return true;};
     window.flash=m=>window.__f.push(String(m));
+    window.pactAskNote=(n,q,c,done)=>done('A description');   /* feat/boon-drawback-notes: a flagged boon (e.g. Boon of Energy Resistance) asks for one in a modal */
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
   // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw

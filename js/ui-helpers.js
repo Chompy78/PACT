@@ -341,6 +341,136 @@ function pactComposeDescription(ap, who){
   return pcs.join(' ');
 }
 
+/* ---- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) --------------------------------------------------
+   Some boons and drawbacks need a player-written description (DATA.notePrompts — "Code of Honour": what is the code?).
+   Shared by CharGen, the Live Sheet and DM Console so the three read a note's state the same way. Display/UX only: no
+   rule reads a note, so nothing here touches compute() or the AP economy.
+
+   THE EVENTS (all three live in the character's LOG, keyed by category + NAME, never by seq — CharGen renumbers a draft's
+   purchases when it rebuilds the log, and a character holds at most one copy of a boon or drawback name):
+     {type:'itemNote',      cat:'boon'|'drawback', refVal:<name>, text}  player-written; the LATEST one is the note
+     {type:'dmApproveNote', cat, refVal, text, campaignId}  written ONLY by dm_edit_character_log (DM-stamped
+                                                dmEdit:true); `text` is the note as the server read it at approval
+     {type:'dmUnlockNote',  cat, refVal, note?, campaignId}  same path; re-opens an approved note for editing
+   A note's state is read in log order: a note makes it 'pending', an approval of exactly that text makes it 'approved', an unlock or a NEWER
+   note makes it 'pending' again. An approval or unlock counts only when it is DM-stamped AND was made in the campaign the
+   character is in now (`campaignId`, stamped by the server) — a character that moves campaign needs its new DM's
+   approval, and a solo character (no campaign) has no DM, so its note is required but never locked. The server applies
+   the same reading (pact_enforce_item_note_lock). */
+var PACT_NOTE_MAX = 500;
+function pactNoteKey(cat, name){ return String(cat) + '|' + String(name); }
+// The question to ask for a boon/drawback, or '' when it needs no note.
+function pactNotePrompt(data, cat, name){
+  var m = data && data.notePrompts && data.notePrompts[cat];
+  return (m && Object.prototype.hasOwnProperty.call(m, name)) ? String(m[name] || '') : '';
+}
+// key -> {cat, name, text, status:'none'|'pending'|'approved', approved:{text,ts,dmId}|null, unlocked:{note,ts}|null}
+function pactNoteStates(log, campaignId){
+  var out = {};
+  (log || []).forEach(function(e){
+    if(!e || (e.type !== 'itemNote' && e.type !== 'dmApproveNote' && e.type !== 'dmUnlockNote')) return;
+    if((e.cat !== 'boon' && e.cat !== 'drawback') || typeof e.refVal !== 'string' || !e.refVal) return;
+    var k = pactNoteKey(e.cat, e.refVal);
+    var st = out[k] || (out[k] = { cat: e.cat, name: e.refVal, text: '', status: 'none', approved: null, unlocked: null });
+    if(e.type === 'itemNote'){
+      if(typeof e.text !== 'string') return;
+      st.text = e.text; st.status = e.text.trim() ? 'pending' : 'none';
+    } else if(e.dmEdit !== true || !campaignId || String(e.campaignId) !== String(campaignId)){
+      return;   // an approval or unlock counts only when the server stamped it, in the character's current campaign
+    } else if(e.type === 'dmApproveNote'){
+      // Only an approval OF THIS TEXT counts: the server copies the approved text into the event, so a note rewritten in
+      // place afterwards (possible while the character was solo, where nothing is frozen) no longer matches and stays
+      // pending. (#673 review, finding A.)
+      if(st.status === 'none' || typeof e.text !== 'string' || e.text !== st.text) return;
+      st.status = 'approved'; st.approved = { text: e.text, ts: e.ts || 0, dmId: e.dmId || null };
+    } else if(st.status === 'approved'){
+      st.status = 'pending'; st.unlocked = { note: typeof e.note === 'string' ? e.note : '', ts: e.ts || 0 }; st.approved = null;
+    }
+  });
+  return out;
+}
+// The held boons/drawbacks that need a note, one row per name: {cat, name, prompt, text, status, approved}. `build` is
+// the folded build (foldBuild), whose boons/drawbacks are what the character holds right now; `campaignId` the campaign
+// it is in (null when solo).
+function pactNoteItems(build, log, data, campaignId){
+  var states = pactNoteStates(log, campaignId), rows = [], seen = {};
+  [['boon', (build && build.boons) || []], ['drawback', (build && build.drawbacks) || []]].forEach(function(p){
+    p[1].forEach(function(name){
+      var k = pactNoteKey(p[0], name), q = pactNotePrompt(data, p[0], name);
+      if(!q || seen[k]) return; seen[k] = 1;
+      var st = states[k] || { text: '', status: 'none', approved: null, unlocked: null };
+      rows.push({ cat: p[0], name: name, prompt: q, text: st.text, status: st.status, approved: st.approved, unlocked: st.unlocked });
+    });
+  });
+  return rows;
+}
+// Approved notes are frozen while the character is in a campaign (the server refuses a change there too).
+function pactNoteLocked(row, campaignBound){ return !!(row && row.status === 'approved' && campaignBound); }
+// {ok:true, text} or {ok:false, error}. Trimmed; required; capped at PACT_NOTE_MAX (the server caps it too).
+function pactCheckNoteText(t){
+  var s = String(t == null ? '' : t).trim();
+  if(!s) return { ok: false, error: 'A description is required for this one.' };
+  if(s.length > PACT_NOTE_MAX) return { ok: false, error: 'Keep it to ' + PACT_NOTE_MAX + ' characters or fewer (this is ' + s.length + ').' };
+  return { ok: true, text: s };
+}
+function pactNoteEvent(cat, name, text){
+  return { type: 'itemNote', cat: cat, refVal: name, text: text, label: 'Note — ' + name };
+}
+// Ask for a note in a small modal with a multi-line box (owner decision AU1, 2026-10-17): the item's question, a <textarea>
+// capped at PACT_NOTE_MAX with a live counter, OK / Cancel. Keyboard: the box has focus on open, Tab moves between it and
+// the buttons, Esc = Cancel, Ctrl/Cmd+Enter = OK (Enter alone is a new line). OK re-checks the text (required, capped) and
+// shows the problem in the dialog instead of closing. done(text) on OK with the trimmed text, done(null) on Cancel/Esc.
+// ASYNCHRONOUS: callers continue in `done`. Tests may replace window.pactAskNote with a stub that calls done() directly.
+function pactAskNote(name, question, current, done){
+  if(typeof done !== 'function') done = function(){};
+  // One at a time: a second request while one is open is answered "cancelled" (so its caller puts the tick back), never
+  // left hanging. The open one keeps focus.
+  if(document.getElementById('pactNoteDlg')){ done(null); return; }
+  var prev = document.activeElement;
+  var ov = document.createElement('div');
+  ov.id = 'pactNoteDlg';
+  ov.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px');
+  var box = document.createElement('div');
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'pactNoteDlgT');
+  box.setAttribute('style', 'background:var(--panel,var(--card,var(--bg,#fff)));color:var(--ink,var(--text,inherit));border:1px solid var(--line,#888);border-radius:8px;max-width:520px;width:100%;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.35);font:inherit');
+  box.innerHTML = '<div id="pactNoteDlgT" style="font-weight:700;margin-bottom:4px"></div>'
+    + '<label for="pactNoteDlgTa" id="pactNoteDlgQ" style="display:block;font-size:13px;margin-bottom:6px"></label>'
+    + '<textarea id="pactNoteDlgTa" rows="5" maxlength="' + PACT_NOTE_MAX + '" aria-describedby="pactNoteDlgN pactNoteDlgE" style="width:100%;box-sizing:border-box;font:inherit;resize:vertical"></textarea>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin:4px 0 10px;gap:8px">'
+    + '<span>Required. Your DM sees it and approves it. <span style="opacity:.75">Ctrl+Enter = OK, Esc = Cancel</span></span><span id="pactNoteDlgN" aria-live="polite"></span></div>'
+    + '<div id="pactNoteDlgE" role="alert" style="color:var(--bad,#b00);font-size:12px;min-height:1em;margin-bottom:6px"></div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" id="pactNoteDlgCancel">Cancel</button><button type="button" class="btn" id="pactNoteDlgOk">OK</button></div>';
+  ov.appendChild(box); document.body.appendChild(ov);
+  box.querySelector('#pactNoteDlgT').textContent = name;      // textContent: never markup
+  box.querySelector('#pactNoteDlgQ').textContent = question;
+  var ta = box.querySelector('#pactNoteDlgTa'), cnt = box.querySelector('#pactNoteDlgN'), err = box.querySelector('#pactNoteDlgE');
+  ta.value = current || '';
+  var upd = function(){ cnt.textContent = ta.value.length + ' / ' + PACT_NOTE_MAX; };
+  upd();
+  // Focus is trapped at DOCUMENT level: anything that moves focus outside the dialog (a click on the page behind, a
+  // script) sends it back to the box, so the overlay can't lose it.
+  var trap = function(e){ if(!box.contains(e.target)) ta.focus(); };
+  document.addEventListener('focusin', trap, true);
+  var fin = function(v){ document.removeEventListener('focusin', trap, true); ov.remove(); try { if(prev && prev.focus) prev.focus(); } catch(e){} done(v); };
+  var ok = function(){ var c = pactCheckNoteText(ta.value); if(!c.ok){ err.textContent = c.error; ta.focus(); return; } fin(c.text); };
+  ta.addEventListener('input', function(){ upd(); err.textContent = ''; });
+  box.querySelector('#pactNoteDlgOk').addEventListener('click', ok);
+  box.querySelector('#pactNoteDlgCancel').addEventListener('click', function(){ fin(null); });
+  // Every key pressed in the dialog stays in the dialog: the tools' document-level shortcuts (CharGen's Ctrl+Z / Ctrl+Y undo
+  // and redo, the Live Sheet's Esc handler) must never act on the character while the player is typing (#673 re-review 1).
+  ['keypress', 'keyup'].forEach(function(t){ ov.addEventListener(t, function(e){ e.stopPropagation(); }); });
+  ov.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if(e.key === 'Escape'){ e.preventDefault(); fin(null); }
+    else if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); ok(); }
+    else if(e.key === 'Tab'){   // keep focus inside the dialog
+      var f = [ta, box.querySelector('#pactNoteDlgCancel'), box.querySelector('#pactNoteDlgOk')], k = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+    }
+  });
+  ta.focus();
+}
+
 /* Spells and cantrips from somewhere other than a tradition's own lists (fix/livesheet-pack-spells) — the rows come
    from the engine's grantedSpells(b); these only turn them into the same .splevel/.sprow markup the spell lists
    already use, so the Live Sheet's Character panel, its 📋 Sheet and CharGen's Sheet tab all show them one way.
