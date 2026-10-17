@@ -3,7 +3,7 @@
 **Status:** code in PR (`feat/boon-drawback-notes`). **The SQL migration is NOT applied** — merging does not apply it; the
 owner applies `sql/migrations/2026-10-15-boon-drawback-notes.sql`, then runs `get_advisors`. The tools work before it is
 applied (see *Deploy order*). `DATA.version` **not** bumped: `DATA.notePrompts` is display-only (`compute()` never reads it).
-Solo-character rule is **provisional** (see *Owner decisions*).
+Solo-character rule confirmed by the owner on 2026-10-17 (AW1; see *Owner decisions*).
 
 ## Context
 
@@ -17,8 +17,8 @@ DM unlocks it. Shown on the Live Sheet, the 📋 Sheet, CharGen and the DM's car
 
 - **(a) Which items.** Review every boon and drawback in `js/engine-data.js` one by one (name + effect text) and flag only
   those whose name/effect needs a player-written description to mean anything at the table; give each its own question.
-- **(b) Solo characters (no DM).** Not picked by the owner. **Provisional default: the note is required but never locked**
-  (there is no DM to approve it). Recorded here so the owner can overturn it; changing it later is a client-only change
+- **(b) Solo characters (no DM).** **Confirmed by the owner 2026-10-17 (AW1): the note is required but never locked**
+  (there is no DM to approve it). Changing it later is a client-only change
   plus one line of the trigger (it already skips solo characters).
 
 ## The reviewed list (all 109 drawbacks and 89 boons read, 2026-10-15)

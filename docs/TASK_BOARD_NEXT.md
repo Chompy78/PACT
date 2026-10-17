@@ -1683,7 +1683,7 @@ description is locked by the two player tools only, and DM Console's Approve/Unl
   4. Owner applies (apply_migration), then get_advisors (security + performance) and get_logs.
   5. Fold into sql/rls-policies.sql and add the file to the \ir lists of testing/sql/session-seal-test.sql and
      rls-baseline-test.sql (a later PR, per sql/migrations/README.md); flip the header to APPLIED.
-Also for the owner: confirm the provisional solo rule (required, never locked). The 27-item list was settled with the owner on 2026-10-17.
+Solo rule confirmed by the owner 2026-10-17 (required, never locked). The 27-item list was settled with the owner on 2026-10-17.
 ```
 **Done when:** the migration is applied to production with advisors clean; a player's direct write changing an approved description is refused there; `dm_edit_character_log` on production still contains `assert_campaign_active`, the boon/award match, `dmUnlockDrawback`, `dmDiscount` (and `dmHouseRules` if that migration is live); the baseline fold PR is merged.
 
