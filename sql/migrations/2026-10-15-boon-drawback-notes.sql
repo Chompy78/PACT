@@ -46,9 +46,10 @@
 --        dmApproveNote/dmUnlockNote event — so they arrive only through dm_edit_character_log;
 --      * on a campaign character, nobody but its DM may add, change or remove the itemNote events of a description that
 --        is approved in that campaign (the lock); a solo character's notes are never locked (owner, provisional);
---      * a new itemNote's text must be a string of 1 to 500 characters after trimming (the tools' cap);
---      * a character INSERTED into a campaign by anyone but its DM loses the approvals made in that campaign (they are
---        dropped from the new row, so a claimed pregen's descriptions wait for the DM's approval again).
+--      * a new itemNote's text must be a string of 1 to 500 characters after trimming (the tools' cap; trimming is
+--        pact_js_trim(), the same whitespace set as JavaScript's trim());
+--      * a character INSERTED into, or MOVED into, a campaign by anyone but its DM loses the approvals made in that
+--        campaign (dropped from the row, so a claimed pregen's descriptions wait for the DM's approval again);
 --      Identity is WHO writes (is_campaign_dm), never a flag in the event. Admin sessions (no JWT) are exempt, like
 --      pact_enforce_creation_lock(): a hand repair is not refused.
 --   pact_ap_ledger_protected() is NOT changed: a note moves no AP, and the trigger above already freezes what must not move.
@@ -57,10 +58,10 @@
 -- and creation-lock guards, every grant on dm_edit_character_log (`create or replace` keeps them).
 --
 -- KNOWN GAPS, STATED PLAINLY.
---   * A SOLO character is unchecked on INSERT and nothing compares its log when it joins a campaign, so a player who
---     hand-crafts approval events stamped with a campaign's id, inserts the character solo and then joins that campaign
---     arrives with descriptions that look approved. The only effect is on their own note (shown approved, and frozen for
---     them); no AP moves. Same class as the house-rules migration's documented residual; closed by the same follow-up.
+--   * Joining is closed (#673 re-review 4): an INSERT into, or a move into, campaign X by anyone but X's DM drops every
+--     approval stamped with X, so approvals forged on a solo character never survive the join. What remains: a player can
+--     still hand-craft approvals on a SOLO character (nothing is frozen there, and nothing counts there either — a solo
+--     note is never locked), and approvals stamped with campaign Y ride along into X, where they do not count.
 --   * CharGen's New Character starts a different character (no notes, by design). Randomise and the Live-Sheet-file load
 --     branch carry the note events verbatim (#673 review D), so they no longer drop them.
 --   * #673 review A/B/C: an approval counts only for the exact text it approved (a note rewritten in place while solo is
@@ -75,10 +76,26 @@
 -- VERIFY AFTER APPLYING.
 --   select has_function_privilege('authenticated', 'public.pact_item_note_state(jsonb,text,text,text)', 'execute');   -- false
 --   select has_function_privilege('authenticated', 'public.pact_enforce_item_note_lock()', 'execute');              -- false
+--   select has_function_privilege('authenticated', 'public.pact_js_trim(text)', 'execute');                         -- false
 --   select tgname from pg_trigger where tgname = 'trg_pact_item_note_lock';                                          -- 1 row
 --   select p.prosrc like '%assert_campaign_active%' and p.prosrc like '%has no matching award%'
 --          and p.prosrc like '%dmUnlockDrawback%' and p.prosrc like '%dmDiscount%' and p.prosrc like '%dmApproveNote%'
 --     from pg_proc p where p.proname = 'dm_edit_character_log';                                                        -- true
+
+-- pact_js_trim: String.prototype.trim() exactly — strips the same whitespace set from both ends (ASCII tab/LF/VT/FF/CR/space,
+-- NBSP, U+1680, U+2000–U+200A, U+2028/2029, U+202F, U+205F, U+3000, U+FEFF) and nothing else, so "blank" means the same on
+-- the server as in js/ui-helpers.js pactCheckNoteText()/pactNoteStates() (#673 re-review 5). btrim() only strips spaces, and
+-- [[:space:]] is locale-dependent (it can include U+0085, which JS keeps).
+create or replace function public.pact_js_trim(p text)
+ returns text
+ language sql
+ immutable
+ set search_path = public, pg_temp
+as $function$
+  select regexp_replace(p, '^[' || w || ']+|[' || w || ']+$', '', 'g')
+    from (select chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(32) || chr(160) || chr(5760)
+                 || chr(8192) || '-' || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288) || chr(65279) as w) s;
+$function$;
 
 create or replace function public.pact_item_note_state(p_log jsonb, p_cat text, p_name text, p_campaign text,
                                                        out status text, out note text)
@@ -99,7 +116,7 @@ begin
     if e->>'type' = 'itemNote' then
       if jsonb_typeof(e->'text') = 'string' then
         note := e->>'text';
-        status := case when btrim(note) = '' then 'none' else 'pending' end;
+        status := case when public.pact_js_trim(note) = '' then 'none' else 'pending' end;
       end if;
     elsif e->'dmEdit' = 'true'::jsonb and p_campaign is not null and e->>'campaignId' = p_campaign then
       -- only an approval OF THIS TEXT counts (#673 review A): a note rewritten in place after approval stays pending
@@ -405,7 +422,7 @@ begin
   -- A NEW description (one not already stored, compared whole) must be 1 to 500 characters after trimming.
   if exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
               where e->>'type' = 'itemNote'
-                and (coalesce(jsonb_typeof(e->'text'), '') <> 'string' or char_length(btrim(e->>'text')) not between 1 and 500)
+                and (coalesce(jsonb_typeof(e->'text'), '') <> 'string' or char_length(public.pact_js_trim(e->>'text')) not between 1 and 500)
                 and not exists (select 1 from jsonb_array_elements(v_old_log) as o(x) where x = e)) then
     raise exception 'PACT: a boon or drawback description must be 1 to 500 characters'
       using hint = 'Shorten the description and save again.';
@@ -413,9 +430,11 @@ begin
 
   -- INSERT into a campaign by anyone but its DM: approvals made in that campaign are DROPPED from the new row, not
   -- refused (#673 review C). The honest case is redeem_character_claim() copying a DM's pregen whose descriptions that
-  -- DM approved; refusing broke it. Dropping is the safer of the two fixes: nothing a player inserts can arrive looking
-  -- approved (a hand-crafted approval is removed the same way), the copy's notes simply wait for the DM's approval
-  -- again, and redeem_character_claim() is not redefined. Approvals stamped with another campaign never count here.
+  -- DM approved; refusing broke it. Dropping is the safer of the two fixes: no approval stamped with THIS campaign
+  -- survives a player's insert into it (a hand-crafted one is removed the same way), the copy's notes simply wait for the
+  -- DM's approval again, and redeem_character_claim() is not redefined. Approvals stamped with another campaign are kept
+  -- but never count here; a SOLO insert is not filtered (nothing counts on a solo character), and the move-into-a-campaign
+  -- branch below drops them on the way in.
   if TG_OP = 'INSERT' then
     if NEW.campaign_id is not null and not public.is_campaign_dm(NEW.campaign_id)
        and exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
@@ -425,6 +444,22 @@ begin
           where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text)));
     end if;
     return NEW;
+  end if;
+
+  -- Moving INTO a campaign (campaign_id changes to X) when the writer is not X's DM — bind_character_to_campaign(), a
+  -- campaign move — drops the approvals stamped with X, exactly as an INSERT does (#673 re-review 4). That closes the
+  -- "forge approvals on a solo character, then join" path: whatever arrives, no approval made "in X" survives the join, so
+  -- every approval that counts in a campaign was written there by its DM through dm_edit_character_log. The comparison
+  -- below then treats the dropped events as never having been there; any OTHER change to approvals is still refused.
+  if NEW.campaign_id is not null and NEW.campaign_id is distinct from OLD.campaign_id
+     and not public.is_campaign_dm(NEW.campaign_id)
+     and exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
+                  where e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text) then
+    v_new_log := (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_new_log) with ordinality as t(e, ord)
+                   where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text));
+    NEW.stats := jsonb_set(NEW.stats, '{LOG}', v_new_log);
+    v_old_log := (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_old_log) with ordinality as t(e, ord)
+                   where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text));
   end if;
 
   v_dm := OLD.campaign_id is not null and NEW.campaign_id is not distinct from OLD.campaign_id
@@ -466,4 +501,5 @@ create trigger trg_pact_item_note_lock
   for each row execute function public.pact_enforce_item_note_lock();
 
 revoke execute on function public.pact_item_note_state(jsonb, text, text, text) from public, anon, authenticated;
+revoke execute on function public.pact_js_trim(text)                            from public, anon, authenticated;
 revoke execute on function public.pact_enforce_item_note_lock()                 from public, anon, authenticated;

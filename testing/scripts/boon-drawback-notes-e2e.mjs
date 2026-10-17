@@ -115,6 +115,21 @@ console.log('Live Sheet — buying a flagged drawback asks for its description')
     last2[0].type === 'buy' && last2[0].v === 'Code of Honour' && last2[1].type === 'itemNote'
     && last2[1].refVal === 'Code of Honour' && last2[1].cat === 'drawback' && last2[1].text === 'Never strike an unarmed foe.\nNever lie.', JSON.stringify(last2));
   check('...and the dialog is gone', await page.evaluate(() => !document.getElementById('pactNoteDlg')));
+  // #673 re-review 1/2 (Live Sheet): focus can't leave the box; a second request while open is "cancelled"; and a purchase
+  // whose log changed while the box was open (here: an undo) is dropped, not recorded against the changed state.
+  await page.evaluate(() => takeDrawback('Hunted'));
+  await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find(x => !x.closest('#pactNoteDlg')); if (b) b.focus(); });
+  check('2: focus moved outside the dialog is sent back to the box', await page.evaluate(() => document.activeElement === document.getElementById('pactNoteDlgTa')));
+  check('2: a second request while one is open is answered "cancelled" at once', await page.evaluate(() => {
+    let got = 'pending'; window.pactAskNote('X', 'Q', '', (v) => { got = v; }); return got === null && document.querySelectorAll('#pactNoteDlg').length === 1; }));
+  const nH = (await lsLog(page)).length;
+  await page.evaluate(() => undo());
+  await page.fill('#pactNoteDlgTa', 'The Red Hand guild');
+  await page.click('#pactNoteDlgOk');
+  check('1: the log changed while typing (an undo) -> the purchase is dropped with a message, no note is written',
+    (await lsLog(page)).length === nH - 1 && !(await lsLog(page)).some(e => e.refVal === 'Hunted')
+    && (await page.evaluate(() => (document.body.innerText || '').length >= 0)), String((await lsLog(page)).length));
+  await page.evaluate(() => redo());
   await page.evaluate(() => { window.pactAskNote = (name, q, cur, done) => { window.__prompts.push(String(q)); done(window.__answers.length ? window.__answers.shift() : null); }; });
   check('the note shows on the Character panel', await page.evaluate(() =>
     [...document.querySelectorAll('#sheet .lsnote-text')].some(d => /unarmed foe/.test(d.textContent))));
@@ -191,6 +206,26 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
   await page.click(box('Code of Honour'));
   check('CharGen opens the same description box', await page.evaluate(() => !!document.getElementById('pactNoteDlgTa')));
   await page.click('#pactNoteDlgCancel');
+  // #673 re-review 1: Ctrl+Z / Ctrl+Y typed in the box stay in the box — CharGen's global undo must not fire.
+  await page.click(box('Snorer'));   // an earlier purchase that a leaked Ctrl+Z would undo
+  const nZ = (await cgLog()).length;
+  await page.click(box('Code of Honour'));
+  await page.focus('#pactNoteDlgTa');
+  // No history group still open (the normal state a few seconds after the last edit): CharGen's handler would then treat
+  // Ctrl+Z in ANY text box as "undo the last purchase" — the leak the review reproduced.
+  await page.evaluate(() => { _openKey = null; });
+  await page.keyboard.press('Control+z');
+  const afterZ = (await cgLog()).length;
+  await page.keyboard.press('Control+y');
+  check('1: Ctrl+Z inside the description box never reaches CharGen\'s undo', afterZ === nZ, `${nZ} -> ${afterZ}`);
+  check('1: ...nor Ctrl+Y its redo', (await cgLog()).length === nZ
+    && (await cgLog()).some(e => e.type === 'buy' && e.v === 'Snorer'), `${nZ} -> ${(await cgLog()).length} undoBtn=${await page.evaluate(() => document.getElementById('undoBtn').disabled)}`);
+  await page.evaluate(() => undo());   // a change made another way while the box is open
+  await page.fill('#pactNoteDlgTa', 'Typed while the log moved');
+  await page.click('#pactNoteDlgOk');
+  check('1: ...and if the log DOES change while typing, CharGen drops the purchase and unticks the box',
+    !(await cgLog()).some(e => e.type === 'buy' && e.v === 'Code of Honour') && !(await cgLog()).some(e => e.text === 'Typed while the log moved')
+    && !(await page.isChecked(box('Code of Honour'))));
   await page.evaluate(() => { window.pactAskNote = window.__stubAsk; });
   check('Cancel leaves the box unticked and buys nothing',
     !(await page.isChecked(box('Code of Honour'))) && !(await cgLog()).some(e => e.type === 'buy' && e.v === 'Code of Honour'), `log ${n0} -> ${(await cgLog()).length}`);
@@ -240,6 +275,8 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
     `${famBefore.length} vs ${(await fam()).length}`);
   check('D: ...and no later event reuses a carried seq', await page.evaluate(() => {
     const seqs = LOG.filter(e => ['itemNote', 'dmApproveNote'].includes(e.type)).map(e => e.seq); return seqs.every(q => SEQ > q); }));
+  check('3: after Randomise every event in the log has a distinct seq (the rebuilt ones are renumbered above the carried notes)',
+    await page.evaluate(() => { const q = LOG.map(e => e.seq); return new Set(q).size === q.length; }), await page.evaluate(() => JSON.stringify(LOG.map(e => e.seq))));
   // D: the Live-Sheet-file load branch rebuilds the log too; it must carry the notes, and an approval makes it a copy.
   const lsFile = { rules: 'v0.376', name: 'Notes file', id: '99999999-2222-3333-4444-555555555555', LOG: [
     { type: 'buy', cat: 'drawback', payload: { v: 'Code of Honour' }, cost: -3, level: 1, seq: 1, label: 'Drawback — Code of Honour' },

@@ -16,7 +16,7 @@ begin
     if sqlerrm = 'ROLLBACK_OK' then g := 'allowed';
     elsif sqlerrm like 'PACT: %' or sqlerrm like 'dm_edit_character_log: %' or sqlerrm like 'Only a campaign DM%' or sqlerrm like 'Character is not in a campaign%' then g := 'refused';
     -- a failed `expect` check, or (BEFORE the migration) the missing state reader: the behaviour under test is absent
-    elsif sqlerrm like 'CHECK FAILED%' or sqlerrm like 'function pact_item_note_state%does not exist' then g := 'check failed';
+    elsif sqlerrm like 'CHECK FAILED%' or sqlerrm like 'function pact_item_note_state%does not exist' or sqlerrm like 'function public.pact_js_trim%does not exist' then g := 'check failed';
     else g := 'ERROR: ' || sqlerrm; end if;
   end;
   insert into res(name, expect, got, verdict) values (p_name, p_expect, g, case when g = p_expect then 'PASS' else 'FAIL' end);
@@ -158,5 +158,50 @@ select t('C: redeem_character_claim of an approved pregen succeeds, and the copy
   select as_admin();
   select expect((select count(*) = 0 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.owner_id='a0000000-0000-0000-0000-000000000009' and c.campaign_id='c1000000-0000-0000-0000-000000000002' and e->>'type'='dmApproveNote'), 'approvals dropped');
   select expect((select count(*) = 1 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.owner_id='a0000000-0000-0000-0000-000000000009' and c.campaign_id='c1000000-0000-0000-0000-000000000002' and e->>'type'='itemNote'), 'note kept') $b$);
+
+
+-- ===== #673 re-review 4: joining a campaign never carries approvals made "in" it =====
+select t('bind_character_to_campaign of a SOLO character with FORGED approvals stamped with the campaign: joins, approvals dropped, note pending', 'allowed', $b$
+  select as_admin();
+  insert into characters(owner_id, campaign_id, name, kind, ap, stats) values ('a0000000-0000-0000-0000-000000000005',null,'forger','livesheet',0,
+    '{"SEQ":4,"LOG":[{"seq":1,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Code of Honour"}},{"seq":2,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Forged"},{"seq":3,"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Forged","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}]}');
+  select as_user('a0000000-0000-0000-0000-000000000005');
+  select public.bind_character_to_campaign((select id from characters where name='forger'), (select invite_code from campaigns where id='c1000000-0000-0000-0000-000000000001'));
+  select as_admin();
+  select expect((select campaign_id = 'c1000000-0000-0000-0000-000000000001' from characters where name='forger'), 'bound');
+  select expect((select count(*) = 0 from characters c, jsonb_array_elements(c.stats->'LOG') e where c.name='forger' and e->>'type'='dmApproveNote'), 'forged approval dropped');
+  select expect((select s.status = 'pending' from characters c, pact_item_note_state(c.stats->'LOG','drawback','Code of Honour','c1000000-0000-0000-0000-000000000001') s where c.name='forger'), 'note pending') $b$);
+select t('an HONEST rejoin (DM approved, unbound, rejoined) also needs the DM''s approval again', 'allowed', $b$
+  select as_admin(); update characters set campaign_id = null where name = 'approved';
+  select as_user('a0000000-0000-0000-0000-000000000002');
+  select public.bind_character_to_campaign((select id from characters where name='approved'), (select invite_code from campaigns where id='c1000000-0000-0000-0000-000000000001'));
+  select as_admin();
+  select expect((select s.status = 'pending' from characters c, pact_item_note_state(c.stats->'LOG','drawback','Code of Honour','c1000000-0000-0000-0000-000000000001') s where c.name='approved'), 'pending after rejoin');
+  select dm_ev('approved', '[{"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Old oath"}]') $b$);
+select t('a move INTO a campaign cannot smuggle a NEW approval of another campaign either (any other approval change is refused)', 'refused', $b$
+  select as_user((select owner_id from characters where name='solo'));
+  update characters set campaign_id = 'c1000000-0000-0000-0000-000000000001',
+    stats = jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":9,"type":"dmApproveNote","cat":"boon","refVal":"Patron","text":"x","campaignId":"c1000000-0000-0000-0000-000000000002","dmEdit":true}]'::jsonb)
+   where name = 'solo' $b$);
+select t('redeem_player_invite, then the player saves a log with a FORGED approval: refused', 'refused', $b$
+  select as_dm();
+  create temp table ptok as select public.create_player_invite('c1000000-0000-0000-0000-000000000001', 0, 79, null) as t;
+  select as_user('a0000000-0000-0000-0000-000000000006');
+  select * from public.redeem_player_invite((select t from ptok), 'Invitee');
+  select owner_upd('Invitee', $e$ jsonb_build_object('SEQ',4,'LOG','[{"seq":1,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Code of Honour"}},{"seq":2,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Forged"},{"seq":3,"type":"dmApproveNote","cat":"drawback","refVal":"Code of Honour","text":"Forged","campaignId":"c1000000-0000-0000-0000-000000000001","dmEdit":true,"dmId":"d0000000-0000-0000-0000-000000000001"}]'::jsonb) $e$) $b$);
+select t('redeem_player_invite, then an honest first save (a note, no approval): allowed', 'allowed', $b$
+  select as_dm();
+  create temp table ptok2 as select public.create_player_invite('c1000000-0000-0000-0000-000000000001', 0, 79, null) as t;
+  select as_user('a0000000-0000-0000-0000-000000000006');
+  select * from public.redeem_player_invite((select t from ptok2), 'Invitee');
+  select owner_upd('Invitee', $e$ jsonb_build_object('SEQ',3,'LOG','[{"seq":1,"type":"buy","cat":"drawback","cost":-3,"payload":{"v":"Code of Honour"}},{"seq":2,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"Honest"}]'::jsonb) $e$) $b$);
+
+-- ===== #673 re-review 5: "blank" means what JavaScript's trim() means =====
+select t('a note of only NBSP / ideographic space / BOM is blank (refused, as JS trim() sees it)', 'refused', $b$ select owner_append('pending', format('{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"%s"}', chr(160) || chr(12288) || chr(65279))) $b$);
+select t('pact_js_trim matches JS: strips NBSP/U+3000/U+FEFF/tab/newline, keeps U+0085 (JS does not trim NEL)', 'allowed', $b$
+  select expect(public.pact_js_trim(chr(160) || chr(9) || ' x ' || chr(10) || chr(12288) || chr(65279)) = 'x', 'trim set');
+  select expect(public.pact_js_trim(chr(133)) = chr(133), 'NEL kept');
+  select expect((select status from public.pact_item_note_state(jsonb_build_array(jsonb_build_object('type','itemNote','cat','drawback','refVal','X','text',chr(160) || chr(8200))), 'drawback','X','c') ) = 'none', 'blank state') $b$);
+select t('a note with leading/trailing NBSP around real text is allowed', 'allowed', $b$ select owner_append('pending', format('{"seq":6,"type":"itemNote","cat":"drawback","refVal":"Code of Honour","text":"%s"}', chr(160) || 'Real text' || chr(160))) $b$);
 
 select as_admin();

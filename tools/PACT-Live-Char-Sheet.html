@@ -1129,8 +1129,13 @@ function buy(cat,payload,label){
   if(_noteQ){
     var _noteSt=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,payload.v)]||null;
     if(!pactNoteLocked(_noteSt,!!window._lsCampaignId)){
+      // The price, legality and wallet answers above were computed against THIS log. If it changed while the box was open
+      // (an undo/redo shortcut, a cloud reload), they no longer hold: drop the purchase rather than record it against a
+      // different character state (#673 re-review 1).
+      var _snap=JSON.stringify(LOG);
       pactAskNote(payload.v,_noteQ,_noteSt?_noteSt.text:'',function(t){
         if(t==null){ flash('Not bought \u2014 '+payload.v+' needs a description.'); return; }
+        if(JSON.stringify(LOG)!==_snap){ flash('\u26A0 Something changed while you were typing \u2014 buy '+payload.v+' again.'); return; }
         _commit((_noteSt&&_noteSt.status!=='none'&&_noteSt.text===t)?null:t);   // unchanged: no second copy of the same note
       });
       return;
@@ -1149,7 +1154,9 @@ function lsEditItemNote(cat,name){
   if(pactNoteLocked(st,!!window._lsCampaignId)){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
   pactAskNote(name,q,st?st.text:'',function(t){
     if(t==null) return;
-    if(st&&st.text===t&&st.status!=='none') return;
+    var st2=pactNoteStates(LOG,window._lsCampaignId)[pactNoteKey(cat,name)]||null;   // re-read: the log may have moved while typing
+    if(pactNoteLocked(st2,!!window._lsCampaignId)){ alert('\uD83D\uDD12 Your DM approved this description while you were typing, so it can\u2019t be changed.'); return; }
+    if(st2&&st2.text===t&&st2.status!=='none') return;
     emit(pactNoteEvent(cat,name,t));
     flash(window._lsCampaignId?'\u270E Description saved \u2014 your DM will see it and approve it.':'\u270E Description saved.');
   });

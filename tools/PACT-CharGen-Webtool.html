@@ -4048,11 +4048,16 @@ function raceTraitLegal(v,domBuild){
 function _cgNoteCampId(){ return (typeof window._cgCampaignId==='string'&&window._cgCampaignId)||null; }
 function _cgNoteBound(){ return !!_cgNoteCampId(); }
 // The note events a whole-log rebuild must carry over VERBATIM (#673 review D): Randomise and the Live-Sheet-file load rebuild
-// the LOG from the form, which would drop them. Verbatim (same seq/ts) because the server compares approval events, and an
-// approved description's notes, exactly; SEQ is moved past them so no later event reuses a seq.
+// the LOG from the form, which would drop them. Verbatim (byte-identical, same seq/ts) because the server compares approval
+// events, and an approved description's notes, exactly. The REBUILT events are renumbered instead, above the highest carried
+// seq, so no two events share a seq (#673 re-review 3) — they are freshly made by the rebuild, nothing references their seq.
 function _cgIsNoteFam(e){ return !!e && (e.type==='itemNote'||e.type==='dmApproveNote'||e.type==='dmUnlockNote'); }
 function _cgCarryNotes(evs){
-  (evs||[]).forEach(function(e){ LOG.push(JSON.parse(JSON.stringify(e))); var q=Number(e.seq); if(Number.isFinite(q)&&q>=SEQ) SEQ=q+1; });
+  if(!(evs&&evs.length)) return;
+  var top=0; evs.forEach(function(e){ var q=Number(e.seq); if(Number.isFinite(q)&&q>top) top=q; });
+  var next=top+1; LOG.forEach(function(e){ e.seq=next++; });
+  evs.forEach(function(e){ LOG.push(JSON.parse(JSON.stringify(e))); });
+  SEQ=next;
 }
 // Asynchronous (the description box, owner decision AU1): cb(null) = no note needed or the approved one is kept,
 // cb(false) = cancelled, otherwise cb(text).
@@ -4069,7 +4074,9 @@ function cgEditItemNote(cat,name){
   if(pactNoteLocked(st,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
   pactAskNote(name,q,st?st.text:'',function(t){
     if(t==null) return;
-    if(st&&st.text===t&&st.status!=='none') return;
+    var st2=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,name)]||null;   // re-read: the log may have moved while typing
+    if(pactNoteLocked(st2,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description while you were typing, so it can\u2019t be changed.'); return; }
+    if(st2&&st2.text===t&&st2.status!=='none') return;
     emit(pactNoteEvent(cat,name,t));
   });
 }
@@ -4117,18 +4124,23 @@ function onChecklistToggle(el){
     // check, legality, affordability and the wallet question, as the Live Sheet does (#673 review E) — and the purchase and its
     // note land as ONE undo step (_cgEmitAll). Cancel puts the tick back. Never asked while the form is only being repainted.
     var _noteFail=function(){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); };
-    var _noteAsk=function(cb){ if(_histSuspended) return cb([]); _cgAskItemNote(cat,v,function(t){ cb(t===false?false:(t?[pactNoteEvent(cat,v,t)]:[])); }); };
+    // The purchase was priced and checked against THIS log; if it changed while the box was open (Ctrl+Z/Ctrl+Y, a cloud
+    // reload) the purchase is dropped, never recorded against a different state (#673 re-review 1).
+    var _noteAsk=function(cb){ if(_histSuspended) return cb([]); var _snap=JSON.stringify(LOG);
+      _cgAskItemNote(cat,v,function(t){
+        if(t!==false&&t!==null&&JSON.stringify(LOG)!==_snap){ el.checked=false; flash('\u26A0 Something changed while you were typing \u2014 tick '+v+' again.'); render(); return cb(false,true); }
+        cb(t===false?false:(t?[pactNoteEvent(cat,v,t)]:[])); }); };
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
       if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}],
-                            {beforeCommit:function(go){ _noteAsk(function(x){ if(x===false) _noteFail(); go(x); }); }})) el.checked=false;
+                            {beforeCommit:function(go){ _noteAsk(function(x,_changed){ if(x===false&&!_changed) _noteFail(); go(x); }); }})) el.checked=false;
     }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
-    _noteAsk(function(_noteEvs){ if(_noteEvs===false){ _noteFail(); return; }
+    _noteAsk(function(_noteEvs,_changed){ if(_noteEvs===false){ if(!_changed) _noteFail(); return; }
       _cgEmitAll([{type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}].concat(_noteEvs));
       _cgReconcileChecklistDependents(); });   // synchronous when no description is needed, exactly as before
     return;

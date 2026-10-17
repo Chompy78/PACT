@@ -138,7 +138,7 @@ types (target must be held; approve needs a pending note; unlock needs an approv
 stamp). `pact_enforce_item_note_lock()` (BEFORE INSERT OR UPDATE): only the campaign's DM may change approval events; on a
 campaign character only its DM may change the `itemNote` events of an approved description; new notes 1–500 characters;
 no inserting a campaign character carrying approvals made there. Identity by WHO writes (`is_campaign_dm`), admin
-sessions exempt. Harness: `testing/scripts/creation-lock-guard-test/run-notes.sh` — 46 cases, 22 fail before (the gap; the 7 review-fix cases also fail on the first version of the migration),
+sessions exempt. Harness: `testing/scripts/creation-lock-guard-test/run-notes.sh` — 54 cases, 28 fail before (the gap); the review and re-review cases also fail on the earlier versions of the migration;
 all pass after, rollback byte-identical.
 
 ## Review fixes (#673 review, 2026-10-16, each proven in Postgres and now covered by a harness/e2e case)
@@ -160,6 +160,23 @@ all pass after, rollback byte-identical.
   seq/ts, SEQ moved past them), and an approval counts as protected in the file-load keep-id rule (the file opens as a copy).
 - **E — CharGen asked before its post-lock checks.** Now asked last, as in the Live Sheet; buy + note are one undo step.
 
+## Re-review fixes (#673 re-review, 2026-10-17)
+
+1. **Ctrl+Z/Ctrl+Y in the box reached CharGen's global undo** (an earlier purchase was undone and the note written with no
+   purchase). Fixed both ways: every key event inside the dialog stops propagating, AND the purchase is dropped with "Something
+   changed while you were typing — buy/tick it again" if the LOG differs from the one it was priced against (CharGen and the
+   Live Sheet `buy()`; the edit paths re-read the lock state before writing).
+2. **Focus trap at document level** (a `focusin` capture listener sends focus back to the box), and a second `pactAskNote`
+   while one is open answers "cancelled" at once, so its caller puts the tick back.
+3. **Randomise duplicate seqs:** the REBUILT events are renumbered above the highest carried seq; the carried note events stay
+   byte-identical.
+4. **Join residual closed cheaply:** the trigger drops campaign X's approval/unlock events on any UPDATE that moves a character
+   into X when the writer is not X's DM — the same drop as on INSERT. Harness cases cover `bind_character_to_campaign` with
+   forged approvals (joins, approvals dropped, note pending), an honest rejoin (needs re-approval), a move that tries to add
+   another approval (refused), and `redeem_player_invite` followed by a forged save (refused) and an honest one (allowed).
+5. **Blank detection identical in JS and SQL:** `pact_js_trim()` strips exactly JavaScript's `trim()` whitespace set (NBSP,
+   U+3000, U+FEFF, …, but not U+0085), used for both the blank check and the length cap.
+
 ## Deploy order
 
 The client is safe before the migration: players' notes are ordinary LOG events (no server change needed; the server
@@ -179,9 +196,11 @@ migration's rollback at the first one's definitions.
 
 ## Known gaps
 
-- A solo character is unchecked on insert and joining a campaign does not compare its log, so hand-crafted approvals
-  stamped with a campaign's id can arrive with it. Effect: only that player's own note looks approved and is frozen for
-  them; no AP moves. Same class as the house-rules migration's residual.
+- Joining is closed (re-review 4, below): approvals stamped with campaign X never survive an insert into, or a move into,
+  X by anyone but X's DM. What remains is harmless: a player can hand-craft approvals on a SOLO character (nothing counts
+  or locks there), and approvals stamped with another campaign ride along but do not count.
+- Note length is counted in UTF-16 units in the browser (the textarea's cap) and in code points on the server, so the
+  browser is the stricter of the two: the server never refuses text the tools accepted. Blank detection is identical.
 - CharGen's New Character starts a different character, so it has no notes by design (Randomise and file load carry them).
 - An approval is an undo barrier (like every DM edit): the player cannot undo past it.
 - Blast radius not measured (no database access this session); expected 0 rows carrying the new event types — the

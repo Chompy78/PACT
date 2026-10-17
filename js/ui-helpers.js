@@ -423,7 +423,9 @@ function pactNoteEvent(cat, name, text){
 // ASYNCHRONOUS: callers continue in `done`. Tests may replace window.pactAskNote with a stub that calls done() directly.
 function pactAskNote(name, question, current, done){
   if(typeof done !== 'function') done = function(){};
-  if(document.getElementById('pactNoteDlg')) return;   // one at a time; the open one keeps focus
+  // One at a time: a second request while one is open is answered "cancelled" (so its caller puts the tick back), never
+  // left hanging. The open one keeps focus.
+  if(document.getElementById('pactNoteDlg')){ done(null); return; }
   var prev = document.activeElement;
   var ov = document.createElement('div');
   ov.id = 'pactNoteDlg';
@@ -445,12 +447,20 @@ function pactAskNote(name, question, current, done){
   ta.value = current || '';
   var upd = function(){ cnt.textContent = ta.value.length + ' / ' + PACT_NOTE_MAX; };
   upd();
-  var fin = function(v){ ov.remove(); try { if(prev && prev.focus) prev.focus(); } catch(e){} done(v); };
+  // Focus is trapped at DOCUMENT level: anything that moves focus outside the dialog (a click on the page behind, a
+  // script) sends it back to the box, so the overlay can't lose it.
+  var trap = function(e){ if(!box.contains(e.target)) ta.focus(); };
+  document.addEventListener('focusin', trap, true);
+  var fin = function(v){ document.removeEventListener('focusin', trap, true); ov.remove(); try { if(prev && prev.focus) prev.focus(); } catch(e){} done(v); };
   var ok = function(){ var c = pactCheckNoteText(ta.value); if(!c.ok){ err.textContent = c.error; ta.focus(); return; } fin(c.text); };
   ta.addEventListener('input', function(){ upd(); err.textContent = ''; });
   box.querySelector('#pactNoteDlgOk').addEventListener('click', ok);
   box.querySelector('#pactNoteDlgCancel').addEventListener('click', function(){ fin(null); });
+  // Every key pressed in the dialog stays in the dialog: the tools' document-level shortcuts (CharGen's Ctrl+Z / Ctrl+Y undo
+  // and redo, the Live Sheet's Esc handler) must never act on the character while the player is typing (#673 re-review 1).
+  ['keypress', 'keyup'].forEach(function(t){ ov.addEventListener(t, function(e){ e.stopPropagation(); }); });
   ov.addEventListener('keydown', function(e){
+    e.stopPropagation();
     if(e.key === 'Escape'){ e.preventDefault(); fin(null); }
     else if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); ok(); }
     else if(e.key === 'Tab'){   // keep focus inside the dialog

@@ -235,3 +235,4 @@ end;
 $$;
 
 drop function if exists public.pact_item_note_state(jsonb, text, text, text);
+drop function if exists public.pact_js_trim(text);

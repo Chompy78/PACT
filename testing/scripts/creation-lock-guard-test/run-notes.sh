@@ -29,12 +29,12 @@ echo "=== applying $M/2026-10-15-boon-drawback-notes.sql (single transaction) ==
 psqlc -1 < "$M/2026-10-15-boon-drawback-notes.sql"
 psqlc < notes-cases.sql >/dev/null; echo "AFTER: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { fails; echo "FAILED"; exit 1; }
-psqlc -At -c "select 'callable by authenticated: pact_item_note_state=' || has_function_privilege('authenticated','public.pact_item_note_state(jsonb,text,text,text)','EXECUTE') || ' pact_enforce_item_note_lock=' || has_function_privilege('authenticated','public.pact_enforce_item_note_lock()','EXECUTE')"
+psqlc -At -c "select 'callable by authenticated: pact_item_note_state=' || has_function_privilege('authenticated','public.pact_item_note_state(jsonb,text,text,text)','EXECUTE') || ' pact_enforce_item_note_lock=' || has_function_privilege('authenticated','public.pact_enforce_item_note_lock()','EXECUTE') || ' pact_js_trim=' || has_function_privilege('authenticated','public.pact_js_trim(text)','EXECUTE')"
 psqlc -At -c "select 'dm_edit_character_log keeps every live feature: ' || (prosrc like '%assert_campaign_active%' and prosrc like '%has no matching award%' and prosrc like '%dmUnlockDrawback%' and prosrc like '%dmDiscount%' and prosrc like '%dmApproveNote%') from pg_proc where proname='dm_edit_character_log'"
 echo "=== rollback: dm_edit_character_log must be byte-identical to BASE ==="
 psqlc -1 < "$M/2026-10-15-boon-drawback-notes-rollback.sql"
 [ "$(def)" = "$BASE" ] && echo "rollback restores the BASE definition exactly" || { echo "ROLLBACK DIFFERS"; exit 1; }
-[ "$(psqlc -At -c "select count(*) from pg_proc where proname in ('pact_item_note_state','pact_enforce_item_note_lock')")" = "0" ] \
+[ "$(psqlc -At -c "select count(*) from pg_proc where proname in ('pact_item_note_state','pact_enforce_item_note_lock','pact_js_trim')")" = "0" ] \
   && [ "$(psqlc -At -c "select count(*) from pg_trigger where tgname='trg_pact_item_note_lock'")" = "0" ] \
   && echo "rollback drops the added functions and trigger" || { echo "ROLLBACK LEFT OBJECTS"; exit 1; }
 psqlc < notes-cases.sql >/dev/null; echo "AFTER ROLLBACK (the gap is back): $(counts)"
