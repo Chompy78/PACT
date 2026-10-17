@@ -109,6 +109,17 @@ const outline = (page, root) => page.evaluate((root) => {
   check('older device-only notes are still shown, never hidden', await page.evaluate(() => (document.querySelector('#sheetbody [data-mf="equip"]') || {}).value === 'Rope, lantern'));
   check('player text is escaped in both views', await page.evaluate(() => !window.__pwn && !document.querySelector('#sheet img[src="x"], #sheetbody img[src="x"]') && /<img src=x/.test(document.querySelector('#sheetbody').innerText)));
 
+  // #670's Wearing row and AC/HP tooltips live in the shared body: both views carry them, ids stay unique
+  const wr = await page.evaluate(() => ({ panel: !!document.querySelector('#sheet #lsWornArmour'), sheet: !!document.querySelector('#sheetbody #lsWornArmourSh'),
+    dupIds: [...document.querySelectorAll('[id]')].map(e => e.id).filter((x, i, a) => a.indexOf(x) !== i),
+    tips: ['#sheet', '#sheetbody'].map(h => [...document.querySelectorAll(h + ' .shstats .kp')].filter(k => /^(AC|HP) \d+ = /.test(k.title)).length) }));
+  check('the Wearing row is in both the panel and the Sheet, with unique ids', wr.panel && wr.sheet && !wr.dupIds.length, JSON.stringify(wr));
+  check('…and both carry the AC and HP breakdown tooltips', wr.tips[0] === 2 && wr.tips[1] === 2, JSON.stringify(wr.tips));
+  const ac = await page.evaluate(() => { const s = document.getElementById('lsWornArmourSh'); const o = [...s.options].find(x => x.value && !x.disabled); if (!o) return null;
+    s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); const r = compute(foldBuild(null), _dmOpts());
+    return { want: r.ac, worn: foldBuild(null).wornArmour, panel: document.querySelector('#sheet .shstats .kp b').textContent, sheet: document.querySelector('#sheetbody .shstats .kp b').textContent, v: o.value }; });
+  check('choosing armour in the Sheet updates the AC in both views (from compute())', ac && ac.worn === ac.v && ac.panel === String(ac.want) && ac.sheet === String(ac.want), JSON.stringify(ac));
+
   // a Sheet redraw keeps the focused field (review of #672)
   await page.focus('#sheetbody [data-mf="tempHP"]');
   await page.evaluate(() => render());
