@@ -141,8 +141,9 @@ console.log('Live Sheet — buying a flagged drawback asks for its description')
   const ed = (await lsLog(page)).slice(-1)[0];
   check('a solo character can edit the note (a newer itemNote is appended)', ed.type === 'itemNote' && /promise/.test(ed.text), JSON.stringify(ed));
   await page.evaluate(() => { toggleSheet(); });
-  check('the 📋 Sheet shows the note in its own box', await page.evaluate(() =>
-    [...document.querySelectorAll('.shnotes')].some(d => /promise/.test(d.textContent))));
+  // The Live Sheet's 📋 Sheet now renders the Character panel's own layout (_lsCharBody, opts.sheet), so it shows the same block.
+  check('the 📋 Sheet shows the note', await page.evaluate(() =>
+    [...document.querySelectorAll('#sheetbody .lsnotes')].some(d => /promise/.test(d.textContent))));
   check('no page errors', errs.length === 0, errs.join(' | '));
   await close();
 }
