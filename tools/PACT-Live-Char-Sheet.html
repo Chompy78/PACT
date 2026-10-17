@@ -1047,6 +1047,18 @@ function _lsBarGrant(cat){
   if(cat==='drawback') return a.drawbacks?'':'Drawbacks can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to impose one, or to allow them in the campaign settings.';
   return a.bindings?'':'Martial and magical binding can\'t be taken once creation is finished — they give AP, and after creation only your DM awards AP. Ask your DM to allow them in the campaign settings.';
 }
+// feat/names-before-spending (D-GH-2026-10-17-names-before-spending): once creation is locked, a character cannot spend AP while a language or
+// spell slot it owns is still unnamed. The engine's namesGate() decides; this sheet only supplies the campaign's rules and a pool-size
+// callback (a slot with no legal name never blocks, decision I1 — the spell-list logic, eligibleSpells, lives in this tool). Applies to
+// purchases that COST AP (cost>0) except drawbacks (they give AP); DM awards and the ✎ Name dialog itself never go through buy().
+function _namePoolOf(b){return function(s){
+  if(s.kind==='language')return 1;
+  if(s.kind==='dabbler')return (DATA.spells||[]).filter(function(x){return x.l===0&&x.c.indexOf('Wizard')>=0;}).length;
+  if(s.kind==='innate')return (DATA.spells||[]).filter(function(x){return x.l===s.level;}).length;
+  if(s.kind==='arcanum')return (DATA.spells||[]).filter(function(x){return x.l===s.level&&x.c.indexOf('Warlock')>=0;}).length;
+  var el=eligibleSpells(b,s.ti,s.di);return el?((el.byLevel[s.level]||[]).length):0;
+};}
+function _lsNamesWhy(b){try{var g=window.namesGate(LOG,b,{rules:resolveRules(),poolSize:_namePoolOf(b)});return g.blocked?g.reason:'';}catch(e){return '';}}
 function buy(cat,payload,label){
   var _bar=_lsBarGrant(cat); if(_bar){ alert('\u26D4 '+_bar); return; }
   // Fold the LOG once and reuse it for every read below (dup guard, pricing, availability, hd, legal check).
@@ -1060,6 +1072,7 @@ function buy(cat,payload,label){
   if(_lg.dup){
     alert('⛔ Already owned — "'+payload.v+'" can only be bought once.'); return; }
   const cost=priceOf(cat,payload,b0); const avail=_apRemaining(compute(b0,_dmOpts()).spendable,economy(null).spent);
+  if(cost>0&&cat!=='drawback'){ var _nw=_lsNamesWhy(b0); if(_nw){ if(confirm('\u26D4 '+_nw+'\n\nOpen it now?')) openNames(); return; } }
   if(cat!=='drawback' && cost>avail){ flash('Not enough AP: needs '+cost+', have '+avail); return; }
   // (B1b) CREATION CEILING (feat/creation-ceiling, R3). While a character is still being built it may
   // not spend past the ceiling its DM assigned, plus whatever its drawbacks grant. This REPLACES the
@@ -1149,6 +1162,7 @@ function buyoffDrawback(v){
   }
   const avail=apAvailable(null);
   if(cost>avail){flash('Buying off costs '+cost+' AP'+rateNote+'; you have '+avail);return;}
+  if(cost>0){ var _nw=_lsNamesWhy(foldBuild(null)); if(_nw){ if(confirm('\u26D4 '+_nw+'\n\nOpen it now?')) openNames(); return; } }   // names-before-spending: a buy-off spends AP too
   // Gold and downtime (§16) — a buyoff is a genuine in-play purchase (wealthLedger() in js/engine.js
   // charges it exactly like a buy), so it needs the same quote/trade/shortfall/freeze treatment buy()
   // gives an ordinary purchase (see buy()'s own comment above). Skipping this, as the original build
@@ -2213,6 +2227,7 @@ function _lsTashaReadOnly(){ if(_lsSelfAwardBlocked()) return 'campaign'; try{ i
 function _lsTashaRoText(why){ return why==='campaign'?'\uD83D\uDD12 Your DM sets this for campaign characters.':(why==='locked'?'\uD83D\uDD12 Fixed once creation is finished \u2014 ask your DM.':''); }
 function toggleTasha(){var _ro=_lsTashaReadOnly();if(_ro){if(typeof flash==='function')flash(_lsTashaRoText(_ro));return;}var b=foldBuild(null);var on=!((b.houseRules&&b.houseRules.dmAllows&&b.houseRules.dmAllows.tasha)===false);emit({type:"buy",cat:"tasharule",payload:{v:!on},cost:0,label:"DM house rule — Tasha abilities "+(!on?"allowed":"barred"),level:b.hd});}
 function buildBuyPanel(b,r,eco,head){
+  const _namesWhy=head?_lsNamesWhy(b):'';   // names-before-spending: one gate check per render, not per button
   const buyEl=$('buy'); if(!head){buyEl.innerHTML='<p class="hint">'+(VIEW_ONLY?'👁 Read-only DM view — purchases are disabled.':'Viewing history — return to <b>live</b> to make purchases.')+'</p>';return;}
   // a buyable button: greys out (with the reason) when not allowed; tap a greyed one to hear why
   // A trait's TIER gates it by Hit Dice, exactly as it does for class features a few sections below
@@ -2231,7 +2246,7 @@ function buildBuyPanel(b,r,eco,head){
     if(affordOnly && unaff) return '';   // "Affordable only": hide every buy you can't afford (warned or not)
     // HARD block (flash only): unmet prerequisite (reasonExtra) or not enough AP.
     // SOFT warning: the purchase is allowed — buy() asks to confirm and flags it for review. Don't dead-end it.
-    const hardReason = _lsBarGrant(cat) || reasonExtra || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
+    const hardReason = _lsBarGrant(cat) || reasonExtra || ((cost>0&&cat!=='drawback')?_namesWhy:'') || (unaff?('needs '+cost+' AP — you have '+eco.available):'');
     // Same three-way split buy() makes: an expected follow-up still shows its text as guidance, but must
     // NOT take the amber .warn styling — that slot means "this raises a rules warning", and all 12 epic
     // boons would otherwise be the only permanently-warned tiles in the panel.
@@ -3284,7 +3299,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   // window._engineFold. Offline, blocked, or a slow CDN all produced a dead tool rather than a tool
   // without cloud features. Splitting them means the engine half cannot be taken down by the cloud
   // half; the worst case is now local-only mode, which this app already supports.
-  import { allNameableSlots, validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, skillMods, weaponAttack, lineageSpellHD, lineageSpellLabel, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
+  import { allNameableSlots, namesGate, validate, RULE_BAN_FIELDS, DATA, compute, baseBuild, packTraitsFor, MUT, requiredHD, skillMods, weaponAttack, lineageSpellHD, lineageSpellLabel, FEAT_ALIAS, ownsAbility, priceOf as _enginePriceOf, purchaseLegality as _enginePurchaseLegality, postLockAllowance, creationLockState as _engineCreationLockState, creationCeiling, wouldExceedCeiling, undoFloor, sealedFloor, foldBuild as _engineFoldBuild, activeEvents as _engineActiveEvents, economy as _engineEconomy, earnedWithDm, purchaseCost, priceLabel, wealthLedger, wealthWithDm, walletState, walletCheck, formatDowntime, resolveEconomySetting, resolveEconomyRules, resolveDowntimeWindow, economyOn, tradeCoinTime, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   import { apEncodeGrant, apDecodeGrant, makeGrantId } from '../js/ap-grant-code.js';   // shared with DM Console (fixed 2026-09-10 — see that file's header)
   window.apEncodeGrant = apEncodeGrant; window.apDecodeGrant = apDecodeGrant; window.makeGrantId = makeGrantId;
@@ -3294,7 +3309,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   window._engineFold = { foldBuild: _engineFoldBuild, activeEvents: _engineActiveEvents, economy: _engineEconomy, earnedWithDm };
   // Gold-and-downtime economy (Players Guide §16). Bridged onto window exactly as the AP-ledger
   // functions above are, so the classic-script half of this tool reaches them the same way.
-  window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality; window.allNameableSlots = allNameableSlots;   // the ✎ Name dialog's slot list (refactor/names-slot-helper)
+  window._enginePriceOf = _enginePriceOf; window._enginePurchaseLegality = _enginePurchaseLegality; window.allNameableSlots = allNameableSlots; window.namesGate = namesGate;   // the ✎ Name dialog's slot list (refactor/names-slot-helper)
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
   window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list

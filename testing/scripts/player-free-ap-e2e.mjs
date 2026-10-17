@@ -118,7 +118,7 @@ section('2. CharGen — DM boons/drawbacks read-only on a confirmed campaign cha
   check('...and the box is put back', await p.evaluate(()=>document.getElementById('dm_draws').checked));
 
   await cgFresh();
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   check('solo, after the lock: the controls are disabled', (await dmDisabled()).every(x=>x));
   const h1 = await house(), s1 = await spent();
   await addCustomDrawback();
@@ -133,7 +133,7 @@ section('3. CharGen — starting gold cannot change after the lock');
   const setGold = v => p.evaluate(v=>{ const e=document.getElementById('gold'); e.value=String(v); e.dispatchEvent(new Event('change',{bubbles:true})); }, v);
   await setGold(4); await p.waitForTimeout(300);
   check('(precondition) in creation, starting gold 4 is recorded', await p.evaluate(()=>foldBuild(LOG).gold===4));
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   const s0 = await spent(), n0 = await p.evaluate(()=>LOG.length);
   await setGold(0); await p.waitForTimeout(300);
   const st = await p.evaluate(()=>({gold:foldBuild(LOG).gold, field:document.getElementById('gold').value}));
@@ -149,7 +149,7 @@ section('5. CharGen — a locked campaign character with no award cannot append 
 {
   await cgFresh();
   await p.evaluate(()=>{ LOG=LOG.filter(e=>e.type!=='award'); document.getElementById('budget').value='0'; render(); });
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   await p.evaluate(()=>{ window._cgCampaignId=window.__C1; window._cgCampaignBound=true; window._cgBindingConfirmed=true; render(); });
   check('(precondition) no award in the LOG', (await awards())===0);
   check('the budget field is disabled', await p.evaluate(()=>document.getElementById('budget').disabled));
@@ -159,7 +159,7 @@ section('5. CharGen — a locked campaign character with no award cannot append 
   check('...and the field snaps back to 0', await p.evaluate(()=>document.getElementById('budget').value==='0'));
   // solo, locked: unchanged (the player is their own DM)
   await cgFresh();
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   await p.evaluate(()=>{ const el=document.getElementById('budget'); el.value='150'; el.dispatchEvent(new Event('change',{bubbles:true})); });
   await p.waitForTimeout(300);
   check('solo, locked: the budget is still the player\'s own (unchanged behaviour)', await p.evaluate(()=>foldBuild(LOG).budget===150));

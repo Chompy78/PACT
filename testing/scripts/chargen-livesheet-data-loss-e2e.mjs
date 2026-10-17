@@ -78,7 +78,7 @@ section('1. spell & language names');
   check('New Character dialog starts blank', await p.inputValue('#namesBox .nmf[data-k="lang::0"]') === '');
   await p.evaluate(()=>closeNames());
   // After the lock, a stored name the dialog has no row for must not block filling a blank one.
-  await p.evaluate(()=>{ emit({type:'names',lang:['','Dwarvish'],grants:{'Nowhere: Gift':['Fire Bolt']},cost:0,label:'ls names'}); cgFinishCreating(true); });
+  await p.evaluate(()=>{ emit({type:'names',lang:['','Dwarvish'],grants:{'Nowhere: Gift':['Fire Bolt']},cost:0,label:'ls names'}); (window.requireNamesOn=()=>false, cgFinishCreating(true)); });
   await p.waitForTimeout(300);
   await p.evaluate(()=>openNames());
   await p.fill('#namesBox .nmf[data-k="lang::0"]', 'Elvish');
@@ -173,7 +173,7 @@ section('4. a refused ✕ after the lock puts the row back');
   await p.waitForTimeout(300);
   const featEvents = ()=>p.evaluate(()=>LOG.filter(e=>e.type==='buy'&&e.cat==='feature').map(e=>e.payload.v));
   check('control: feature bought', (await featEvents()).includes(F1));
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(400);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(400);
   const spent0 = await p.evaluate(()=>economy(LOG).spent);
   const rowVals = ()=>p.evaluate(()=>[...document.querySelectorAll('.feat2row')].map(x=>x.value));
   // Retype the row to another feature: the old one cannot be removed, so the new one must not be bought on top.
@@ -203,7 +203,8 @@ for (const locked of [false, true]) {
   await setSel(p,'oclass','Fighter');
   await p.evaluate(wm=>{ LOG.push({type:'buy',cat:'feature',payload:{v:wm},cost:2,level:1,label:'Class feature — '+wm,seq:SEQ++,ts:Date.now(),rules:DATA.version}); _cgRepaint(); }, WM);
   await p.waitForTimeout(300);
-  if (locked) { await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300); }
+  // this test is about the feature list, not naming: switch the names-before-spending rule off (rules.requireNames:false) for the locked run
+  if (locked) { await p.evaluate(()=>{ window._cloudCampaign={rules:{requireNames:false}}; cgFinishCreating(true); }); await p.waitForTimeout(300); }
   await p.evaluate(f=>{ addRow('feat2',f); const r=[...document.querySelectorAll('.feat2row')].pop(); r.dispatchEvent(new Event('input',{bubbles:true})); }, SW);
   await p.waitForTimeout(500);
   const fe = await p.evaluate(()=>LOG.filter(e=>e.type==='buy'&&e.cat==='feature').map(e=>e.payload.v));

@@ -55,5 +55,30 @@ check('a pool callback that returns nothing does not hide a blank', E.unnamedCho
 const named = E.baseBuild(); named.languageNames = ['Common'];
 check('a fully named build has nothing unnamed', E.unnamedChoices(named).length === 0);
 
+// ---- the gate (feat/names-before-spending) ----
+const ev = (n, o) => Object.assign({ seq: n, ts: n }, o);
+const award = ev(1, { type: 'award', amount: 300, label: 'Award' });
+const draftLog = [award, ev(2, { type: 'buy', cat: 'oclass', payload: { v: 'Warlock' }, cost: 0, level: 1, label: 'Origin class' })];
+const lockedLog = [...draftLog, ev(3, { type: 'creationLocked', rules: 'v0', label: 'Finish creating' })];
+check('fixture: the draft log is a draft, the locked one is locked', E.isCreationDraft(draftLog) && !E.isCreationDraft(lockedLog));
+
+const blankBuild = E.foldBuild(lockedLog);   // one blank language slot
+const g1 = E.namesGate(lockedLog, blankBuild, {});
+check('locked + a blank slot + no rules: blocked, on by default (D1/E2/J1)', g1.blocked === true && g1.missing.length === 1 && g1.first.key === 'lang::0');
+check('the refusal names the slot and points at the dialog', /Language 1 is still blank/.test(g1.reason) && /Name spells & languages/.test(g1.reason), g1.reason);
+check('a campaign that set nothing about it: still on', E.namesGate(lockedLog, blankBuild, { rules: { languages: { list: [] } } }).blocked);
+check('rules.requireNames === false switches it off', !E.namesGate(lockedLog, blankBuild, { rules: { requireNames: false } }).blocked);
+check('rules.requireNames === true / missing is on', E.requireNamesOn({ requireNames: true }) && E.requireNamesOn({}) && E.requireNamesOn(undefined) && E.requireNamesOn(null));
+check('only an explicit false turns it off (0, "", null do not)', [0, '', null, 'false'].every(v => E.requireNamesOn({ requireNames: v })));
+check('before the lock: never blocked (players name at the end)', !E.namesGate(draftLog, E.foldBuild(draftLog), {}).blocked);
+const namedBuild = E.foldBuild(lockedLog); namedBuild.languageNames = ['Common'];
+check('locked + everything named: not blocked', !E.namesGate(lockedLog, namedBuild, {}).blocked);
+check('the kinds list is honoured (CharGen skipping Arcanum, N1)', !E.namesGate(lockedLog, blankBuild, { kinds: ['arcanum'] }).blocked);
+check('an empty pool lets a blank slot through (I1)', !E.namesGate(lockedLog, blankBuild, { poolSize: () => 0 }).blocked);
+const o2 = E.namesOutstanding(full, {});
+check('namesOutstanding ignores the lock and the switch, and counts the rest', o2.blocked && /\(and 8 more\)/.test(o2.reason), o2.reason);
+check('a discipline slot is described by its discipline', /Warlock cantrip 2 is still blank/.test(E.namesOutstanding(Object.assign(E.baseBuild(), { languageNames: ['Common'],
+  traditions: [{ name: 'Arcane', rank: 1, disciplines: [{ name: 'Warlock', cantrips: 2, cantripNames: ['Eldritch Blast'] }] }] }), {}).reason));
+
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) { bad.forEach(m => console.log('  FAIL  ' + m)); process.exit(1); }
