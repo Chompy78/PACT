@@ -2088,11 +2088,13 @@ function render(){
     Attune:'Attunement slots: '+(b.attune||0)
   };
   sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',b.hd+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
+  // feat/livesheet-sheet-layout: the 📋 Sheet renders this same body, so its copy of the row gets id suffix "Sh" (ids stay unique).
+  const _wid=opts.sheet?'Sh':'';
   // feat/livesheet-armour-ac: what the character is WEARING (free choices, logged) — the AC above follows it via compute().
-  sh+='<div class="seg" id="lsWearRow" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><b>Wearing:</b> '+_wornArmourSel(b,' id="lsWornArmour" aria-label="Armour worn" style="flex:1;min-width:140px;max-width:100%;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);font:inherit"')
-    +'<label title="'+esc(b.armour.shield?'Shield in hand: +2 AC (Monk Unarmored Defense needs both hands free of a shield)':'Needs shield training (buy it under Weapons & armour)')+'"><input type="checkbox" id="lsShieldWorn" onchange="setShieldWorn(this.checked)"'+(b.armour.shield&&b.shieldWorn!==false?' checked':'')+(b.armour.shield?'':' disabled')+'> Shield</label>'
-    +'<span id="lsAcSrc" style="font-size:11px;color:var(--grey)">AC '+r.ac+' · '+esc((r.acInfo&&r.acInfo.src)||'')+'</span>'
-    +((r.acInfo&&r.acInfo.nudge)?'<span id="lsAcNudge" style="flex-basis:100%;font-size:11px;color:var(--teal)">💡 '+esc(r.acInfo.nudge)+'</span>':'')+'</div>';
+  sh+='<div class="seg" id="lsWearRow'+_wid+'" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><b>Wearing:</b> '+_wornArmourSel(b,' id="lsWornArmour'+_wid+'" aria-label="Armour worn" style="flex:1;min-width:140px;max-width:100%;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--inp);color:var(--ink);font:inherit"')
+    +'<label title="'+esc(b.armour.shield?'Shield in hand: +2 AC (Monk Unarmored Defense needs both hands free of a shield)':'Needs shield training (buy it under Weapons & armour)')+'"><input type="checkbox" id="lsShieldWorn'+_wid+'" onchange="setShieldWorn(this.checked)"'+(b.armour.shield&&b.shieldWorn!==false?' checked':'')+(b.armour.shield?'':' disabled')+'> Shield</label>'
+    +'<span id="lsAcSrc'+_wid+'" style="font-size:11px;color:var(--grey)">AC '+r.ac+' · '+esc((r.acInfo&&r.acInfo.src)||'')+'</span>'
+    +((r.acInfo&&r.acInfo.nudge)?'<span id="lsAcNudge'+_wid+'" style="flex-basis:100%;font-size:11px;color:var(--teal)">💡 '+esc(r.acInfo.nudge)+'</span>':'')+'</div>';
   sh+='<div class="svlegend">Save: ● proficient · ○ not</div></div>';   // .shstats
   const _ftip=function(label,tip){return '<span class="itip"'+(tip?' title="'+esc(tip)+'"':'')+'>'+esc(label)+'</span>';};
   const _fxI=_fxBtn;
