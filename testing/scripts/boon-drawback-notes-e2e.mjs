@@ -289,7 +289,8 @@ console.log('CharGen — ticking a flagged boon/drawback asks for its descriptio
     LOG.some(e => e.type === 'itemNote' && e.text === 'File oath' && e.seq === 2) && LOG.some(e => e.type === 'dmApproveNote' && e.seq === 3)));
   check('D: ...and, carrying a DM approval, it opens as a separate copy (fresh id)', await page.evaluate(() => currentCharId() !== '99999999-2222-3333-4444-555555555555'));
   // E (post-lock): a purchase that is refused is never asked about; a cancelled description buys nothing.
-  await page.evaluate(() => { window._cgCampaignId = null; LOG.push({ type: 'creationLocked', seq: SEQ++, ts: Date.now() }); render(); window.__prompts = []; window.__alerts = []; window.__f = []; });
+  await page.evaluate(() => { window.namesGate = () => ({ blocked: false, missing: [], reason: '' });   /* about notes, not naming (feat/names-before-spending) */
+    window._cgCampaignId = null; LOG.push({ type: 'creationLocked', seq: SEQ++, ts: Date.now() }); render(); window.__prompts = []; window.__alerts = []; window.__f = []; });
   const nL0 = (await cgLog()).length;
   await page.evaluate(() => { window.__answers = ['never used']; const el = document.querySelector('input.boonck[value="Patron"]'); if (el) el.click(); });
   check('E: after the lock, an UNAFFORDABLE flagged boon is refused WITHOUT asking for a description (asked after the checks)',
