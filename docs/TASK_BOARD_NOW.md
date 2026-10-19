@@ -228,7 +228,7 @@ campaign character whose stored award total would rise — not needed for the ap
 Still to do, in an "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
   - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
     2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
-  - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (21 → 22 functions since feat/dm-ap-discount),
+  - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (27 → 28 functions since the 2026-10-19 notes/images fold),
     \ir the 2026-10-12 migration there, and assert the trigger function is NOT callable by authenticated.
 COORDINATE with the campaign house-rules work (session pact-cf, branch chore/campaign-house-rules-sync-preview): its
 harness BASE already loads the live 09-03/10-12 files, and it also edits rls-policies.sql.

@@ -78,7 +78,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.676";
+export const BUILD = "v1.678";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -3172,6 +3172,51 @@ export function unnamedChoices(b, opts) {
   const kinds = Array.isArray(o.kinds) ? o.kinds : NAMEABLE_KINDS;
   return allNameableSlots(b).filter(s => kinds.indexOf(s.kind) >= 0 && !s.name.trim()
     && !(typeof o.poolSize === 'function' && Number(o.poolSize(s)) <= 0));
+}
+
+// ---- names before spending (feat/names-before-spending; docs/plans/2026-10-15-names-before-spending.md) ----
+//
+// OWNER RULE (2026-10-12, decisions C1 D1 E2 M1 I1 J1): once a character's creation is locked, it cannot SPEND AP while any language
+// or spell slot it owns is still unnamed. Buying a slot is fine; the NEXT purchase waits until it is named. DM awards, drawbacks (they
+// give AP) and the naming itself are never blocked. A campaign can switch the rule off with `rules.requireNames === false`; it is ON
+// when the campaign never set it, in every campaign, and for a character in no campaign (no DM to ask, so I1's empty-pool skip is their
+// escape). Before the lock nothing is blocked — players buy slots and name them at the end — but "Finish creating" asks for the names
+// first (namesOutstanding). The server does not enforce this; like the other play-time legality rules it lives in the tools.
+export function requireNamesOn(rules) {
+  return !(rules && typeof rules === 'object' && rules.requireNames === false);
+}
+
+// A slot as the player would say it ("Warlock cantrip 2", "Language 2"), for the refusal text.
+function _nameSlotLabel(b, s) {
+  if (s.kind === 'language') return s.label;
+  if (s.kind === 'dabbler') return 'Out-of-tradition ' + s.label.toLowerCase();
+  if (s.kind === 'innate') return 'Innate ' + s.label;
+  const t = (b.traditions || [])[s.ti], d = t && (t.disciplines || [])[s.di];
+  return (d && d.name ? d.name + ' ' : '') + s.label.charAt(0).toLowerCase() + s.label.slice(1);
+}
+
+// namesOutstanding(build, opts) — the blank-slot check on its own, ignoring the lock and the campaign switch (CharGen's
+// "Finish creating" uses it). opts: {kinds, poolSize} as for unnamedChoices().
+// Returns {blocked, missing, first, reason}; `reason` names the first blank slot and points at the dialog.
+export function namesOutstanding(build, opts) {
+  const missing = unnamedChoices(build, opts);
+  if (!missing.length) return { blocked: false, missing, first: null, reason: '' };
+  const first = missing[0], more = missing.length - 1;
+  const reason = 'Name your languages and spells first — ' + _nameSlotLabel(build, first) + ' is still blank'
+    + (more > 0 ? ' (and ' + more + ' more)' : '') + '. Open ✎ Name spells & languages.';
+  return { blocked: true, missing, first, reason };
+}
+
+// namesGate(events, build, opts) — may this character spend AP right now, as far as unnamed slots go?
+//   events  the character's LOG; the gate only applies once creation is locked (isCreationDraft is false)
+//   build   foldBuild(events) — passed in because every caller already has it
+//   opts    {rules, kinds, poolSize}: rules = the campaign's rules (or undefined); kinds/poolSize as for unnamedChoices()
+// Callers apply it to purchases that cost AP (cost > 0), before the purchase is recorded, so the purchase that CREATES a blank
+// slot is allowed and the next one waits.
+export function namesGate(events, build, opts) {
+  const o = opts || {};
+  if (!requireNamesOn(o.rules) || isCreationDraft(events)) return { blocked: false, missing: [], first: null, reason: '' };
+  return namesOutstanding(build, o);
 }
 
 // repriceDraft(events): re-derive the frozen `cost` of every purchase in a DRAFT character's log, so

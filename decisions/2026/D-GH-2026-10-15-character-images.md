@@ -1,7 +1,6 @@
 # D-GH-2026-10-15-character-images — up to two pictures per cloud character, in private storage keyed by character id
 
-**Status:** in force once merged — the client half ships disabled-in-practice until the owner applies
-`sql/migrations/2026-10-15-character-images.sql` (**NOT APPLIED** at the time of writing) and runs `get_advisors`.
+**Status:** **APPLIED 2026-10-19** — see *Status* at the end for the checks run and the one still outstanding.
 Owner decisions AI2 (2026-10-14) and AQ2 (2026-10-15, NPCs) settle access and limits; the remaining choices below were taken by the
 implementing agent under standing instruction H2 (most conservative option) and are reversible.
 
@@ -116,8 +115,16 @@ After applying the migration, signed in as a test player who owns a cloud charac
   view does).
 
 ## Status
-NOT APPLIED — needs the owner to apply `sql/migrations/2026-10-15-character-images.sql` and run `get_advisors`
-(security + performance). `sql/rls-policies.sql` / `schema.sql` are deliberately not changed until then (per
-`sql/migrations/README.md`, the fold follows the apply); storage policies are not part of the fresh-install baseline
-anyway, so the fold should add a short "Storage" section that loads this migration's statements. No `DATA.version` bump
-(no rules change).
+**APPLIED 2026-10-19** (owner, `apply_migration`, ~01:11 UTC; the file verbatim minus its header comments) and folded into
+`sql/rls-policies.sql` the same day as a guarded "Storage" section (it runs only where `storage.objects` exists, i.e. on
+Supabase; `testing/sql/rls-baseline-test.sql` loads a storage stub so the section is built and drift-checked there). Bucket row
+live: private, `file_size_limit` 2097152, `allowed_mime_types` webp/jpeg/png. Live spot-check as real users inside a
+rolled-back transaction (nothing persisted; 0 objects afterwards), 8 of 8 passed: owner inserts `<id>/1`; `<id>/3` refused;
+owner update of `/1` (1 row); the DM reads 1; a fellow campaign player reads 1; a fellow player's insert of `/2` refused; an
+outsider reads 0; an outsider's direct delete blocked (Supabase's "Direct deletion from storage tables is not allowed" guard).
+Advisors: the only new items are 2 WARN "authenticated can execute SECURITY DEFINER" for `can_read_character_image` /
+`can_write_character_image` — intentional (the storage policies call them, same pattern as `is_campaign_dm`; each returns only
+a boolean about the caller's own access); performance nothing new; no Postgres errors after the apply. **NOT yet run:** the
+browser-level checks 2–5 above with a real JWT through the Storage REST API — 3 and 4 (> 2 MB and SVG refused) are verified
+only at the config level (the bucket row's limits); the owner runs them once with a real account (board:
+`chore/character-images-orphan-sweep`). No `DATA.version` bump (no rules change).

@@ -10,6 +10,14 @@
 
 ## Index
 
+## D-GH-2026-10-17-names-before-spending — a locked character cannot spend AP while a language or spell slot is unnamed; on by default everywhere, a campaign can switch it off
+- Engine `namesGate()` / `namesOutstanding()` / `requireNamesOn()`; applied in the Live Sheet's `buy()`, buy-off and buy panel and in
+  CharGen's after-lock path and **Finish creating**. From the creation lock on; purchases that cost AP only (free ones, drawbacks, DM
+  awards and the naming itself pass); languages and spells only; a slot with no legal name never blocks. `rules.requireNames`, **on
+  when absent** — on in every existing campaign and for characters in no campaign (owner E2, no grace period); only an explicit
+  `false` (DM Console checkbox) turns it off. CharGen skips Arcanum until it can render those rows. Client-side only, like the other
+  play-time legality rules. No `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-17-names-before-spending.md`.
 ## D-GH-2026-10-15-names-slot-helper — one engine list of the language and spell slots a character owns; the names gate counts languages and spells only
 - `allNameableSlots(build)` / `unnamedChoices(build, {kinds, poolSize})` in `js/engine.js`; both ✎ Name dialogs build their
   language and spell rows from it. The two dialogs differ (CharGen has no Arcanum, fighting-style, Metamagic or maneuver
@@ -30,7 +38,7 @@
   LOG or on the row. Read: owner, campaign DMs, other campaign players, NPCs included (AI2, AQ2); write: owner only.
   Each object is bound to the row incarnation (`objects.created_at >= characters.created_at`), so recreating a deleted
   row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
-  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration NOT APPLIED.
+  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration APPLIED 2026-10-19 (browser REST checks 2–5 still to run).
   Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
 ## D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins
 - Owner decision AK1. Free LOG inputs: `wornArmour` (now also `MAGE_ARMOR`) and new `shieldWorn` (absent = carried when trained, so no
@@ -45,8 +53,8 @@
   of Poverty). Append-only `itemNote` events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock
   are DM events through `dm_edit_character_log`, carrying the text the DM was shown, and an approval counts only for that
   exact text in the campaign it was made in. Joining a campaign (insert or move, by anyone but its DM) drops approvals
-  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (provisional). Migration NOT
-  applied; must be reconciled with the house-rules migration (whichever applies second rebuilds on the other).
+  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (owner AW1, 2026-10-17). Migration
+  APPLIED 2026-10-19, first — so the house-rules server migration must now be rebuilt on it.
   Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
 ## D-GH-2026-10-15-livesheet-sheet-layout — the Live Sheet's 📋 Sheet IS the Character panel's body (one renderer)
 - `render()`'s panel block runs as `_lsCharBody(b,r,eco,opts)`, defined in place, and `renderSheet()` calls it, followed by

@@ -1,8 +1,8 @@
 -- feat/character-images — up to two pictures per cloud character (D-GH-2026-10-15-character-images).
 --
--- NOT APPLIED. Merging this file does not apply it; the owner applies it, then runs the Supabase advisors
--- (get_advisors: security + performance). Until it is applied the client says, in plain words, that picture
--- storage is not switched on yet — nothing else in the app depends on it.
+-- APPLIED 2026-10-19 (verbatim minus these header comments; purely additive, so no blast radius to pre-measure).
+-- Folded into sql/rls-policies.sql (its Storage section) the same day. Before it was applied the client said, in
+-- plain words, that picture storage was not switched on yet — nothing else in the app depends on it.
 --
 -- WHAT IT ADDS
 --   * a PRIVATE Storage bucket `character-images` (no public URLs; reads go through short-lived signed URLs),

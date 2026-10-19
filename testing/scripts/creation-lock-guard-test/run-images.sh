@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Throwaway-Postgres rehearsal of sql/migrations/2026-10-15-character-images.sql (+ rollback). Needs Docker only;
-# touches NO real database. Builds the fresh-install path (schema.sql + rls-policies.sql) plus a stand-in for the two
+# touches NO real database. Builds the fresh-install path (schema.sql + rls-policies.sql — whose guarded Storage section is
+# skipped here because the shim loads AFTER it, so the bucket and policies start absent) plus a stand-in for the two
 # Supabase Storage tables (images-storage-shim.sql), then:
 #   BEFORE   no policies — every read is 'no' and every write refused (the owner rows FAIL: the feature isn't there)
 #   AFTER    the migration — every row PASS

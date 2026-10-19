@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.676.html**-->
+<!--**PACT-CharGen-Webtool v1.678.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.676 · Rules v0.377</title><style>
+<title>PACT Character Generator — Web Tool v1.678 · Rules v0.377</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.676</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.377</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.678</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.377</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -598,7 +598,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { allNameableSlots, DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, grantedSpells, ownedChoiceGrants, saveMods, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
+  import { allNameableSlots, namesGate, namesOutstanding, requireNamesOn, DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, grantedSpells, ownedChoiceGrants, saveMods, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
@@ -614,7 +614,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck; window.postLockAllowance = postLockAllowance;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
-  window.allNameableSlots = allNameableSlots;   // the languages-and-spells slot list the ✎ Name dialog is built from (refactor/names-slot-helper)
+  window.allNameableSlots = allNameableSlots; window.namesGate = namesGate; window.namesOutstanding = namesOutstanding; window.requireNamesOn = requireNamesOn;   // the languages-and-spells slot list the ✎ Name dialog is built from (refactor/names-slot-helper)
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
   document.dispatchEvent(new Event('engine-ready'));
@@ -3120,6 +3120,8 @@ function _cgCeilOpts(){
 function cgFinishCreating(skipConfirm){
   var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _cgCeilOpts()) : null;
   if(st && st.locked){ alert('This character has already finished creation.'); return; }
+  // names-before-spending: a character leaves creation with every language and spell slot named (unless the campaign switched the rule off).
+  if(window.requireNamesOn(_cgNamesRules())){ var _fb=readBuild(); var _no=window.namesOutstanding(_fb,{kinds:_CG_NAME_KINDS,poolSize:_cgNamePool(_fb)}); if(_no.blocked){ if(confirm('\u26D4 '+_no.reason+'\n\nOpen it now?')) openNames(); return; } }
   var msg = 'Finish creating this character?\n\n';
   if(st) msg += 'You have spent ' + st.spent + ' of ' + st.ceiling + ' AP.\n\n';
   msg += 'After this:\n'
@@ -3702,16 +3704,31 @@ function _cgPostLockSteps(slot,patch,cur){
 // refusal leaves nothing half-applied; then append them (one undo frame — commitHistory latches per handler turn). Returns true when
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
 // path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
+// feat/names-before-spending (D-GH-2026-10-17-names-before-spending): once creation is locked a character cannot spend AP while a language or spell
+// slot it owns is still unnamed; "Finish creating" asks for the names first. The engine's namesGate()/namesOutstanding() decide; this tool supplies the
+// campaign's rules, the kinds its ✎ Name dialog can render (no Mystic Arcanum rows yet — board task feat/chargen-names-arcanum-rows — so Arcanum is not
+// counted here), and a pool-size callback so a slot with no legal name never blocks (decision I1; eligibleSpells lives in this tool).
+var _CG_NAME_KINDS=['language','dabbler','innate','cantrip','known'];
+function _cgNamePool(b){return function(s){
+  if(s.kind==='language')return 1;
+  if(s.kind==='dabbler')return (DATA.spells||[]).filter(function(x){return x.l===0&&x.c.indexOf('Wizard')>=0;}).length;
+  if(s.kind==='innate')return (DATA.spells||[]).filter(function(x){return x.l===s.level;}).length;
+  var el=eligibleSpells(b,s.ti,s.di);return el?((el.byLevel[s.level]||[]).length):0;
+};}
+function _cgNamesRules(){return (window._cloudCampaign&&window._cloudCampaign.rules)||null;}
+function _cgNamesWhy(events,b){try{var g=window.namesGate(events,b,{rules:_cgNamesRules(),kinds:_CG_NAME_KINDS,poolSize:_cgNamePool(b)});return g.blocked?g.reason:'';}catch(e){return '';}}
 function _cgPostLockAppend(steps,opts){
   // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
   if(_histSuspended) return true;
-  var b=foldBuild(LOG), evs=[], total=0, charged=false;
+  var b=foldBuild(LOG), evs=[], total=0, charged=false, _namesWhy;   // _namesWhy: the names gate, asked once against the character as it stands BEFORE this edit, so the purchase that makes a blank slot is allowed and the next one waits
+  var _b0=b;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
+    if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;
     if(st.cat==='wornArmour'||st.cat==='shieldWorn'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
