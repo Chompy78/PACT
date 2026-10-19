@@ -1,9 +1,8 @@
 -- PACT — a DM approves (and so locks) a player's description of certain boons and drawbacks.
 -- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes).
 --
--- STATUS: NOT APPLIED. *** Merging this file does NOT apply it. *** The owner applies it, then runs get_advisors (security +
--- performance) and skims get_logs, per AGENTS.md. Until then sql/rls-policies.sql correctly describes production and is
--- deliberately NOT changed (sql/migrations/README.md); the fold into the baseline is a later PR made after the apply.
+-- STATUS: APPLIED 2026-10-19 (pre-check: live md5 of dm_edit_character_log = BASE 659177badc40deb2e69bacbbfcdbb4ca; 0 of 40
+-- characters had itemNote/dmApproveNote/dmUnlockNote events). Folded into sql/rls-policies.sql the same day.
 -- The tools work before it is applied: players write and edit their descriptions (plain LOG events, no server change
 -- needed), and DM Console's Approve/Unlock show "the server has not been updated" instead of a database error.
 -- Rollback: 2026-10-15-boon-drawback-notes-rollback.sql. Rehearsed on a throwaway Postgres:
@@ -45,7 +44,7 @@
 --      * nobody but a DM of the character's campaign (writing in that campaign) may add, change, remove or reorder a
 --        dmApproveNote/dmUnlockNote event — so they arrive only through dm_edit_character_log;
 --      * on a campaign character, nobody but its DM may add, change or remove the itemNote events of a description that
---        is approved in that campaign (the lock); a solo character's notes are never locked (owner, provisional);
+--        is approved in that campaign (the lock); a solo character's notes are never locked (confirmed by the owner 2026-10-17 (AW1));
 --      * a new itemNote's text must be a string of 1 to 500 characters after trimming (the tools' cap; trimming is
 --        pact_js_trim(), the same whitespace set as JavaScript's trim());
 --      * a character INSERTED into, or MOVED into, a campaign by anyone but its DM loses the approvals made in that

@@ -88,6 +88,10 @@ end; $$;
 \ir ../../sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql
 \ir ../../sql/migrations/2026-10-11-server-freeze-stage2.sql
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
+-- Like 2026-10-13-dm-ap-discount.sql (and the other feature migrations after 2026-10-04), the boon/drawback-notes and
+-- character-images migrations (applied to production 2026-10-19) are deliberately NOT loaded here: this file's stubs
+-- are the seal/locked-history family only (no campaigns, no characters.created_at, no storage). They are built and
+-- drift-checked by rls-baseline-test.sql and rehearsed by testing/scripts/creation-lock-guard-test/run-notes.sh / run-images.sh.
 
 drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history

@@ -793,6 +793,9 @@ declare
   v_amount     numeric;
   v_cost       numeric;
   v_prior      numeric;
+  -- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): scratch for validating 'dmApproveNote'/'dmUnlockNote'.
+  v_nstatus    text;
+  v_ntext      text;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -832,7 +835,9 @@ begin
     -- imposed LOCKED once the story beat has happened. Validated below, per event.
     -- [DISCOUNT] 'dmDiscount' added by 2026-10-13-dm-ap-discount.sql: a DM takes AP off one earlier priced
     -- purchase. Validated below, per event.
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmDiscount') then
+    -- [NOTES] 'dmApproveNote' / 'dmUnlockNote' added by 2026-10-15-boon-drawback-notes.sql: a DM approves (locks) or
+    -- re-opens a player's description of a boon/drawback. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmDiscount', 'dmApproveNote', 'dmUnlockNote') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -942,6 +947,50 @@ begin
       v_ev := jsonb_build_object('type', 'dmDiscount', 'targetSeq', v_target, 'targetCat', v_tcat,
                                  'amount', v_amount::integer, 'note', v_note,
                                  'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM discount — ' || v_amount::integer || ' AP'), 120));
+    end if;
+
+    -- [NOTES] Approve / unlock a player's description of a boon or drawback, keyed by category + name (a character holds
+    -- at most one copy of a name; seq is not stable while CharGen rebuilds a draft). The note's state is read from the
+    -- stored log (plus this call's earlier events) by pact_item_note_state(), the same reading the tools and
+    -- pact_enforce_item_note_lock() use, counting only approvals made in THIS campaign. An approval needs a note awaiting
+    -- approval and records the text it approved; an unlock needs an approved note. Both carry the campaign they were
+    -- made in. Rebuilt from a whitelist, like the unlock and the discount.
+    if v_type in ('dmApproveNote', 'dmUnlockNote') then
+      v_tcat := coalesce(v_ev->>'cat', '');
+      v_name := btrim(coalesce(v_ev->>'refVal', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if v_tcat not in ('boon', 'drawback') or v_name = '' then
+        raise exception 'dm_edit_character_log: % needs cat (boon or drawback) and refVal (the item''s name)', v_type;
+      end if;
+      if not exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                      where e->>'type' = 'buy' and e->>'cat' = v_tcat and e#>>'{payload,v}' = v_name) then
+        raise exception 'dm_edit_character_log: this character has no % "%"', v_tcat, v_name;
+      end if;
+      select s.status, s.note into v_nstatus, v_ntext
+        from public.pact_item_note_state(v_log || v_new, v_tcat, v_name, v_campaign::text) as s;
+      if v_type = 'dmApproveNote' then
+        if v_nstatus is distinct from 'pending' then
+          raise exception 'dm_edit_character_log: no description of % "%" awaiting approval (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        -- The DM approves the text they were SHOWN (#673 review B): DM Console sends it, and a note the player changed
+        -- since the page loaded is refused rather than approved unseen.
+        if jsonb_typeof(v_ev->'text') is distinct from 'string' or v_ev->>'text' is distinct from v_ntext then
+          raise exception 'dm_edit_character_log: the description of % "%" changed since this page loaded — reload and read it again', v_tcat, v_name;
+        end if;
+        v_ev := jsonb_build_object('type', 'dmApproveNote', 'cat', v_tcat, 'refVal', v_name, 'text', v_ntext,
+                                   'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM approved description — ' || v_name), 120));
+      else
+        if v_nstatus is distinct from 'approved' then
+          raise exception 'dm_edit_character_log: the description of % "%" is not approved (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        if char_length(v_note) > 200 then
+          raise exception 'dm_edit_character_log: dmUnlockNote''s note must be 200 characters or fewer';
+        end if;
+        v_ev := jsonb_build_object('type', 'dmUnlockNote', 'cat', v_tcat, 'refVal', v_name, 'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM unlocked description — ' || v_name), 120))
+                || case when v_note = '' then '{}'::jsonb else jsonb_build_object('note', v_note) end;
+      end if;
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')
@@ -1305,6 +1354,163 @@ drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history
   before update on public.characters
   for each row execute function public.pact_enforce_locked_history();
+
+-- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) --------------------------------------------------
+-- Applied to production 2026-10-19 as sql/migrations/2026-10-15-boon-drawback-notes.sql; the text below is that
+-- migration's, verbatim (its header has the full design). dm_edit_character_log() above carries its [NOTES] hunks.
+-- pact_item_note_state() reads one boon/drawback description's state from a log exactly as js/ui-helpers.js
+-- pactNoteStates() does; trg_pact_item_note_lock lets only the campaign's DM write dmApproveNote/dmUnlockNote and
+-- freezes a player's itemNote once the DM has approved it (a solo character's notes are never locked, owner AW1).
+-- pact_js_trim: String.prototype.trim() exactly — strips the same whitespace set from both ends (ASCII tab/LF/VT/FF/CR/space,
+-- NBSP, U+1680, U+2000–U+200A, U+2028/2029, U+202F, U+205F, U+3000, U+FEFF) and nothing else, so "blank" means the same on
+-- the server as in js/ui-helpers.js pactCheckNoteText()/pactNoteStates() (#673 re-review 5). btrim() only strips spaces, and
+-- [[:space:]] is locale-dependent (it can include U+0085, which JS keeps).
+create or replace function public.pact_js_trim(p text)
+ returns text
+ language sql
+ immutable
+ set search_path = public, pg_temp
+as $function$
+  select regexp_replace(p, '^[' || w || ']+|[' || w || ']+$', '', 'g')
+    from (select chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(32) || chr(160) || chr(5760)
+                 || chr(8192) || '-' || chr(8202) || chr(8232) || chr(8233) || chr(8239) || chr(8287) || chr(12288) || chr(65279) as w) s;
+$function$;
+
+create or replace function public.pact_item_note_state(p_log jsonb, p_cat text, p_name text, p_campaign text,
+                                                       out status text, out note text)
+ language plpgsql
+ immutable
+ set search_path = public, pg_temp
+as $function$
+declare
+  e jsonb;
+begin
+  status := 'none'; note := '';
+  for e in
+    select ev from jsonb_array_elements(case when jsonb_typeof(p_log) = 'array' then p_log else '[]'::jsonb end)
+                   with ordinality as t(ev, ord)
+     where ev->>'type' in ('itemNote', 'dmApproveNote', 'dmUnlockNote') and ev->>'cat' = p_cat and ev->>'refVal' = p_name
+     order by ord
+  loop
+    if e->>'type' = 'itemNote' then
+      if jsonb_typeof(e->'text') = 'string' then
+        note := e->>'text';
+        status := case when public.pact_js_trim(note) = '' then 'none' else 'pending' end;
+      end if;
+    elsif e->'dmEdit' = 'true'::jsonb and p_campaign is not null and e->>'campaignId' = p_campaign then
+      -- only an approval OF THIS TEXT counts (#673 review A): a note rewritten in place after approval stays pending
+      if e->>'type' = 'dmApproveNote' and status <> 'none' and jsonb_typeof(e->'text') = 'string' and e->>'text' = note then
+        status := 'approved';
+      elsif e->>'type' = 'dmUnlockNote' and status = 'approved' then
+        status := 'pending';
+      end if;
+    end if;
+  end loop;
+end;
+$function$;
+
+-- pact_enforce_item_note_lock: see the header, item 3.
+create or replace function public.pact_enforce_item_note_lock()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old_log jsonb := '[]'::jsonb;
+  v_new_log jsonb;
+  v_old_fam jsonb;
+  v_new_fam jsonb;
+  v_dm      boolean := false;
+  k         record;
+begin
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;   -- admin session
+  if TG_OP = 'UPDATE' then
+    if NEW.stats is not distinct from OLD.stats and NEW.campaign_id is not distinct from OLD.campaign_id then return NEW; end if;
+    v_old_log := case when jsonb_typeof(OLD.stats->'LOG') = 'array' then OLD.stats->'LOG' else '[]'::jsonb end;
+  end if;
+  v_new_log := case when jsonb_typeof(NEW.stats->'LOG') = 'array' then NEW.stats->'LOG' else '[]'::jsonb end;
+
+  -- A NEW description (one not already stored, compared whole) must be 1 to 500 characters after trimming.
+  if exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
+              where e->>'type' = 'itemNote'
+                and (coalesce(jsonb_typeof(e->'text'), '') <> 'string' or char_length(public.pact_js_trim(e->>'text')) not between 1 and 500)
+                and not exists (select 1 from jsonb_array_elements(v_old_log) as o(x) where x = e)) then
+    raise exception 'PACT: a boon or drawback description must be 1 to 500 characters'
+      using hint = 'Shorten the description and save again.';
+  end if;
+
+  -- INSERT into a campaign by anyone but its DM: approvals made in that campaign are DROPPED from the new row, not
+  -- refused (#673 review C). The honest case is redeem_character_claim() copying a DM's pregen whose descriptions that
+  -- DM approved; refusing broke it. Dropping is the safer of the two fixes: no approval stamped with THIS campaign
+  -- survives a player's insert into it (a hand-crafted one is removed the same way), the copy's notes simply wait for the
+  -- DM's approval again, and redeem_character_claim() is not redefined. Approvals stamped with another campaign are kept
+  -- but never count here; a SOLO insert is not filtered (nothing counts on a solo character), and the move-into-a-campaign
+  -- branch below drops them on the way in.
+  if TG_OP = 'INSERT' then
+    if NEW.campaign_id is not null and not public.is_campaign_dm(NEW.campaign_id)
+       and exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
+                    where e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text) then
+      NEW.stats := jsonb_set(NEW.stats, '{LOG}',
+        (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_new_log) with ordinality as t(e, ord)
+          where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text)));
+    end if;
+    return NEW;
+  end if;
+
+  -- Moving INTO a campaign (campaign_id changes to X) when the writer is not X's DM — bind_character_to_campaign(), a
+  -- campaign move — drops the approvals stamped with X, exactly as an INSERT does (#673 re-review 4). That closes the
+  -- "forge approvals on a solo character, then join" path: whatever arrives, no approval made "in X" survives the join, so
+  -- every approval that counts in a campaign was written there by its DM through dm_edit_character_log. The comparison
+  -- below then treats the dropped events as never having been there; any OTHER change to approvals is still refused.
+  if NEW.campaign_id is not null and NEW.campaign_id is distinct from OLD.campaign_id
+     and not public.is_campaign_dm(NEW.campaign_id)
+     and exists (select 1 from jsonb_array_elements(v_new_log) as t(e)
+                  where e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text) then
+    v_new_log := (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_new_log) with ordinality as t(e, ord)
+                   where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text));
+    NEW.stats := jsonb_set(NEW.stats, '{LOG}', v_new_log);
+    v_old_log := (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_old_log) with ordinality as t(e, ord)
+                   where not (e->>'type' in ('dmApproveNote', 'dmUnlockNote') and e->>'campaignId' = NEW.campaign_id::text));
+  end if;
+
+  v_dm := OLD.campaign_id is not null and NEW.campaign_id is not distinct from OLD.campaign_id
+          and public.is_campaign_dm(OLD.campaign_id);
+
+  select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) into v_old_fam
+    from jsonb_array_elements(v_old_log) with ordinality as t(e, ord) where e->>'type' in ('dmApproveNote', 'dmUnlockNote');
+  select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) into v_new_fam
+    from jsonb_array_elements(v_new_log) with ordinality as t(e, ord) where e->>'type' in ('dmApproveNote', 'dmUnlockNote');
+  if v_new_fam is distinct from v_old_fam and not v_dm then
+    raise exception 'PACT: only the campaign''s DM can approve or unlock a boon or drawback description';
+  end if;
+
+  if OLD.campaign_id is null or v_dm then return NEW; end if;
+
+  -- The lock: every description approved in this campaign keeps exactly its stored itemNote events.
+  for k in
+    select distinct e->>'cat' as c, e->>'refVal' as n
+      from jsonb_array_elements(v_old_log) as t(e)
+     where e->>'type' = 'dmApproveNote' and e->>'campaignId' = OLD.campaign_id::text
+  loop
+    if (select s.status from public.pact_item_note_state(v_old_log, k.c, k.n, OLD.campaign_id::text) as s) = 'approved'
+       and (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_old_log) with ordinality as t(e, ord)
+             where e->>'type' = 'itemNote' and e->>'cat' = k.c and e->>'refVal' = k.n)
+           is distinct from
+           (select coalesce(jsonb_agg(e order by ord), '[]'::jsonb) from jsonb_array_elements(v_new_log) with ordinality as t(e, ord)
+             where e->>'type' = 'itemNote' and e->>'cat' = k.c and e->>'refVal' = k.n) then
+      raise exception 'PACT: your DM approved the description of % — it can''t be changed until they unlock it', k.n
+        using hint = 'Ask your DM to unlock it in DM Console, or reload the character if it was approved after you opened it.';
+    end if;
+  end loop;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_item_note_lock on public.characters;
+create trigger trg_pact_item_note_lock
+  before insert or update on public.characters
+  for each row execute function public.pact_enforce_item_note_lock();
+
+revoke execute on function public.pact_item_note_state(jsonb, text, text, text) from public, anon, authenticated;
+revoke execute on function public.pact_js_trim(text)                            from public, anon, authenticated;
+revoke execute on function public.pact_enforce_item_note_lock()                 from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Creation-lock guard (D1), campaign moves keep the lock (L1) — applied to live 2026-10-04 as migration
@@ -1975,3 +2181,97 @@ end;
 $$;
 
 revoke all on function public.pact_purge_blank_characters(interval) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Storage: the private `character-images` bucket (feat/character-images, D-GH-2026-10-15-character-images).
+-- Applied to production 2026-10-19 as sql/migrations/2026-10-15-character-images.sql; its header has the whole
+-- design (the object name `<character uuid>/1|2` IS the data model; owner writes; owner + campaign DMs + campaign
+-- players read; an object older than its character row is invisible). The helpers and grants below are that
+-- migration's text verbatim.
+--
+-- WHY THE BUCKET AND POLICIES SIT INSIDE A GUARD. They live in Supabase's own `storage` schema, which exists on
+-- every Supabase project but NOT on the plain Postgres this file is also loaded into (sql-guards.yml's harnesses,
+-- the creation-lock-guard-test rehearsals, cloud-e2e, seed-review-stack). Loading the statements bare would make
+-- this file fail everywhere except Supabase; adding a storage stub to every one of those loaders would make each
+-- of them pretend to be Supabase for a feature none of them tests. So: on Supabase (storage.objects exists) the
+-- statements run exactly as written; elsewhere they are skipped with a NOTICE. Each EXECUTE carries the
+-- migration's statement unchanged, so the policy text still reads as SQL and still matches the migration — and
+-- testing/sql/rls-baseline-test.sql loads a storage stub FIRST, so this branch is built and checked there.
+-- The helpers need only public.characters and auth.uid(), so they are created unconditionally.
+-- ---------------------------------------------------------------------------
+-- The character a picture belongs to, or NULL when the name is not exactly `<lower-case uuid>/1|2`.
+-- Fail-closed: every policy below needs a non-null answer.
+create or replace function public.character_image_character(p_name text)
+returns uuid language sql immutable set search_path = public, pg_temp as $$
+  select case
+    when p_name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[12]$'
+    then split_part(p_name, '/', 1)::uuid
+  end;
+$$;
+
+-- p_created = the OBJECT's created_at (from the policy). NULL fails closed.
+create or replace function public.can_read_character_image(p_name text, p_created timestamptz)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from characters c
+    where c.id = character_image_character(p_name)
+      and p_created >= c.created_at
+      and (
+            c.owner_id = auth.uid()
+         or is_campaign_dm(c.campaign_id)
+         or is_campaign_member(c.campaign_id)
+      )
+  );
+$$;
+
+create or replace function public.can_write_character_image(p_name text, p_created timestamptz)
+returns boolean language sql stable security definer set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from characters c
+    where c.id = character_image_character(p_name)
+      and p_created >= c.created_at
+      and c.owner_id = auth.uid()
+  );
+$$;
+
+revoke all on function public.character_image_character(text) from public, anon;
+revoke all on function public.can_read_character_image(text, timestamptz)  from public, anon;
+revoke all on function public.can_write_character_image(text, timestamptz) from public, anon;
+grant execute on function public.character_image_character(text) to authenticated;
+grant execute on function public.can_read_character_image(text, timestamptz)  to authenticated;
+grant execute on function public.can_write_character_image(text, timestamptz) to authenticated;
+
+do $storage$
+begin
+  if to_regclass('storage.objects') is null or to_regclass('storage.buckets') is null then
+    raise notice 'rls-policies.sql: no storage schema here (not Supabase) — character-images bucket and policies skipped';
+  else
+    execute $sql$insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      values ('character-images', 'character-images', false, 2097152, array['image/webp','image/jpeg','image/png'])
+      on conflict (id) do update
+        set public = false,
+            file_size_limit = excluded.file_size_limit,
+            allowed_mime_types = excluded.allowed_mime_types$sql$;
+
+    -- Upload with upsert (the client's "Replace") needs SELECT + INSERT + UPDATE; the owner holds all three.
+    execute $sql$drop policy if exists character_images_select on storage.objects$sql$;
+    execute $sql$create policy character_images_select on storage.objects
+        for select to authenticated
+        using (bucket_id = 'character-images' and public.can_read_character_image(name, created_at))$sql$;
+    execute $sql$drop policy if exists character_images_insert on storage.objects$sql$;
+    execute $sql$create policy character_images_insert on storage.objects
+        for insert to authenticated
+        with check (bucket_id = 'character-images' and public.can_write_character_image(name, created_at))$sql$;
+    -- WITH CHECK as well as USING: a rename/move may not land on another character or on a third slot.
+    execute $sql$drop policy if exists character_images_update on storage.objects$sql$;
+    execute $sql$create policy character_images_update on storage.objects
+        for update to authenticated
+        using (bucket_id = 'character-images' and public.can_write_character_image(name, created_at))
+        with check (bucket_id = 'character-images' and public.can_write_character_image(name, created_at))$sql$;
+    execute $sql$drop policy if exists character_images_delete on storage.objects$sql$;
+    execute $sql$create policy character_images_delete on storage.objects
+        for delete to authenticated
+        using (bucket_id = 'character-images' and public.can_write_character_image(name, created_at))$sql$;
+  end if;
+end
+$storage$;

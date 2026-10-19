@@ -1602,6 +1602,25 @@ and their parity fixture ids collide: #670 adds CG-071..CG-082; feat/campaign-ho
 **Done when:** after both have merged, preview's DATA.version is v0.378 at every display site, fixture ids are unique, and
 engine-parity reports 0 failed with every fixture from both branches present.
 
+## feat/campaign-house-rules merge — rebuild the house-rules server migration on the live boon/drawback-notes definitions — TODO
+Branch: feat/campaign-house-rules (its server PR, feat/campaign-house-rules-server). **Effort:** low · **Risk:** medium — applying it as written would silently remove the live description lock.
+
+```text
+Carried from the graduated db/apply-boon-drawback-notes (step 3), 2026-10-19. 2026-10-15-boon-drawback-notes.sql was applied to
+production FIRST (2026-10-19), so sql/migrations/2026-10-13-campaign-house-rules-server.sql (NOT applied) must now be REBUILT on
+the live notes definitions before it is applied (see the notes migration's RECONCILE note; the baseline sql/rls-policies.sql
+carries the live text since the 2026-10-19 fold):
+  * dm_edit_character_log(): start from the live (notes) text and add house-rules' dmHouseRules branch + pact_next_seq() —
+    the union of both allow-lists and validation blocks, never house-rules' own older base;
+  * pact_dm_family(): add 'dmApproveNote' and 'dmUnlockNote' to its DM-only types;
+  * keep trg_pact_item_note_lock / pact_enforce_item_note_lock() as they are (they also freeze the PLAYER's approved itemNote);
+  * the house-rules ROLLBACK must restore the NOTES definitions of dm_edit_character_log, not the 2026-10-13 ones.
+Before applying: re-check live md5(pg_get_functiondef(dm_edit_character_log)) against the rebuilt file's base, and re-run
+run-notes.sh and run-house-rules.sh on the rebuilt files. Also mirror this into the integration branch's own
+feat/campaign-house-rules board entry when it next syncs with preview.
+```
+**Done when:** the house-rules server migration and its rollback are rebuilt on the notes definitions, both rehearsals pass on the rebuilt files, and production's `dm_edit_character_log` after the apply still contains `dmApproveNote` as well as `dmHouseRules`.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1633,59 +1652,23 @@ Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime �
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
 
 
-## feat/character-images — apply the picture-storage migration (client + migration shipped, NOT applied) — TODO
-Branch db/character-images-apply. **Effort:** low · **Risk:** medium — first Storage bucket + storage.objects policies on production.
-
-```text
-The client half shipped in feat/character-images (D-GH-2026-10-15-character-images): Live Sheet / CharGen upload, replace
-and remove up to 2 pictures; DM Console thumbnails. Until the migration is applied, uploading says "pictures aren't switched
-on for this server yet". Remaining (owner approval needed for the database steps):
-  1. Apply sql/migrations/2026-10-15-character-images.sql (bucket + 3 helpers + 4 storage.objects policies; purely additive).
-     First re-run testing/scripts/creation-lock-guard-test/run-images.sh (55 cases) on the branch being applied.
-  2. Run get_advisors (security + performance) and skim get_logs.
-  3. Run the live post-apply spot-check list in decisions/2026/D-GH-2026-10-15-character-images.md (missing-bucket
-     message, owner Replace = upsert, a > 2 MB and an SVG upload via the REST API both refused, fellow player reads,
-     outsider does not).
-  4. Fold the statements into sql/rls-policies.sql (a short "Storage" section) per sql/migrations/README.md.
-```
-**Done when:** the migration is applied with owner approval, advisors are clean, every spot-check in the decision record passes, and `rls-policies.sql` carries the fold.
-
 ## chore/character-images-orphan-sweep — remove pictures left behind by deleted characters — TODO
 Branch chore/character-images-orphan-sweep. **Effort:** low–medium · **Risk:** low–medium — deletes user files (service role), but only ones no policy can reach.
 
 ```text
-After feat/character-images (D-GH-2026-10-15-character-images) is applied: pictures of a character deleted offline (the
+Since feat/character-images (D-GH-2026-10-15-character-images) was applied (2026-10-19): pictures of a character deleted offline (the
 tombstone replay in js/sync.js doesn't remove them) or deleted by a campaign DM stay in the private character-images bucket.
 They are unreachable through the API (no row, or a recreated row with a newer created_at), cost ≤4 MB each, and block that
 slot for a recreated row with the same uuid. Build a sweep that lists objects whose `<uuid>` has no characters row, or whose
 created_at is older than the row's created_at, and deletes them with the service role through the Storage API (SQL cannot
 delete storage objects) — e.g. a documented dashboard/CLI procedure or a scheduled job; never ship the service key to the
 browser. Report counts before deleting; dry-run first.
+ALSO (carried from the graduated db/character-images-apply, 2026-10-19): the migration is applied and its policies were
+spot-checked as real users in SQL, but the browser-level REST checks 2–5 in decisions/2026/D-GH-2026-10-15-character-images.md
+(owner Replace = upsert, a > 2 MB and an SVG upload refused by the Storage API, fellow player reads) were NOT run with a real
+JWT — the owner runs them once with a real account and records the result in the decision record.
 ```
 **Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
-
-## db/apply-boon-drawback-notes — apply the boon/drawback description lock to production, reconciled with house rules — TODO
-Branch db/apply-boon-drawback-notes. **Effort:** low · **Risk:** medium — redefines `dm_edit_character_log()` on production.
-
-```text
-feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) shipped the client and wrote
-sql/migrations/2026-10-15-boon-drawback-notes.sql (+ rollback) WITHOUT applying it. Until it is applied, an approved
-description is locked by the two player tools only, and DM Console's Approve/Unlock say the server needs updating.
-  1. Read-only blast radius (the migration header has the query; expected 0 rows with itemNote/dmApproveNote/dmUnlockNote
-     before players start writing notes — after that, count them and confirm none is longer than 500 characters).
-  2. Compare md5(pg_get_functiondef(dm_edit_character_log)) on production with run-notes.sh's BASE line. If they differ,
-     rebuild the migration's dm_edit_character_log from the LIVE text (sql/migrations/README.md, the 2026-09-02 incident).
-  3. HOUSE RULES: 2026-10-13-campaign-house-rules-server.sql (feat/campaign-house-rules, not applied either) redefines the
-     same function and adds pact_dm_family(). Whichever is applied SECOND must be rebuilt on the first: union the two
-     dm_edit_character_log allow-lists/validation blocks (keep pact_next_seq()), add 'dmApproveNote' and 'dmUnlockNote' to
-     pact_dm_family()'s DM-only types, keep trg_pact_item_note_lock, and point that migration's rollback at the first
-     one's definitions. Re-run run-notes.sh and run-house-rules.sh on the rebuilt files.
-  4. Owner applies (apply_migration), then get_advisors (security + performance) and get_logs.
-  5. Fold into sql/rls-policies.sql and add the file to the \ir lists of testing/sql/session-seal-test.sql and
-     rls-baseline-test.sql (a later PR, per sql/migrations/README.md); flip the header to APPLIED.
-Solo rule confirmed by the owner 2026-10-17 (required, never locked). The 27-item list was settled with the owner on 2026-10-17.
-```
-**Done when:** the migration is applied to production with advisors clean; a player's direct write changing an approved description is refused there; `dm_edit_character_log` on production still contains `assert_campaign_active`, the boon/award match, `dmUnlockDrawback`, `dmDiscount` (and `dmHouseRules` if that migration is live); the baseline fold PR is merged.
 
 ## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
 Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.

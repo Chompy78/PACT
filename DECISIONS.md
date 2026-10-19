@@ -30,7 +30,7 @@
   LOG or on the row. Read: owner, campaign DMs, other campaign players, NPCs included (AI2, AQ2); write: owner only.
   Each object is bound to the row incarnation (`objects.created_at >= characters.created_at`), so recreating a deleted
   row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
-  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration NOT APPLIED.
+  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration APPLIED 2026-10-19 (browser REST checks 2–5 still to run).
   Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
 ## D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins
 - Owner decision AK1. Free LOG inputs: `wornArmour` (now also `MAGE_ARMOR`) and new `shieldWorn` (absent = carried when trained, so no
@@ -45,8 +45,8 @@
   of Poverty). Append-only `itemNote` events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock
   are DM events through `dm_edit_character_log`, carrying the text the DM was shown, and an approval counts only for that
   exact text in the campaign it was made in. Joining a campaign (insert or move, by anyone but its DM) drops approvals
-  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (provisional). Migration NOT
-  applied; must be reconciled with the house-rules migration (whichever applies second rebuilds on the other).
+  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (owner AW1, 2026-10-17). Migration
+  APPLIED 2026-10-19, first — so the house-rules server migration must now be rebuilt on it.
   Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
 ## D-GH-2026-10-15-livesheet-sheet-layout — the Live Sheet's 📋 Sheet IS the Character panel's body (one renderer)
 - `render()`'s panel block runs as `_lsCharBody(b,r,eco,opts)`, defined in place, and `renderSheet()` calls it, followed by
