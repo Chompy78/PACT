@@ -1648,3 +1648,21 @@ both tools pass the full kind list. Do not change what a `names` event means or 
 ```
 **Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.
 
+
+## pact-guide master — reconcile Heroic Inspiration with Twofold / Threefold Inspiration and Blazing Moment 18+ (PR #681) — TODO
+Branch `docs/guide-master-heroic-inspiration`. **Effort:** medium · **Risk:** medium — ambiguity drives it (the master states a rule the
+new boons contradict, and which side wins is the owner's call); damage scale is low (display only) but a transfer from the master today silently drops the change.
+```
+PR #681 (rules v0.378, D-GH-2026-10-20-heroic-inspiration-boons) added the boons Twofold Inspiration (HD 3, 7 AP) and Threefold Inspiration (HD 5, 10 AP, needs
+Twofold) and moved Blazing Moment to an 18+ reroll (still 14 AP). This repo's served docs/PACT-Players-Guide.html has them; the pact-guide MASTER does not, on purpose:
+  - the master says, in prose, "You can never hold more than one Heroic Inspiration at a time" — the opposite of the new boons;
+  - its fortune-boon section has diverged from the engine (Defiant Spark, Undying Ember, a different Renewed Fire wording, Blazing Moment moved) — see
+    pact-guide/plans/engine-sync-2026-08-27-fortune-boons.md and the related task "The pact-guide master has drifted far behind the served Players Guide" above.
+DO: get the owner's call first — (a) rewrite the "never more than one" rule and add the two boons + the 18+ wording to the master, or (b) fold them into the
+fortune-boons reconciliation (which may change the engine's boon set too). Then make the edit in pact-guide via the home-server connector (project key
+pact-guide), run testing/scripts/verify-guide.mjs, guide-price-check.mjs and guide-table-diff.mjs against the result, and transfer per docs/VERSION-SYNC.md.
+If the owner picks (b), the engine side needs its own rules change and DATA.version bump — do not edit the engine under this task.
+```
+**Done when:** the pact-guide master carries Twofold Inspiration, Threefold Inspiration and Blazing Moment's 18+ wording with its "never more than one" rule rewritten to
+match (or the fortune-boons reconciliation has settled the set and the engine and both guide copies agree), and `guide-table-diff.mjs` reports the served copy and
+the master identical on those rows.
