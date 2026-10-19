@@ -3,7 +3,7 @@
  * house-rules-ledger-ci.mjs — the engine gate for CAMPAIGN-WIDE HOUSE RULES (feat/campaign-house-rules-engine,
  * D-GH-2026-10-13-campaign-house-rules, plan §12 (e)(f)(g)(h) + addendum M5/M6/W1).
  *
- * The parity fixtures CG-071..075 / EV-035..040 pin what compute() and economy() say for one log each. This gate
+ * The parity fixtures CG-083..087 / EV-035..040 pin what compute() and economy() say for one log each. This gate
  * covers what a fixture cannot:
  *   (e)  priceOf()'s drawback pricer returns the EFFECTIVE value (own / campaign / override / pin), and (M6) that a
  *        SOLO character's own house-ruled drawback is now stamped at its own value — a behaviour change, on purpose.

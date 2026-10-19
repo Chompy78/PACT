@@ -64,6 +64,10 @@ psqlc -At -c "select 'trigger functions callable by authenticated: ' || (has_fun
   || ' · RPC callable by anon: ' || has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE')"
 [ "$(psqlc -At -c "select has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE') or has_function_privilege('authenticated','public.pact_enforce_player_grants()','EXECUTE')")" = "f" ] || { echo "GRANTS WRONG"; exit 1; }
 
+echo "=== the live boon/drawback-notes cases with house rules applied on top (dm_edit_character_log carries both) ==="
+# 2026-10-15-boon-drawback-notes.sql went live first (2026-10-19); this file's dm_edit_character_log was rebuilt on it.
+psqlc < notes-cases.sql >/dev/null; echo "NOTES AFTER HOUSE RULES: $(counts)"
+[ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-240; echo "FAILED"; exit 1; }
 echo "=== rollback: every redefined function byte-identical to BASE, every addition gone ==="
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 [ "$(defs)" = "$BASE" ] && echo "rollback restores the six definitions exactly" || { echo "ROLLBACK DIFFERS: $(defs)"; exit 1; }

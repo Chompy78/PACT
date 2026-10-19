@@ -27,10 +27,17 @@
 --      'pact_ap_ledger_protected', 'pact_enforce_locked_history', 'dm_edit_character_log') order by 1;
 -- and compare with the same query on a scratch database built from schema.sql + rls-policies.sql (run-house-rules.sh prints
 -- these hashes as "BASE"). If any differs, rebuild the redefinition from the LIVE text instead of applying this file.
--- Two related migrations are written and NOT applied either; neither redefines a function this file redefines:
---   2026-10-12-server-player-award-after-lock.sql (pact_enforce_player_ap_ceiling) and PR #642's
---   2026-10-12-dm-house-rules-edit.sql (dm_edit_character_log buy/patch — SUPERSEDED by the dmHouseRules event here;
---   PR5 reworks #642 onto this file and must not apply its own migration).
+-- REBUILT 2026-10-20 (feat/campaign-house-rules merge with preview): 2026-10-15-boon-drawback-notes.sql was applied to
+-- production FIRST (2026-10-19) and redefined dm_edit_character_log. This file's dm_edit_character_log is now the LIVE
+-- notes text plus this file's own changes (a three-way merge: pact_next_seq(), the dmHouseRules allow-list entry and
+-- validation, the refunded-boon discount refusal) — the allow-list is the union of both. pact_dm_family() also counts the
+-- notes DM events (dmApproveNote, dmUnlockNote). pact_enforce_item_note_lock() / trg_pact_item_note_lock are untouched:
+-- they also freeze the PLAYER's approved itemNote, which the DM-family guard does not cover. The rollback restores the
+-- NOTES definition of dm_edit_character_log, not the 2026-10-13 one. Expected live BASE md5 of dm_edit_character_log:
+-- the notes definition, as folded into sql/rls-policies.sql on 2026-10-19 (run-house-rules.sh prints it).
+-- Related migrations: 2026-10-12-server-player-award-after-lock.sql (pact_enforce_player_ap_ceiling) was APPLIED on
+-- 2026-10-13 and redefines nothing this file redefines. PR #642's 2026-10-12-dm-house-rules-edit.sql (dm_edit_character_log
+-- buy/patch) is SUPERSEDED by the dmHouseRules event here and must never be applied.
 --
 -- =====================================================================================================================
 -- WHAT THIS ADDS / CHANGES
@@ -514,7 +521,7 @@ $$;
 -- AB1 (owner, 2026-10-13): the server's own copy of the PRINTED drawback values, generated from js/engine-data.js.
 -- testing/scripts/gen-drawback-prices-sql.mjs writes the block below; --check (sql-guards CI) fails if it drifts.
 -- BEGIN GENERATED pact_drawback_printed — testing/scripts/gen-drawback-prices-sql.mjs; do not edit by hand
--- 109 printed drawbacks, js/engine-data.js rules v0.377. NULL = not a printed drawback.
+-- 109 printed drawbacks, js/engine-data.js rules v0.378. NULL = not a printed drawback.
 create or replace function public.pact_drawback_printed(p_name text)
 returns numeric language sql immutable set search_path = public, pg_temp as $$
   select (('{"Addled Memory":2,
@@ -1005,7 +1012,9 @@ returns jsonb language sql immutable set search_path = public, pg_temp as $$
    where jsonb_typeof(ev) = 'object'
      and (public.pact_js_truthy(ev->'dmEdit')
           or (ev->>'type') in ('dmHouseRules', 'dmRefundBoon', 'dmRemoveDrawback', 'dmRepriceDrawback',
-                               'dmRemoveBoon', 'dmUnlockDrawback', 'sessionSeal'));
+                               'dmRemoveBoon', 'dmUnlockDrawback', 'sessionSeal',
+                               -- the boon/drawback-notes DM events (2026-10-15-boon-drawback-notes.sql, live since 2026-10-19)
+                               'dmApproveNote', 'dmUnlockNote'));
 $$;
 
 create or replace function public.pact_enforce_dm_family()
@@ -1211,6 +1220,9 @@ declare
   v_amount     numeric;
   v_cost       numeric;
   v_prior      numeric;
+  -- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): scratch for validating 'dmApproveNote'/'dmUnlockNote'.
+  v_nstatus    text;
+  v_ntext      text;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -1253,7 +1265,9 @@ begin
     -- here: dm_apply_house_rules_change() is their only writer (it validates the target and stamps the amounts).
     -- [DISCOUNT] 'dmDiscount' added by 2026-10-13-dm-ap-discount.sql: a DM takes AP off one earlier priced
     -- purchase. Validated below, per event.
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmHouseRules', 'dmDiscount') then
+    -- [NOTES] 'dmApproveNote' / 'dmUnlockNote' added by 2026-10-15-boon-drawback-notes.sql: a DM approves (locks) or
+    -- re-opens a player's description of a boon/drawback. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmHouseRules', 'dmDiscount', 'dmApproveNote', 'dmUnlockNote') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -1382,6 +1396,50 @@ begin
       v_ev := jsonb_build_object('type', 'dmDiscount', 'targetSeq', v_target, 'targetCat', v_tcat,
                                  'amount', v_amount::integer, 'note', v_note,
                                  'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM discount — ' || v_amount::integer || ' AP'), 120));
+    end if;
+
+    -- [NOTES] Approve / unlock a player's description of a boon or drawback, keyed by category + name (a character holds
+    -- at most one copy of a name; seq is not stable while CharGen rebuilds a draft). The note's state is read from the
+    -- stored log (plus this call's earlier events) by pact_item_note_state(), the same reading the tools and
+    -- pact_enforce_item_note_lock() use, counting only approvals made in THIS campaign. An approval needs a note awaiting
+    -- approval and records the text it approved; an unlock needs an approved note. Both carry the campaign they were
+    -- made in. Rebuilt from a whitelist, like the unlock and the discount.
+    if v_type in ('dmApproveNote', 'dmUnlockNote') then
+      v_tcat := coalesce(v_ev->>'cat', '');
+      v_name := btrim(coalesce(v_ev->>'refVal', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if v_tcat not in ('boon', 'drawback') or v_name = '' then
+        raise exception 'dm_edit_character_log: % needs cat (boon or drawback) and refVal (the item''s name)', v_type;
+      end if;
+      if not exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                      where e->>'type' = 'buy' and e->>'cat' = v_tcat and e#>>'{payload,v}' = v_name) then
+        raise exception 'dm_edit_character_log: this character has no % "%"', v_tcat, v_name;
+      end if;
+      select s.status, s.note into v_nstatus, v_ntext
+        from public.pact_item_note_state(v_log || v_new, v_tcat, v_name, v_campaign::text) as s;
+      if v_type = 'dmApproveNote' then
+        if v_nstatus is distinct from 'pending' then
+          raise exception 'dm_edit_character_log: no description of % "%" awaiting approval (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        -- The DM approves the text they were SHOWN (#673 review B): DM Console sends it, and a note the player changed
+        -- since the page loaded is refused rather than approved unseen.
+        if jsonb_typeof(v_ev->'text') is distinct from 'string' or v_ev->>'text' is distinct from v_ntext then
+          raise exception 'dm_edit_character_log: the description of % "%" changed since this page loaded — reload and read it again', v_tcat, v_name;
+        end if;
+        v_ev := jsonb_build_object('type', 'dmApproveNote', 'cat', v_tcat, 'refVal', v_name, 'text', v_ntext,
+                                   'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM approved description — ' || v_name), 120));
+      else
+        if v_nstatus is distinct from 'approved' then
+          raise exception 'dm_edit_character_log: the description of % "%" is not approved (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        if char_length(v_note) > 200 then
+          raise exception 'dm_edit_character_log: dmUnlockNote''s note must be 200 characters or fewer';
+        end if;
+        v_ev := jsonb_build_object('type', 'dmUnlockNote', 'cat', v_tcat, 'refVal', v_name, 'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM unlocked description — ' || v_name), 120))
+                || case when v_note = '' then '{}'::jsonb else jsonb_build_object('note', v_note) end;
+      end if;
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')

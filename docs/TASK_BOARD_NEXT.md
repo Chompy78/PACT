@@ -971,36 +971,6 @@ features read as separate entries in the Guide, not one bundle; `verify-guide.mj
 
 ---
 
-## `docs/phb-rules-final.jsonl` bundles 4 separately-leveled 2024 features under one entry — TODO
-Branch `docs/fix-phb-jsonl-bundled-entries`. The PHB text extraction that grounded round 5's level
-authoring (`D-GH-2026-08-27-feature-hd-gate`) crammed together features WotC prints at different levels on
-the class tables, because the source list was compiled by grouping similar-sounding names rather than by
-level. PACT's own data has already been corrected (the features were split), but the *source* file still
-carries the bundling, so the next person who re-derives from it inherits the same wrong premise and has to
-re-discover the split by hand, as this round did.
-The four: **Fighter** — `Tactical Mind` / `Shift` / `Master`, three distinct Battle-Master-flavoured
-features on the core Fighter table at L2/L5/L9, sharing a name theme but gained years apart. **Monk** —
-`Empowered Strikes` (unarmed strikes count as magical) / `Self-Restoration` (shed conditions), unrelated
-features at L6/L10 that the bundling hid a 4-level gap between. **Monk** — `Perfect Focus` (a focus-recovery
-feature, L15) / `Body and Mind` (the L20 capstone), two very different power tiers wrongly sharing a line.
-**Ranger** — `Roving` (extra movement/climb-swim speed) / `Tireless` (temp HP + reduced exhaustion), L6/L9
-improvements, again distinct features on the Ranger table.
-**Effort:** low · **Risk:** low — a data-quality fix to a reference extraction, not to PACT's own rules
-data; nothing in `compute()` reads this file.
-
-```text
-1. In docs/phb-rules-final.jsonl, split each of the 4 bundled Class Feature entries into its correctly-
-   separated sub-entries (Fighter's one row becomes three; the other three each become two), preserving
-   the source's own id/category/source/page/pdf_page/page_confidence shape for each new row.
-2. Assign each split entry the correct page number if it differs from the original bundled row's page --
-   check against the actual PHB page range for that class's feature table.
-3. Cross-check the split against what PACT's engine-data.js already landed for these (see the round-5
-   addendum in decisions/2026/D-GH-2026-08-27-feature-hd-gate.md) so the two agree.
-```
-
-**Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
-fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
-
 ## `tool-pricing-ci.mjs` flakes on tab readiness — TODO
 Branch `fix/tool-pricing-tab-flake`. The gate opens a fresh CDP tab per section — around ten across the
 three tools — and the later ones intermittently blow the 30-second `document.readyState==='complete'`
@@ -1251,33 +1221,6 @@ buyoff for a locked drawback is **rejected server-side** with a clear error; the
 player buy-off flow still works end to end; the SQL FIFO replay agrees with the engine on a fixture set that
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
-
-## fix/random-fighter-int-priming — a Fighter on a caster theme is sometimes primed on INT — TODO
-Branch fix/random-fighter-int-priming. CI check `random-quality-ci.mjs` ("a Fighter on a caster theme still primes a
-Fighter stat, not INT") failed once on PR #569 (run 37203534734, 2026-10-04): 1 of 8 rolled Fighters had INT 20
-against STR 18 / DEX 16 / CON 14. The same code passed 7 of 7 local runs and the same job's third CI run, so it
-fails by chance. The gate itself is unseeded (it rolls `_qaRoll(theme, budget, "Fighter")` for the zealot and
-battlecaster themes with no fixed seed), which is why it looks like a flake. But the assertion encodes a real rule
-(a non-caster must not have a casting stat primed over its own; see the comment above the check about
-`DATA.castAbility` having an entry for every class), so a failure is either a real intermittent priming bug in
-CharGen's random roll or the gate being wrong about when INT may legitimately win. Find out which.
-**Effort:** low–medium · **Risk:** low — ambiguity medium (cause unknown), damage scale low (random-roll output
-only, no stored data), likelihood of harm low. Not blocking: the run passed on re-run.
-
-```text
-(a) Reproduce deterministically: add a seedable RNG (or a loop of a few hundred rolls) to
-    testing/scripts/random-quality-ci.mjs for this one case, so a failure prints its seed and the full stat block.
-    Do NOT just raise the retry count or loosen the assertion before knowing the cause.
-(b) Find why a Fighter's INT can exceed STR/DEX/CON on a caster theme (the priming code path in the CharGen
-    random roller, around _qaRoll). Likely candidates: a late INT bump from the caster theme's prerequisites,
-    a rank/feature gate that wants INT, or stat priming happening before the class is applied.
-(c) Fix the roller if INT really should not win; otherwise fix the assertion to say what is actually allowed.
-    Either way keep the check, and make a failure reproducible from the printed seed.
-(d) CHANGELOG; DECISIONS record only if the fix changes what a roll may produce. No DATA.version bump (random roll
-    only, compute() output unchanged).
-```
-**Done when:** the Fighter-priming check passes on 200 consecutive seeded rolls, a failing seed (if one is found)
-is recorded as a fixture, and `testing/scripts/random-quality-ci.mjs` reports 0 failed on CI across 3 runs.
 
 ## Anders Pipeleaf holds one ability through both purchase doors — decide how a sealed double charge is handled — TODO
 **Effort:** low · **Risk:** medium — ambiguity drives it (the DM and player must choose what, if anything, is refunded).
@@ -1635,6 +1578,26 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
+## feat/campaign-house-rules merge — rebuild the house-rules server migration on the live boon/drawback-notes definitions — TODO
+Branch: feat/campaign-house-rules (its server PR, feat/campaign-house-rules-server). **Effort:** low · **Risk:** medium — applying it as written would silently remove the live description lock.
+**Status 2026-10-20:** rebuilt and rehearsed in the second preview merge (`run-house-rules.sh` 209/209, notes cases 54/0 on top, rollback byte-identical to the notes BASE; decision addendum 2026-10-20). What remains is the apply itself (owner decision AE1, with the release) and the post-apply checks in **Done when**.
+
+```text
+Carried from the graduated db/apply-boon-drawback-notes (step 3), 2026-10-19. 2026-10-15-boon-drawback-notes.sql was applied to
+production FIRST (2026-10-19), so sql/migrations/2026-10-13-campaign-house-rules-server.sql (NOT applied) must now be REBUILT on
+the live notes definitions before it is applied (see the notes migration's RECONCILE note; the baseline sql/rls-policies.sql
+carries the live text since the 2026-10-19 fold):
+  * dm_edit_character_log(): start from the live (notes) text and add house-rules' dmHouseRules branch + pact_next_seq() —
+    the union of both allow-lists and validation blocks, never house-rules' own older base;
+  * pact_dm_family(): add 'dmApproveNote' and 'dmUnlockNote' to its DM-only types;
+  * keep trg_pact_item_note_lock / pact_enforce_item_note_lock() as they are (they also freeze the PLAYER's approved itemNote);
+  * the house-rules ROLLBACK must restore the NOTES definitions of dm_edit_character_log, not the 2026-10-13 ones.
+Before applying: re-check live md5(pg_get_functiondef(dm_edit_character_log)) against the rebuilt file's base, and re-run
+run-notes.sh and run-house-rules.sh on the rebuilt files. Also mirror this into the integration branch's own
+feat/campaign-house-rules board entry when it next syncs with preview.
+```
+**Done when:** the house-rules server migration and its rollback are rebuilt on the notes definitions, both rehearsals pass on the rebuilt files, and production's `dm_edit_character_log` after the apply still contains `dmApproveNote` as well as `dmHouseRules`.
+
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1664,3 +1627,57 @@ DM-granted boon only when it is the oldest copy (as T2 does). Drafts are listed 
 Reuse the T2 dialog from PR4 (#658). Refunds return AP only, not gold/downtime — say so in the dialog.
 ```
 **Done when:** ticking the box on a ban removes the item from every finished owner with the right refund/grant-back, browser and server AP agree (replay harness), unticked bans behave as today; e2e covers both; `engine-parity-ci` 0 failed.
+
+
+## chore/character-images-orphan-sweep — remove pictures left behind by deleted characters — TODO
+Branch chore/character-images-orphan-sweep. **Effort:** low–medium · **Risk:** low–medium — deletes user files (service role), but only ones no policy can reach.
+
+```text
+Since feat/character-images (D-GH-2026-10-15-character-images) was applied (2026-10-19): pictures of a character deleted offline (the
+tombstone replay in js/sync.js doesn't remove them) or deleted by a campaign DM stay in the private character-images bucket.
+They are unreachable through the API (no row, or a recreated row with a newer created_at), cost ≤4 MB each, and block that
+slot for a recreated row with the same uuid. Build a sweep that lists objects whose `<uuid>` has no characters row, or whose
+created_at is older than the row's created_at, and deletes them with the service role through the Storage API (SQL cannot
+delete storage objects) — e.g. a documented dashboard/CLI procedure or a scheduled job; never ship the service key to the
+browser. Report counts before deleting; dry-run first.
+ALSO (carried from the graduated db/character-images-apply, 2026-10-19): the migration is applied and its policies were
+spot-checked as real users in SQL, but the browser-level REST checks 2–5 in decisions/2026/D-GH-2026-10-15-character-images.md
+(owner Replace = upsert, a > 2 MB and an SVG upload refused by the Storage API, fellow player reads) were NOT run with a real
+JWT — the owner runs them once with a real account and records the result in the decision record.
+```
+**Done when:** a dry run lists the orphans with the rule above, a real run removes exactly those, and the procedure is documented.
+
+## feat/chargen-shared-sheet-body — CharGen's Sheet tab on the shared Character-panel layout — TODO
+Branch feat/chargen-shared-sheet-body. **Effort:** medium · **Risk:** low–medium — display only, but it moves a renderer across tools.
+
+```text
+Owner decision AR1 (2026-10-15, review of #672). Since feat/livesheet-sheet-layout the Live Sheet's 📋 Sheet renders the
+Character panel's own body (_lsCharBody in render(), plus _lsTableExtras) — see D-GH-2026-10-15-livesheet-sheet-layout.
+CharGen's Sheet tab still uses its own renderCharSheet(b,r,ctx), the last copy of the old fillable layout. DO: move the
+body renderer somewhere both tools load (e.g. js/ui-helpers.js, or a new shared classic script — it needs esc, the colour
+map _CSABCOL, skillMods/saveMods/grantedSpells from the engine bridge, _lsFx/_fxBtn for ⓘ, and the description block),
+call it from CharGen's Sheet tab, and delete CharGen's renderCharSheet(). Keep CharGen's tool-specific bits as opts (no
+rename button, CharGen's AP line, no playerSheet editing unless CharGen gains it). Keep the device-local "at the table"
+fields and the AP ledger. Every player value escaped; check phone width.
+```
+**Done when:** CharGen's Sheet tab and the Live Sheet's 📋 Sheet render through one shared function (no renderCharSheet left in either tool); an e2e asserts both tools show the same section outline for the same character; ledger-xss / esc-gap-verify / tool-pricing-ci updated and green; `engine-parity-ci` 0 failed.
+
+
+## feat/chargen-names-arcanum-rows — CharGen's ✎ Name spells & languages dialog has no Mystic Arcanum rows — TODO
+Branch feat/chargen-names-arcanum-rows. **Effort:** medium · **Risk:** medium — a UI change in the largest tool file (~600 KB); ambiguity is low (Live Sheet already does this), damage scale is limited to what CharGen's names dialog saves.
+
+```text
+Found 2026-10-15 during refactor/names-slot-helper (PR 1 of docs/plans/2026-10-15-names-before-spending.md). Live Sheet's
+openNames() renders Mystic Arcanum rows (keys tr::<ti>::<di>::a::<ai>::<aj>, spell levels 6-9, Warlock spells, one datalist per
+level). CharGen's openNames() (tools/PACT-CharGen-Webtool.html) has no Arcanum rows: it only carries arcanumNames through on
+save, so a CharGen player cannot name an Arcanum slot at all.
+
+Why it matters: the names-before-spending gate counts languages and spells (owner decision M1, 2026-10-15), which includes
+Arcanum. Until CharGen can name Arcanum, the gate has to skip that kind in CharGen (the engine helper takes a list of kinds),
+which is a standing exception.
+
+DO: add the Arcanum rows to CharGen's openNames() and make saveNames() write them into the `names` event the same way the Live
+Sheet does (payload tr[].an), reusing the Live Sheet's row and datalist shape. Then delete the CharGen skip from the gate so
+both tools pass the full kind list. Do not change what a `names` event means or costs.
+```
+**Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.

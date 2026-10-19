@@ -31,11 +31,64 @@
   drafts and for held drawbacks). Never merged; superseded on 2026-10-13 by D-GH-2026-10-13-campaign-house-rules (owner P2/R1):
   PR5 reworks it into the per-character `dmHouseRules` override layer with S2 for held drawbacks. #638's H2 decisions stay open.
   Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
+## D-GH-2026-10-17-names-before-spending — a locked character cannot spend AP while a language or spell slot is unnamed; on by default everywhere, a campaign can switch it off
+- Engine `namesGate()` / `namesOutstanding()` / `requireNamesOn()`; applied in the Live Sheet's `buy()`, buy-off and buy panel and in
+  CharGen's after-lock path and **Finish creating**. From the creation lock on; purchases that cost AP only (free ones, drawbacks, DM
+  awards and the naming itself pass); languages and spells only; a slot with no legal name never blocks. `rules.requireNames`, **on
+  when absent** — on in every existing campaign and for characters in no campaign (owner E2, no grace period); only an explicit
+  `false` (DM Console checkbox) turns it off. CharGen skips Arcanum until it can render those rows. Client-side only, like the other
+  play-time legality rules. No `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-17-names-before-spending.md`.
+## D-GH-2026-10-15-names-slot-helper — one engine list of the language and spell slots a character owns; the names gate counts languages and spells only
+- `allNameableSlots(build)` / `unnamedChoices(build, {kinds, poolSize})` in `js/engine.js`; both ✎ Name dialogs build their
+  language and spell rows from it. The two dialogs differ (CharGen has no Arcanum, fighting-style, Metamagic or maneuver
+  rows), so the gate counts languages and spells only (M1) and each tool passes the kinds it can render (N1); a slot with no
+  legal name is skipped (I1). No behaviour change, no `DATA.version` bump.
+  Full record: `decisions/2026/D-GH-2026-10-15-names-slot-helper.md`.
+## D-GH-2026-10-15-livesheet-weapons — the standard weapon table lives in `js/engine.js`; a picked weapon stays linked to its definition
+- `WEAPONS` (38 PHB weapons + Unarmed Strike), `weaponSheetDefaults()` and `campaignWeapons()` are engine exports beside
+  `weaponAttack()`, not `DATA` (never read by `compute()`, no version bump; `engine-data.js` is one shared line). A sheet
+  weapon keeps a `ref` and its stats are refreshed from the current definition (owner AL2 — overwrites player edits to
+  them) and read-only (AM2); free-text and older entries stay editable. DM weapons (stable ids, max 50) are
+  `rules.customWeapons`, the campaign's standard-weapon list is `rules.weaponList {list, strict, none}` ([] = all, as for
+  languages; "only these" also stops typed-in weapons, AO1; magic bonus stays the player's, AN1); both carried by DM
+  Console's whole-blob Save rules — keep them when `feat/campaign-house-rules` merges.
+  Full record: `decisions/2026/D-GH-2026-10-15-livesheet-weapons.md`.
+## D-GH-2026-10-15-character-images — up to two pictures per cloud character, in private storage keyed by character id
+- A private Storage bucket; object names exactly `<character uuid>/1|2` (so a third is impossible); nothing stored in the
+  LOG or on the row. Read: owner, campaign DMs, other campaign players, NPCs included (AI2, AQ2); write: owner only.
+  Each object is bound to the row incarnation (`objects.created_at >= characters.created_at`), so recreating a deleted
+  row's uuid inherits nothing. Header-checked pixel cap, shrunk to ≤1600 px WebP under 2 MB; Add never overwrites;
+  10-minute signed urls. Archive keeps files; the owner's delete removes them first. Migration APPLIED 2026-10-19 (browser REST checks 2–5 still to run).
+  Full record: `decisions/2026/D-GH-2026-10-15-character-images.md`.
+## D-GH-2026-10-15-livesheet-armour-ac — AC follows what you wear and your class features; the best formula wins
+- Owner decision AK1. Free LOG inputs: `wornArmour` (now also `MAGE_ARMOR`) and new `shieldWorn` (absent = carried when trained, so no
+  shield bonus moves). With no armour, `compute()` takes the best of 10 + Dex, Mage Armor 13 + Dex, Barbarian UD 10 + Dex + Con, Monk UD
+  10 + Dex + Wis (no shield), Draconic Resilience 10 + Dex + Cha — counted ownership only; no new warnings (advice in `acInfo`). Live
+  Sheet "Wearing" row; CharGen Mage Armor + "Shield in hand". Owner AP1 adds Defense (+1 AC in armour) and Draconic Resilience HP
+  (+1 per Hit Die = 2024's Sorcerer-level bonus). v0.377. Live: Anders Pipeleaf (+2 DM copies) AC 13 → 14; nothing else.
+  Full record: `decisions/2026/D-GH-2026-10-15-livesheet-armour-ac.md`.
+## D-GH-2026-10-15-boon-drawback-notes — some boons and drawbacks need a player-written description, which the DM approves and so locks
+- 27 items in display-only `DATA.notePrompts`: 23 flagged after reading every boon and drawback, plus 4 the owner added
+  (20 drawbacks e.g. Code of Honour, Haunted / Phobia, Nightmares, Soul Debt; 7 boons e.g. Patron, Font of Will; NOT Oath
+  of Poverty). Append-only `itemNote` events keyed by category + name (not seq: CharGen renumbers drafts); approval/unlock
+  are DM events through `dm_edit_character_log`, carrying the text the DM was shown, and an approval counts only for that
+  exact text in the campaign it was made in. Joining a campaign (insert or move, by anyone but its DM) drops approvals
+  stamped with it. Locked in both tools and, once the migration is applied, by `pact_enforce_item_note_lock()`. Solo: required, never locked (owner AW1, 2026-10-17). Migration
+  APPLIED 2026-10-19, first — so the house-rules server migration must now be rebuilt on it.
+  Full record: `decisions/2026/D-GH-2026-10-15-boon-drawback-notes.md`.
+## D-GH-2026-10-15-livesheet-sheet-layout — the Live Sheet's 📋 Sheet IS the Character panel's body (one renderer)
+- `render()`'s panel block runs as `_lsCharBody(b,r,eco,opts)`, defined in place, and `renderSheet()` calls it, followed by
+  at-the-table extras (HP, death saves, slots used, AP ledger). The old Sheet-only content (languages, proficiencies,
+  species traits, subclass abilities, bonds, passive Perception) moved into the panel. Old device-local notes are shown
+  only when present, never hidden. The Live Sheet's `renderCharSheet()` copy is deleted; CharGen keeps its own.
+  Display only. Full record: `decisions/2026/D-GH-2026-10-15-livesheet-sheet-layout.md`.
 ## D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 - The Sheet view reuses `_lsDescBlock()` through a Live Sheet-only `ctx.descBlock` (same pattern as `ctx.noSpell`), so the
   Character panel and the Sheet can't drift, and CharGen's copy of `renderCharSheet()` is unchanged. ⓘ comes from one
   lookup, `_lsFx()`: rules-data text where it exists, otherwise a PHB page, never ad-hoc rules text (the ~600 missing
-  summaries are `feat/feature-effect-text`). Display-only; released in `v1.657`.
+  summaries are `feat/feature-effect-text`). Display-only; released in `v1.657`. Sheet-view half superseded by
+  `D-GH-2026-10-15-livesheet-sheet-layout`.
   Full record: `decisions/2026/D-GH-2026-10-13-livesheet-sheet-view-desc.md`.
 ## D-GH-2026-10-13-dm-ap-discount — a DM can take AP off any purchase, and the total given is recorded
 - A `dmDiscount` event {targetSeq, targetCat, amount, note}, DM-only through `dm_edit_character_log`, tied to one purchase

@@ -1,4 +1,4 @@
-<!--**PACT-CharGen-Webtool v1.660.html**-->
+<!--**PACT-CharGen-Webtool v1.678.html**-->
 
 <!doctype html>
 <!--
@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.660 · Rules v0.377</title><style>
+<title>PACT Character Generator — Web Tool v1.678 · Rules v0.378</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.660</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.377</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.678</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.378</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -598,7 +598,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // activeEvents + economy + baseBuild all come from js/engine.js — the single source of truth —
   // instead of hand-copied inline duplicates (two of which had drifted: see D-GH33). UI boot waits
   // on engine-ready.
-  import { DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
+  import { allNameableSlots, namesGate, namesOutstanding, requireNamesOn, DATA, compute, requiredHD, sizeOf, lineageSpellHD, lineageSpellLabel, grantedSpells, ownedChoiceGrants, saveMods, MUT, foldBuild, activeEvents, economy, baseBuild, packTraitsFor, repriceDraft, isCreationDraft, creationCeiling, wouldExceedCeiling, priceOf, purchaseLegality, walletCheck, postLockAllowance, undoFloor, sealedFloor, validate, RULE_BAN_FIELDS, creationLockThreshold, purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, armourEligible, campaignLanguages } from '../js/engine.js';
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
@@ -611,8 +611,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // context the engine prices with (_cgHrCtx, classic script below), so the many compute()/priceOf() call sites need no
   // change. Stamped here, at the one bridge every CharGen fold goes through; derived, never saved.
   window.foldBuild = function(events){ var b = foldBuild(events); var f = window._cgHrCtx; return withHouseRulesCtx(b, typeof f === 'function' ? f(events) : null); };
- 
-  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor;
+  window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.grantedSpells = grantedSpells; window.ownedChoiceGrants = ownedChoiceGrants; window.saveMods = saveMods;
   window.repriceDraft = repriceDraft; window.isCreationDraft = isCreationDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2/D7)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
   window.CHAR_SCHEMA = CHAR_SCHEMA; window.buildCharacterEnvelope = buildCharacterEnvelope; window.readCharacterEnvelope = readCharacterEnvelope;
@@ -621,6 +620,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.priceOf = priceOf; window.purchaseLegality = purchaseLegality; window.walletCheck = walletCheck; window.postLockAllowance = postLockAllowance;
   window.creationCeiling = creationCeiling; window.wouldExceedCeiling = wouldExceedCeiling; window.undoFloor = undoFloor; window.sealedFloor = sealedFloor;
   window.armourEligible = armourEligible;
+  window.allNameableSlots = allNameableSlots; window.namesGate = namesGate; window.namesOutstanding = namesOutstanding; window.requireNamesOn = requireNamesOn;   // the languages-and-spells slot list the ✎ Name dialog is built from (refactor/names-slot-helper)
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
   window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesCtxFromRules, latestRulesSnapshot };
@@ -2511,7 +2511,10 @@ function buildForm(F){
     '<div class="row"><button class="btn ghost" type="button" onclick="randomiseAppearance()">🎲 Randomise all</button>'+
       '<button class="btn ghost" type="button" onclick="genDescription();render()" title="Write a one-paragraph description from these fields">🪶 Auto-write</button>'+
       '<button class="btn ghost" type="button" onclick="genPortrait()" title="Build AI image-generator prompts from this character">📷 AI Portrait</button>'+
+      '<button class="btn ghost" type="button" onclick="cgCopyAppearance()" title="Copy every appearance &amp; description field, to paste onto another character">📋 Copy appearance</button>'+
+      '<button class="btn ghost" type="button" onclick="cgPasteAppearance()" title="Replace this character\'s appearance &amp; description with one you copied (you see the changes first; the name is kept; Undo reverts it)">📥 Paste appearance</button>'+
       '<span class="hint">Each field has its own 🎲 — species &amp; class steer the roll; height &amp; age use PHB ranges.</span></div>'+
+    '<div id="cgCharImgs" data-charimg="" data-charimg-edit="1"></div>'+   // feat/character-images
     '<div class="sublab2">Appearance</div>'+
     '<div class="apcols">'+
       apField('ap_gender','Gender','gender',false)+apField('ap_age','Age','age',true)+
@@ -2589,7 +2592,7 @@ function buildForm(F){
     '<label class="ck">&nbsp;<input type="checkbox" id="a_heavy"> Heavy (+6 AP)</label>'+
     '<label class="ck">&nbsp;<input type="checkbox" id="a_shield"> Shield (2 AP)</label>'+
     '<span class="price" id="armp"></span></div>'+
-    '<div class="row" style="margin-top:6px"><label class="l">Worn armour</label><select id="wornArmour"><option value="">— none / unarmoured (10 + Dex) —</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'">'+an+' — AC '+aa.base+' ('+aa.cat+')</option>';}).join('')+'</select><span class="hint">sets your exact AC base; needs the matching armour proficiency</span></div>'+
+    '<div class="row" style="margin-top:6px"><label class="l">Worn armour</label><select id="wornArmour"><option value="">— none / unarmoured (10 + Dex) —</option><option value="Mage Armor">Mage Armor (spell up — 13 + Dex)</option>'+Object.keys(DATA.armours).map(function(an){var aa=DATA.armours[an];return '<option value="'+an+'">'+an+' — AC '+aa.base+' ('+aa.cat+')</option>';}).join('')+'</select><label class="ck" title="A shield in hand gives +2 AC (needs Shield training). Monk Unarmored Defense needs it set down.">&nbsp;<input type="checkbox" id="shieldWorn" checked> Shield in hand</label><span class="hint">sets your exact AC base; needs the matching armour proficiency. With none worn, the best of your unarmoured formulas applies (Unarmored Defense, Draconic Resilience, Mage Armor)</span></div>'+
     '<div class="sublab" style="margin-top:8px">Weapon proficiency &amp; mastery</div>'+
     '<div class="row"><label class="l">Proficiency</label>'+
     '<label class="ck"><input type="checkbox" id="wp_simple"> Simple (1 AP)</label>'+
@@ -2646,6 +2649,7 @@ function buildForm(F){
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Drawbacks — accept a hindrance, gain AP back</div>'+
     '<div class="row"><input type="text" id="drawfilter" class="bdfilter" placeholder="🔍 filter drawbacks by name or effect…" oninput="buildDrawGrid()"></div>'+
     '<div id="drawgrid"></div><div class="row"><span class="price" id="drawp"></span><span id="drawcap" class="hint" style="margin-left:10px"></span></div>'+
+    '<div id="cgItemNotes"></div>'+
 '<div class="row"><span class="hint">Magically Bound is set per discipline above</span></div>'+
     '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Bonds — magical &amp; martial (each grants +2 AP for a story string)</div>'+
     '<div class="bondsgrid">'+
@@ -3217,6 +3221,8 @@ function _cgCeilOpts(){
 function cgFinishCreating(skipConfirm){
   var st = (typeof creationCeiling === 'function') ? creationCeiling(LOG, _cgCeilOpts()) : null;
   if(st && st.locked){ alert('This character has already finished creation.'); return; }
+  // names-before-spending: a character leaves creation with every language and spell slot named (unless the campaign switched the rule off).
+  if(window.requireNamesOn(_cgNamesRules())){ var _fb=readBuild(); var _no=window.namesOutstanding(_fb,{kinds:_CG_NAME_KINDS,poolSize:_cgNamePool(_fb)}); if(_no.blocked){ if(confirm('\u26D4 '+_no.reason+'\n\nOpen it now?')) openNames(); return; } }
   var msg = 'Finish creating this character?\n\n';
   if(st) msg += 'You have spent ' + st.spent + ' of ' + st.ceiling + ' AP.\n\n';
   msg += 'After this:\n'
@@ -3243,6 +3249,8 @@ window.cgFinishCreating = cgFinishCreating;
 // cannot forget one.
 function _cgRepriceDraft(){LOG=repriceDraft(LOG,{houseRulesCtx:_cgHrCtx(LOG)});}   // a campaign draft prices at the campaign's prices (null = solo, byte-identical to before)   // no auto-lock: see the note above cgFinishCreating()
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
+// Several events as ONE undo step (one history frame), e.g. a purchase and the description it needs (feat/boon-drawback-notes).
+function _cgEmitAll(evs){_cgEnsureLockArmed();commitHistory();evs.forEach(function(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);});_cgRepriceDraft();render();}
 
 // Creation-AP confirmation (D-GH-2026-08-05-pricing-model, D3) — the Live Sheet carries a byte-equivalent
 // pair of these; keep them in step. "Confirmed" is not a separate flag: it is whether the log carries a
@@ -3749,6 +3757,8 @@ function _cgPostLockSteps(slot,patch,cur){
     });
     if(!refuse&&patch.wornArmour!=null&&(patch.wornArmour||'')!==(cur.wornArmour||''))   // what you are wearing is a choice, not a purchase: free, both ways
       steps.push({cat:'wornArmour',payload:{v:patch.wornArmour||''},label:patch.wornArmour?('Worn armour \u2014 '+patch.wornArmour):'Worn armour \u2014 none (unarmoured)'});
+    if(!refuse&&patch.shieldWorn!==undefined&&(patch.shieldWorn!==false)!==(cur.shieldWorn!==false))   // a shield in hand: free, both ways, like the worn armour
+      steps.push({cat:'shieldWorn',payload:{v:patch.shieldWorn!==false},label:patch.shieldWorn!==false?'Shield \u2014 in hand':'Shield \u2014 set down'});
   }else if(slot==='weaponProf'){
     var cw=Object.assign({},cur.weaponProf||{}), nw=Object.assign({},(patch.weaponProf)||{});
     if(nw.allMartial) nw.simple=true;   // All martial includes Simple (the Live Sheet's tile sets both); the form's Simple box can still be unticked after an All-martial purchase
@@ -3816,20 +3826,35 @@ function _cgPostLockSteps(slot,patch,cur){
 // refusal leaves nothing half-applied; then append them (one undo frame — commitHistory latches per handler turn). Returns true when
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
 // path below and by the flat-checklist path (skills, boons, tools, arts, features...) so a purchase costs the same however it is made.
-function _cgPostLockAppend(steps){
+// feat/names-before-spending (D-GH-2026-10-17-names-before-spending): once creation is locked a character cannot spend AP while a language or spell
+// slot it owns is still unnamed; "Finish creating" asks for the names first. The engine's namesGate()/namesOutstanding() decide; this tool supplies the
+// campaign's rules, the kinds its ✎ Name dialog can render (no Mystic Arcanum rows yet — board task feat/chargen-names-arcanum-rows — so Arcanum is not
+// counted here), and a pool-size callback so a slot with no legal name never blocks (decision I1; eligibleSpells lives in this tool).
+var _CG_NAME_KINDS=['language','dabbler','innate','cantrip','known'];
+function _cgNamePool(b){return function(s){
+  if(s.kind==='language')return 1;
+  if(s.kind==='dabbler')return (DATA.spells||[]).filter(function(x){return x.l===0&&x.c.indexOf('Wizard')>=0;}).length;
+  if(s.kind==='innate')return (DATA.spells||[]).filter(function(x){return x.l===s.level;}).length;
+  var el=eligibleSpells(b,s.ti,s.di);return el?((el.byLevel[s.level]||[]).length):0;
+};}
+function _cgNamesRules(){return (window._cloudCampaign&&window._cloudCampaign.rules)||null;}
+function _cgNamesWhy(events,b){try{var g=window.namesGate(events,b,{rules:_cgNamesRules(),kinds:_CG_NAME_KINDS,poolSize:_cgNamePool(b)});return g.blocked?g.reason:'';}catch(e){return '';}}
+function _cgPostLockAppend(steps,opts){
   // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
   if(_histSuspended) return true;
-  var b=foldBuild(LOG), evs=[], total=0, charged=false, _spendUp=0;
+  var b=foldBuild(LOG), evs=[], total=0, charged=false, _spendUp=0, _namesWhy;   // _namesWhy: the names gate, asked once against the character as it stands BEFORE this edit, so the purchase that makes a blank slot is allowed and the next one waits
+  var _b0=b;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
     if((st.cat==='boon'||st.cat==='drawback')&&_cgHrRulesUnknown()){ alert('\u26D4 Your campaign\'s house rules haven\'t loaded on this device, so boons and drawbacks can\'t be priced yet. Connect and reload this character to buy or take one.'); _cgRepaint(); return false; }
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
+    if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;
-    if(st.cat==='wornArmour'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
+    if(st.cat==='wornArmour'||st.cat==='shieldWorn'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
     else{
       // The Live Sheet's own "may this be bought" rule (js/engine.js purchaseLegality, moved there from the Live Sheet): an already-owned
       // single-instance proficiency, any hard rules violation, and a soft warning the player must confirm. This used to block only warnings
@@ -3866,6 +3891,16 @@ function _cgPostLockAppend(steps){
       if(!confirm((evs.length>1?'This edit':'This purchase')+' costs '+(Q.gp?Q.gp.toLocaleString()+' gp':'no gold')+' and '+(Q.days?Q.time:'no downtime')+', and you are '+bits.join(' \u00b7 ')+'.\n\n'
         +'Buy anyway? Your DM can waive or defer the cost \u2014 the shortfall will simply show on your sheet.'+_cgWalletNote())){ _cgRepaint(); return false; }
     }
+  }
+  // feat/boon-drawback-notes: a last question once every check above has passed (the description a flagged boon needs).
+  // false = the player cancelled: nothing is appended. Extra events land with the purchase as one undo step.
+  // Asynchronous: beforeCommit(go) calls go(false) to abandon or go(extraEvents) to record. Returns true (pending).
+  if(opts&&typeof opts.beforeCommit==='function'){
+    opts.beforeCommit(function(_extra){
+      if(_extra===false){ _cgRepaint(); return; }
+      if(_extra&&_extra.length) _cgEmitAll(evs.concat(_extra)); else evs.forEach(function(ev){ emit(ev); });
+    });
+    return true;
   }
   evs.forEach(function(ev){ emit(ev); });
   return true;
@@ -4145,6 +4180,66 @@ function raceTraitLegal(v,domBuild){
   return !(!own&&rr.cross==null);
 }
 
+// feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes). _cgAskItemNote: null = no note needed (or the approved
+// one is kept), false = the player cancelled, otherwise the text to record. cgEditItemNote: write or change one until the
+// DM approves it (approval locks it while the character is in a campaign; the server refuses a change there too).
+// The character's own campaign (window._cgCampaignId, set when its binding is confirmed) — NOT window._cloudCampaign, which
+// is the rules picker's selection. Named _cgNote* so the function never shadows those window globals.
+function _cgNoteCampId(){ return (typeof window._cgCampaignId==='string'&&window._cgCampaignId)||null; }
+function _cgNoteBound(){ return !!_cgNoteCampId(); }
+// The note events a whole-log rebuild must carry over VERBATIM (#673 review D): Randomise and the Live-Sheet-file load rebuild
+// the LOG from the form, which would drop them. Verbatim (byte-identical, same seq/ts) because the server compares approval
+// events, and an approved description's notes, exactly. The REBUILT events are renumbered instead, above the highest carried
+// seq, so no two events share a seq (#673 re-review 3) — they are freshly made by the rebuild, nothing references their seq.
+function _cgIsNoteFam(e){ return !!e && (e.type==='itemNote'||e.type==='dmApproveNote'||e.type==='dmUnlockNote'); }
+function _cgCarryNotes(evs){
+  if(!(evs&&evs.length)) return;
+  var top=0; evs.forEach(function(e){ var q=Number(e.seq); if(Number.isFinite(q)&&q>top) top=q; });
+  var next=top+1; LOG.forEach(function(e){ e.seq=next++; });
+  evs.forEach(function(e){ LOG.push(JSON.parse(JSON.stringify(e))); });
+  SEQ=next;
+}
+// Asynchronous (the description box, owner decision AU1): cb(null) = no note needed or the approved one is kept,
+// cb(false) = cancelled, otherwise cb(text).
+function _cgAskItemNote(cat,v,cb){
+  if(cat!=='boon'&&cat!=='drawback') return cb(null);
+  var q=pactNotePrompt(DATA,cat,v); if(!q) return cb(null);
+  var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,v)]||null;
+  if(pactNoteLocked(st,_cgNoteBound())) return cb(null);
+  pactAskNote(v,q,st?st.text:'',function(t){ if(t==null) return cb(false); cb((st&&st.status!=='none'&&st.text===t)?null:t); });
+}
+function cgEditItemNote(cat,name){
+  var q=pactNotePrompt(DATA,cat,name); if(!q) return;
+  var st=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,name)]||null;
+  if(pactNoteLocked(st,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description, so it can\u2019t be changed. Ask your DM to unlock it in DM Console.'); return; }
+  pactAskNote(name,q,st?st.text:'',function(t){
+    if(t==null) return;
+    var st2=pactNoteStates(LOG,_cgNoteCampId())[pactNoteKey(cat,name)]||null;   // re-read: the log may have moved while typing
+    if(pactNoteLocked(st2,_cgNoteBound())){ alert('\uD83D\uDD12 Your DM approved this description while you were typing, so it can\u2019t be changed.'); return; }
+    if(st2&&st2.text===t&&st2.status!=='none') return;
+    emit(pactNoteEvent(cat,name,t));
+  });
+}
+// The held items that need a description, with their notes. `edit`: the build-panel copy, with buttons; the 📋 Sheet copy
+// is text only. Player-written text the DM's browser renders too, so every note goes through esc().
+function _cgItemNotesHTML(b,edit){
+  var rows=pactNoteItems(b,LOG,DATA,_cgNoteCampId()); if(!rows.length) return '';
+  var bound=_cgNoteBound();
+  return rows.map(function(r){
+    var locked=pactNoteLocked(r,bound);
+    var badge=r.status==='none'?'<span class="nt-need" style="color:var(--bad,#b00)">\u26A0 needs a description</span>'
+      :(r.status==='approved'?'<span class="nt-ok">'+(locked?'\uD83D\uDD12 ':'')+'\u2713 approved by your DM</span>'
+      :(bound?'<span class="nt-wait" style="color:var(--grey)">\u23F3 awaiting DM approval</span>':''));
+    var btn=(edit&&!locked)?' <button type="button" class="btn ghost cgnote-edit" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" onclick="cgEditItemNote(this.dataset.cat,this.dataset.name)">'+(r.status==='none'?'\u270E Write it':'\u270E Edit')+'</button>':'';
+    return '<div class="cgnote" data-cat="'+esc(r.cat)+'" data-name="'+esc(r.name)+'" style="margin:4px 0"><b>'+esc(r.name)+'</b> '+badge+btn
+      +'<div class="cgnote-text" style="white-space:pre-wrap">'+(r.text?esc(r.text):'<i style="color:var(--grey)">'+esc(r.prompt)+'</i>')+'</div></div>';
+  }).join('');
+}
+function _cgRenderItemNotes(){
+  var host=$('cgItemNotes'); if(!host) return;
+  var h=''; try{ h=_cgItemNotesHTML(foldBuild(LOG),true); }catch(e){}
+  host.innerHTML=h?('<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px">Descriptions your boons &amp; drawbacks need</div>'+h):'';
+}
 function onChecklistToggle(el){
   const cls=[...el.classList].find(function(c){return c in CHECKLIST_CAT;});if(!cls)return;
   const cat=CHECKLIST_CAT[cls];
@@ -4165,16 +4260,30 @@ function onChecklistToggle(el){
     // character's own origin class(es) (already free/included) — mirrored here so LOG never records an
     // entry _domReadBuild() would filter out anyway.
     if(cat==='unlockclass'&&(v===dom.originClass||v===dom.originClass2))return;
+    // feat/boon-drawback-notes: a boon/drawback in DATA.notePrompts needs its description. It is asked LAST — after the lock
+    // check, legality, affordability and the wallet question, as the Live Sheet does (#673 review E) — and the purchase and its
+    // note land as ONE undo step (_cgEmitAll). Cancel puts the tick back. Never asked while the form is only being repainted.
+    var _noteFail=function(){ el.checked=false; flash('Not taken \u2014 '+v+' needs a description.'); };
+    // The purchase was priced and checked against THIS log; if it changed while the box was open (Ctrl+Z/Ctrl+Y, a cloud
+    // reload) the purchase is dropped, never recorded against a different state (#673 re-review 1).
+    var _noteAsk=function(cb){ if(_histSuspended) return cb([]); var _snap=JSON.stringify(LOG);
+      _cgAskItemNote(cat,v,function(t){
+        if(t!==false&&t!==null&&JSON.stringify(LOG)!==_snap){ el.checked=false; flash('\u26A0 Something changed while you were typing \u2014 tick '+v+' again.'); render(); return cb(false,true); }
+        cb(t===false?false:(t?[pactNoteEvent(cat,v,t)]:[])); }); };
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
       if(cat==='drawback'&&!window.postLockAllowance(_cgGateRules()).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
-      if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}])) el.checked=false;
+      if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}],
+                            {beforeCommit:function(go){ _noteAsk(function(x,_changed){ if(x===false&&!_changed) _noteFail(); go(x); }); }})) el.checked=false;
     }else{
     const before=compute(dom).total;
     const cand=JSON.parse(JSON.stringify(dom));(MUT[cat]||function(){})(cand,{v:v});
     const cost=compute(cand).total-before;
-    emit({type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v});
+    _noteAsk(function(_noteEvs,_changed){ if(_noteEvs===false){ if(!_changed) _noteFail(); return; }
+      _cgEmitAll([{type:'buy',cat:cat,payload:{v:v},cost:cost,level:dom.hd,label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}].concat(_noteEvs));
+      _cgReconcileChecklistDependents(); });   // synchronous when no description is needed, exactly as before
+    return;
     }
   }else{
     // The DOM already un-ticked itself; if the LOG refuses (sealed), put the tick back so the form
@@ -4361,7 +4470,7 @@ const PATCH_FIELD_SLOT={
   hd:PATCH_SLOTS.HD_PROF,profBonus:PATCH_SLOTS.HD_PROF,
   hardy:PATCH_SLOTS.VIGOR,tough:PATCH_SLOTS.VIGOR,
   wp_simple:PATCH_SLOTS.WEAPON_PROF,wp_martial:PATCH_SLOTS.WEAPON_PROF,wp_all:PATCH_SLOTS.WEAPON_PROF,wp_improv:PATCH_SLOTS.WEAPON_PROF,
-  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,
+  a_light:PATCH_SLOTS.ARMOUR,a_med:PATCH_SLOTS.ARMOUR,a_heavy:PATCH_SLOTS.ARMOUR,a_shield:PATCH_SLOTS.ARMOUR,wornArmour:PATCH_SLOTS.ARMOUR,shieldWorn:PATCH_SLOTS.ARMOUR,
   languages:PATCH_SLOTS.LANGUAGES,attune:PATCH_SLOTS.ATTUNEMENT,ki:PATCH_SLOTS.KI,sorcery:PATCH_SLOTS.SORCERY,
   gold:PATCH_SLOTS.ECONOMY,
   martiallyBound:PATCH_SLOTS.MISC,dabblerCantrips:PATCH_SLOTS.MISC,
@@ -4387,6 +4496,13 @@ function _cgPatchSlotForId(id){
 // guard (Category F) directly in the constructed patch: the OLD DOM-side auto-correction in
 // _cgRenderInner() bypasses change events (same class of gap Chunk 1 hit with annotate()'s force-unchecks),
 // so without this, a stale illegal armour patch could sit in LOG until the next unrelated armour edit.
+// feat/livesheet-armour-ac: "Shield in hand" (b.shieldWorn). The field is ABSENT on every save made before rules v0.377 and means
+// "carried whenever trained", so the box only becomes a real value once the player touches it or a loaded build already carries one —
+// otherwise reading the form would add a new key to every character's Armour patch (and the server freezes pre-lock patch keys).
+let _cgShieldExplicit=false;
+function _cgShieldWornRead(){const e=$('shieldWorn');return (e&&_cgShieldExplicit)?!!e.checked:undefined;}
+function _cgShieldWornLoad(b){const e=$('shieldWorn');_cgShieldExplicit=!!b&&b.shieldWorn!==undefined;if(e)e.checked=!b||b.shieldWorn!==false;}
+document.addEventListener('change',function(ev){if(ev.target&&ev.target.id==='shieldWorn')_cgShieldExplicit=true;},true);   // capture: set before the slot sync reads the form
 function _cgSlotPatch(slot,dom){
   switch(slot){
     case PATCH_SLOTS.STATS: return {stats:dom.stats};
@@ -4396,7 +4512,8 @@ function _cgSlotPatch(slot,dom){
     case PATCH_SLOTS.ARMOUR:{
       const armour=Object.assign({},dom.armour);
       if(((dom.stats&&dom.stats.STR)||10)<10){armour.medium=false;armour.heavy=false;}
-      return {armour:armour,wornArmour:dom.wornArmour};
+      const _ap={armour:armour,wornArmour:dom.wornArmour};if(dom.shieldWorn!==undefined)_ap.shieldWorn=dom.shieldWorn;   // feat/livesheet-armour-ac: absent = carried when trained (every older save)
+      return _ap;
     }
     case PATCH_SLOTS.LANGUAGES: return {languages:dom.languages};
     case PATCH_SLOTS.ATTUNEMENT: return {attune:dom.attune};
@@ -4646,7 +4763,7 @@ function _domReadBuildRaw(){
     subSpellBundles:[...document.querySelectorAll('.subbundlerow')].map(e=>e.value).filter(Boolean),
     freeSub:(()=>{const o={};document.querySelectorAll('.freesub').forEach(s=>{if(s.value)o[s.dataset.cls]=s.value;});return o;})(),
     drawbacks:ckVals('drawck'),gold:+val('gold'),dabblerCantrips:+(val('dabblerCantrips')||0),
-    attune:+(val('attune')||0),ki:+(val('ki')||0),sorcery:+(val('sorcery')||0),wornArmour:val('wornArmour')||'',martiallyBound:val('martiallyBound')||'(none)',
+    attune:+(val('attune')||0),ki:+(val('ki')||0),sorcery:+(val('sorcery')||0),wornArmour:val('wornArmour')||'',shieldWorn:_cgShieldWornRead(),martiallyBound:val('martiallyBound')||'(none)',
     boons:ckVals('boonck'),innate:[...Array(9)].map((_,i)=>+(val('innate_'+(i+1))||0)),
     appearance:{gender:val('ap_gender'),age:val('ap_age'),height:val('ap_height'),build:val('ap_build'),
       hair:val('ap_hair'),eyes:val('ap_eyes'),nose:val('ap_nose'),skin:val('ap_skin'),marks:val('ap_marks'),
@@ -4827,13 +4944,14 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
       // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
       const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
-        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal');});
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote');});   // + DM approvals of descriptions (feat/boon-drawback-notes): server-frozen too
       const _keepId=!!d.id&&!_protected;
       // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
       // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
       if(_keepId)b.id=d.id;
       _commitWholeBuildFrame();
       applyBuild(b);_adopt();
+      if(d.LOG.some(_cgIsNoteFam)){ _cgCarryNotes(d.LOG.filter(_cgIsNoteFam)); render(); }   // feat/boon-drawback-notes: the rebuild drops the descriptions; carry them verbatim
       // Adopt the file's campaign binding too, as branch 1 does (#634) -- otherwise a campaign character opens at
       // 0 DM AP with every purchase over budget. Keyed on the id this load just gave the character. Not for a copy:
       // a fresh id has no row, and binding a copy would make it a second character in the campaign.
@@ -4954,12 +5072,7 @@ function liveBase(){
 function _cgLangCfg(){return window.campaignLanguages(cloudRules()||window._cgCopySourceRules||null);}
 // The note under a language row whose name isn't on the campaign's list — display only; see saveNames.
 function _langOffNote(cfg,v){return (cfg.checked&&!cfg.isListed(v))?'<div style="margin:-2px 0 4px 124px;font-size:10.5px;color:var(--warn,#b45309)">\u26A0 Not on this campaign\u2019s language list</div>':'';}
-function _ownedGrants(b){var cg=(DATA.spellGrants&&DATA.spellGrants.choiceGrants)||{};var CLS=["Artificer","Bard","Cleric","Druid","Paladin","Ranger","Sorcerer","Warlock","Wizard"];var out=[];
-  Object.keys(cg).forEach(function(key){if(key==="Wizard: Spellbook")return;var g=cg[key],owned=false,parts=key.split(": "),kcls=parts[0],ksub=parts[1];
-    if((DATA.features||{})[key]){owned=(b.features||[]).indexOf(key)>=0;}
-    else if(ksub){owned=((b.freeSub||{})[kcls]===ksub)||(b.subAbilities||[]).some(function(k){return k.indexOf(kcls+"|"+ksub+"|")===0;});}
-    if(!owned)return;out.push({key:key,label:(key.split(": ")[1]||key),from:CLS.filter(function(c){return (g.from||"").indexOf(c)>=0;}),note:g.from||""});});
-  return out;}
+function _ownedGrants(b){return ownedChoiceGrants(b);}   // the engine owns the rule (fix/livesheet-pack-spells), incl. the grant's level gate
 function _nmRow(key,label,val,listId){return '<div style="display:flex;gap:6px;align-items:center;margin:2px 0"><span style="flex:0 0 118px;font-size:11px;color:var(--grey)">'+label+'</span><input class="nmf" data-k="'+key+'"'+(listId?' list="'+listId+'" autocomplete="off"':'')+' value="'+String(val||'').replace(/"/g,'&quot;')+'" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--line);border-radius:5px"></div>';}
 // The names a build carries, as a `names` event payload (the shape MUT.names folds) — or null when it has
 // none. Carries the Live-Sheet-only fields (eb/fs/mm/mv/fsc) too, so a whole-log rebuild keeps them.
@@ -5002,10 +5115,10 @@ function _spellAC(inp){
 function openNames(){var b=readBuild();document.querySelectorAll('.spellac').forEach(function(m){m.remove();});var H='',DLS='';
   function _e(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
   function _dl(id,arr){DLS+='<datalist id="'+id+'">'+arr.map(function(n){return '<option value="'+_e(n)+'">';}).join('')+'</datalist>';}
-  var _nl=b.languages||1;if(_nl>0){var _lc=_cgLangCfg();_dl('dl_lang',_lc.list);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>'+(_lc.custom?'<div style="font-size:10.5px;color:var(--grey);margin:0 0 3px">Your campaign\u2019s languages: '+_lc.list.map(function(n){return String(n).replace(/</g,'&lt;');}).join(', ')+(_lc.strict?' \u2014 only these are allowed.':'')+'</div>':'');for(var i=0;i<_nl;i++){var _lv=(b.languageNames||[])[i]||'';H+=_nmRow('lang::'+i,'Language '+(i+1),_lv,'dl_lang')+_langOffNote(_lc,_lv);}}
-  var dc=b.dabblerCantrips||0;if(dc){_dl('dl_dab',(DATA.spells||[]).filter(function(s){return s.l===0&&s.c.indexOf('Wizard')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Out-of-Tradition cantrips</h3>';for(var i=0;i<dc;i++)H+=_nmRow('dab::'+i,'Cantrip '+(i+1),(b.dabblerCantripNames||[])[i]||'','dl_dab');}
-  for(var L=1;L<=9;L++){var ic=(b.innate||[])[L-1]||0;if(ic){_dl('dl_inn_'+L,(DATA.spells||[]).filter(function(s){return s.l===L;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Innate L'+L+'</h3>';for(var i=0;i<ic;i++)H+=_nmRow('inn::'+L+'::'+i,'L'+L+' spell '+(i+1),(((b.innateNames||[])[L-1])||[])[i]||'','dl_inn_'+L);}}
-  (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=9;Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';var cn=d.cantrips||0;for(var i=0;i<cn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::c::'+i,'Cantrip '+(i+1),(d.cantripNames||[])[i]||'','dl_'+ti+'_'+di+'_0');for(var L=1;L<=9;L++){var kn=(d.known||[])[L-1]||0;var hint=(L>elig.maxLv)?' ⚠R'+L:'';for(var i=0;i<kn;i++)H+=_nmRow('tr::'+ti+'::'+di+'::k::'+L+'::'+i,'L'+L+' spell '+(i+1)+hint,(((d.knownNames||[])[L-1])||[])[i]||'','dl_'+ti+'_'+di+'_'+L);}});});
+  var SLOTS=allNameableSlots(b);var _slotsOf=function(k){return SLOTS.filter(function(s){return s.kind===k;});};var _lsl=_slotsOf('language');if(_lsl.length>0){var _lc=_cgLangCfg();_dl('dl_lang',_lc.list);H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Languages</h3>'+(_lc.custom?'<div style="font-size:10.5px;color:var(--grey);margin:0 0 3px">Your campaign\u2019s languages: '+_lc.list.map(function(n){return String(n).replace(/</g,'&lt;');}).join(', ')+(_lc.strict?' \u2014 only these are allowed.':'')+'</div>':'');_lsl.forEach(function(s){var _lv=s.name;H+=_nmRow(s.key,s.label,_lv,'dl_lang')+_langOffNote(_lc,_lv);});}
+  var _dsl=_slotsOf('dabbler');if(_dsl.length){_dl('dl_dab',(DATA.spells||[]).filter(function(s){return s.l===0&&s.c.indexOf('Wizard')>=0;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Out-of-Tradition cantrips</h3>';_dsl.forEach(function(s){H+=_nmRow(s.key,s.label,s.name,'dl_dab');});}
+  for(var L=1;L<=9;L++){var _isl=_slotsOf('innate').filter(function(s){return s.level===L;});if(_isl.length){_dl('dl_inn_'+L,(DATA.spells||[]).filter(function(s){return s.l===L;}).map(function(s){return s.n;}).sort());H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">Innate L'+L+'</h3>';_isl.forEach(function(s){H+=_nmRow(s.key,s.label,s.name,'dl_inn_'+L);});}}
+  (b.traditions||[]).forEach(function(t,ti){(t.disciplines||[]).forEach(function(d,di){if(!d.name||d.name==='(none)')return;var elig=eligibleSpells(b,ti,di)||{byLevel:{},maxLv:9};for(var Lx=0;Lx<=9;Lx++)_dl('dl_'+ti+'_'+di+'_'+Lx,(elig.byLevel[Lx]||[]).map(function(x){return x.name;}));var off=[];for(var Lo=0;Lo<=9;Lo++)(elig.byLevel[Lo]||[]).forEach(function(x){if(x.off)off.push(x.name);});H+='<h3 style="color:var(--teal);font-size:12px;margin:10px 0 2px">'+_e(t.name)+' › '+_e(d.name)+'</h3>';if(off.length)H+='<div style="font-size:10.5px;color:var(--teal);margin:0 0 3px">Subclass adds: '+_e(off.join(', '))+'</div>';_slotsOf('cantrip').filter(function(s){return s.ti===ti&&s.di===di;}).forEach(function(s){H+=_nmRow(s.key,s.label,s.name,'dl_'+ti+'_'+di+'_0');});for(var L=1;L<=9;L++){var hint=(L>elig.maxLv)?' ⚠R'+L:'';_slotsOf('known').filter(function(s){return s.ti===ti&&s.di===di&&s.level===L;}).forEach(function(s){H+=_nmRow(s.key,s.label+hint,s.name,'dl_'+ti+'_'+di+'_'+L);});}});});
   (function(){var GR=_ownedGrants(b);if(!GR.length)return;H+='<h3 style="color:var(--good);font-size:12px;margin:12px 0 2px">✦ Choice-grant spells <span style="color:var(--grey);font-weight:400;font-size:10.5px">— free off-list picks; not bought</span></h3>';GR.forEach(function(g,gi){var pool=(DATA.spells||[]).filter(function(s){return s.c.some(function(c){return g.from.indexOf(c)>=0;});}).map(function(s){return s.n;}).sort();_dl('dl_gr_'+gi,pool);H+='<div style="font-size:11px;color:var(--good);margin:6px 0 2px;font-weight:600">'+_e(g.label)+' <span style="color:var(--grey);font-weight:400">— '+_e(g.note)+'</span></div>';var prev=(b.grantNames||{})[g.key]||[];for(var i=0;i<6;i++)H+=_nmRow('grant::'+gi+'::'+i,'Spell '+(i+1),prev[i]||'','dl_gr_'+gi);});})();
   if(!H){flash('Nothing to name yet — buy spells or feats first.');return;}
   var ov=document.getElementById('namesOv');if(!ov){ov=document.createElement('div');ov.id='namesOv';ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';document.body.appendChild(ov);}
@@ -5101,7 +5214,7 @@ function _buildEventBurst(b,opts){
   if(customProfs.length)emitPatch('Tools & instruments',{customProfs:C(customProfs)});
   tools.forEach(v=>evItem('Tool — '+v,'tool',v));instruments.forEach(v=>evItem('Instrument — '+v,'instrument',v));
   emitPatch('Weapon proficiency',{weaponProf:b.weaponProf});(b.masteries||[]).forEach(v=>evItem('Weapon mastery — '+v,'mastery',v));
-  emitPatch('Armour',{armour:b.armour,wornArmour:b.wornArmour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
+  emitPatch('Armour',b.shieldWorn!==undefined?{armour:b.armour,wornArmour:b.wornArmour,shieldWorn:b.shieldWorn}:{armour:b.armour,wornArmour:b.wornArmour});(b.features||[]).forEach(v=>evItem('Class feature — '+v,'feature',v));
   emitPatch('Subclasses',{freeSub:C(b.freeSub||{})});(b.subAbilities||[]).forEach(v=>evItem('Subclass ability — '+v,'subabil',v));(b.subSpellBundles||[]).forEach(v=>evItem('Subclass spell bundle — '+v,'subbundle',v));
   emitPatch('Spellcasting',{traditions:b.traditions,dabblerCantrips:b.dabblerCantrips});(b.arts||[]).forEach(v=>evItem('Art / Technique — '+v,'art',v));
   emitPatch('Lineage & racial spells',{lineage:b.lineage||''});(b.racialSpells||[]).forEach(v=>evItem('Racial spell — '+v,'racialspell',v));
@@ -5159,7 +5272,7 @@ function applyBuild(b,opts){
   set('spec',b.species||'(none)');set('spec2',b.species2||'(none)');set('charsize',b.size||'Small');
   for(const a of ABILS)set('st_'+a,(b.stats&&b.stats[a])||10);
   set('hd',b.hd||1);set('profBonus',b.profBonus||2);set('hardy',b.hardy||0);set('tough',b.tough||0);(function(){var u=(b.unlockedClasses&&b.unlockedClasses.length)?b.unlockedClasses:[];document.querySelectorAll('.classunlock').forEach(function(cb){cb.checked=u.indexOf(cb.dataset.cls)>=0;});})();set('gold',b.gold||0);set('dabblerCantrips',b.dabblerCantrips||0);set('languages',b.languages!=null?b.languages:1);
-  set('attune',b.attune||0);set('ki',b.ki||0);set('sorcery',b.sorcery||0);set('wornArmour',b.wornArmour||'');set('martiallyBound',b.martiallyBound||'(none)');
+  set('attune',b.attune||0);set('ki',b.ki||0);set('sorcery',b.sorcery||0);set('wornArmour',b.wornArmour||'');_cgShieldWornLoad(b);set('martiallyBound',b.martiallyBound||'(none)');
   // restore DM house-rules, then rebuild the boon/drawback grids so custom items exist before we tick them
   HOUSE=(b.houseRules&&typeof b.houseRules==='object')?{boons:b.houseRules.boons||{},draws:b.houseRules.draws||{},disabled:{boons:(b.houseRules.disabled&&b.houseRules.disabled.boons)||[],draws:(b.houseRules.disabled&&b.houseRules.disabled.draws)||[]}}:{boons:{},draws:{},disabled:{boons:[],draws:[]}};
   // Restore DM-call toggles
@@ -6231,6 +6344,7 @@ function randomizeRoll(themeKey,lvlWanted){
   // the id and so updates the real row.
   const _isLockFam = function(e){ return !!e && (e.type === 'creationLocked' || e.type === 'creationUnlocked' || e.type === 'creationLockConfig'); };
   const _rollCarry = (LOG||[]).filter(_isLockFam).map(function(e){ return JSON.parse(JSON.stringify(e)); });
+  const _rollNotes = (LOG||[]).filter(_cgIsNoteFam);   // feat/boon-drawback-notes: the same character keeps its descriptions and their approvals
   // fix/livesheet-name-description-notes: the rebuild below re-reads appearance from the 32 Setup controls only, which would
   // drop the player's notes and Live Sheet sheet (same character — keep them). Re-applied after the rebuild.
   const _rollApKeep=(function(){var a={},cur=(foldBuild(LOG).appearance)||{},dk=(_domReadBuild().appearance)||{};
@@ -6288,6 +6402,7 @@ function randomizeRoll(themeKey,lvlWanted){
       _rollCarry.forEach(function(e){ e.seq = SEQ++; e.ts = Date.now(); LOG.push(e); });
       _fresh.forEach(function(e){ LOG.push(e); });
     }
+    _cgCarryNotes(_rollNotes);
     if(Object.keys(_rollApKeep).length){
       var _apN=pactAppearanceIndex(LOG)<0;
       LOG=pactWithAppearance(LOG,Object.assign({},(foldBuild(LOG).appearance)||{},_rollApKeep),{seq:_apN?SEQ++:undefined,ts:Date.now(),rules:DATA.version});
@@ -7184,11 +7299,19 @@ function _cgCeilingAccept(){
 // was built from the form BEFORE that correction, so without a re-sync the LOG keeps — and charges — the
 // value the form no longer shows (Elf + Elf: 17 AP instead of 7). fix/chargen-livesheet-data-loss.
 let _cgIdentityFixed=false;
+// feat/character-images (D-GH-2026-10-15-character-images): point the Setup panel's pictures placeholder at this character
+// and let js/character-images.js fill it (cached, so a repaint costs no request). Pictures live in cloud storage by
+// character id, never in the LOG — Undo, Paste appearance and Randomise never touch them.
+function _cgCharImgs(){var el=$('cgCharImgs');if(!el)return;var id=__charId||'';
+  if(el.getAttribute('data-charimg')!==id)el.setAttribute('data-charimg',id);
+  if(window._charImg)window._charImg.hydrateAll(el);}
 function render(){
   if(_cgCeilingCheck()) return;      // refused: restoreFrame() has already repainted the accepted state
   _cgIdentityFixed=false;
   _cgRenderAll();
+  try{_cgCharImgs();}catch(e){}   // feat/character-images
   _cgCeilingAccept();
+  _cgRenderItemNotes();   // feat/boon-drawback-notes
   if(_cgIdentityFixed){ _cgIdentityFixed=false;
     // Not while a repaint/whole-build write is in progress (applyBuild rebuilds the LOG from the corrected form
     // itself), and not after the lock: identity is frozen then, so the re-sync would only be refused on every render.
@@ -7383,6 +7506,21 @@ function hydrateSheet(id){_csId=_csKey(id);var data=csLoad(_csId);
 // demeanour, quirk, likes, dislikes, father, mother, profession, familyfor, famevent, secret, drink —
 // survive untouched) and commit through the same coalescing mechanism the Setup panel's own ap_* fields
 // use, so a Sheet-tab edit and a Setup-panel edit of the same character never fight each other.
+// feat/appearance-copy-paste (AF1): copy every text appearance field / paste a copied one over this character's (shared
+// code: js/ui-helpers.js). Paste fills the Setup panel's ap_* inputs first (the DOM owns those keys, so a later DOM read
+// can't write the old values back), then commits through the same appearance slot as every other edit — one Undo step.
+function cgCopyAppearance(){
+  try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();}catch(e){}
+  pactAppearanceCopy(readBuild().appearance||{});
+}
+function cgPasteAppearance(){
+  try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();}catch(e){}
+  pactAppearancePaste(readBuild().appearance||{},function(merged){
+    Object.keys(merged).forEach(function(k){if(typeof merged[k]!=='string')return;var el=document.getElementById('ap_'+k);if(el)el.value=merged[k];});
+    _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});
+    render();
+  });
+}
 function _shCommitAppearanceField(key,v){
   var merged=Object.assign({},(readBuild().appearance)||{});merged[key]=v;
   _cgSyncPatchSlot(PATCH_SLOTS.APPEARANCE,{appearance:merged});
@@ -7420,7 +7558,7 @@ function renderCharSheet(b,r,ctx){
   H.push('<div class="shcol">');
   H.push('<div class="shbox"><h5>Abilities</h5><div class="shabrow">'+ABILS.map(function(a){var sc=(r.effScore&&r.effScore[a])||b.stats[a];return '<div class="shab"><div class="shk" style="color:'+A[a]+'">'+a+'</div><div class="shsc" style="color:'+A[a]+'">'+_sgn(m[a])+'</div><div class="shmod">'+sc+'</div></div>';}).join('')+'</div></div>');
   H.push('<div class="shbox"><div class="cs-insp"><b style="color:var(--blue)">Inspiration</b> '+_mfCk('insp',false,'Inspiration')+'<span class="grow"></span><b style="color:var(--blue)">Prof Bonus</b> <span style="font-size:15px;font-weight:800;color:var(--navytx)">'+_sgn(r.prof)+'</span></div></div>');
-  H.push('<div class="shbox"><h5>Saving Throws</h5>'+ABILS.map(function(a){var pro=(b.saves||[]).includes(a);var bn=m[a]+(pro?r.prof:0)+(r.saveAdj||0);return '<div class="shrow'+(pro?' on':'')+'"><span style="color:'+A[a]+';font-weight:'+(pro?'700':'400')+'">'+(pro?'●':'○')+' '+a+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
+  H.push('<div class="shbox"><h5>Saving Throws</h5>'+saveMods(b,r).map(function(s){var a=s.ab,pro=s.prof;return '<div class="shrow'+(pro?' on':'')+'"><span style="color:'+A[a]+';font-weight:'+(pro?'700':'400')+'">'+(pro?'●':'○')+' '+a+'</span><span>'+_sgn(s.total)+'</span></div>';}).join('')+'</div>');
   if((b.ki||0)>0)H.push('<div class="shbox"><h5>Ki / Focus Points</h5><div class="shrow on"><span>● Total Ki / Focus points</span><span>'+(b.ki||0)+'</span></div></div>');if((b.sorcery||0)>0)H.push('<div class="shbox"><h5>Sorcery Points</h5><div class="shrow on"><span>● Total sorcery points</span><span>'+(b.sorcery||0)+'</span></div></div>');H.push('<div class="shbox"><h5>Skills</h5>'+DATA.skillList.map(function(s){var bo=(b.skills||[]).includes(s[0]),ex=(b.expertise||[]).includes(s[0]);var bn=m[s[1]]+(bo?r.prof:0)+(ex?r.prof:0);return '<div class="shrow'+(bo?' on':'')+'"><span>'+(bo?'●':'○')+' '+s[0]+' <i style="color:'+A[s[1]]+'">('+s[1]+')</i>'+(ex?' ✦':'')+'</span><span>'+_sgn(bn)+'</span></div>';}).join('')+'</div>');
   {var perc=(b.skills||[]).includes("Perception"),pex=(b.expertise||[]).includes("Perception");var pp=10+m.WIS+(perc?r.prof:0)+(pex?r.prof:0);
    H.push('<div class="shbox"><h5>Passive Perception</h5><div class="shsmall" style="font-size:20px;font-weight:800;text-align:center;color:var(--navytx)">'+pp+'</div></div>');}
@@ -7430,7 +7568,9 @@ function renderCharSheet(b,r,ctx){
     '<br>Masteries: '+((b.masteries||[]).map(_csEsc).join(', ')||'—')+'</div></div>');
   {var tl=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]);
    if(tl.length)H.push('<div class="shbox"><h5>Tools &amp; Instruments</h5>'+tl.map(function(t){var ab=DATA.toolAbil&&DATA.toolAbil[t];var tex=(b.toolExpertise||[]).includes(t);var bn=ab?(m[ab]+r.prof+(tex?r.prof:0)):null;return '<div class="shrow on"><span>● '+_csEsc(t)+(ab?' <i style="color:'+A[ab]+'">('+ab+')</i>':'')+(tex?' ✦':'')+'</span><span>'+(bn!=null?_sgn(bn):'')+'</span></div>';}).join('')+'</div>');}
-  {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _ls=(b.racialSpells||[]);if(b.lineage||_ls.length){var _lfx=(!_lin.length&&b.lineage&&DATA.lineageFx&&DATA.lineageFx[b.lineage])||'';var _lbox='<div class="shbox"><h5>'+(_lfx?'Ancestry':'Lineage')+(b.lineage?' — '+_csEsc(b.lineage):'')+' <span class="shtag">'+(_lfx?'ancestry':'spell-like')+'</span></h5>';if(_lfx){_lbox+='<div style="font-size:10.5px">'+_csEsc(_lfx)+'</div>';}else if(!_ls.length){_lbox+='<div style="font-size:10.5px;color:var(--grey)">No lineage spell-likes bought yet.</div>';}else{_lbox+=_ls.map(function(nm){var sp=_lin.find(function(x){return x[0]===nm;});var kind='spell-like — '+(sp?window.lineageSpellLabel(sp):'innate');return '<div class="shrow on"><span>● '+_csEsc(nm)+'</span><span style="color:var(--grey)">'+kind+'</span></div>';}).join('');}_lbox+='</div>';H.push(_lbox);}}
+  // fix/livesheet-pack-spells: a lineage's spell-likes are listed in Spellcasting ("From heritage & other sources"); this box
+  // keeps only the lineages that are not spells (Dragonborn / Goliath ancestries).
+  {var _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[];var _lfx=(!_lin.length&&b.lineage&&DATA.lineageFx&&DATA.lineageFx[b.lineage])||'';if(_lfx)H.push('<div class="shbox"><h5>Ancestry — '+_csEsc(b.lineage)+' <span class="shtag">ancestry</span></h5><div style="font-size:10.5px">'+_csEsc(_lfx)+'</div></div>');}
   H.push('</div>');
   // ===== MIDDLE column: combat, HP, attacks (EDITABLE), equipment (EDITABLE) =====
   H.push('<div class="shcol">');
@@ -7448,6 +7588,7 @@ function renderCharSheet(b,r,ctx){
   var F=[];(b.features||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.subAbilities||[]).forEach(function(k){var a=DATA.subAbilMap[k];if(a)F.push({t:a.sub+': '+a.name,pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[k]:0)});});(b.racialTraits||[]).forEach(function(l){F.push({t:(l.split(': ')[1]||l),pg:(typeof FEAT_PG!=='undefined'?FEAT_PG[l]:0)});});(b.boons||[]).forEach(function(x){var _ea=(b.epicBoonAbil||{})[x];F.push({t:'Boon — '+x+(_ea?(' (+2 '+_ea+')'):'')});});
   H.push('<div class="shbox"><h5>Features &amp; Traits</h5><div class="shsmall">'+(F.length?F.map(function(x){return '• <span'+(x.pg?' title="PHB p.'+x.pg+'" style="cursor:help;border-bottom:1px dotted var(--grey,#999)"':'')+'>'+_csEsc(x.t)+'</span>';}).join('<br>'):'—')+'</div></div>');
   if((b.drawbacks||[]).length)H.push('<div class="shbox"><h5>Drawbacks</h5><div class="shsmall">'+b.drawbacks.map(function(d){return '• '+_csEsc(d);}).join('<br>')+'</div></div>');
+  {var _shn=_cgItemNotesHTML(foldBuild(LOG),false); if(_shn)H.push('<div class="shbox shnotes"><h5>Boon &amp; drawback descriptions</h5><div class="shsmall">'+_shn+'</div></div>');}   // feat/boon-drawback-notes
   {var _fsn=(b.fightingStyleNames||[]).filter(Boolean);if(_fsn.length){var _fsb='<div class="shbox"><h5>Fighting Style</h5>';_fsn.forEach(function(nm){var ar=(DATA.arts||{})[nm]||{};_fsb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(ar.fx||'')+'</span></div>';if(ar.grantCantrips){var _gc=((b.fsCantripNames||{})[nm]||[]).filter(Boolean);_fsb+='<div class="shrow"><span style="padding-left:10px;font-size:10px">'+_csEsc(ar.grantCantrips.list)+' cantrips ('+_csEsc(ar.grantCantrips.ab)+'): '+_csEsc(_gc.join(', ')||'(unnamed)')+'</span></div>';}});_fsb+='</div>';H.push(_fsb);}}
   {var _mmn=(b.metamagicNames||[]).filter(Boolean);if(_mmn.length){var _mmb='<div class="shbox"><h5>Metamagic</h5>';_mmn.forEach(function(nm){var mo=((DATA.metamagicOptions||[]).filter(function(o){return o.n===nm;})[0])||{};_mmb+='<div class="shrow on"><span>'+_csEsc(nm)+(mo.sp?(' <em style="color:var(--grey);font-size:9px">'+mo.sp+' SP</em>'):'')+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mmb+='</div>';H.push(_mmb);}}
   {var _mvn=(b.maneuverNames||[]).filter(Boolean);if(_mvn.length){var _mvb='<div class="shbox"><h5>Battle Master Maneuvers</h5>';_mvn.forEach(function(nm){var mo=((DATA.maneuvers||[]).filter(function(o){return o.n===nm;})[0])||{};_mvb+='<div class="shrow on"><span>'+_csEsc(nm)+'</span><span style="color:var(--grey);font-size:9px">'+_csEsc(mo.fx||'')+'</span></div>';});_mvb+='</div>';H.push(_mvb);}}
@@ -7462,7 +7603,11 @@ function renderCharSheet(b,r,ctx){
      _bb+='</div>';H.push(_bb);}}
   // spellcasting (computed)
   var discs=[];(b.traditions||[]).forEach(function(t){if(t&&t.name&&t.name!=='(none)')(t.disciplines||[]).forEach(function(d){if(d&&d.name&&d.name!=='(none)')discs.push({t:t,d:d});});});
-  if(discs.length&&!ctx.noSpell){var _sps='<div class="spellsec"><div class="sphd">Spellcasting</div><div class="splegend">● spell · ◆ cantrip — every entry here is a spell. Lineage &amp; innate items are spell-like abilities, shown separately.</div><div class="spbody">';
+  // fix/livesheet-pack-spells: lineage, species-trait, subclass, choice-grant, fighting-style and innate spells come from the engine's
+  // grantedSpells(b), each labelled with its source — the section shows even when the character has no tradition.
+  var _GS=(typeof grantedSpells==='function')?grantedSpells(b):[];var _dns=discs.map(function(x){return x.d.name;});
+  var _gsO=_GS.filter(function(g){return !(g.kind==='subclass'&&_dns.indexOf(g.disc)>=0);});
+  if((discs.length||_gsO.length)&&!ctx.noSpell){var _sps='<div class="spellsec"><div class="sphd">Spellcasting</div><div class="splegend">● spell · ◆ cantrip · ✦ always prepared — spells from a lineage, species trait, subclass or grant say where they came from.</div><div class="spbody">';
     discs.forEach(function(x,i){var di=r.discInfo[i];if(!di)return;var dd=x.d;var rank=x.t.rank;var castAt=rank>0?(DATA.hdGate[rank-1]||(2*rank-1)):'—';
       _sps+='<div class="spdisc"><div class="spname">'+_csEsc(x.t.name+' › '+x.d.name)+(di.isOrigin?' ★':'')+(di.bound?' <span class="bbadge">⛓ Bound</span>':'')+'</div>';
       _sps+='<div class="spstrip"><div class="spstat"><small>Ability</small><b style="color:'+(A[di.castAb]||'var(--navy)')+'">'+di.castAb+'</b></div>'+
@@ -7477,14 +7622,14 @@ function renderCharSheet(b,r,ctx){
         if(di.prepared){for(var p=0;p<slot;p++)rows+='<div class="sprow ph"><span class="bul">○</span><span>L'+L2+' prepared slot</span></div>';}
         else{for(var k=0;k<kn;k++){var kv=(((dd.knownNames||[])[L2-1]||[])[k]||'').trim();rows+='<div class="sprow'+(kv?'':' ph')+'"><span class="bul">'+(kv?'●':'○')+'</span><span>'+(kv?_csEsc(kv):('L'+L2+' spell '+(k+1)))+'</span></div>';}}
         var tag=di.prepared?'prepared':(kn+' known');groups.push('<div class="splevel"><div class="lh"><span>Level '+L2+'</span><span class="sl">'+slot+' slot'+(slot!==1?'s':'')+' · '+tag+'</span></div>'+rows+'</div>');}}
-      (b.subSpellBundles||[]).forEach(function(_bk){var _pp=String(_bk).split("|");if(_pp[0]!==x.d.name)return;var _terr=_pp[2]||"";var _g=((DATA.spellGrants||{}).subclassSpells||{})[_pp[0]+": "+_pp[1]+(_terr?" ("+_terr+")":"")];if(!_g||!_g.spells||!_g.spells.length)return;var _rows=_g.spells.slice().sort(function(a,c){return (a.spellLevel-c.spellLevel)||(a.name<c.name?-1:1);}).map(function(sp){return '<div class="sprow"><span class="bul">✦</span><span>'+_csEsc(sp.name)+' <em style="color:var(--grey);font-size:9px">'+(sp.spellLevel?("L"+sp.spellLevel):"cantrip")+'</em></span></div>';}).join("");groups.push('<div class="splevel"><div class="lh"><span>'+_csEsc(_pp[1])+' — always prepared</span><span class="sl">subclass</span></div>'+_rows+'</div>');});
+      pactGrantedBundleGroups(_GS.filter(function(g){return g.kind==='subclass'&&g.disc===x.d.name;}),b.hd).forEach(function(g){groups.push(g);});
       var cols=[[],[],[]];groups.forEach(function(g,gi){cols[gi%3].push(g);});
       _sps+='<div class="spcols">'+cols.map(function(cc){return '<div>'+cc.join('')+'</div>';}).join('')+'</div>';
       if(di.prepared){_sps+=_mfTa('spp_'+i,'','list the spells you prepare…',38)+'<div class="phnote">Greyed rows show prepared-slot capacity — type your prepared spells above.</div>';}
       _sps+='</div>';});
+    _sps+=pactGrantedOtherBlock(_gsO,b.hd);
     _sps+='</div></div>';H.push(_sps);}
-  if(r.dabbler>0){var _df='';for(var _d=0;_d<r.dabbler;_d++){var _nm=String(((b.dabblerCantripNames||[])[_d])||'').trim();if(_nm)_df+='<div class="shrow on"><span>'+_csEsc(_nm)+'</span><span style="color:var(--grey)">cantrip</span></div>';}H.push('<div class="shbox"><h5>Cantrips (no Foundation) <span class="shtag">spell</span></h5><div class="shsmall" style="margin-bottom:3px">'+r.dabbler+' Wizard-list cantrips · cast with INT · Save DC '+r.saveDC+'</div>'+_df+'</div>');}{var _innf='',_inc=0;for(var _IL=1;_IL<=9;_IL++){var _ic=(b.innate||[])[_IL-1]||0;_inc+=_ic;for(var _iN=0;_iN<_ic;_iN++){var _nm2=String((((b.innateNames||[])[_IL-1]||[])[_iN])||'').trim();if(_nm2)_innf+='<div class="shrow on"><span>'+_csEsc(_nm2)+'</span><span style="color:var(--grey)">L'+_IL+'</span></div>';}}if(_inc)H.push('<div class="shbox"><h5>Innate Spell-like Abilities (1 / long rest) <span class="shtag">spell-like</span></h5><div class="shsmall" style="margin-bottom:3px">'+_inc+' innate spell'+(_inc>1?'s':'')+'</div>'+_innf+'</div>');}
-  {var _grf='',_gn=0,_gm=b.grantNames||{};Object.keys(_gm).forEach(function(_gk){(_gm[_gk]||[]).forEach(function(_sp){_sp=String(_sp||'').trim();if(_sp){_gn++;_grf+='<div class="shrow on"><span>✦ '+_csEsc(_sp)+'</span><span style="color:var(--grey)">'+_csEsc(_gk.split(': ')[1]||_gk)+'</span></div>';}});});if(_gn)H.push('<div class="shbox"><h5>Granted Spells (free) <span class="shtag">spell</span></h5><div class="shsmall" style="margin-bottom:3px">'+_gn+' off-list spell'+(_gn>1?'s':'')+' from choice-grants — no AP cost</div>'+_grf+'</div>');}
+  if(r.dabbler>0){var _df='';for(var _d=0;_d<r.dabbler;_d++){var _nm=String(((b.dabblerCantripNames||[])[_d])||'').trim();if(_nm)_df+='<div class="shrow on"><span>'+_csEsc(_nm)+'</span><span style="color:var(--grey)">cantrip</span></div>';}H.push('<div class="shbox"><h5>Cantrips (no Foundation) <span class="shtag">spell</span></h5><div class="shsmall" style="margin-bottom:3px">'+r.dabbler+' Wizard-list cantrips · cast with INT · Save DC '+r.saveDC+'</div>'+_df+'</div>');}
   if(!ctx.noSpell)H.push('<div class="shbox"><h5>Spell Slots &amp; Known / Prepared</h5><div class="cs-grid3" style="margin-bottom:4px">'+[1,2,3,4,5,6,7,8,9].map(function(L){return '<div class="cs-fld"><label>L'+L+'</label>'+_mfIn('slot_L'+L,'','','','Level '+L+' slots (total / used)')+'</div>';}).join('')+'</div>'+_mfTa('spelllist','','cantrips and spells — known or prepared, by level…',180)+'</div>');
   H.push('</div>');
   H.push('</div>');
@@ -7742,6 +7887,13 @@ document.addEventListener('engine-ready',_cgPaintInfoVersions);
       window.addEventListener('focus', () => reg.update());
     });
   }
+</script>
+<script type="module">
+  // feat/character-images (D-GH-2026-10-15-character-images): up to two pictures per cloud character. Loaded on its own
+  // and dynamically, so a failure costs only the pictures — never the cloud bridge or the tool. Fills every
+  // [data-charimg] placeholder now; the tool re-calls hydrateAll() after each repaint.
+  import('../js/character-images.js').then(function(m){ window._charImg = m; m.hydrateAll(document); })
+    .catch(function(e){ console.warn('PACT: character pictures unavailable', e); });
 </script>
 <script type="module">
   // In-app feedback widget (feat/feedback-widget). Self-contained; independent of

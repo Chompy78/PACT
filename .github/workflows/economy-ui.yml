@@ -28,7 +28,13 @@ on:
       - "testing/scripts/creation-lock-enforcement-e2e.mjs"
       - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
+      - "testing/scripts/livesheet-weapons-e2e.mjs"
+      - "testing/scripts/livesheet-pack-spells-e2e.mjs"
+      - "testing/scripts/livesheet-saves-stats-card-e2e.mjs"
+      - "testing/scripts/livesheet-sheet-layout-e2e.mjs"
       - "testing/scripts/campaign-language-list-e2e.mjs"
+      - "testing/scripts/appearance-copy-paste-e2e.mjs"
+      - "testing/scripts/livesheet-armour-ac-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/economy-ui.yml"
@@ -79,5 +85,21 @@ jobs:
       - name: Live Sheet center panel (skills list, effect icons, unnamed notice)
         run: node testing/scripts/livesheet-center-panel-e2e.mjs
 
+      - name: Live Sheet Weapons & attacks + DM Console campaign weapons
+        run: node testing/scripts/livesheet-weapons-e2e.mjs
+
+      - name: Spells from a lineage, species trait or grant in every spell list (Live Sheet + CharGen)
+        run: node testing/scripts/livesheet-pack-spells-e2e.mjs
+
+      - name: Saving throws in the Live Sheet Stats card (desktop + phone)
+        run: node testing/scripts/livesheet-saves-stats-card-e2e.mjs
+
+      - name: Live Sheet layout (colour-coded skills, description always shown, panel = Sheet)
+        run: node testing/scripts/livesheet-sheet-layout-e2e.mjs
+
       - name: Campaign language list (all three tools)
         run: node testing/scripts/campaign-language-list-e2e.mjs
+      - name: Copy / paste appearance between characters (Live Sheet + CharGen)
+        run: node testing/scripts/appearance-copy-paste-e2e.mjs
+      - name: Armour worn, shield in hand and class AC formulas (all three tools)
+        run: node testing/scripts/livesheet-armour-ac-e2e.mjs

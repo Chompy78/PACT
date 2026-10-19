@@ -187,6 +187,81 @@ function pactWithAppearance(log, merged, opts) {
   return out;
 }
 
+/* feat/appearance-copy-paste (owner decision AF1): copy every TEXT appearance field of one character and paste it onto
+   another, in either tool. Only string values travel — the appearance object also carries the Live Sheet's own
+   `playerSheet` (coins, weapons; an object), which is never copied and never overwritten. The character's name is not
+   part of appearance, so it never travels either. Paste REPLACES every text field: a field empty or absent in the copy
+   is cleared on the target. The clipboard text is untrusted (another app, another person): it is parsed, not run;
+   keys and values are shape-checked; and the preview is a plain-text confirm(), never HTML. */
+var PACT_APPEARANCE_SCHEMA = 'pact-appearance/1';
+function _pactApTextFields(app) {
+  var out = {};
+  if (app && typeof app === 'object') Object.keys(app).forEach(function (k) { if (typeof app[k] === 'string') out[k] = app[k]; });
+  return out;
+}
+function pactAppearanceCopyText(app) {
+  return JSON.stringify({ schema: PACT_APPEARANCE_SCHEMA, appearance: _pactApTextFields(app) });
+}
+/* -> {ok:true, appearance} | {ok:false, error} */
+function pactAppearanceParse(text) {
+  var d;
+  try { d = JSON.parse(String(text == null ? '' : text)); } catch (e) { return { ok: false, error: 'That is not a copied appearance (press 📋 Copy appearance on the other character first).' }; }
+  if (!d || typeof d !== 'object' || d.schema !== PACT_APPEARANCE_SCHEMA || !d.appearance || typeof d.appearance !== 'object' || Array.isArray(d.appearance))
+    return { ok: false, error: 'That is not a copied appearance (press 📋 Copy appearance on the other character first).' };
+  var keys = Object.keys(d.appearance), app = {};
+  if (keys.length > 200) return { ok: false, error: 'That copied appearance has too many fields.' };
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i], v = d.appearance[k];
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(k) || k === 'playerSheet') continue;   // skip odd keys; never the Live Sheet's own panel
+    if (typeof v !== 'string') continue;
+    if (v.length > 20000) return { ok: false, error: 'A field in that copied appearance is too long.' };
+    app[k] = v;
+  }
+  return { ok: true, appearance: app };
+}
+/* The target's appearance with every text field replaced by the copy's (absent = cleared); non-text keys kept.
+   -> {merged, changed:[{key, from, to}]} */
+function pactAppearanceMerge(cur, pasted) {
+  var merged = JSON.parse(JSON.stringify(cur && typeof cur === 'object' ? cur : {})), changed = [];
+  var curText = _pactApTextFields(merged);
+  Object.keys(curText).forEach(function (k) {
+    if (!Object.prototype.hasOwnProperty.call(pasted, k) && curText[k] !== '') { changed.push({ key: k, from: curText[k], to: '' }); merged[k] = ''; }
+  });
+  Object.keys(pasted).forEach(function (k) {
+    var was = typeof merged[k] === 'string' ? merged[k] : '';
+    if (was !== pasted[k]) changed.push({ key: k, from: was, to: pasted[k] });
+    merged[k] = pasted[k];
+  });
+  return { merged: merged, changed: changed };
+}
+function pactAppearanceCopy(app) {
+  var ok = _csCopy(pactAppearanceCopyText(app));
+  if (typeof flash === 'function') flash(ok ? 'Appearance copied — open the other character and press 📥 Paste appearance.' : 'Copy the text shown, then paste it on the other character.');
+}
+/* Reads the clipboard (or asks for the text), previews the change as plain text, and calls apply(merged) on OK. */
+function pactAppearancePaste(cur, apply) {
+  function go(text) {
+    var p = pactAppearanceParse(text);
+    if (!p.ok) { if (typeof flash === 'function') flash(p.error, 'warn'); return; }
+    var m = pactAppearanceMerge(cur, p.appearance);
+    if (!m.changed.length) { if (typeof flash === 'function') flash('Nothing to change — this character already has that appearance.'); return; }
+    var cut = function (s) { s = String(s).replace(/\s+/g, ' '); return s.length > 40 ? s.slice(0, 39) + '…' : (s || '(empty)'); };
+    var lines = m.changed.slice(0, 15).map(function (c) { return '• ' + c.key + ': ' + cut(c.from) + ' → ' + cut(c.to); });
+    if (m.changed.length > 15) lines.push('…and ' + (m.changed.length - 15) + ' more');
+    if (!window.confirm('Replace this character\'s appearance with the copied one?\n' + m.changed.length + ' field(s) change:\n\n' + lines.join('\n') +
+        '\n\nThe name, coins and weapons are not touched.')) return;
+    apply(m.merged);
+    if (typeof flash === 'function') flash('Appearance pasted — ' + m.changed.length + ' field(s) changed.');
+  }
+  function ask() { var t = window.prompt('Paste the copied appearance here (Ctrl/Cmd-V):', ''); if (t != null) go(t); }
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText && window.isSecureContext) {
+      navigator.clipboard.readText().then(go, ask); return;
+    }
+  } catch (e) {}
+  ask();
+}
+
 /* One tool's device-local scratch record for a character id (the pre-fix store), or null. Read-only. */
 function pactSheetScratch(tool, id) {
   try {
@@ -264,4 +339,174 @@ function pactComposeDescription(ap, who){
   var misc=[v('prized')&&('carry '+v('prized')),v('companion')&&v('companion').indexOf('no companion')<0&&('are accompanied by '+v('companion'))].filter(Boolean);
   if(misc.length)pcs.push('They '+_pactJoinList(misc)+'.');
   return pcs.join(' ');
+}
+
+/* ---- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes) --------------------------------------------------
+   Some boons and drawbacks need a player-written description (DATA.notePrompts — "Code of Honour": what is the code?).
+   Shared by CharGen, the Live Sheet and DM Console so the three read a note's state the same way. Display/UX only: no
+   rule reads a note, so nothing here touches compute() or the AP economy.
+
+   THE EVENTS (all three live in the character's LOG, keyed by category + NAME, never by seq — CharGen renumbers a draft's
+   purchases when it rebuilds the log, and a character holds at most one copy of a boon or drawback name):
+     {type:'itemNote',      cat:'boon'|'drawback', refVal:<name>, text}  player-written; the LATEST one is the note
+     {type:'dmApproveNote', cat, refVal, text, campaignId}  written ONLY by dm_edit_character_log (DM-stamped
+                                                dmEdit:true); `text` is the note as the server read it at approval
+     {type:'dmUnlockNote',  cat, refVal, note?, campaignId}  same path; re-opens an approved note for editing
+   A note's state is read in log order: a note makes it 'pending', an approval of exactly that text makes it 'approved', an unlock or a NEWER
+   note makes it 'pending' again. An approval or unlock counts only when it is DM-stamped AND was made in the campaign the
+   character is in now (`campaignId`, stamped by the server) — a character that moves campaign needs its new DM's
+   approval, and a solo character (no campaign) has no DM, so its note is required but never locked. The server applies
+   the same reading (pact_enforce_item_note_lock). */
+var PACT_NOTE_MAX = 500;
+function pactNoteKey(cat, name){ return String(cat) + '|' + String(name); }
+// The question to ask for a boon/drawback, or '' when it needs no note.
+function pactNotePrompt(data, cat, name){
+  var m = data && data.notePrompts && data.notePrompts[cat];
+  return (m && Object.prototype.hasOwnProperty.call(m, name)) ? String(m[name] || '') : '';
+}
+// key -> {cat, name, text, status:'none'|'pending'|'approved', approved:{text,ts,dmId}|null, unlocked:{note,ts}|null}
+function pactNoteStates(log, campaignId){
+  var out = {};
+  (log || []).forEach(function(e){
+    if(!e || (e.type !== 'itemNote' && e.type !== 'dmApproveNote' && e.type !== 'dmUnlockNote')) return;
+    if((e.cat !== 'boon' && e.cat !== 'drawback') || typeof e.refVal !== 'string' || !e.refVal) return;
+    var k = pactNoteKey(e.cat, e.refVal);
+    var st = out[k] || (out[k] = { cat: e.cat, name: e.refVal, text: '', status: 'none', approved: null, unlocked: null });
+    if(e.type === 'itemNote'){
+      if(typeof e.text !== 'string') return;
+      st.text = e.text; st.status = e.text.trim() ? 'pending' : 'none';
+    } else if(e.dmEdit !== true || !campaignId || String(e.campaignId) !== String(campaignId)){
+      return;   // an approval or unlock counts only when the server stamped it, in the character's current campaign
+    } else if(e.type === 'dmApproveNote'){
+      // Only an approval OF THIS TEXT counts: the server copies the approved text into the event, so a note rewritten in
+      // place afterwards (possible while the character was solo, where nothing is frozen) no longer matches and stays
+      // pending. (#673 review, finding A.)
+      if(st.status === 'none' || typeof e.text !== 'string' || e.text !== st.text) return;
+      st.status = 'approved'; st.approved = { text: e.text, ts: e.ts || 0, dmId: e.dmId || null };
+    } else if(st.status === 'approved'){
+      st.status = 'pending'; st.unlocked = { note: typeof e.note === 'string' ? e.note : '', ts: e.ts || 0 }; st.approved = null;
+    }
+  });
+  return out;
+}
+// The held boons/drawbacks that need a note, one row per name: {cat, name, prompt, text, status, approved}. `build` is
+// the folded build (foldBuild), whose boons/drawbacks are what the character holds right now; `campaignId` the campaign
+// it is in (null when solo).
+function pactNoteItems(build, log, data, campaignId){
+  var states = pactNoteStates(log, campaignId), rows = [], seen = {};
+  [['boon', (build && build.boons) || []], ['drawback', (build && build.drawbacks) || []]].forEach(function(p){
+    p[1].forEach(function(name){
+      var k = pactNoteKey(p[0], name), q = pactNotePrompt(data, p[0], name);
+      if(!q || seen[k]) return; seen[k] = 1;
+      var st = states[k] || { text: '', status: 'none', approved: null, unlocked: null };
+      rows.push({ cat: p[0], name: name, prompt: q, text: st.text, status: st.status, approved: st.approved, unlocked: st.unlocked });
+    });
+  });
+  return rows;
+}
+// Approved notes are frozen while the character is in a campaign (the server refuses a change there too).
+function pactNoteLocked(row, campaignBound){ return !!(row && row.status === 'approved' && campaignBound); }
+// {ok:true, text} or {ok:false, error}. Trimmed; required; capped at PACT_NOTE_MAX (the server caps it too).
+function pactCheckNoteText(t){
+  var s = String(t == null ? '' : t).trim();
+  if(!s) return { ok: false, error: 'A description is required for this one.' };
+  if(s.length > PACT_NOTE_MAX) return { ok: false, error: 'Keep it to ' + PACT_NOTE_MAX + ' characters or fewer (this is ' + s.length + ').' };
+  return { ok: true, text: s };
+}
+function pactNoteEvent(cat, name, text){
+  return { type: 'itemNote', cat: cat, refVal: name, text: text, label: 'Note — ' + name };
+}
+// Ask for a note in a small modal with a multi-line box (owner decision AU1, 2026-10-17): the item's question, a <textarea>
+// capped at PACT_NOTE_MAX with a live counter, OK / Cancel. Keyboard: the box has focus on open, Tab moves between it and
+// the buttons, Esc = Cancel, Ctrl/Cmd+Enter = OK (Enter alone is a new line). OK re-checks the text (required, capped) and
+// shows the problem in the dialog instead of closing. done(text) on OK with the trimmed text, done(null) on Cancel/Esc.
+// ASYNCHRONOUS: callers continue in `done`. Tests may replace window.pactAskNote with a stub that calls done() directly.
+function pactAskNote(name, question, current, done){
+  if(typeof done !== 'function') done = function(){};
+  // One at a time: a second request while one is open is answered "cancelled" (so its caller puts the tick back), never
+  // left hanging. The open one keeps focus.
+  if(document.getElementById('pactNoteDlg')){ done(null); return; }
+  var prev = document.activeElement;
+  var ov = document.createElement('div');
+  ov.id = 'pactNoteDlg';
+  ov.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px');
+  var box = document.createElement('div');
+  box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'pactNoteDlgT');
+  box.setAttribute('style', 'background:var(--panel,var(--card,var(--bg,#fff)));color:var(--ink,var(--text,inherit));border:1px solid var(--line,#888);border-radius:8px;max-width:520px;width:100%;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.35);font:inherit');
+  box.innerHTML = '<div id="pactNoteDlgT" style="font-weight:700;margin-bottom:4px"></div>'
+    + '<label for="pactNoteDlgTa" id="pactNoteDlgQ" style="display:block;font-size:13px;margin-bottom:6px"></label>'
+    + '<textarea id="pactNoteDlgTa" rows="5" maxlength="' + PACT_NOTE_MAX + '" aria-describedby="pactNoteDlgN pactNoteDlgE" style="width:100%;box-sizing:border-box;font:inherit;resize:vertical"></textarea>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin:4px 0 10px;gap:8px">'
+    + '<span>Required. Your DM sees it and approves it. <span style="opacity:.75">Ctrl+Enter = OK, Esc = Cancel</span></span><span id="pactNoteDlgN" aria-live="polite"></span></div>'
+    + '<div id="pactNoteDlgE" role="alert" style="color:var(--bad,#b00);font-size:12px;min-height:1em;margin-bottom:6px"></div>'
+    + '<div style="display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" id="pactNoteDlgCancel">Cancel</button><button type="button" class="btn" id="pactNoteDlgOk">OK</button></div>';
+  ov.appendChild(box); document.body.appendChild(ov);
+  box.querySelector('#pactNoteDlgT').textContent = name;      // textContent: never markup
+  box.querySelector('#pactNoteDlgQ').textContent = question;
+  var ta = box.querySelector('#pactNoteDlgTa'), cnt = box.querySelector('#pactNoteDlgN'), err = box.querySelector('#pactNoteDlgE');
+  ta.value = current || '';
+  var upd = function(){ cnt.textContent = ta.value.length + ' / ' + PACT_NOTE_MAX; };
+  upd();
+  // Focus is trapped at DOCUMENT level: anything that moves focus outside the dialog (a click on the page behind, a
+  // script) sends it back to the box, so the overlay can't lose it.
+  var trap = function(e){ if(!box.contains(e.target)) ta.focus(); };
+  document.addEventListener('focusin', trap, true);
+  var fin = function(v){ document.removeEventListener('focusin', trap, true); ov.remove(); try { if(prev && prev.focus) prev.focus(); } catch(e){} done(v); };
+  var ok = function(){ var c = pactCheckNoteText(ta.value); if(!c.ok){ err.textContent = c.error; ta.focus(); return; } fin(c.text); };
+  ta.addEventListener('input', function(){ upd(); err.textContent = ''; });
+  box.querySelector('#pactNoteDlgOk').addEventListener('click', ok);
+  box.querySelector('#pactNoteDlgCancel').addEventListener('click', function(){ fin(null); });
+  // Every key pressed in the dialog stays in the dialog: the tools' document-level shortcuts (CharGen's Ctrl+Z / Ctrl+Y undo
+  // and redo, the Live Sheet's Esc handler) must never act on the character while the player is typing (#673 re-review 1).
+  ['keypress', 'keyup'].forEach(function(t){ ov.addEventListener(t, function(e){ e.stopPropagation(); }); });
+  ov.addEventListener('keydown', function(e){
+    e.stopPropagation();
+    if(e.key === 'Escape'){ e.preventDefault(); fin(null); }
+    else if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); ok(); }
+    else if(e.key === 'Tab'){   // keep focus inside the dialog
+      var f = [ta, box.querySelector('#pactNoteDlgCancel'), box.querySelector('#pactNoteDlgOk')], k = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(k + (e.shiftKey ? f.length - 1 : 1)) % f.length].focus();
+    }
+  });
+  ta.focus();
+}
+
+/* Spells and cantrips from somewhere other than a tradition's own lists (fix/livesheet-pack-spells) — the rows come
+   from the engine's grantedSpells(b); these only turn them into the same .splevel/.sprow markup the spell lists
+   already use, so the Live Sheet's Character panel, its 📋 Sheet and CharGen's Sheet tab all show them one way.
+   Every row names where it came from. Every name and source passes through esc(). */
+function pactGrantedSpellRow(g, hd) {
+  var cant = g.level === 0, later = (g.needHD || 1) > (hd || 1), note = g.note || '';
+  if (later && note.indexOf('needs') < 0) note += (note ? ' · ' : '') + 'needs ' + g.needHD + ' HD';
+  return '<div class="sprow' + (cant ? ' cant' : '') + (later ? ' ph' : '') + '" data-grant="' + esc(g.kind) + '">' +
+    '<span class="bul">' + (g.kind === 'subclass' ? '✦' : (cant ? '◆' : '●')) + '</span>' +
+    '<span>' + esc(g.name) + ' <em class="spsrc" style="font-style:normal;font-size:9.5px;color:var(--grey)">from ' + esc(g.source) +
+    (note ? ' · ' + esc(note) : '') + '</em></span></div>';
+}
+// One .splevel group per spell level (cantrips first; spells missing from the spell data last).
+function pactGrantedSpellGroups(rows, hd) {
+  var by = {};
+  (rows || []).forEach(function (g) { var k = g.level == null ? 'x' : String(g.level); (by[k] = by[k] || []).push(g); });
+  return Object.keys(by).sort(function (a, b) { return (a === 'x' ? 99 : +a) - (b === 'x' ? 99 : +b); }).map(function (k) {
+    return '<div class="splevel"><div class="lh"><span>' + (k === '0' ? 'Cantrips' : (k === 'x' ? 'Other' : 'Level ' + k)) +
+      '</span><span class="sl">' + (k === '0' ? 'at will' : '') + '</span></div>' +
+      by[k].map(function (g) { return pactGrantedSpellRow(g, hd); }).join('') + '</div>';
+  });
+}
+// A discipline's always-prepared subclass bundles, one group per subclass.
+function pactGrantedBundleGroups(rows, hd) {
+  var by = {}, order = [];
+  (rows || []).forEach(function (g) { if (!by[g.source]) { by[g.source] = []; order.push(g.source); } by[g.source].push(g); });
+  return order.map(function (s) {
+    return '<div class="splevel"><div class="lh"><span>' + esc(s) + ' — always prepared</span><span class="sl">subclass</span></div>' +
+      by[s].map(function (g) { return pactGrantedSpellRow(g, hd); }).join('') + '</div>';
+  });
+}
+// The "From heritage & other sources" block: every granted row not already shown under its own discipline.
+function pactGrantedOtherBlock(rows, hd) {
+  if (!rows || !rows.length) return '';
+  var cols = [[], [], []];
+  pactGrantedSpellGroups(rows, hd).forEach(function (g, i) { cols[i % 3].push(g); });
+  return '<div class="spdisc spgrants"><div class="spname">From heritage &amp; other sources</div>' +
+    '<div class="spcols">' + cols.map(function (c) { return '<div>' + c.join('') + '</div>'; }).join('') + '</div></div>';
 }

@@ -42,7 +42,7 @@ re-running the baseline file can never revert the freeze; (3) run the Supabase a
 
 Before applying to live, re-run both audits against a FRESH read-only export with the new flag: `backup-replay-audit.mjs <export.json> --stage2` lists every real saved pair that stage 2 would refuse but stage 1 (live today) allows — each must be a rewrite the current tools no longer make — and `roundtrip-audit.mjs <export.json> --stage2 --campaign-all` loads every live character in both tools and checks nothing in the stage-2-protected part of the history moves. Apply only after both come back clean.
 
-## Player award after the lock — added 2026-10-12 (NOT applied to the live database)
+## Player award after the lock — added 2026-10-12 (applied to the live database 2026-10-13)
 
 `sql/migrations/2026-10-12-server-player-award-after-lock.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-12-server-player-award-after-lock`. Amends `pact_enforce_player_ap_ceiling()` so nobody but the campaign's DM can raise a locked or sealed campaign character's LOG award total, and no campaign character's award amount can be anything but a JSON number. `rls-policies.sql` is NOT changed until the migration is applied (the fold is a later PR, per `sql/migrations/README.md`).
 
@@ -50,7 +50,7 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 |---|---|
 | `award-shims.sql` | Supabase stand-ins (auth schema, roles, `auth.users`, `auth.uid()` from `request.jwt.claims`, pgcrypto) |
 | `award-cases.sql` | 39 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus `2026-09-03-dm-zero-player-ap.sql`, so `dm_edit_character_log`, `award_ap`, `award_ap_and_seal`, `dm_zero_player_ap`, the budget check and the history lock all run beside the rule: player-award attacks, the CharGen Budget singleton moves (incl. the live 77-AP-after-the-lock shape), DM paths, solo, reopened, `ignore_player_ap` campaigns, and award amounts that are not JSON numbers ("NaN", "500", "Infinity", a NaN planted before the lock) |
-| `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply (`psql -1`) → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
+| `run-award.sh` | `BEFORE` (17 attacks allowed today) → apply → `AFTER` (all 39 pass) → rollback (byte-identical to 2026-09-03) → the gap is back. In CI's `freeze-rehearsal` job |
 
 ## Campaign house rules, the server half — added 2026-10-13 (NOT applied to the live database)
 
@@ -63,3 +63,22 @@ Before applying to live, re-run both audits against a FRESH read-only export wit
 | `run-house-rules.sh` | `BEFORE` (every case lands as predicted: 145 gaps/new behaviours fail) → apply (`psql -1`) → `AFTER` (all pass; Z1 shapes agree; the real SQL ledger equals `house-rules-ledger-ci.mjs`'s port on the fuzz's random histories) → rollback (five definitions byte-identical, seventeen functions and three triggers gone, cases back to BEFORE). In CI's `freeze-rehearsal` job |
 
 Also: `testing/scripts/dm-family-roundtrip-e2e.mjs` (real Live Sheet + CharGen: an honest save never touches the DM family) and `roundtrip-audit.mjs`, which now checks the DM family on a live export too.
+
+## Character images — added 2026-10-15 (applied to the live database 2026-10-19)
+
+`sql/migrations/2026-10-15-character-images.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-15-character-images`. A private Storage bucket and four `storage.objects` policies: the character's owner reads and writes `<character id>/1|2`; its campaign's DMs and the campaign's other players read (NPCs included); nobody else; and an object older than its character row (a leftover from a deleted row whose uuid was recreated) is untouchable by everyone.
+
+| File | What |
+|---|---|
+| `images-storage-shim.sql` | stand-ins for `storage.buckets` / `storage.objects` with RLS on (the Storage API's size and MIME limits are NOT in the database, so not tested here) |
+| `images-cases.sql` | 55 cases on the real fresh-install path: who reads (owner, DM, co-DM, fellow player, outsider, other campaign's DM/player, anon, NPC), who writes (third slot, bad names, other characters, DM, anon, rename/move, Storage-API-style upsert), access following the character live (unbind, move, ownership transfer, deleted row), and a recreated row with a deleted character's uuid inheriting nothing |
+| `run-images.sh` | `BEFORE` (20 rows fail: the feature isn't there) → apply → `AFTER` (all 55 pass) → re-run (idempotent) → rollback (back to the BEFORE counts). In CI's `freeze-rehearsal` job |
+
+## Boon & drawback descriptions — added 2026-10-15 (applied to the live database 2026-10-19)
+
+`sql/migrations/2026-10-15-boon-drawback-notes.sql` (+ `-rollback.sql`), decision `D-GH-2026-10-15-boon-drawback-notes`. A DM approves a player's description of certain boons/drawbacks through `dm_edit_character_log` (`dmApproveNote` / `dmUnlockNote`), and the new `pact_enforce_item_note_lock()` refuses a player's change to an approved description on a campaign character. `rls-policies.sql` is NOT changed until the migration is applied.
+
+| File | What |
+|---|---|
+| `notes-cases.sql` | 54 cases on the REAL fresh-install path (`schema.sql` + `rls-policies.sql`) plus the two applied-but-unfolded migrations (`2026-09-03-dm-zero-player-ap.sql`, `2026-10-12-server-player-award-after-lock.sql`): the DM's approve/unlock (incl. what the stored event carries), player attacks on an approved description (append, rewrite, delete, forged approval/unlock, insert into a campaign), the text cap, the #673 review fixes (approval bound to its exact text, the DM sends the text shown, a claimed pregen's approvals dropped via the real `redeem_character_claim`, joining via `bind_character_to_campaign` / `redeem_player_invite` with forged approvals, JS-equivalent blank detection), and the legitimate paths (edit before approval, after an unlock, solo, another campaign's approval, admin repair, DM boon grant) |
+| `run-notes.sh` | prints the BASE md5 of `dm_edit_character_log` (compare with production before applying) → `BEFORE` (28 cases fail: the gap and the missing DM events) → apply single-transaction → `AFTER` (all 54 pass) → rollback (byte-identical `dm_edit_character_log`, added objects gone). In CI's `freeze-rehearsal` job |

@@ -125,7 +125,7 @@ section('4. a refused budget edit snaps back');
   // A FINISHED campaign character: the server freezes everything before its creationLocked (D2), which
   // includes the budget award, so a budget edit is refused client-side.
   await fresh();
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   await p.evaluate(()=>{ window._cgCampaignId = window.__C1; window._cgCampaignBound = true; render(); });
   const before = await p.evaluate(()=>({v:document.getElementById('budget').value, floor:Math.max(_cgSealedFloor(),_cgLockFloor()), awards:JSON.stringify(LOG.filter(e=>e.type==='award'))}));
   check('(precondition) the budget award sits inside the locked prefix', before.floor>0, JSON.stringify(before));
