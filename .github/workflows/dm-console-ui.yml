@@ -24,6 +24,7 @@ on:
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
       - "testing/scripts/live-sheet-subclass-owned-e2e.mjs"
       - "testing/scripts/names-dialog-e2e.mjs"
+      - "testing/scripts/names-gate-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/scripts/dm-ap-discount-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
@@ -109,6 +110,11 @@ jobs:
       # allNameableSlots() does (the names-before-spending gate reads the same list). Seeded localStorage, no Supabase.
       - name: Names dialog — rows in both tools match the engine's slot list
         run: node testing/scripts/names-dialog-e2e.mjs
+
+      # feat/names-before-spending: a locked character cannot spend AP while a language or spell slot is unnamed, in both tools; "Finish creating"
+      # asks for the names first; the campaign switch (rules.requireNames:false) turns it off. Seeded localStorage, no Supabase.
+      - name: Names before spending — the gate in the Live Sheet and CharGen
+        run: node testing/scripts/names-gate-e2e.mjs
 
       # fix/ledger-xss-escaping: player-controlled LOG values (tradition names, event/envelope `rules`, award amounts) render as
       # text in every ledger-shaped view of all three tools, incl. the Live Sheet ?viewChar= DM view. Same cost profile.

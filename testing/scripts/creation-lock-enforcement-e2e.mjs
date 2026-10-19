@@ -57,7 +57,9 @@ const xb0 = await xBox();
 check('another species\' trait can be ticked during creation', xb0 && !xb0.disabled, JSON.stringify(xb0));
 const vBefore = await vigorAP();
 
-await p.evaluate(()=>cgFinishCreating(true));
+// This test is about the lock, not about naming: switch the names-before-spending rule off (rules.requireNames:false) so
+// "Finish creating" does not stop to ask for the blank language slot (feat/names-before-spending).
+await p.evaluate(()=>{ window._cloudCampaign={rules:{requireNames:false}}; cgFinishCreating(true); });
 await p.waitForTimeout(500);
 check('lock label shown after Finish creating', await chip('cgCreationLockedChip'));
 const xb1 = await xBox();
