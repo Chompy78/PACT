@@ -971,36 +971,6 @@ features read as separate entries in the Guide, not one bundle; `verify-guide.mj
 
 ---
 
-## `docs/phb-rules-final.jsonl` bundles 4 separately-leveled 2024 features under one entry — TODO
-Branch `docs/fix-phb-jsonl-bundled-entries`. The PHB text extraction that grounded round 5's level
-authoring (`D-GH-2026-08-27-feature-hd-gate`) crammed together features WotC prints at different levels on
-the class tables, because the source list was compiled by grouping similar-sounding names rather than by
-level. PACT's own data has already been corrected (the features were split), but the *source* file still
-carries the bundling, so the next person who re-derives from it inherits the same wrong premise and has to
-re-discover the split by hand, as this round did.
-The four: **Fighter** — `Tactical Mind` / `Shift` / `Master`, three distinct Battle-Master-flavoured
-features on the core Fighter table at L2/L5/L9, sharing a name theme but gained years apart. **Monk** —
-`Empowered Strikes` (unarmed strikes count as magical) / `Self-Restoration` (shed conditions), unrelated
-features at L6/L10 that the bundling hid a 4-level gap between. **Monk** — `Perfect Focus` (a focus-recovery
-feature, L15) / `Body and Mind` (the L20 capstone), two very different power tiers wrongly sharing a line.
-**Ranger** — `Roving` (extra movement/climb-swim speed) / `Tireless` (temp HP + reduced exhaustion), L6/L9
-improvements, again distinct features on the Ranger table.
-**Effort:** low · **Risk:** low — a data-quality fix to a reference extraction, not to PACT's own rules
-data; nothing in `compute()` reads this file.
-
-```text
-1. In docs/phb-rules-final.jsonl, split each of the 4 bundled Class Feature entries into its correctly-
-   separated sub-entries (Fighter's one row becomes three; the other three each become two), preserving
-   the source's own id/category/source/page/pdf_page/page_confidence shape for each new row.
-2. Assign each split entry the correct page number if it differs from the original bundled row's page --
-   check against the actual PHB page range for that class's feature table.
-3. Cross-check the split against what PACT's engine-data.js already landed for these (see the round-5
-   addendum in decisions/2026/D-GH-2026-08-27-feature-hd-gate.md) so the two agree.
-```
-
-**Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
-fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
-
 ## `tool-pricing-ci.mjs` flakes on tab readiness — TODO
 Branch `fix/tool-pricing-tab-flake`. The gate opens a fresh CDP tab per section — around ten across the
 three tools — and the later ones intermittently blow the 30-second `document.readyState==='complete'`
