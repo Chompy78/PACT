@@ -463,6 +463,24 @@ pre-purchase wording; give CharGen's feature and subclass pickers the same pre-c
 **Done when:** a Druid without Wild Shape sees Circle Forms greyed with "needs Wild Shape first" in both tools; the browser gates cover it; engine-parity 0 failed.
 
 
+## chore/character-images-browser-check — owner runs the picture checks with a real account — TODO
+**Effort:** low · **Risk:** low — read-and-report checks on a live feature; damage likelihood is near nil.
+
+```text
+Owner-run (needs a real signed-in account; an agent cannot do it). Character pictures went live on 2026-10-19
+(D-GH-2026-10-15-character-images). The SQL-level spot-check as owner / DM / fellow player / outsider passed 12/12, but it
+bypasses the Storage REST API the browser uses, and the 2 MB and file-type limits were verified only as bucket settings.
+Run the decision record's "Live post-apply spot-check" checks 2–5:
+  2. Add a picture to a cloud character, then Replace it — both show.
+  3. Upload a > 2 MB file straight to the Storage REST API (curl with the player JWT, bypassing the browser shrink) — refused (413).
+  4. Same with a small SVG (Content-Type: image/svg+xml) — refused.
+  5. A fellow campaign player sees the picture; a signed-in outsider gets nothing.
+3 and 4 are optional if curl is a hassle — the bucket row enforces them.
+```
+**Done when:** the results are recorded in D-GH-2026-10-15-character-images.md's spot-check section, and the owner-check
+note is removed from `chore/character-images-orphan-sweep` in `docs/TASK_BOARD_NEXT.md`.
+
+
 # Conventions
 - One task per branch/commit; re-open `engine-parity.html` after each.
 - Keep `js/engine.js` off-limits unless a task targets it.
