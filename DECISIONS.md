@@ -10,6 +10,12 @@
 
 ## Index
 
+## D-GH-2026-10-20-heroic-inspiration-boons — hold 2 or 3 Heroic Inspiration; Blazing Moment fires on 18+; boons gain an engine-enforced `prereq`
+- Rules v0.378. New boons Twofold Inspiration (HD 3 / 7 AP) and Threefold Inspiration (HD 5 / 10 AP, needs Twofold); Blazing Moment's wording 19+ → 18+ with its
+  price unchanged at 14. Boons had no prerequisite mechanism, so `compute()` now reads an optional boon `prereq` like a feature's (owner pick L2); only Threefold
+  carries one, and the blocked purchase is refused in both tools through `purchaseLegality()` with no tool code change. **The `pact-guide` master is not updated:**
+  it still says you can never hold more than one Heroic Inspiration and its fortune-boon section has diverged — an owner call.
+  Full record: `decisions/2026/D-GH-2026-10-20-heroic-inspiration-boons.md`.
 ## D-GH-2026-10-17-names-before-spending — a locked character cannot spend AP while a language or spell slot is unnamed; on by default everywhere, a campaign can switch it off
 - Engine `namesGate()` / `namesOutstanding()` / `requireNamesOn()`; applied in the Live Sheet's `buy()`, buy-off and buy panel and in
   CharGen's after-lock path and **Finish creating**. From the creation lock on; purchases that cost AP only (free ones, drawbacks, DM
