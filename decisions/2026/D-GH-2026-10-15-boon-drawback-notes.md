@@ -1,9 +1,17 @@
 # D-GH-2026-10-15-boon-drawback-notes — some boons and drawbacks need a player-written description, which the DM approves and so locks
 
-**Status:** code in PR (`feat/boon-drawback-notes`). **The SQL migration is NOT applied** — merging does not apply it; the
-owner applies `sql/migrations/2026-10-15-boon-drawback-notes.sql`, then runs `get_advisors`. The tools work before it is
-applied (see *Deploy order*). `DATA.version` **not** bumped: `DATA.notePrompts` is display-only (`compute()` never reads it).
-Solo-character rule confirmed by the owner on 2026-10-17 (AW1; see *Owner decisions*).
+**Status:** **APPLIED 2026-10-19** (owner, `apply_migration`, ~01:09 UTC; the file verbatim minus its header comments) and
+folded into `sql/rls-policies.sql` the same day (`docs/fold-notes-images-migrations`). Pre-check: live
+`md5(pg_get_functiondef(dm_edit_character_log))` = BASE `659177badc40deb2e69bacbbfcdbb4ca`; 0 of 40 characters had any
+itemNote/dmApproveNote/dmUnlockNote event. Post-apply checks all true (the 3 internal functions not executable by
+`authenticated`, `trg_pact_item_note_lock` present, `dm_edit_character_log` still has `assert_campaign_active` / the boon-award
+match / `dmUnlockDrawback` / `dmDiscount` + `dmApproveNote`). Live spot-check as real users inside a rolled-back transaction
+(nothing persisted; 0 note events afterwards): owner writes a note; the DM approves via `dm_edit_character_log`; the owner's
+later edit of the approved note is refused ("PACT: your DM approved the description…"); an owner-forged `dmUnlockNote` is
+refused — all passed. Advisors: nothing new from this migration; no Postgres errors after the apply. `DATA.version` **not**
+bumped: `DATA.notePrompts` is display-only (`compute()` never reads it). Solo-character rule confirmed by the owner on
+2026-10-17 (AW1; see *Owner decisions*). Still open: `2026-10-13-campaign-house-rules-server.sql` must now be rebuilt on these
+live definitions (board: *feat/campaign-house-rules merge — rebuild the house-rules server migration…*).
 
 ## Context
 

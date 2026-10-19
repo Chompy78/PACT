@@ -71,6 +71,12 @@ create extension if not exists pgcrypto with schema extensions;
 -- THE THING UNDER TEST: the documented fresh-install path, and nothing else.
 -- No migration file is loaded here on purpose — that is the whole point.
 -- ---------------------------------------------------------------------------
+-- Supabase Storage stand-in (storage.buckets / storage.objects), loaded BEFORE the baseline on purpose:
+-- rls-policies.sql's Storage section (feat/character-images) only builds the bucket and its four policies
+-- when storage.objects exists, i.e. on Supabase. With the stub present here that guarded branch is actually
+-- executed and checked below, instead of being skipped as it is on every other plain-Postgres loader.
+\ir ../scripts/creation-lock-guard-test/images-storage-shim.sql
+
 \ir ../../sql/schema.sql
 \ir ../../sql/rls-policies.sql
 
@@ -799,6 +805,20 @@ end $$;
 --     provolatile immutable / stable / volatile
 -- Drop `security definer` from a trigger function in one source only and this now goes red instead of
 -- reporting SAME logic.
+-- feat/character-images: storage policies are not functions, so they get their own snapshot. The baseline must have
+-- built the bucket and all four policies (its Storage section is guarded on storage.objects existing; the stub
+-- loaded at the top makes it exist), and the migration must define the same four.
+create table pg_temp.baseline_policies as
+select policyname, cmd, roles::text as roles, coalesce(qual, '') as qual, coalesce(with_check, '') as with_check
+from pg_policies where schemaname = 'storage' and policyname like 'character_images_%';
+do $$ begin
+  perform pg_temp.ok('the baseline built all 4 character-images storage policies',
+    (select count(*) from pg_temp.baseline_policies) = 4);
+  perform pg_temp.ok('the baseline built the character-images bucket: private, 2 MB, webp/jpeg/png',
+    exists (select 1 from storage.buckets where id = 'character-images' and public = false
+             and file_size_limit = 2097152 and allowed_mime_types = array['image/webp','image/jpeg','image/png']));
+end $$;
+
 create table pg_temp.baseline_bodies as
 select proname,
   md5(regexp_replace(regexp_replace(regexp_replace(
@@ -814,7 +834,9 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'pact_refuse_blank_solo_character','pact_purge_blank_characters',
                   'redeem_player_invite','redeem_character_claim',
                   'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind',
-                  'pact_ap_ledger_discount','pact_enforce_dm_discount_authorship','pact_enforce_ap_budget_consistency');
+                  'pact_ap_ledger_discount','pact_enforce_dm_discount_authorship','pact_enforce_ap_budget_consistency',
+                  'pact_js_trim','pact_item_note_state','pact_enforce_item_note_lock',
+                  'character_image_character','can_read_character_image','can_write_character_image');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -822,8 +844,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 21 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 21);
+  perform pg_temp.ok('all 27 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 27);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -845,6 +867,10 @@ end $$;
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 \ir ../../sql/migrations/2026-10-11-campaign-npcs.sql
 \ir ../../sql/migrations/2026-10-13-dm-ap-discount.sql
+-- applied to production 2026-10-19 (both). The notes migration REDEFINES dm_edit_character_log, so it must load after
+-- dm-ap-discount (whose older definition it builds on); character-images needs the storage stub loaded above.
+\ir ../../sql/migrations/2026-10-15-boon-drawback-notes.sql
+\ir ../../sql/migrations/2026-10-15-character-images.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -864,10 +890,19 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 21 functions (saw ' || v_n || ')',
-    v_n = 21);
+  perform pg_temp.ok('the drift comparison actually covered all 27 functions (saw ' || v_n || ')',
+    v_n = 27);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
+end $$;
+
+do $$ begin
+  perform pg_temp.ok('rls-policies.sql and the character-images migration define the SAME 4 storage policies',
+    (select count(*) from pg_temp.baseline_policies b
+       join pg_policies p on p.schemaname = 'storage' and p.policyname = b.policyname
+      where p.cmd = b.cmd and p.roles::text = b.roles
+        and coalesce(p.qual, '') = b.qual and coalesce(p.with_check, '') = b.with_check) = 4
+    and (select count(*) from pg_policies where schemaname = 'storage' and policyname like 'character_images_%') = 4);
 end $$;
 
 \echo ''
