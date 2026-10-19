@@ -4944,7 +4944,7 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
       // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
       const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
-        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote');});   // + DM approvals of descriptions (feat/boon-drawback-notes): server-frozen too
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote'||_cgIsDmFamily(e));});   // + DM approvals of descriptions (feat/boon-drawback-notes) and every DM-family event (house rules: a dmHouseRules override is allowed on a draft, and trg_pact_dm_family_guard refuses a save that drops it): server-frozen too
       const _keepId=!!d.id&&!_protected;
       // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
       // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
