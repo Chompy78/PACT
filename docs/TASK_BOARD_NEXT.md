@@ -1709,3 +1709,71 @@ locked character through it and asserts the lock events survive; `engine-parity.
 load; the server guard does not yet stop moving a post-lock purchase to before the lock (review H3); `random-manual-e2e.mjs` does not use the shared browser
 launcher; scan other campaigns for the same lock-loss pattern; four free-API cold reviews of the original plan (need `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 `GROQ_API_KEY`, `DEEPSEEK_API_KEY`).
+
+## fix/audit-saves-and-skills — five abilities sell a save or skill grant the engine never gives — TODO
+Branch fix/audit-saves-and-skills. **Effort:** medium · **Risk:** high — rules change (engine AND Players Guide both land, `DATA.version` bumped once) that can change what live characters own or pay, so measure the live owners first.
+
+```text
+FOUND 2026-10-20 by the wide ability audit (read-only, against origin/preview). The 2024 grants below come from the audit's memory of the PHB, because `features`/`subAbilMap` carry no text — confirm each against the book before changing it.
+Each is a priced ability whose 2024 text also grants something PACT sells separately, and `compute()` grants none of it (proved by buying each on a 20-HD build and diffing compute()):
+  - Monk: Disciplined Survivor (19 / 30 AP): proficiency in ALL saving throws. All six saves cost 75 AP (62 if two are owned). The Guide's own rule says convert to the saves ladder.
+  - Gloom Stalker: Iron Mind (11 / 18 AP): a WIS save. Sold, grants nothing, while the Guide says "Barred (to saves)". The player overpays.
+  - Boon of Skill (25 AP, epic boon, HD 19): the Guide says "Proficiency in every skill"; buying it adds 0 skills. 18 skills cost 72 AP.
+  - Fey Wanderer: Otherworldly Glamour (9 / 14 AP): one of Deception / Performance / Persuasion, not granted (1–3 AP).
+  - Bard, College of Lore: Bonus Skills (9 / 14 AP): three skills in the 2024 text; priced as a feature, nothing granted.
+DO (decide each with the owner, then apply the SAME pattern used for Primal Order — see D-GH-2026-10-20-primal-order-magician-warden): either (R1) make the ability free of the grant and let the existing ladders sell it (bar:true, or a free:true feature that switches the proficiency on so the ladders charge once), or (R2) grant it free and count it first (the owner's feat rule), or (R5) bar the ability. One decision per ability, written in the decision record.
+MEASURE FIRST: for each ability, query live `characters` for owners (stats::text ilike) and list them; an event-sourced character keeps its frozen ledger, but a changed compute() total will diverge from it — keep the owner's total unchanged with a grandfathered grant exactly as Primal Order did.
+```
+**Done when:** each of the five has an owner decision and an engine + Guide change (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a `prof-grants-ci.mjs` case per ability proves what it now grants and costs; any live owner's total is unchanged or listed for the owner; `DATA.version` bumped once; `engine-parity` 0 failed.
+
+## fix/audit-free-spell-picks — Eldritch Knight, Arcane Trickster and Magical Secrets give six free off-list spell picks of any level — TODO
+Branch fix/audit-free-spell-picks. **Effort:** medium · **Risk:** high — rules change; touches what two live subclasses can list, and the Guide says these spell lists are bought ("Barred → spell economy").
+
+```text
+FOUND 2026-10-20 (wide ability audit). `DATA.spellGrants.choiceGrants` makes owning Fighter: Eldritch Knight, Rogue: Arcane Trickster or Bard: Magical Secrets show a block of SIX "free off-list picks — not bought" in both tools' ✎ Name dialog, any spell level. The audit proved it: with Wish, Meteor Swarm, Time Stop and Power Word Kill named, the character's total stayed at the bare 3-HD cost of 5 AP. Value 6–30 AP for 0. Magical Secrets (13 / 22 AP) only widens the spell pool in the 2024 text; Eldritch Knight / Arcane Trickster (free first subclass) lose their 2024 school limits in PACT but still learn spells through the ordinary known-spell slots.
+DO: decide with the owner whether each grant is (R1) dropped, so the player buys those spells through the normal known-spell slots with the subclass's list widened, or (R6) capped (a level ceiling and a count that matches the 2024 feature). Keep the cantrip grants (Mage Hand for Arcane Trickster) if the 2024 text gives them.
+MEASURE FIRST: list live characters that own any of the three and have named a grant spell (`stats.LOG` names events, key `grants`); their named spells must survive as already-learned, or the owner decides otherwise.
+```
+**Done when:** the owner's decision per grant is in the decision record; the engine and both tools agree (the ✎ dialog rows come from `ownedChoiceGrants`); a test proves a high-level free pick is no longer possible and a live character's named spells are kept; Guide text (both copies) states it; `DATA.version` bumped once; `engine-parity` 0 failed; `names-dialog-e2e` and `livesheet-pack-spells-e2e` pass.
+
+## fix/audit-text-only-grants — Boon of Fortitude's +40 HP, Body and Mind, Telepathic and Tavern Brawler claim effects the engine does not apply — TODO
+Branch fix/audit-text-only-grants. **Effort:** medium · **Risk:** medium — each is a one-ability change, but they are rules changes (Guide + engine + `DATA.version`).
+
+```text
+FOUND 2026-10-20 (wide ability audit; the 2024 numbers are from memory of the PHB — confirm them):
+  - Boon of Fortitude (25 AP): the text gives +40 max HP; only the +2 CON is coded. Ten Grit purchases cost 120 AP, so the gap is about 95 AP.
+  - Monk: Body and Mind (19 / 32 AP): 2024 gives +4 DEX and +4 WIS (max 25); the engine adds nothing (scores unchanged after buying), so it is a dead purchase. The ability ladder stops at 20; the Guide says Primal Champion is "the only" cap-breaker.
+  - Telepathic (5 AP art): 2024 adds Detect Thoughts once per long rest (worth ~18 AP as an innate level-2 spell). The Guide's barred list names it, yet its own table and the data sell it.
+  - Tavern Brawler (4 AP art): the data text claims improvised-weapon proficiency (3 AP when bought separately); `weaponProf` stays empty. The Guide's text omits the claim and sells improvised weapons at 3 AP flat.
+DO: one owner decision per item — implement the text (like `_flat` does for Primal Champion's +4), bar it, or correct the text — and apply it in engine + Guide. For Tavern Brawler the simplest correct fix is to remove the claim from the data text.
+MEASURE FIRST: live owners of each.
+```
+**Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
+
+## chore/decide-spell-invocation-pricing — spell-granting Warlock invocations and similar features are priced by tier, not by the spell they give — DECISION NEEDED
+Branch chore/decide-spell-invocation-pricing. **Effort:** low (the decision) · **Risk:** low until a rule is chosen — then high.
+
+```text
+FOUND 2026-10-20 (wide ability audit) — a pricing-POLICY question, not a missing grant. The Guide says spell-granting invocations "follow the spell-grant ladder", but the engine prices them by Tier/Band. Measured against the innate-spell price of what they give: Contact Patron (10 AP; innate level 5 = 36), Beguiling Magic (6; Charm Person + Mirror Image = 30), Visions of Distant Realms (12 vs 30), Gift of the Depths (6 vs 24), Far Scribe (6 vs 24), Undying Servitude (8 vs 24), Whispers of the Grave (10 vs 24), Greater Divine Intervention (14 vs 60). The gaps are 18–46 AP each.
+DO: ask the owner whether the tier price is intended (these are class features, so a class-feature price is correct and the Guide sentence should change) or whether they should move to the spell-grant ladder. No code change until the owner decides.
+```
+**Done when:** the owner's answer is recorded in `DECISIONS.md`; if "intended", the Guide sentence is corrected in both copies; if not, a follow-up rules task is added with a live-owner measurement.
+
+## docs/reconcile-pact-guide-primal-order — bring the pact-guide project's own records and generated files up to v0.381 — TODO
+Branch docs/reconcile-pact-guide-primal-order (work in the `pact-guide` project via the home-server connector, not in this repo). **Effort:** low · **Risk:** low.
+
+```text
+2026-10-20: the Players Guide master (`PACT-Players-Guide.html` in `pact-guide`) was edited through the connector to carry the Primal Order / Divine Order split (class tables, one prose paragraph, three worked examples) and the free-feat-proficiency paragraph. Its OTHER files were not touched: `CHANGELOG.md`, `TASK_BOARD.md`, `DECISIONS.md`, the `documents-rules:` stamp (deliberately advanced only by that project's stamp tool), `py/generated/engine-prices.json` and the vendored `py/vendor/engine/` snapshot (refreshed by that project's sync), and `plans/guide-audit-report.md` items 28 (Primal Order) and 112–113 (the War Priest worked example's feature and casting totals are wrong by several AP — the three worked examples were edited for the Divine Order lines only and their other sums are still unreconciled).
+Also noted while editing: the master and the served copy differ in unrelated places (Druid "Circle bonus spells varies 5–11" vs 5–12; the War Priest archetype total 204 vs 205).
+DO: in `pact-guide`, add the CHANGELOG/TASK_BOARD/DECISIONS lines, run the sync that refreshes the vendored engine, run `stamp_guide_rules.mjs` as a deliberate reconciliation, and re-check the worked examples against the engine. Then run `node testing/scripts/verify-guide.mjs` and `guide-table-diff.mjs` here.
+```
+**Done when:** `pact-guide`'s records mention the change; its vendored engine and generated prices match v0.381; the `documents-rules` stamp names the reconciled version; `guide-table-diff.mjs` lists no row for the Primal Order / Divine Order / Musician / Chef paragraphs as differing.
+
+## ui/show-granted-proficiencies — CharGen's proficiency tick boxes do not show what Warden, Protector and the legacy Primal Order grant — TODO
+Branch ui/show-granted-proficiencies. **Effort:** low · **Risk:** low — display only, but CharGen repaints its boxes from the fold and a derived flag saved as a raw one would break the "never store derived values" rule.
+
+```text
+2026-10-20: `profGrants()` makes Warden / Protector (priced) and the legacy Primal Order (not priced) switch weapon and armour proficiency on at compute time; the Live Sheet's weapon list and armour eligibility read it, but CharGen's weapon / armour tick boxes (`wp_simple`, `wp_all`, the `armour` boxes) and the Live Sheet's "Weapons & armour" buy buttons still show only what was bought. A player can tick the same box again: it costs nothing extra (flags are on/off) but it adds a dead event.
+DO: show a granted flag as ticked-and-locked with a "from Warden" note, and never write it into the build (CharGen emits a `wprof` patch from the boxes — it must not include a granted flag).
+```
+**Done when:** a Warden character sees the four boxes ticked and locked in CharGen and as owned in the Live Sheet; saving and reloading leaves `weaponProf` / `armour` exactly as bought (no granted flag in the log); `chargen-flows-e2e` and a new case in `feature-cantrip-picker-e2e.mjs` (or a sibling) cover it.
