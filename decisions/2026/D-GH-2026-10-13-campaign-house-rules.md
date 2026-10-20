@@ -495,4 +495,3 @@ re-pricing a held drawback applies only to the holders the DM ticks; a buy-off c
 character can go below 0 AP left, but then can't spend. It is committed to the `pact-guide` master as one paragraph only.
 That project's working copy also has unrelated, uncommitted edits from another session dated 2026-10-17, which were left
 untouched and uncommitted. It is also in the served copy, and `verify-guide` passes all 11 checks.
-
