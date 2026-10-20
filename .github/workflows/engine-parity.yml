@@ -27,6 +27,7 @@ on:
       - "testing/scripts/imposed-drawback-grants-ci.mjs"
       - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/subclass-double-purchase-ci.mjs"
+      - "testing/scripts/prof-grants-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "testing/scripts/lineage-spell-gates-ci.mjs"
       - "testing/scripts/stored-size-ci.mjs"
@@ -271,6 +272,25 @@ jobs:
 
       - name: One subclass ability is one purchase, through either door
         run: node testing/scripts/subclass-double-purchase-ci.mjs
+
+  prof-grants:
+    # feat/primal-order-magician-warden (docs/plans/2026-10-20-primal-order-magician-warden.md). Druid Primal Order and Cleric Divine
+    # Order are each split into two features: Warden / Protector (no price of their own, they switch on weapon + armour proficiency
+    # flags that the existing proficiency lines charge for: 15 / 21 AP) and Magician / Thaumaturge (6 AP, a cantrip and a WIS skill
+    # bonus). The old keys are retired with bar:true; the Druid one keeps a grandfathered martial + Medium grant that is never priced.
+    # engine-parity pins compute()'s output for the fixtures; this pins the new grant mechanism, the "never charged twice" property and
+    # that the free:true guard stops a Martially Bound or cross-class buyer paying the 1 AP floor for a feature that has no price.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Features that grant proficiencies, cantrips and skill bonuses
+        run: node testing/scripts/prof-grants-ci.mjs
 
   lineage-spell-gates:
     # fix/lineage-spell-gates (D-GH-2026-10-11-lineage-spell-gates, v0.373). Lineage spell-likes carry the PHB 2024 character
