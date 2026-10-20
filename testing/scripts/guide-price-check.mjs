@@ -268,8 +268,8 @@ const ALLOW = {
   'ambiguous|Sorcerer|-|Origin bonus spells': 'A bundle row printed as "varies a–b": the engine has one bundle per subclass at different prices. Not compared.',
   'ambiguous|Warlock|-|Patron bonus spells': 'A bundle row printed as "varies a–b": the engine has one bundle per subclass at different prices. Not compared.',
   // -- rows the guide deliberately prints without a price
-  'unparsed-price|Cleric|-|Divine Order (Protector/Thaumaturge)': 'The guide prints no price (status "skill grant → ladder"), so there is nothing to compare. Whether the engine\'s flat 5 (5) is meant to be that price is NOT verified here.',
-  'unparsed-price|Druid|-|Primal Order': 'The guide prints no price (status "skill grant → ladder"), so there is nothing to compare. Whether the engine\'s flat 5 (5) is meant to be that price is NOT verified here.',
+  'unparsed-price|Cleric|-|Divine Order (Protector)': 'The guide prints no price on purpose: the engine entry is free:true (price 0) and only switches on Simple, all martial weapons and Light, Medium and Heavy armour, which the ladders then charge for (21 AP in total, checked by testing/scripts/prof-grants-ci.mjs). Nothing to compare.',
+  'unparsed-price|Druid|-|Primal Order (Warden)': 'The guide prints no price on purpose: the engine entry is free:true (price 0) and only switches on Simple, all martial weapons, Light and Medium armour, which the ladders then charge for (15 AP in total, checked by testing/scripts/prof-grants-ci.mjs). Nothing to compare.',
   'unparsed-price|Fighter|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
   'unparsed-price|Paladin|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
   'unparsed-price|Ranger|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
