@@ -819,6 +819,21 @@ do $$ begin
              and file_size_limit = 2097152 and allowed_mime_types = array['image/webp','image/jpeg','image/png']));
 end $$;
 
+-- The four characters/campaigns triggers folded 2026-10-20 must be built by the baseline itself (a function with no trigger
+-- would pass the body comparison below and still guard nothing).
+do $$ begin
+  perform pg_temp.ok('the baseline built the player-AP ceiling and the three house-rules triggers',
+    (select count(*) from pg_trigger where not tgisinternal and tgname in
+       ('trg_pact_player_ap_ceiling','trg_pact_dm_family_guard','trg_pact_player_grants_guard','trg_pact_guard_char_house_rules')) = 4);
+  perform pg_temp.ok('the baseline leaves the new trigger functions uncallable and the house-rules RPC callable only when signed in',
+    not has_function_privilege('authenticated','public.pact_enforce_player_ap_ceiling()','EXECUTE')
+    and not has_function_privilege('authenticated','public.pact_enforce_dm_family()','EXECUTE')
+    and not has_function_privilege('authenticated','public.pact_enforce_player_grants()','EXECUTE')
+    and not has_function_privilege('authenticated','public.pact_guard_char_house_rules()','EXECUTE')
+    and has_function_privilege('authenticated','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE')
+    and not has_function_privilege('anon','public.dm_apply_house_rules_change(uuid,jsonb,jsonb,jsonb)','EXECUTE'));
+end $$;
+
 create table pg_temp.baseline_bodies as
 select proname,
   md5(regexp_replace(regexp_replace(regexp_replace(
@@ -836,7 +851,14 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'is_campaign_member','list_campaign_invites','remove_dm','dm_bind_npc','pact_npc_clear_on_unbind',
                   'pact_ap_ledger_discount','pact_enforce_dm_discount_authorship','pact_enforce_ap_budget_consistency',
                   'pact_js_trim','pact_item_note_state','pact_enforce_item_note_lock',
-                  'character_image_character','can_read_character_image','can_write_character_image');
+                  'character_image_character','can_read_character_image','can_write_character_image',
+                  -- folded 2026-10-20: player AP (2026-09-03 + 2026-10-12) and campaign house rules (2026-10-13-campaign-house-rules-server)
+                  'dm_zero_player_ap','pact_enforce_player_ap_ceiling','pact_ap_ledger_spend',
+                  'pact_js_truthy','pact_js_number','pact_js_key','pact_next_seq','pact_num',
+                  'pact_hr_drawback_cap','pact_hr_entry_ok','pact_hr_validate','pact_hr_resolve',
+                  'pact_drawback_printed','pact_hr_drawback_effective','pact_ap_ledger_split',
+                  'pact_dm_family','pact_enforce_dm_family','pact_enforce_player_grants','pact_guard_char_house_rules',
+                  'dm_apply_house_rules_change');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -844,16 +866,16 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 27 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 27);
+  perform pg_temp.ok('all 47 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 47);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
 \ir ../../sql/migrations/2026-09-02-restore-dm-edit-guards.sql
 \ir ../../sql/migrations/2026-09-02-widen-protected-projection.sql
 \ir ../../sql/migrations/2026-09-02-seal-freezes-species-and-ratchets-stats.sql
--- Applied to production 2026-09-03 but never folded into rls-policies.sql (dm_zero_player_ap, pact_enforce_player_ap_ceiling):
--- loaded here so the migration path is at least built and exercised. Not in the drift comparison until it is folded in.
+-- Applied to production 2026-09-03 (dm_zero_player_ap, pact_enforce_player_ap_ceiling); folded into rls-policies.sql 2026-10-20.
+-- Its pact_enforce_player_ap_ceiling() is the OLD one — 2026-10-12-server-player-award-after-lock.sql below redefines it.
 \ir ../../sql/migrations/2026-09-03-dm-zero-player-ap.sql
 \ir ../../sql/migrations/2026-09-05-restore-protected-search-path.sql
 \ir ../../sql/migrations/2026-09-06-player-basic-mode.sql
@@ -866,11 +888,17 @@ end $$;
 \ir ../../sql/migrations/2026-10-10-blank-row-guard.sql
 \ir ../../sql/migrations/2026-10-11-unique-character-names.sql
 \ir ../../sql/migrations/2026-10-11-campaign-npcs.sql
+-- applied to production 2026-10-13, folded 2026-10-20: redefines pact_enforce_player_ap_ceiling (from 2026-09-03 above).
+\ir ../../sql/migrations/2026-10-12-server-player-award-after-lock.sql
 \ir ../../sql/migrations/2026-10-13-dm-ap-discount.sql
 -- applied to production 2026-10-19 (both). The notes migration REDEFINES dm_edit_character_log, so it must load after
 -- dm-ap-discount (whose older definition it builds on); character-images needs the storage stub loaded above.
 \ir ../../sql/migrations/2026-10-15-boon-drawback-notes.sql
 \ir ../../sql/migrations/2026-10-15-character-images.sql
+-- applied to production 2026-10-20 (with two follow-ups that only re-spelled pact_js_number()'s trim set in ASCII — the file
+-- carries the final text). It REDEFINES dm_edit_character_log on top of the notes definition, and pact_ap_ledger_spend /
+-- _discount / _protected, pact_enforce_ap_budget_consistency and pact_enforce_locked_history, so it loads last.
+\ir ../../sql/migrations/2026-10-13-campaign-house-rules-server.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -890,8 +918,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 27 functions (saw ' || v_n || ')',
-    v_n = 27);
+  perform pg_temp.ok('the drift comparison actually covered all 47 functions (saw ' || v_n || ')',
+    v_n = 47);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

@@ -18,7 +18,8 @@
   reprice applies to (S2), via seq-targeted `dmRefundBoon` / `dmRemoveDrawback` / `dmRepriceDrawback` events that move browser and
   server ledger by the same amount. Engine half landed (rules v0.377); tools, server, DM editor, #642 rework and the guide follow.
   Owner Z1 (2026-10-13) closed the cap question: the server caps drawback grants exactly as js/campaign.js drawbackCapFromRules()
-  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration, written and rehearsed, NOT applied) adds
+  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration; APPLIED 2026-10-20 with v1.684 and folded into
+  `sql/rls-policies.sql` the same day — SQL sent through an MCP/JSON tool spells non-ASCII with chr()) adds
   the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
   PR4 (DM Console editor): one review dialog (S2 ticks per character + drawback, T2 removals, below 0 shown) then ONE RPC call;
   bound characters with unknown campaign rules are strict in both player tools; owner answers AC (draft reprice) and AD1 (opt-in removal on bans) deferred to board tasks.
@@ -108,7 +109,8 @@
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
   `dmEdit` flag), and refuses any campaign award whose amount is not a JSON number. Sum-shaped so CharGen's Budget singleton
   relocation keeps working. A redeemed AP code counts as a player award there (Live Sheet refuses Redeem first). Closes the award
-  route only (negative costs remain a board task). Migration APPLIED 2026-10-13 (owner decision N1).
+  route only (negative costs remain a board task). Migration APPLIED 2026-10-13 (owner decision N1); folded into
+  `sql/rls-policies.sql` 2026-10-20.
   Full record: `decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md`.
 ## D-GH-2026-10-12-audit-fix-followups-2026-10-12 — Randomise keeps the id; creation AP refused while confirming; Live Sheet Tasha lock
 - H2 (owner away), provisional. A CharGen re-roll is the same character, so it keeps its id (no second cloud row). CharGen's

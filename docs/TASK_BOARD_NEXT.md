@@ -1397,72 +1397,22 @@ come from it.
 ---
 
 
-## feat/campaign-house-rules — campaign-wide house rules: tools, server, DM editor, #642 rework, Players Guide (PRs 2–6) — TODO
-Branches one per PR below. **Effort:** high · **Risk:** high — priced data across all three tools plus an AP-moving server migration.
+## feat/house-rules-dm-event-provenance — a player can carry forged DM house-rules events into a campaign (R2-6) — TODO
+Branch feat/house-rules-dm-event-provenance. **Effort:** medium · **Risk:** high — an AP-moving server rule on every campaign join, engine and server must agree.
 
 ```text
-Owner decisions P2/R1/U1/T2/S2/V1/W1/X1/Y1 (2026-10-13) — read decisions/2026/D-GH-2026-10-13-campaign-house-rules.md and the plan
-docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) and PR2 (tools) have landed:
-houseRulesCtx / withHouseRulesCtx / resolveHouseRules / effective tables / drawbackValue / drawbackBuyoffQuote / houseRulesImpact /
-serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events. Remaining, each its own PR:
-  PR2 feat/campaign-house-rules-tools — DONE (2026-10-13, see CHANGELOG): ctx stamped in all three tools' folds, js/campaign-rules.js
-      (houseRulesCtxFromRules / latestRulesSnapshot, re-exported by campaign.js), Live Sheet effective pickers + W1 buy-off + buyoff
-      targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
-  PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR #654 OPEN, NOT APPLIED: migration
-      sql/migrations/2026-10-13-campaign-house-rules-server.sql + rollback, Docker harness run-house-rules.sh (in sql-guards CI).
-      Owner decision AB1 (server drawback price list, generated from engine-data.js) is in. Before applying: the header's
-      read-only queries Q1-Q5, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
-      follow-up PR folds it into sql/rls-policies.sql and the baseline tests. It may be applied BEFORE the promotion (the PR
-      #654 review withdrew the "apply together" constraint: main's re-costing of a DM grant is already refused today).
-      PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
-      (dm_bind_npc, then dm_unbind_character) or on a solo character before joining, and bring them into campaign X. Count
-      AP-moving DM events only when their campaignId equals the character's current campaign_id — engine AND server, so
-      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads. Concrete case (round-2
-      review R2-6, pinned as a KNOWN GAP in run-house-rules.sh): while solo, forge a dmEdit dmHouseRules pin
-      {Fake: 1000} stamped with campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the
-      server grants 1000. The campaignId filter alone does not stop it (the forger used X's id); it needs the adjustments
-      table, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
-      campaign_dms for X) — see PR #654's body.
-  MERGE WITH #649 (feat/dm-ap-discount) — DONE 2026-10-13 (sync of the integration branch with preview; see CHANGELOG and the
-      decision record's "Merge with preview / #649" addendum). Reconciled as listed below:
-      - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
-        inside it; mixing the two signatures fails silently (wrong tally, no error).
-      - a boon refunded by dmRefundBoon after a #649 discount must not be credited twice: the refund = frozen cost MINUS the
-        discount on that target, mirrored in the server ledger (PR3).
-      - parity fixture id EV-034 is used by both — renumber one.
-      - the Live Sheet ledger's dmTag / else-if chain needs both PRs' branches.
-  PR4 feat/campaign-house-rules-dm-editor — PR OPEN (2026-10-13, see CHANGELOG): editor, S2/T2 review, one RPC call,
-      un-migrated-server message, effective grant/impose pickers, the client strictness below and the second-copy label are
-      in; real-RPC replay in CI. Owner questions answered and deferred: AC -> feat/house-rules-draft-reprice, AD1 (opt-in
-      removal on bans) -> feat/house-rules-ban-removal. Original brief: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
-      houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does. The RPC (PR3):
-      dm_apply_house_rules_change(p_campaign, p_char_house_rules [SQL null = unchanged, JSON null = remove], p_actions[]) with
-      actions {kind:'override'|'pin', character, overrides} · {kind:'reprice', character, name, targetSeq, amount, from, to} ·
-      {kind:'refundBoon'|'removeDrawback', character, name, targetSeq} (the server stamps cost / grantBack). It refuses an
-      AP-moving action on a character without an explicit creationLocked after its last creationUnlocked — so a threshold
-      auto-locked character is NOT tickable either — and refunds of DM-granted boons (use dmRemoveBoon via
-      dm_edit_character_log, FIFO by name: offer it only when the DM-granted copy is the oldest open one of that name).
-      Client strictness when campaign rules are UNKNOWN (PR #654 round 3, finding 4 — PR4 or a small follow-up): a BOUND
-      character with no rulesSnapshot and rules not active gets postLockAllowance(null) = allowed and a context without the
-      campaign's charHouseRules (Live Sheet _lsHrCtx ~560-566, CharGen ~4181 / ~4329), so a post-lock drawback can be taken
-      and a campaign-custom drawback is priced at printed/0 — then the server (PR3) refuses the whole sync. When campaign
-      rules are unknown for a bound character the tools should be strict: no post-lock drawbacks, and flag items whose price
-      depends on campaign house rules instead of pricing them.
-      Cosmetic (round 3, finding 5): a dmRemoveDrawback aimed at a SECOND open copy of a name is labelled "−v AP" in the
-      ledger rows, but moves 0 (F1: only the oldest copy grants) — the DM Console should label it, or offer removal of the
-      granting copy first.
-  PR5 feat/campaign-house-rules-overrides (rework #642) — PR OPEN (2026-10-13, see CHANGELOG): per-character overrides as a
-      dmHouseRules snapshot via the RPC, single-holder S2, inherited values shown; #642 closed in its favour.
-  PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
-      testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
-      merge BEFORE preview is promoted to main.
-SECURITY GATE: PR1's engine counts dmEdit-flagged events that a PLAYER can still write until PR3's DM-family guard is applied
-(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration.
+Carried from the graduated feat/campaign-house-rules entry (all of PRs 2–6 shipped in v1.684; the server migration was applied
+2026-10-20 — decisions/2026/D-GH-2026-10-13-campaign-house-rules.md, "Residual risk" and the 2026-10-20 addenda). The one open
+item, pinned as a KNOWN GAP in testing/scripts/creation-lock-guard-test/run-house-rules.sh (round-2 review R2-6): a player can
+stamp DM-family events as the DM of their own campaign Y (dm_bind_npc, then dm_unbind_character), or on a solo character before
+joining, and bring them into campaign X. Concrete case: while solo, forge a dmEdit dmHouseRules pin {Fake: 1000} stamped with
+campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the server grants 1000. A campaignId
+filter alone does not stop it (the forger used X's id). Options from PR #654's body: record RPC-issued amounts in a server-side
+table the ledger reads, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
+campaign_dms for X). Measure live first (DM-family events whose dmId is not a DM of the stamped campaign).
 ```
-**Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
-server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;
-leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
-verify-guide.mjs passes; promotion to main only after PR3 is applied (security gate above) and PR6 has landed.
+**Done when:** the R2-6 case in run-house-rules.sh is refused (moved from KNOWN GAP to refused), honest joins and DM paths still
+pass, engine and server agree on the AP left, and the owner has applied the migration with advisors clean.
 
 ## feat/dm-house-rules-editor — revisit #638's H2 decisions now that DMs can set house rules — TODO
 Branch fix/player-free-ap-h2-revisit. **Effort:** low · **Risk:** low — owner decisions, then small tool changes.
@@ -1577,26 +1527,6 @@ DO:
   4. Consider batching by class (one PR per class or two) so each is reviewable.
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
-
-## feat/campaign-house-rules merge — rebuild the house-rules server migration on the live boon/drawback-notes definitions — TODO
-Branch: feat/campaign-house-rules (its server PR, feat/campaign-house-rules-server). **Effort:** low · **Risk:** medium — applying it as written would silently remove the live description lock.
-**Status 2026-10-20:** rebuilt and rehearsed in the second preview merge (`run-house-rules.sh` 209/209, notes cases 54/0 on top, rollback byte-identical to the notes BASE; decision addendum 2026-10-20). What remains is the apply itself (owner decision AE1, with the release) and the post-apply checks in **Done when**.
-
-```text
-Carried from the graduated db/apply-boon-drawback-notes (step 3), 2026-10-19. 2026-10-15-boon-drawback-notes.sql was applied to
-production FIRST (2026-10-19), so sql/migrations/2026-10-13-campaign-house-rules-server.sql (NOT applied) must now be REBUILT on
-the live notes definitions before it is applied (see the notes migration's RECONCILE note; the baseline sql/rls-policies.sql
-carries the live text since the 2026-10-19 fold):
-  * dm_edit_character_log(): start from the live (notes) text and add house-rules' dmHouseRules branch + pact_next_seq() —
-    the union of both allow-lists and validation blocks, never house-rules' own older base;
-  * pact_dm_family(): add 'dmApproveNote' and 'dmUnlockNote' to its DM-only types;
-  * keep trg_pact_item_note_lock / pact_enforce_item_note_lock() as they are (they also freeze the PLAYER's approved itemNote);
-  * the house-rules ROLLBACK must restore the NOTES definitions of dm_edit_character_log, not the 2026-10-13 ones.
-Before applying: re-check live md5(pg_get_functiondef(dm_edit_character_log)) against the rebuilt file's base, and re-run
-run-notes.sh and run-house-rules.sh on the rebuilt files. Also mirror this into the integration branch's own
-feat/campaign-house-rules board entry when it next syncs with preview.
-```
-**Done when:** the house-rules server migration and its rollback are rebuilt on the notes definitions, both rehearsals pass on the rebuilt files, and production's `dm_edit_character_log` after the apply still contains `dmApproveNote` as well as `dmHouseRules`.
 
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).

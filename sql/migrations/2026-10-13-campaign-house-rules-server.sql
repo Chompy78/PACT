@@ -2,13 +2,19 @@
 -- feat/campaign-house-rules-server · decision D-GH-2026-10-13-campaign-house-rules · plan docs/plans/2026-10-13-campaign-house-rules.md
 -- (§6.1–6.5, ADDENDUM M1/M3/M4/X1, owner decision Z1, post-review notes).
 --
--- STATUS: NOT APPLIED   (flip this line to "STATUS: APPLIED <date>" in the PR that records the apply —
---                         testing/scripts/gen-drawback-prices-sql.mjs refuses to rewrite a file once it says APPLIED)
--- *** NOT APPLIED to the live database by merging this file. *** The owner applies it, then runs get_advisors (security +
--- performance) and skims get_logs, per AGENTS.md. Until it is applied, sql/rls-policies.sql correctly describes production
--- and is deliberately NOT changed (sql/migrations/README.md; precedents #580 -> #598, #600 -> #608): the fold into the
--- baseline, and adding this file to the \ir lists of testing/sql/session-seal-test.sql and rls-baseline-test.sql, is a
--- later PR made after the apply.
+-- STATUS: APPLIED 2026-10-20 (migration `campaign_house_rules_server`, 03:27Z), then two follow-ups that only re-created
+-- public.pact_js_number(): `campaign_house_rules_js_number_trim` (03:31Z) and `campaign_house_rules_js_number_ascii` (03:37Z).
+-- WHY THE FOLLOW-UPS: the trim set in pact_js_number() was written with the literal invisible characters (NBSP, BOM, LS, PS);
+-- the MCP/JSON tool call that carried the SQL decoded them and they arrived as plain spaces, so the live function trimmed the
+-- wrong set. The line now spells them by code point — chr(160) || chr(65279) || chr(8232) || chr(8233) — plain ASCII that no
+-- copy or transport can mangle, and this file carries that final text. Verified after the apply: md5(pg_get_functiondef) of
+-- all 23 functions this file defines equals a scratch Postgres 17 built from schema.sql + rls-policies.sql (as of #684) +
+-- 2026-09-03-dm-zero-player-ap.sql + 2026-10-12-server-player-award-after-lock.sql + this file. Advisors: one new item,
+-- dm_apply_house_rules_change callable by authenticated (intentional — it is the RPC); the three trigger functions are not.
+-- No Postgres errors; a rolled-back live spot-check as real users passed 8/8. Folded into sql/rls-policies.sql 2026-10-20
+-- (decisions/2026/D-GH-2026-10-13-campaign-house-rules.md, "Applied to production 2026-10-20").
+-- testing/scripts/gen-drawback-prices-sql.mjs refuses to rewrite this file now that it says APPLIED: a later drawback price
+-- change ships as a NEW migration (start it from --stdout) and is folded into rls-policies.sql after it is applied.
 --
 -- Rehearsed on a throwaway Postgres: testing/scripts/creation-lock-guard-test/run-house-rules.sh (BEFORE: the new
 -- cases fail on today's definitions; AFTER: every case passes; rollback: every changed definition byte-identical).
@@ -241,7 +247,7 @@ begin
   elsif t <> 'string' then
     return null;
   end if;
-  s := btrim(p #>> '{}', E' \t\n\r\f\u000b ﻿  ');
+  s := btrim(p #>> '{}', E' \t\n\r\f\u000b' || chr(160) || chr(65279) || chr(8232) || chr(8233));   -- JS whitespace (NBSP, BOM, LS, PS by code point: plain ASCII, so no copy or transport can mangle them)
   if s = '' then return 0; end if;
   if s ~ '^[+-]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?$' then
     begin

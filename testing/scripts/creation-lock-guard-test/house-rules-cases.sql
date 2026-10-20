@@ -1,6 +1,7 @@
 \set QUIET on
 -- feat/campaign-house-rules-server — cases for sql/migrations/2026-10-13-campaign-house-rules-server.sql.
--- Built on the REAL fresh-install path (schema.sql + rls-policies.sql) plus 2026-09-03-dm-zero-player-ap.sql, so the real
+-- Built on the REAL fresh-install path (schema.sql + rls-policies.sql, which carries
+-- 2026-09-03-dm-zero-player-ap.sql since 2026-10-20 — and this migration too; run-house-rules.sh rolls it back first), so the real
 -- dm_edit_character_log, award_ap, award_ap_and_seal, dm_zero_player_ap, seal_character_history, the budget check, the
 -- history lock, the creation-lock guard and the player-AP ceiling all run beside the new code.
 --

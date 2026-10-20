@@ -122,7 +122,9 @@ database has its own copy of `DATA.drawbacks` (`public.pact_drawback_printed`, o
 `node testing/scripts/gen-drawback-prices-sql.mjs --check`; if it fails, run the generator without `--check` while the
 migration that carries the block still has its `-- STATUS: NOT APPLIED` line (it refuses otherwise), or — once it is applied —
 start a NEW migration (`--write sql/migrations/<new>.sql` on a file carrying the marked block) from
-`node testing/scripts/gen-drawback-prices-sql.mjs --stdout` and have the owner apply it with the release. CI
+`node testing/scripts/gen-drawback-prices-sql.mjs --stdout` and have the owner apply it with the release — then fold its block
+into `sql/rls-policies.sql` too (which carries the applied 2026-10-13 block since 2026-10-20; `testing/sql/rls-baseline-test.sql`
+drift-checks `pact_drawback_printed` against the migrations). CI
 (engine-parity, sql-guards) fails until the two agree. Run
 `node testing/scripts/version-label-ci.mjs` to confirm — it is the authority on this list, and it goes
 red rather than skipping if an element is renamed.

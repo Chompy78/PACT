@@ -1,7 +1,7 @@
 \set QUIET on
 -- fix/server-player-award-after-lock — cases. Expectations are the AFTER-migration truth. Run BEFORE the migration, the
--- player-award attacks show FAIL ('allowed' instead of 'refused'): that is the gap. Built on schema.sql + rls-policies.sql +
--- 2026-09-03-dm-zero-player-ap.sql, so the REAL dm_edit_character_log, award_ap, award_ap_and_seal, dm_zero_player_ap,
+-- player-award attacks show FAIL ('allowed' instead of 'refused'): that is the gap. Built on schema.sql + rls-policies.sql (which
+-- carries 2026-09-03-dm-zero-player-ap.sql since 2026-10-20; run-award.sh steps back to that rule first), so the REAL dm_edit_character_log, award_ap, award_ap_and_seal, dm_zero_player_ap,
 -- pact_enforce_ap_budget_consistency and pact_enforce_locked_history all run alongside the rule under test.
 drop table if exists res; create table res(n serial, name text, expect text, got text, verdict text);
 drop function if exists t(text,text,text);

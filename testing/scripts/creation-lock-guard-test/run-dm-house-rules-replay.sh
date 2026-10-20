@@ -21,8 +21,10 @@ trap 'docker rm -f "$C" >/dev/null 2>&1; rm -f "$DUMPF" "$DUMPO"' EXIT
 for i in $(seq 1 30); do docker exec "$C" pg_isready -U postgres -q && break; sleep 1; done
 sleep 2
 M=../../../sql/migrations
-{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql "$M/2026-09-03-dm-zero-player-ap.sql"; } | psqlc >/dev/null
+{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql; } | psqlc >/dev/null
 psqlc -c "insert into auth.users(id) select ('a0000000-0000-0000-0000-0000000000' || lpad(g::text, 2, '0'))::uuid from generate_series(1,29) g union all select 'd0000000-0000-0000-0000-000000000001' union all select 'd0000000-0000-0000-0000-000000000002'" >/dev/null
+# Applied 2026-10-20 and folded into rls-policies.sql, so the baseline already carries it; re-applying the migration file on top
+# (it is re-runnable) keeps this replay pinned to the file itself as well as the fold.
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server.sql" >/dev/null
 TOTAL=0
 for D in "$DUMPF" "$DUMPO"; do

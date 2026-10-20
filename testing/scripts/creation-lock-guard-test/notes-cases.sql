@@ -1,8 +1,8 @@
 \set QUIET on
 -- feat/boon-drawback-notes — cases. Expectations are the AFTER-migration truth. Run BEFORE the migration, the player
 -- attacks on an approved description show FAIL ('allowed' instead of 'refused') and the DM's Approve/Unlock show FAIL
--- (the event type is unknown): that is the gap. Built on schema.sql + rls-policies.sql + the two migrations applied live
--- but not yet folded (2026-09-03-dm-zero-player-ap.sql, 2026-10-12-server-player-award-after-lock.sql), so the REAL
+-- (the event type is unknown): that is the gap. Built on schema.sql + rls-policies.sql (which carries
+-- 2026-09-03-dm-zero-player-ap.sql and 2026-10-12-server-player-award-after-lock.sql since 2026-10-20), so the REAL
 -- dm_edit_character_log and every characters trigger live today run alongside the rule under test.
 drop table if exists res; create table res(n serial, name text, expect text, got text, verdict text);
 drop function if exists t(text,text,text);
