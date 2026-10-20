@@ -6083,8 +6083,16 @@ function randomizeRoll(themeKey,lvlWanted){
     tryAct(x => { x.tough = (+x.tough || 0) + 1; }, 'kit');
   })();
 
-  // pre-prime the CASTING ability to 14 (mod +2) so caster slot caps (= casting-stat mod) aren't 0
-  if(trad&&castAb){while((b.stats[castAb]||10)<14){if(!tryAct(x=>{x.stats[castAb]=Math.min(20,(x.stats[castAb]||10)+2);},'stats'))break;}}
+  // How far to prime. This used to be a flat 14 (casting) and 16 (primary), which made +4 to hit the
+  // floor of every roll (prof +2, mod +2). Measured 2026-10-20 over 96 rolls at 85 AP: minimum +4, and the
+  // real party holds a wizard at +3 -- players leave a stat mediocre, the roller could not. So the primary
+  // now primes to 16 most of the time, to 14 sometimes and to 12 now and then (mod +1 still keeps a caster's
+  // slot cap above 0). When the casting stat IS the primary one, the casting prime follows the same draw
+  // rather than forcing 14 first, which is what would otherwise put the floor straight back.
+  const _primeTo=(function(){const r=rnd(100);return r<70?16:r<90?14:12;})();
+  const _castTo=(castAb&&castAb===favAbil()[0])?Math.min(14,_primeTo):14;
+  // pre-prime the CASTING ability (mod +2 normally) so caster slot caps (= casting-stat mod) aren't 0
+  if(trad&&castAb){while((b.stats[castAb]||10)<_castTo){if(!tryAct(x=>{x.stats[castAb]=Math.min(20,(x.stats[castAb]||10)+2);},'stats'))break;}}
   // 2) caster kit: open the tradition (Foundation) then a MINIMUM loadout, in priority order
   if(trad && !b.traditions.some(t=>t&&t.name===trad))
     tryAct(x=>{ x.traditions.push({name:trad,rank:1,disciplines:[{name:x.originClass,bound:false,cantrips:0,slots:[0,0,0,0,0,0,0,0,0],known:[0,0,0,0,0,0,0,0,0],pactSlots:0,arcanum:[0,0,0,0]}]}); },'powers');
@@ -6094,8 +6102,8 @@ function randomizeRoll(themeKey,lvlWanted){
     if(!prepared.includes(b.originClass))tryAct(x=>{const d=discOf(x);if(!d)return false;d.known[0]=(d.known[0]||0)+1;},'powers');
     tryAct(x=>{const d=discOf(x);if(!d||(DATA.noCantrip||[]).indexOf(x.originClass)>=0)return false;d.cantrips=(d.cantrips||0)+1;},'powers');
   }
-  // 2c) prime the PRIMARY favoured ability to 16 (gates boons/arts; class-stat alignment)
-  {const p0=favAbil()[0];while((b.stats[p0]||10)<16){if(!tryAct(x=>{x.stats[p0]=Math.min(20,(x.stats[p0]||10)+2);},'stats'))break;}}
+  // 2c) prime the PRIMARY favoured ability to _primeTo (16 / 14 / 12; gates boons/arts; class-stat alignment)
+  {const p0=favAbil()[0];while((b.stats[p0]||10)<_primeTo){if(!tryAct(x=>{x.stats[p0]=Math.min(20,(x.stats[p0]||10)+2);},'stats'))break;}}
 
   // 3) Hit Dice toward the level the BUDGET actually pays for.
   // apLevel() is the tool's own budget→level lookup over DATA.levelAP — the same one that labels the AP
@@ -6238,14 +6246,21 @@ function randomizeRoll(themeKey,lvlWanted){
   // things that make a character what it is come first, and everything else still competes.
   (function buyMartialIdentity(){
     const MARTIAL = new Set(['Fighter','Barbarian','Paladin','Ranger','Monk','Rogue','Cleric']);
-    if(!MARTIAL.has(b.originClass)) { tryAct(x=>{x.weaponProf.simple=true;}, 'kit'); return; }
     tryAct(x=>{ x.weaponProf.simple = true; }, 'kit');
-    if(TH.weapons === 'martial') tryAct(x=>{ x.weaponProf.martial = true; }, 'kit');
-    // Armour, for the classes that wear it. A front-liner with no armour training cannot fix that
-    // with any amount of gold, which is the OTHER half of the "half of all rolls wear nothing" fault.
-    if(['Fighter','Barbarian','Paladin','Ranger','Cleric'].includes(b.originClass)){
+    if(MARTIAL.has(b.originClass) && TH.weapons === 'martial') tryAct(x=>{ x.weaponProf.martial = true; }, 'kit');
+    // Armour training. A character with none cannot fix that with any amount of gold, which is the OTHER
+    // half of the "half of all rolls wear nothing" fault. Light training is 2 AP, so it is bought up front:
+    //   - classes that wear armour: always (and a shield too when the theme carries one);
+    //   - classes that are trained in light armour but are not front-liners (Rogue, Bard, Warlock, Druid):
+    //     usually -- measured 2026-10-20, 18 of 20 Warlocks and 5 of 6 Bards had none;
+    //   - everyone else (Wizard, Sorcerer, Monk): occasionally, so unarmoured stays a real option for them.
+    // Always capped by the THEME's armour ceiling, so a theme that wears none still buys none.
+    const _armRank=ARM_RANK[TH.armour]!=null?ARM_RANK[TH.armour]:3;
+    const WEARS=['Fighter','Barbarian','Paladin','Ranger','Cleric'], LIGHT_USERS=['Rogue','Bard','Warlock','Druid'];
+    const wantLight=_armRank>=1&&(WEARS.includes(b.originClass)||rnd(100)<(LIGHT_USERS.includes(b.originClass)?85:25));
+    if(wantLight){
       tryAct(x=>{ x.armour.light = true; }, 'kit');
-      if(TH.shield) tryAct(x=>{ x.armour.shield = true; }, 'kit');
+      if(TH.shield&&WEARS.includes(b.originClass)) tryAct(x=>{ x.armour.shield = true; }, 'kit');
     }
   })();
 
