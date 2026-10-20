@@ -13,6 +13,26 @@ two choices the 2024 D&D rules give it, so a Druid can buy **Magician**, **Warde
   directly (Simple weapons, all martial weapons, Light armour, Medium armour). Those flags are priced by
   existing code, so Warden costs exactly what buying them by hand costs.
 
+**Added 2026-10-20 (owner decision U1): the same split for the Cleric's Divine Order.** It has the identical
+shape — `Cleric: Divine Order (Protector/Thaumaturge)` is a priced 5 AP origin / 6 AP cross-class feature with no
+effect in `compute()`. Replace it with two keys, mirroring Primal Order:
+- **Protector** — no price of its own; switches on Simple, all martial weapons, Light, Medium and Heavy armour
+  flags, so the existing lines charge about 21 AP in total (1 + 8 + 2 + 4 + 6).
+- **Thaumaturge** — one extra Cleric cantrip plus a bonus to Intelligence (Arcana or Religion) checks equal to
+  the Wisdom modifier (minimum +1). **6 AP**, mirroring Magician (owner decision V1a, 2026-10-20).
+No live character owns the old key (checked 2026-10-20), so no live character needs migrating, but the old key
+is still barred the same way, since local files and exports can hold it.
+
+**Added 2026-10-20 (owner decision W3/X1): free proficiency from feats is made real in the engine.** The guide
+says Chef, Crafter and Musician give their skill/tool/instrument proficiency free, but the engine grants nothing
+(a comment at the tools pricing step says the old free-grant fields were removed as never used and that
+bringing them back needs a fixture). The owner's rule: the granted proficiency is **added** to the build and
+**counts toward the number owned**, so it makes the character's *other* skills and tools cost more (the table
+price climbs with the count). That is the **opposite of the guide's "treated as the last one bought"** wording,
+so the guide changes too. In pricing terms: paid cost = table price for (paid + free) minus table price for
+(free), i.e. the free ones are counted first. Live measurement 2026-10-20: no character owns Musician, Chef or
+Crafter, so no saved character reprices today. The tools price path and the skills price path both need it.
+
 ## Context (what a reviewer needs to know)
 PACT is a static, vanilla-JS tabletop-RPG point-buy tool. Players spend **AP** (ability points) on a build.
 A saved character is an append-only **LOG of events** (for example "buy feature X"); HP, AC, AP spent and
@@ -43,21 +63,35 @@ bumped exactly once, in the engine, only when mechanics change. A test page (`en
 - Warden's flags can be applied at compute time without storing them (derive, don't store).
 - A flat "+WIS mod to Arcana/Nature" skill-check bonus has no existing home in the engine; no precedent found,
   but the search was noisy. The cantrip half has a precedent (choice grants).
-- Remapping the old key to Magician raises that player's computed total by 1 AP (5 recorded, 6 priced).
+- (Resolved) The legacy flag exists: `bar:true`. Its CharGen guard blocks new purchases there; whether the Live
+  Sheet and DM Console block them too is not yet confirmed.
+- (Superseded) The first draft aliased the old key to Magician, which would have raised the live player's total
+  by 1 AP. Dropped in favour of the legacy item above.
 
 ## Proposed approach
 1. Branch `feat/primal-order-magician-warden` from `preview`.
 2. **Data:** in `js/engine-data.js` replace `Druid: Primal Order` with two feature keys,
-   `Druid: Primal Order (Magician)` (6 AP) and `Druid: Primal Order (Warden)` (0 AP). Add
-   `featureAliases["Druid: Primal Order"] = "Druid: Primal Order (Magician)"`. Update the places that list
-   feature names (the `FEAT_PG` page-number maps in CharGen and Live Sheet, and the feature-order lists).
+   `Druid: Primal Order (Magician)` (6 AP) and `Druid: Primal Order (Warden)` (0 AP). **Do not alias the old
+   key** (owner decision Q3, 2026-10-20: the one live owner chose Warden). Keep `Druid: Primal Order` in the
+   data as a **legacy item** by setting the existing `bar:true` flag on it (verified: the flag keeps a feature in
+   `DATA.features` so an owned one still prices, hides it from the purchase menus, and excludes it from new
+   purchases; it is already used on the four Weapon Mastery features). It stays priced at its recorded 5 AP so
+   the live character's total does not move. **Owner decision Y1 (2026-10-20): for the one live owner it keeps
+   granting Warden's real benefit — all martial weapons and Medium armour — but NOT Simple weapons and NOT
+   Light armour.** That is a state the normal ladder forbids (all-martial without Simple raises a warning;
+   choosing Medium auto-charges Light), so this needs a grandfathered grant that skips the prerequisite warning
+   and the Light charge. Open: does it also skip the 8 + 4 AP for those two lines (keep them for the 5 AP
+   already paid), or charge them? And the sheet code that reads proficiency (weapon and armour display, armour
+   eligibility) must see the grant. Apply `bar:true` to `Cleric: Divine Order (Protector/Thaumaturge)` too. Update the places that list feature names (the `FEAT_PG`
+   page-number maps in CharGen and Live Sheet, and the feature-order lists).
 3. **Engine:** in `compute()`, before the proficiency lines are priced, treat a build owning the Warden key as
    if `weaponProf.simple`, `weaponProf.allMartial`, `armour.light` and `armour.medium` were set. Add Magician's
    cantrip grant and its skill bonus (location to be decided in review).
 4. Bump `DATA.version` once. Do not change the BUILD number (that happens at release promotion).
 5. **Tests:** add fixtures: (a) Druid with Warden alone totals 15 AP across the two proficiency lines;
    (b) Warden after Simple and Light adds only the remainder; (c) Warden plus separately bought martial/Medium
-   charges nothing extra; (d) an old-style log with `Druid: Primal Order` still replays and prices as Magician.
+   charges nothing extra; (d) an old-style log with `Druid: Primal Order` still replays at 5 AP, grants no proficiency, and cannot be
+   bought again.
    Update `testing/expected/` if existing output changes.
 6. **Guide:** change the Druid feature table row and add prose for both choices, in the served guide copy and
    in the separate master; verify the two stay consistent with the repo's guide-check script.
@@ -84,8 +118,16 @@ the rate-limiting and AP-model work already on the board.
 ## Risks and open questions
 - **Warden is a free shortcut.** A Druid gets nothing they couldn't already buy for the same price. That is a
   design choice the owner accepted, but the guide must not imply a discount.
-- **The one live player's total may rise by 1 AP** (5 recorded, 6 priced), and some ledger code uses frozen
-  recorded costs. Needs a decision: let it rise, or grandfather that player.
+- **The live player's character stays unchanged** (legacy item at 5 AP). Verified 2026-10-20: they own no Simple
+  weapons and no armour, are at Hit Die 3 with Strength 10, and have roughly 80 AP unspent (rough arithmetic:
+  79 base + 105 awarded - about 103 recorded spend). Open: how they later swap the legacy item for Warden, which
+  would cost 15 AP in proficiency lines. **Decision (owner, 2026-10-20): use the existing DM discount, not a new
+  removal event.** Verified: the engine has no way to remove a purchased feature (`dmRemoveBoon` is boons only,
+  no refund), but the shipped `dmDiscount` event (DM-only, any priced purchase, up to its full price, AP only,
+  never alters the build; the migration is applied in production and one live discount exists) lets the
+  campaign DM discount the legacy purchase by 100%. The player then buys Warden normally. The legacy purchase
+  stays on the sheet as a zero-cost item that grants nothing; it still counts at full price as AP value
+  (owner decision B1 of the discount feature). No engine change is needed for this.
 - Removing a Warden purchase later removes the proficiencies it implied unless bought separately.
 - The Arcana/Nature bonus needs a place in the engine and the sheet display; if no clean one exists this
   grows beyond a small change.
