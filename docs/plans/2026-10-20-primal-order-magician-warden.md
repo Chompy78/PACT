@@ -188,3 +188,32 @@ Both: the plan achieves its goal, the two-key design is the right fit, and it sh
 | Version bump scope | Nemotron | **Partly accept → doc-note.** Labels read `DATA.version` live, so no extra edit; the guide master's `documents-rules` stamp is updated as part of the reconciliation |
 | Alias handling if Warden is later renamed | Nemotron | **Reject.** The engine's own rule already requires an alias on any rename |
 | Concrete engine detail for Magician is missing | Nemotron | **Defer → task item.** Investigate before coding |
+
+Round 2, 2026-10-20 (same two providers). A first attempt was **discarded**: it started during a `git rebase` and
+both reviewers read the round-1 draft by mistake (they cited the alias and fixtures (a)–(d)). The valid round:
+- **Gemini API (gemini-3.1-flash-lite)** — self-ID again wrong ("gpt-4o, Temperature 0.7").
+- **OpenRouter (nvidia/nemotron-3-super-120b-a12b:free)** — self-ID matched.
+Both: goal achieved, two-key design right, no severe or contested finding (so no fresh-agent judge).
+
+| Finding | Source | Verdict |
+|---|---|---|
+| Zero-AP pricing may break the pricing loop | both | **Accept → spike first.** Fixture proves a 0 AP feature is processed (the feature loop assigns `origin`/`cross` from data; nothing skips 0) |
+| Grandfathered grant could leak to other builds | both | **Accept.** Key the grant to the legacy key only, through a distinct code path the Warden/Protector logic never reads; fixture (d) also asserts no warning and no effect on other builds |
+| Skill-bonus location unknown | both | **Resolved.** `skillMods(b, r)` in the engine is the one function every tool uses for skill totals; add a `bonus` field there |
+| Verify skills and tools price paths are alike before the "counted first" change | Gemini | **Accept — verified.** Both are `add(label, TABLE[count])` on cumulative tables (`DATA.skills`, `DATA.tools`) |
+| "price(free) must be non-zero to avoid division by zero" | Gemini | **Reject.** The formula is a subtraction of two table values; there is no division |
+| Fixture for saved logs that contain a free-proficiency feat | Nemotron | **Accept** — covered by (f), made to replay an old-style log |
+| Decision record should list the decisions made | Nemotron | **Accept** — Q3, U1, V1a, W3/X1, Y1/Z1, AB1 |
+| Name the guide sections to change | Nemotron | **Accept** — Druid and Cleric feature rows, the proficiency-pricing prose, the feats section |
+| Collision: legacy key together with a new key | Gemini | **Reject (low risk)** — flags are on/off, so owning both costs nothing extra; `bar:true` blocks new buys |
+| Split into several plans | Nemotron | **Accept for the build only.** One plan, but two branches and PRs for isolation |
+
+**Design settled by the review and code reading (2026-10-20):**
+- A new exported helper in the engine, `profGrants(b)`, returns the effective weapon and armour flags (owned flags
+  plus grants from Warden/Protector/the legacy key) and which of them are free. `compute()` prices the union
+  (so Warden's lines are charged by the existing code); the legacy grant is marked free so it is not priced.
+  `weaponSheetDefaults()` and `armourEligible()` read it. Nothing is stored in the log, and `foldBuild()` is not
+  touched (CharGen repaints its checkboxes from the fold and would otherwise save derived flags as raw ones).
+- The Arcana/Nature/Religion bonus goes into `skillMods()`.
+- Feature cantrips and feat free-proficiency picks share one new unscoped section in the ✎ Name dialogs (the
+  names-before-spending gate still covers languages and spells only).
