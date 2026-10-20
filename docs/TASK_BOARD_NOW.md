@@ -27,24 +27,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## feat/livesheet-buy-fullpage — Live Sheet: let the Buy / progress panel expand to the whole page — TODO
-Branch `feat/livesheet-buy-fullpage`. **Effort:** small · **Risk:** low — UI-only CSS/JS in one tool; driven by ambiguity (what
-"expanded" looks like), not damage: `buy()` and the engine are untouched.
-```
-Owner request 2026-10-12: buying is cramped in the 300px Buy / progress column. Add an "expand" control on the Buy /
-progress heading in tools/PACT-Live-Char-Sheet.html that makes that panel fill the whole page width (the Character and
-History & ledger panels hide or fold while it is expanded), with an obvious way back. Remember the choice per browser,
-like the desktop panel fold added in PR #630 (CSS :has() rules under @media(min-width:1001px); fold state in localStorage
-'pactLsPanelFold' via _lsPanelFoldInit()). When expanded, lay the buy groups out in several columns so the extra width is
-actually used. Phones (<=1000px) already show one full-width column — decide whether expand means anything there and say
-so. Keep the AP left / spend figures visible while expanded. UI only: buy() behaviour unchanged, no DATA.version bump.
-Extend testing/scripts/livesheet-center-panel-e2e.mjs (or add an e2e) for expand / restore / remembered-after-reload and a
-purchase made while expanded.
-```
-**Done when:** on desktop one click expands Buy / progress to the full page width with its groups in several columns, one
-click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
-exactly as in the normal layout, and the e2e covering this passes.
-
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
 
