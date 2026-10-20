@@ -220,17 +220,22 @@
  "CG-080": [],
  "CG-081": [],
  "CG-082": [],
- "CG-083": [],
+ "CG-083": ["⛔ Threefold Inspiration — blocked: needs Twofold Inspiration (not counted, not owned)"],
  "CG-084": [],
  "CG-085": [],
- "CG-086": [
+ "CG-086": ["⛔ Threefold Inspiration — blocked: needs 5 Hit Dice (not counted, not owned)"],
+ "CG-087": [],
+ "CG-088": [],
+ "CG-089": [],
+ "CG-090": [
   "⛔ Pact of the Talisman: Eldritch Invocation requires the Warlock discipline (open Arcane › Warlock)",
   "Pact of the Talisman: non-core — barred for new purchases by your campaign (kept: you owned it before)"
  ],
- "CG-087": [
+ "CG-091": [
   "⛔ Pact of the Talisman: Eldritch Invocation requires the Warlock discipline (open Arcane › Warlock)",
   "⛔ Pact of the Talisman: non-core (DM-gated) ability barred by DM house rules"
  ],
+ "CG-092": ["⛔ Threefold Inspiration — blocked: needs Twofold Inspiration (not counted, not owned)"],
  "EV-035": [],
  "EV-036": [],
  "EV-037": [],

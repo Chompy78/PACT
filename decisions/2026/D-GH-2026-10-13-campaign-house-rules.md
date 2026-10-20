@@ -474,3 +474,25 @@ Not done here, by design. #644's applied award migration (`2026-10-12-server-pla
 folded into `sql/rls-policies.sql`. That fold goes in the post-apply PR together with house rules' own fold, so the
 baseline changes once. Owner decision AE1 still stands: the migration is applied in the same step as the release that
 ships these tools.
+
+### Second part (same day): #681 landed first, and the Players Guide
+
+`feat/heroic-inspiration-boons` (#681) merged into `preview` while #680 was in review. It also claimed `v0.378` and the
+fixture ids CG-083..086, so house rules is now **`v0.379`**, and its fixtures are CG-087..091. `js/engine-data.js` was merged key
+by key against the common ancestor. House rules changes no `DATA` key, so the result is #681's data with the version raised.
+
+**A real interaction, fixed.** #681 gives boons an optional `prereq`, read from the effective boon entry. A house-rules
+re-price of a printed boon (`houseRules.boons[label] = {hd, ap, fx}`, written by CharGen's customiser and the DM editor) has no
+`prereq`, so re-pricing Threefold Inspiration removed its Twofold requirement. The prerequisite is part of what the boon is,
+not of its price, so `compute()` now falls back to the printed `prereq` when the house entry has none (`_boonPrereq`). Fixture
+CG-092 pins this: without the fallback the re-priced boon is priced and silent; with it, it is blocked with the same warning
+as CG-083.
+
+**PR6, the Players Guide.** §17 "Dials you can turn" gains the paragraph "House rules for the whole table". It covers: the DM
+sets the rules once for the table, with per-character exceptions; a player's own CharGen customisations apply only while solo;
+taking something off the menu stops new purchases unless the DM opts to remove it (boon refunded, drawback AP taken back);
+re-pricing a held drawback applies only to the holders the DM ticks; a buy-off costs three times the current value; and a
+character can go below 0 AP left, but then can't spend. It is committed to the `pact-guide` master as one paragraph only.
+That project's working copy also has unrelated, uncommitted edits from another session dated 2026-10-17, which were left
+untouched and uncommitted. It is also in the served copy, and `verify-guide` passes all 11 checks.
+

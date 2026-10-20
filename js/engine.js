@@ -883,6 +883,18 @@ export function compute(b, opts){
   for(const _l of (b.arts||[])){const _a=DATA.arts[_l]; if(_a && hd<requiredHD(_a)) _blockedArt.add(_l);}
   for(const _l of (b.boons||[])){const _bo=((b.houseRules||{}).boons||{})[_l]||DATA.boons[_l];
     if(_bo && hd<(Number(_bo.hd)||1)) _blockedBoon.add(_l);}
+  // Boon prerequisites (feat/heroic-inspiration-boons, rules v0.378): an optional `prereq` (an array of boon labels) on a boon, read
+  // exactly like a feature's prereq above -- a boon whose prerequisite is not owned, or is itself blocked (Hit Dice or a skipped step),
+  // is excluded from pricing and grants nothing. Fixed point so a chain blocks transitively. Only Threefold Inspiration carries one today;
+  // Blazing Moment's "Feature: Renewed Fire" in the Guide is still prose, NOT enforced, and must not become so without a reprice review.
+  // _prereqBlockedBoon marks the boons blocked HERE (so the warning can say "needs X" rather than "needs N Hit Dice").
+  // A house-rules entry for a printed boon (a DM or CharGen re-price: {hd, ap, fx}) carries no prereq of its own. The
+  // prerequisite is part of what the boon IS, not of its price, so a re-price must not drop it: fall back to the printed one.
+  const _boonPrereq=(lab,bo)=>{const _p=(bo&&bo.prereq)||(DATA.boons[lab]||{}).prereq;return Array.isArray(_p)?_p:[];};
+  const _ownedBoonSet=new Set(b.boons||[]), _prereqBlockedBoon=new Set();
+  {let _changed=true;while(_changed){_changed=false;for(const _l of _ownedBoonSet){if(_blockedBoon.has(_l))continue;
+    const _bo=((b.houseRules||{}).boons||{})[_l]||DATA.boons[_l];const _pr=_boonPrereq(_l,_bo);if(!_pr.length)continue;
+    if(_pr.some(function(req){return !_ownedBoonSet.has(req)||_blockedBoon.has(req);})){_blockedBoon.add(_l);_prereqBlockedBoon.add(_l);_changed=true;}}}}
   for(const _lab of _ownedFeatSet){const _f=DATA.features[_lab];
     if(_f && hd < requiredHD(_f)){_blockedFeat.add(_lab);_hdBlockedFeat.add(_lab);}}
   {let _changed=true;while(_changed){_changed=false;for(const _lab of _ownedFeatSet){if(_blockedFeat.has(_lab))continue;
@@ -1365,7 +1377,7 @@ export function compute(b, opts){
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
   let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=_fin(bo.ap);
-    if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(Number(bo.hd)||1)+' Hit Dice (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
+    if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(_prereqBlockedBoon.has(lab)?_boonPrereq(lab,bo).filter(function(r){return !_ownedBoonSet.has(r)||_blockedBoon.has(r);}).join(' & '):(Number(bo.hd)||1)+' Hit Dice')+' (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
     boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
     const _bbmsa=bo.minStatsAny;if(_bbmsa&&_bbmsa.stats){const _banyMet=_bbmsa.stats.some(function(_bba){return (st[_bba]||10)>=_bbmsa.val;});if(!_banyMet)W.push(lab+': boon requires '+_bbmsa.stats.join(' or ')+' '+_bbmsa.val+'+');} }

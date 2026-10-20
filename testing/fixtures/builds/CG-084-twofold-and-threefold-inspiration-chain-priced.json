@@ -1,9 +1,9 @@
 {
- "name": "",
- "budget": 50,
- "originClass": "Warlock",
+ "name": "Brother Aldric",
+ "budget": 300,
+ "originClass": "Fighter",
  "originClass2": "(none)",
- "species": "(none)",
+ "species": "Human",
  "species2": "(none)",
  "racialTraits": [],
  "lineage": "",
@@ -16,7 +16,7 @@
   "WIS": 10,
   "CHA": 10
  },
- "hd": 1,
+ "hd": 5,
  "profBonus": 2,
  "hardy": 0,
  "tough": 0,
@@ -44,9 +44,7 @@
  },
  "extraClasses": 0,
  "unlockedClasses": [],
- "features": [
-  "Warlock: Pact of the Talisman"
- ],
+ "features": [],
  "traditions": [],
  "subAbilities": [],
  "subSpellBundles": [],
@@ -59,7 +57,10 @@
  "sorcery": 0,
  "wornArmour": "",
  "martiallyBound": "(none)",
- "boons": [],
+ "boons": [
+  "Threefold Inspiration",
+  "Twofold Inspiration"
+ ],
  "innate": [
   0,
   0,
@@ -101,14 +102,21 @@
   "companion": "",
   "overall": ""
  },
- "size": "Small",
+ "size": "Medium",
  "houseRules": {
+  "boons": {},
+  "draws": {},
+  "disabled": {
+   "boons": [],
+   "draws": []
+  },
   "dmAllows": {
-   "tasha": false
+   "bound": true,
+   "boons": true,
+   "drawbacks": true,
+   "tasha": true
   }
  },
  "version": "v0.322",
- "id": "cmqxitainhby8e",
- "description": "Control for CG-086: the SAME build with the Tasha call off in its own SOLO house rules keeps the existing ⛔ wording — the softer text is campaign-only.",
- "_expect": {}
+ "id": "test-cg013-subability-three-tiers"
 }
