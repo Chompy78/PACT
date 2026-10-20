@@ -49,7 +49,7 @@ on top of the HD ladder; CG-085 Twofold alone is a positive control; CG-086 too 
 the new fixtures), `version-label-ci` 10/0, `tool-pricing-ci` 191/0, `random-quality-ci` 82/0, plus the other `engine-parity.yml`
 gates. `verify-guide.mjs` 11/11 and `guide-price-check.mjs` exit 0 on the served copy.
 
-## Open: the guide master (`pact-guide`)
+## Resolved 2026-10-20: the guide master (`pact-guide`)
 
 The task asked for the Guide change in the `pact-guide` master first. It was **deliberately not made**:
 - The master's boon section has already diverged from the engine: different Renewed Fire wording, Defiant Spark and Undying Ember
@@ -60,3 +60,9 @@ The task asked for the Guide change in the `pact-guide` master first. It was **d
 
 Until the master is reconciled, a transfer from `pact-guide` to this repo's `docs/PACT-Players-Guide.html` would silently drop the two rows
 and the 18+ wording (see `docs/VERSION-SYNC.md` and the existing "pact-guide master has drifted" task on the NEXT board).
+
+**Resolution (2026-10-20, owner chose to rewrite the rule now).** The `pact-guide` master's Fortune table gained Twofold Inspiration
+(3+, 7, no prerequisite) and Threefold Inspiration (5+, 10, "Boon: Twofold Inspiration"), Blazing Moment's wording moved to "18 or higher",
+and the "never more than one" paragraph now says that holds unless you buy Twofold or Threefold (cap 2 and 3), and that the "if you have no
+Heroic Inspiration" boons still act only when you hold none. Left alone on purpose: the master's other fortune-boon divergences, including
+Blazing Moment at 5+/9 where the engine and served copy say 9+/14. Those stay with the fortune-boons reconciliation.
