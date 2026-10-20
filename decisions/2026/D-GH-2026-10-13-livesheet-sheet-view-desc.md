@@ -1,6 +1,8 @@
 # D-GH-2026-10-13-livesheet-sheet-view-desc — the Live Sheet's 📋 Sheet shares the Character panel's description block; ⓘ never invents effect text
 
 **Status:** IN FORCE. Shipped in PR #653, released in `v1.657`. Display-only; no `DATA.version` bump.
+**Partly superseded (2026-10-15):** the Sheet-view half — the `ctx.descBlock` hook into `renderCharSheet()` — is replaced by
+`D-GH-2026-10-15-livesheet-sheet-layout` (the Live Sheet's Sheet now renders the Character panel's own body). The ⓘ half stands.
 
 ## Context
 

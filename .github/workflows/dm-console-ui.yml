@@ -24,6 +24,8 @@ on:
       - "testing/scripts/dm-console-ui-e2e.mjs"
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
       - "testing/scripts/live-sheet-subclass-owned-e2e.mjs"
+      - "testing/scripts/names-dialog-e2e.mjs"
+      - "testing/scripts/names-gate-e2e.mjs"
       - "testing/scripts/dm-console-unlock-e2e.mjs"
       - "testing/scripts/dm-ap-discount-e2e.mjs"
       - "testing/scripts/wounds-ui-e2e.mjs"
@@ -35,6 +37,8 @@ on:
       - "testing/scripts/dm-house-rules-e2e.mjs"
       - "testing/scripts/lib/house-rules-fake-server.mjs"
       - "js/dm.js"
+      - "testing/scripts/boon-drawback-notes-e2e.mjs"
+      - "js/ui-helpers.js"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/dm-console-ui.yml"
@@ -88,6 +92,11 @@ jobs:
       - name: DM AP discount — DM Console sends it, Live Sheet and CharGen count it
         run: node testing/scripts/dm-ap-discount-e2e.mjs
 
+      # feat/boon-drawback-notes: the description some boons/drawbacks need — asked on buying (Live Sheet + CharGen), shown and
+      # editable until approved, and DM Console's Approve/Unlock. Same cost profile as the steps above.
+      - name: Boon & drawback descriptions — required on buying, DM approval locks them
+        run: node testing/scripts/boon-drawback-notes-e2e.mjs
+
       # feat/permanent-wounds: players can't pick the four wound-only drawbacks in CharGen or the Live Sheet, and a DM can
       # impose all of them (grouped, defaulting to Locked + flat) from the DM Console. Same cost profile as the steps above.
       - name: Wounds — hidden from players, imposable by a DM
@@ -102,6 +111,16 @@ jobs:
       # localStorage, no Supabase), so it shares this job's Chromium install.
       - name: Live Sheet — a subclass ability held through one door is owned in both pickers
         run: node testing/scripts/live-sheet-subclass-owned-e2e.mjs
+
+      # refactor/names-slot-helper: the ✎ Name spells & languages dialog in BOTH tools lists exactly the slots the engine's
+      # allNameableSlots() does (the names-before-spending gate reads the same list). Seeded localStorage, no Supabase.
+      - name: Names dialog — rows in both tools match the engine's slot list
+        run: node testing/scripts/names-dialog-e2e.mjs
+
+      # feat/names-before-spending: a locked character cannot spend AP while a language or spell slot is unnamed, in both tools; "Finish creating"
+      # asks for the names first; the campaign switch (rules.requireNames:false) turns it off. Seeded localStorage, no Supabase.
+      - name: Names before spending — the gate in the Live Sheet and CharGen
+        run: node testing/scripts/names-gate-e2e.mjs
 
       # fix/ledger-xss-escaping: player-controlled LOG values (tradition names, event/envelope `rules`, award amounts) render as
       # text in every ledger-shaped view of all three tools, incl. the Live Sheet ?viewChar= DM view. Same cost profile.

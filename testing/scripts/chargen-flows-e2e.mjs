@@ -45,6 +45,11 @@ const check=(n,ok,d='')=>{ ok?pass++:fail++; console.log(`  ${ok?'PASS':'FAIL'} 
 const section=t=>console.log(`\n[chargen-flows] == ${t} ==`);
 
 const browser = await launchChromium();
+// These flows are about the lock, pricing and refusals, not about naming: switch the names-before-spending rule off in every
+// page (feat/names-before-spending) so "Finish creating" and post-lock purchases do not stop for the blank language slot.
+const _newCtx = browser.newContext.bind(browser);
+browser.newContext = async (...a) => { const c = await _newCtx(...a);
+  await c.addInitScript(() => document.addEventListener('engine-ready', () => { window.requireNamesOn = () => false; window.namesGate = () => ({ blocked: false, missing: [], reason: '' }); })); return c; };
 const base = `http://localhost:${PORT}/PACT`;
 const PROBE = `window.__pactProbeId = function(){ try { return currentCharId(); } catch(e){ return 'ERR:'+e.message; } };`;
 

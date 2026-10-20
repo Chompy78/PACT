@@ -270,6 +270,7 @@ try {
   const LS_SETUP = `window.__a=[];window.__c=[];window.__f=[];
     window.alert=m=>window.__a.push(String(m));window.confirm=m=>{window.__c.push(String(m));return true;};
     window.flash=m=>window.__f.push(String(m));
+    window.pactAskNote=(n,q,c,done)=>done('A description');   /* feat/boon-drawback-notes: a flagged boon (e.g. Boon of Energy Resistance) asks for one in a modal */
     LOG.length=0;SEQ=1;REDO.length=0;`;
 
   // code-review catch on feat/warn-missing-data-refs: that PR pushes compute().warnings with the raw
@@ -965,6 +966,7 @@ try {
   check('cgFinishCreating() ends creation, and is idempotent',
     await cg.evaluate(`(()=>{const _c=window.confirm,_a=window.alert;
       window.confirm=()=>true; window.alert=()=>{};
+      window.requireNamesOn=()=>false;   /* this check is about the lock, not naming */
       try{ cgFinishCreating(); cgFinishCreating(); }finally{ window.confirm=_c; window.alert=_a; }
       return [LOG.filter(e=>e&&e.type==='creationLocked').length, isCreationDraft(LOG)];})()`),
     [1, false]);
@@ -2114,12 +2116,12 @@ try {
     await cg3.close();
 
     const ls3 = await connect(`http://127.0.0.1:${PORT}/PACT/tools/PACT-Live-Char-Sheet.html`);
-    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderCharSheet==='function'&&typeof packTraitsFor==='function'`))))
+    if (!(await ls3.evaluate(READY(`window._engineFold&&typeof renderSheet==='function'&&typeof packTraitsFor==='function'`))))
       throw new Error('Live Sheet never became ready for the heritage-pack check');
     check('the Live Sheet character sheet lists both pack traits',
       await ls3.evaluate(`(()=>{
         window.confirm=()=>true; buy('species',{v:'Dwarf'});
-        const b=foldBuild(null); const html=String(renderCharSheet(b,compute(b,_dmOpts()),{}));
+        const b=foldBuild(null); const html=String(renderSheet());   // feat/livesheet-sheet-layout: the 📋 Sheet's renderer
         return [/Dwarven Resilience/.test(html), /Darkvision 60 ft/.test(html), (b.racialTraits||[]).length];})()`),
       [true, true, 0]);
     await ls3.close();

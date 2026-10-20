@@ -141,7 +141,7 @@ section('2. no creation-AP threshold while the binding is confirming, or on a fi
 
   // Finished character, unconfirmed binding.
   await cgFresh();
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   await p.evaluate(()=>{ window._cgCampaignId = window.__C1; window._cgCampaignBound = true; window._cgBindingConfirmed = false; render(); });
   const n2 = await thresholdConfigs();
   await pickOtherCurve(); await p.waitForTimeout(200);
@@ -171,7 +171,7 @@ section('3. an untagged Live Sheet file adopts its campaign binding');
   // (b) a LOG with an award / lock events: the rebuild would drop them, so the row must not be overwritten —
   // it opens as a separate copy (fresh id, no binding) and says so.
   await cgFresh();
-  const raw2 = await p.evaluate(([C1,FID])=>{ cgFinishCreating(true); const e=_cgEnvelope(false);
+  const raw2 = await p.evaluate(([C1,FID])=>{ (window.requireNamesOn=()=>false, cgFinishCreating(true)); const e=_cgEnvelope(false);
     return JSON.stringify({name:'Protected Probe', rules:e.rules, LOG:e.LOG, SEQ:e.SEQ, id:FID, campaignId:C1}); }, [C1,FID]);
   check('(precondition) the protected file carries lock events and an award', await p.evaluate((t)=>{ const L=JSON.parse(t).LOG; return L.some(e=>e.type==='creationLocked') && L.some(e=>e.type==='award'); }, raw2));
   await p.evaluate(()=>resetBuild()); await p.waitForTimeout(300);
@@ -215,7 +215,7 @@ section('5. Randomise keeps the character id');
   check('invite seed: no second auto-arm', fa1.filter(x=>/"auto"/.test(x)).length===1, JSON.stringify(fa1));
   // (b) a DM reopen: [auto, ..., locked, unlocked], then a roll.
   await cgFresh();
-  await p.evaluate(()=>cgFinishCreating(true)); await p.waitForTimeout(300);
+  await p.evaluate(()=>(window.requireNamesOn=()=>false, cgFinishCreating(true))); await p.waitForTimeout(300);
   await p.evaluate(()=>{ LOG.push({type:'creationUnlocked',seq:SEQ++,ts:Date.now(),label:'Creation reopened by the DM'}); render(); });
   const fb0 = await fam();
   check('(precondition) reopened: the family ends locked, unlocked', /creationLocked/.test(fb0[fb0.length-2]||'') && /creationUnlocked/.test(fb0[fb0.length-1]||''), JSON.stringify(fb0));

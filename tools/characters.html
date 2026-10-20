@@ -270,6 +270,11 @@ async function onDelete(id, name, isCloud){
     : 'Delete this browser\'s copy of "' + name + '"? Nothing saved to the cloud is affected. This cannot be undone.';
   if (!confirm(msg)) return;
   try {
+    // feat/character-images (D-GH-2026-10-15-character-images): a permanent cloud delete takes the character's
+    // pictures with it — first, while the row still proves ownership (the storage policies need it). Best effort:
+    // a failure here never blocks the delete. A leftover file is unreachable through the API once the row is gone, even if
+    // the uuid is reused (each picture is tied to its row's created_at); chore/character-images-orphan-sweep removes them.
+    if (isCloud) { try { await (await import('../js/character-images.js')).removeAllCharacterImages(id); } catch (e) { /* best effort */ } }
     await deleteCharacter(id);
     _chars = _chars.filter(c => c.id !== id);
     render();

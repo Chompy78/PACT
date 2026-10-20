@@ -120,6 +120,9 @@ try {
       check('Live Sheet load + save: every purchase/buy-off keeps its seq', same(seqs(s.LOG), seqs(out && out.LOG)));
       if (s.buyoff) {
         const n0 = await p.evaluate(() => LOG.length);
+        // Names before spending (#675) would stop this buy-off: these characters leave a language slot blank, and the gate
+        // opens the Names dialog instead. This suite tests the DM family, not naming, so switch the gate off here.
+        await p.evaluate(() => { window.namesGate = () => ({ blocked: false, reason: '' }); });
         await p.evaluate(v => buyoffDrawback(v), s.buyoff);
         await p.evaluate(() => save());
         out = await p.evaluate(() => JSON.parse(localStorage.getItem('pactLiveSheet') || 'null'));

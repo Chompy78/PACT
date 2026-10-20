@@ -341,13 +341,30 @@ try {
   // ---- a non-caster must not have a casting stat primed over its own ----
   // DATA.castAbility has an entry for every class, non-casters included, so using it as a "is this a
   // caster" test primed Fighter's INT to 16-20 while leaving STR at 10.
+  //
+  // The assertion is "the Fighter's own primary stat was primed", NOT "INT never ends up highest". The
+  // second form was this check's first wording and it failed by chance (PR #569, 1 roll in ~600): the
+  // roller also spreads random +2 bumps over every ability (uniform pick, weight 2) and adds the species'
+  // own preferred stats, so a Tiefling Fighter (CHA, INT) can legitimately finish with INT 20 over STR 16.
+  // The bug this guards left STR at its base 10 with a casting stat primed instead; the priming step
+  // (`favAbil()[0]` raised to 16) is what proves the class's own stat came first.
+  //
+  // Seeded, so a failure is reproducible: Math.random is replaced by a mulberry32 stream per roll and put
+  // back afterwards, and the failing (theme, seed) pair is printed. Seed 51 on 'battlecaster' is the
+  // Tiefling INT 20 case above — it must pass, and it fails the old wording every time.
+  const FIGHTER_SEEDS = Math.max(100, ROLLS * 12);
+  await cg.evaluate(`window.__realRandom=Math.random;window.__seed=function(a){Math.random=function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};};true`);
   const fighters = [];
-  for (const tk of ['zealot', 'battlecaster'])
-    for (let i = 0; i < Math.max(3, Math.ceil(ROLLS / 2)); i++)
-      fighters.push({ tk, ...(await cg.evaluate(`_qaRoll(${JSON.stringify(tk)},${BUDGETS[1]},"Fighter")`)) });
-  const misprimed = fighters.filter(r => r.stats.INT > Math.max(r.stats.STR, r.stats.DEX, r.stats.CON));
-  check('a Fighter on a caster theme still primes a Fighter stat, not INT', misprimed.length === 0,
-    misprimed.length ? `${misprimed.length}/${fighters.length}, e.g. INT ${misprimed[0].stats.INT} vs STR ${misprimed[0].stats.STR}/DEX ${misprimed[0].stats.DEX}/CON ${misprimed[0].stats.CON}` : '');
+  try {
+    for (const tk of ['zealot', 'battlecaster'])
+      for (let seed = 1; seed <= FIGHTER_SEEDS; seed++) {
+        await cg.evaluate(`__seed(${seed})`);
+        fighters.push({ tk, seed, ...(await cg.evaluate(`_qaRoll(${JSON.stringify(tk)},${BUDGETS[1]},"Fighter")`)) });
+      }
+  } finally { await cg.evaluate(`Math.random=window.__realRandom;true`); }
+  const misprimed = fighters.filter(r => r.stats.STR < 16);
+  check(`a Fighter on a caster theme still primes its own STR (${fighters.length} seeded rolls)`, misprimed.length === 0,
+    misprimed.length ? `${misprimed.length}/${fighters.length}, first: theme ${misprimed[0].tk} seed ${misprimed[0].seed} → STR ${misprimed[0].stats.STR} DEX ${misprimed[0].stats.DEX} CON ${misprimed[0].stats.CON} INT ${misprimed[0].stats.INT} (replay: __seed(${misprimed[0].seed}) then _qaRoll("${misprimed[0].tk}",${BUDGETS[1]},"Fighter"))` : '');
 
   // ---- the roll panel's preview strip must be DERIVED from the theme, not restated by hand ----
   // The strip tells the player what a theme will do before they commit to it. If it were ever hand-written

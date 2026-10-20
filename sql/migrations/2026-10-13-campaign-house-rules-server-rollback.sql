@@ -53,6 +53,9 @@ declare
   v_amount     numeric;
   v_cost       numeric;
   v_prior      numeric;
+  -- feat/boon-drawback-notes (D-GH-2026-10-15-boon-drawback-notes): scratch for validating 'dmApproveNote'/'dmUnlockNote'.
+  v_nstatus    text;
+  v_ntext      text;
 begin
   if jsonb_typeof(p_events) is distinct from 'array' or jsonb_array_length(p_events) = 0 then
     raise exception 'p_events must be a non-empty JSON array';
@@ -92,7 +95,9 @@ begin
     -- imposed LOCKED once the story beat has happened. Validated below, per event.
     -- [DISCOUNT] 'dmDiscount' added by 2026-10-13-dm-ap-discount.sql: a DM takes AP off one earlier priced
     -- purchase. Validated below, per event.
-    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmDiscount') then
+    -- [NOTES] 'dmApproveNote' / 'dmUnlockNote' added by 2026-10-15-boon-drawback-notes.sql: a DM approves (locks) or
+    -- re-opens a player's description of a boon/drawback. Validated below, per event.
+    elsif v_type not in ('award', 'dmRemoveBoon', 'sessionSeal', 'dmUnlockDrawback', 'dmDiscount', 'dmApproveNote', 'dmUnlockNote') then
       raise exception 'dm_edit_character_log: unsupported event type %', v_type;
     end if;
     if v_type = 'award' then
@@ -202,6 +207,50 @@ begin
       v_ev := jsonb_build_object('type', 'dmDiscount', 'targetSeq', v_target, 'targetCat', v_tcat,
                                  'amount', v_amount::integer, 'note', v_note,
                                  'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM discount — ' || v_amount::integer || ' AP'), 120));
+    end if;
+
+    -- [NOTES] Approve / unlock a player's description of a boon or drawback, keyed by category + name (a character holds
+    -- at most one copy of a name; seq is not stable while CharGen rebuilds a draft). The note's state is read from the
+    -- stored log (plus this call's earlier events) by pact_item_note_state(), the same reading the tools and
+    -- pact_enforce_item_note_lock() use, counting only approvals made in THIS campaign. An approval needs a note awaiting
+    -- approval and records the text it approved; an unlock needs an approved note. Both carry the campaign they were
+    -- made in. Rebuilt from a whitelist, like the unlock and the discount.
+    if v_type in ('dmApproveNote', 'dmUnlockNote') then
+      v_tcat := coalesce(v_ev->>'cat', '');
+      v_name := btrim(coalesce(v_ev->>'refVal', ''));
+      v_note := btrim(coalesce(v_ev->>'note', ''));
+      if v_tcat not in ('boon', 'drawback') or v_name = '' then
+        raise exception 'dm_edit_character_log: % needs cat (boon or drawback) and refVal (the item''s name)', v_type;
+      end if;
+      if not exists (select 1 from jsonb_array_elements(v_log || v_new) as t(e)
+                      where e->>'type' = 'buy' and e->>'cat' = v_tcat and e#>>'{payload,v}' = v_name) then
+        raise exception 'dm_edit_character_log: this character has no % "%"', v_tcat, v_name;
+      end if;
+      select s.status, s.note into v_nstatus, v_ntext
+        from public.pact_item_note_state(v_log || v_new, v_tcat, v_name, v_campaign::text) as s;
+      if v_type = 'dmApproveNote' then
+        if v_nstatus is distinct from 'pending' then
+          raise exception 'dm_edit_character_log: no description of % "%" awaiting approval (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        -- The DM approves the text they were SHOWN (#673 review B): DM Console sends it, and a note the player changed
+        -- since the page loaded is refused rather than approved unseen.
+        if jsonb_typeof(v_ev->'text') is distinct from 'string' or v_ev->>'text' is distinct from v_ntext then
+          raise exception 'dm_edit_character_log: the description of % "%" changed since this page loaded — reload and read it again', v_tcat, v_name;
+        end if;
+        v_ev := jsonb_build_object('type', 'dmApproveNote', 'cat', v_tcat, 'refVal', v_name, 'text', v_ntext,
+                                   'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM approved description — ' || v_name), 120));
+      else
+        if v_nstatus is distinct from 'approved' then
+          raise exception 'dm_edit_character_log: the description of % "%" is not approved (it is %)', v_tcat, v_name, coalesce(v_nstatus, 'none');
+        end if;
+        if char_length(v_note) > 200 then
+          raise exception 'dm_edit_character_log: dmUnlockNote''s note must be 200 characters or fewer';
+        end if;
+        v_ev := jsonb_build_object('type', 'dmUnlockNote', 'cat', v_tcat, 'refVal', v_name, 'campaignId', v_campaign::text,
+                                   'label', left(coalesce(nullif(btrim(v_ev->>'label'), ''), 'DM unlocked description — ' || v_name), 120))
+                || case when v_note = '' then '{}'::jsonb else jsonb_build_object('note', v_note) end;
+      end if;
     end if;
 
     v_ev := (v_ev - 'seq' - 'ts' - 'dmEdit' - 'dmId')

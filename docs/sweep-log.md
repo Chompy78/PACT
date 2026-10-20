@@ -8,6 +8,26 @@
 
 Entries land here starting with the first real `/sweep-tasks` run.
 
+## 2026-10-19 — sweep run
+
+Batch size: asked once (recommended 3) — user picked **5**. Of ~10 tagged low-risk tasks, **1 shipped**; the
+rest were parked, found stale, or ineligible on a read of their bodies. Circuit breaker never tripped.
+
+| Task | Outcome | Effort / Risk |
+|---|---|---|
+| `fix/random-fighter-int-priming` | **Shipped — PR #679.** Reproduced deterministically (seed 51, `battlecaster`, Tiefling Fighter INT 20 / STR 16): the roller spreads random +2 bumps over every ability and adds species-preferred stats, so INT can legitimately lead. The *assertion* was wrong, not the roller; it now requires the Fighter's own STR ≥ 16 over 200 fixed-seed rolls and prints a replay seed. Proven both ways (2,400 seeded rolls pass; reverting the `trad&&` guard fails 135/200). | low–medium / low |
+| `fix/tool-pricing-tab-flake` | **Parked — not reproducible.** 11 of 11 consecutive runs passed (191/0) on an unmodified tree, so the one-tab-per-tool refactor of a 2,255-line harness could not be measured against a failing baseline. Confirmed instead that every run leaks a `/tmp/pact-cdp-*` user-data dir (the task's second hypothesis is still open). Note the task text is stale: the readiness poll is already 60s, not 30s. Retry in an environment where it fails. | small / low |
+| `docs/fix-phb-jsonl-bundled-entries` | **Dropped — already done.** All four bundles are separate entries in `docs/phb-rules-final.jsonl` (Tactical Mind / Shift / Master; Empowered Strikes / Self-Restoration; Perfect Focus / Body and Mind; Roving / Tireless). The file has one commit, so it was created already split. The board entry is stale and should be removed by the owner. | low / low |
+| `test/sql-drift-guard-auto-discovery` | **Skipped — ineligible.** The task says it "needs a design decision"; `psql` cannot glob `\ir`, so auto-discovery means restructuring the harness. The hardcoded list in `rls-baseline-test.sql` is also now 18 migrations, not the 4 the task describes. | medium / low |
+| `test/seal-roundtrip` | **Skipped — ineligible.** Needs a REAL PostgREST error body captured from the live trigger; plain Postgres gives only the raw fields, and the task forbids a hand-built body. Also needs a design call on the stub-server seam. | small–medium / low |
+
+Not queued, with reasons: `feat/livesheet-buy-fullpage` and the pre-grey-tiles task (UI layout is a taste
+call); *Fold the player-award-after-lock migration* (live-DB re-measure, `Risk: medium`, another session is
+editing `rls-policies.sql`); *Reconcile guide↔engine rules-version drift* (open step lives in `pact-guide`);
+the favicon task (touches other projects); the two decision-needed guide-vs-engine rows and the
+`DECISIONS.md`-record tasks (owner's call / author's reconstruction); the `~/.claude/skills/` sync check
+(outside this repo). No untagged tasks were encountered in the queue.
+
 ## 2026-08-24 — sweep run
 
 Batch size requested: unspecified, so asked once via `AskUserQuestion` (recommended 3; offered "All 6" and

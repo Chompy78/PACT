@@ -447,3 +447,30 @@ stripped live discount support (the 2026-09-02 failure class in `sql/migrations/
 `rls-policies.sql` on `preview`. If they don't, rebuild the migration on the live text first.
 
 **Status:** merged into the integration branch; migration still NOT APPLIED.
+
+## Addendum 2026-10-20 — second merge with `preview`; server migration rebuilt on the live notes definitions
+
+`preview` had moved 39 commits (v1.676 and v1.678 releases) since the 2026-10-13 sync. Three collisions were recorded on the
+board in advance, and all three are resolved in this merge:
+
+- **Rules version.** `feat/livesheet-armour-ac` (#670) shipped `v0.377` first, so house rules is now **`v0.378`** at every
+  display site. The combined engine needed no change to `testing/expected/` (128/0).
+- **Parity fixture ids.** House rules' CG-071..075 became **CG-083..087**. Its EV-035..040 did not collide with anything.
+- **The server migration.** `2026-10-15-boon-drawback-notes.sql` was applied to production on 2026-10-19 and redefined
+  `dm_edit_character_log`. Applying this file as written would have silently removed the description lock. The function
+  was rebuilt by a three-way merge (base: the 2026-10-13 baseline; ours: the live notes text; theirs: this file's
+  2026-10-13 text). The only textual conflict was the event-type allow-list, which is now the union of both. Two more
+  changes: `pact_dm_family()` counts `dmApproveNote` and `dmUnlockNote` as DM events, and the rollback restores the notes
+  definition. `pact_enforce_item_note_lock()` is untouched, because it also freezes the player's own approved `itemNote`,
+  which the DM-family guard does not cover.
+  - **Why a merge and not a hand edit.** Both definitions are long, and every block of each is load-bearing. A
+    mechanical three-way merge whose only conflict is one line can be checked line by line. A hand-written union of two
+    250-line functions can't. The diff of the result against each parent is exactly the other parent's additions.
+  - **Proof.** `run-house-rules.sh` gives 209/209 after the apply, and its rollback is byte-identical to the new BASE
+    (the notes definition). A new step runs the 54 notes cases on top of house rules, and all 54 pass. The rehearsal
+    prints the BASE md5 of `dm_edit_character_log`. Compare it with production immediately before applying.
+
+Not done here, by design. #644's applied award migration (`2026-10-12-server-player-award-after-lock.sql`) is still not
+folded into `sql/rls-policies.sql`. That fold goes in the post-apply PR together with house rules' own fold, so the
+baseline changes once. Owner decision AE1 still stands: the migration is applied in the same step as the release that
+ships these tools.
