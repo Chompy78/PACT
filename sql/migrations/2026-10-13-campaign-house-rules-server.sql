@@ -521,7 +521,7 @@ $$;
 -- AB1 (owner, 2026-10-13): the server's own copy of the PRINTED drawback values, generated from js/engine-data.js.
 -- testing/scripts/gen-drawback-prices-sql.mjs writes the block below; --check (sql-guards CI) fails if it drifts.
 -- BEGIN GENERATED pact_drawback_printed — testing/scripts/gen-drawback-prices-sql.mjs; do not edit by hand
--- 109 printed drawbacks, js/engine-data.js rules v0.379. NULL = not a printed drawback.
+-- 109 printed drawbacks, js/engine-data.js rules v0.380. NULL = not a printed drawback.
 create or replace function public.pact_drawback_printed(p_name text)
 returns numeric language sql immutable set search_path = public, pg_temp as $$
   select (('{"Addled Memory":2,
