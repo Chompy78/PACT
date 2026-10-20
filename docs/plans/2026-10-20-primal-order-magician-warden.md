@@ -112,4 +112,18 @@ design? (4) What is missing? (5) Is "Verification" objectively checkable? (6) Sh
 plans? Save as `primal-order-magician-warden-review-<model>.md`.
 
 ## Review outcome
-_To be filled in after review._
+Round 1, 2026-10-20: two API reviewers, no severe or contested findings, so no fresh-agent judge was needed.
+- **Gemini API (gemini-3.1-flash-lite)** — its self-ID line said "GPT-4o, Temperature 0", which is wrong; filed under the model requested.
+- **OpenRouter (nvidia/nemotron-3-super-120b-a12b:free)** — self-ID matched.
+
+Both: the plan achieves its goal, the two-key design is the right fit, and it should stay one plan.
+
+| Finding | Source | Verdict |
+|---|---|---|
+| The +1 AP for the one live player needs an explicit decision | both | **Open — owner decision.** Already a listed risk; decision record must state the choice |
+| Add a fixture: buy Warden, buy Simple separately, drop Warden, Simple stays | Gemini | **Accept → test (e).** A feature-removal path was not found, so confirm it exists first |
+| Guide must say Warden has no price of its own, so its cost is not misread | Gemini | **Accept → doc-note** |
+| Zero-AP pricing, derived flags, skill-bonus location are unproven | both | **Already in Assumed.** Prove each before implementing; the bonus location is the biggest unknown |
+| Version bump scope | Nemotron | **Partly accept → doc-note.** Labels read `DATA.version` live, so no extra edit; the guide master's `documents-rules` stamp is updated as part of the reconciliation |
+| Alias handling if Warden is later renamed | Nemotron | **Reject.** The engine's own rule already requires an alias on any rename |
+| Concrete engine detail for Magician is missing | Nemotron | **Defer → task item.** Investigate before coding |
