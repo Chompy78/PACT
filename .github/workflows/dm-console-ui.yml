@@ -19,6 +19,7 @@ on:
       - "js/ap-by-level.js"
       - "js/advancement.js"
       - "js/campaign.js"
+      - "js/campaign-rules.js"
       - "js/supabase-client.js"
       - "testing/scripts/dm-console-ui-e2e.mjs"
       - "testing/scripts/live-sheet-unlock-e2e.mjs"
@@ -31,6 +32,11 @@ on:
       - "testing/scripts/dm-impose-picker-e2e.mjs"
       - "testing/scripts/ledger-xss-e2e.mjs"
       - "testing/scripts/dm-console-notes-e2e.mjs"
+      - "testing/scripts/campaign-house-rules-tools-e2e.mjs"
+      - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "testing/scripts/dm-house-rules-e2e.mjs"
+      - "testing/scripts/lib/house-rules-fake-server.mjs"
+      - "js/dm.js"
       - "testing/scripts/boon-drawback-notes-e2e.mjs"
       - "js/ui-helpers.js"
       - "testing/package.json"
@@ -125,3 +131,20 @@ jobs:
       # detail shows the player's own text escaped (an <img onerror> backstory renders as text). Same cost profile.
       - name: DM Console — Appearance & backstory renders player text safely
         run: node testing/scripts/dm-console-notes-e2e.mjs
+
+      # feat/campaign-house-rules-tools: one campaign character shows the same AP left in all three tools under the campaign's
+      # house rules; Live Sheet custom drawback + W1 buy-off; V1 below-zero saves; offline snapshot; CharGen's own patch untouched.
+      - name: Campaign house rules — the same AP left in all three tools
+        run: node testing/scripts/campaign-house-rules-tools-e2e.mjs
+
+      # feat/campaign-house-rules-dm-editor: the DM's Character house rules editor — S2 tick / untick, T2 refund / removal
+      # (below 0 shown, not refused), one RPC call, an un-migrated server's plain message, escaped names, the generic Save rules
+      # never sending charHouseRules, effective grant / impose pickers, and the player tools showing the new values.
+      - name: Campaign house rules — the DM's editor, S2 / T2 previews and one RPC call
+        run: node testing/scripts/dm-campaign-house-rules-e2e.mjs
+
+      # feat/campaign-house-rules-overrides (reworks #642): one character's house-rule overrides — a whole dmHouseRules snapshot
+      # per change, the single-holder S2 tick / pin / "apply the current value", drafts editable, escaped names, server messages,
+      # the archived peek, and CharGen seeing the override with the own patch untouched.
+      - name: Campaign house rules — the per-character override editor
+        run: node testing/scripts/dm-house-rules-e2e.mjs

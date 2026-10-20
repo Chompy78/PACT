@@ -1,0 +1,85 @@
+{
+ "description": "Plan §12(c): a DM per-character override (dmHouseRules, campaign camp-A) reprices Slow to Mend to 9 on top of a campaign value of 3 and the character's own 7. In camp-A the override wins (U1: override > campaign > own).",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "seq": 1,
+   "label": "Award — Level 1 (79 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "seq": 2,
+   "label": "Origin class — Fighter"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "_slot": "houseRules",
+   "payload": {
+    "patch": {
+     "houseRules": {
+      "draws": {
+       "Slow to Mend": {
+        "ap": 7
+       }
+      }
+     }
+    }
+   },
+   "cost": 0,
+   "seq": 3,
+   "label": "House rules"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Slow to Mend"
+   },
+   "cost": -7,
+   "seq": 4,
+   "label": "Drawback — Slow to Mend"
+  },
+  {
+   "type": "dmHouseRules",
+   "campaignId": "camp-A",
+   "overrides": {
+    "draws": {
+     "Slow to Mend": {
+      "ap": 9
+     }
+    }
+   },
+   "seq": 5,
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "label": "House rules (set by your DM)"
+  }
+ ],
+ "_apOpts": {
+  "houseRulesCtx": {
+   "campaignId": "camp-A",
+   "rules": {
+    "draws": {
+     "Slow to Mend": {
+      "ap": 3
+     }
+    }
+   },
+   "bans": {
+    "boons": [],
+    "draws": []
+   }
+  }
+ },
+ "_expect": {
+  "drawbackAp": 9
+ }
+}

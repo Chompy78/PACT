@@ -433,6 +433,51 @@ export async function dmEditCharacterLog(characterId, events) {
 }
 
 /**
+ * Campaign-wide character house rules (D-GH-2026-10-13-campaign-house-rules, PR4 of feat/campaign-house-rules):
+ * the ONE writer of `campaigns.rules.charHouseRules` and of the DM house-rules events, in one transaction.
+ * Needs sql/migrations/2026-10-13-campaign-house-rules-server.sql — without it the call fails with "Could not
+ * find the function … dm_apply_house_rules_change" (PGRST202), which DM Console turns into a plain message.
+ *   charHouseRules  undefined = leave the campaign's rules as they are (only `actions` run); an object = validated
+ *                   and stored whole. ({} = all calls on, no custom or repriced items.) Never pass null: PostgREST
+ *                   sends a JSON null as SQL NULL, which the server reads as "unchanged".
+ *   actions         [{kind:'override'|'pin', character, overrides, label?}
+ *                    | {kind:'reprice', character, name, targetSeq, amount, from, to, label?}
+ *                    | {kind:'refundBoon'|'removeDrawback', character, name, targetSeq, label?}]  — at most 500, in order;
+ *                   the server stamps seq/ts/dmEdit/dmId/campaignId and the refund / grant-back amounts itself.
+ *   expectedChr     the campaign's charHouseRules as the caller LOADED them (null = none stored): the server refuses
+ *                   the call if another DM changed them since ("another DM changed …"). undefined = no check. An
+ *                   override action may likewise carry `expected` (the character's override snapshot it was built from).
+ * Called with only a campaign id it changes nothing (DM Console uses that to detect an un-migrated server).
+ * @returns {Promise<{charHouseRules:object|null, events:Array<{character:string, event:object}>}>}
+ */
+export async function dmApplyHouseRulesChange(campaignId, charHouseRules, actions, expectedChr) {
+  const args = { p_campaign: campaignId, p_actions: Array.isArray(actions) ? actions : [] };
+  if (charHouseRules !== undefined && charHouseRules !== null) args.p_char_house_rules = charHouseRules;
+  if (expectedChr !== undefined) args.p_expected = { charHouseRules: expectedChr === undefined ? null : expectedChr };
+  const { data, error } = await supabase.rpc('dm_apply_house_rules_change', args);
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * The campaign's characters as the house-rules preview needs them (feat/campaign-house-rules-dm-editor): the raw
+ * LOG, the DM AP pool, and whether the row is archived (the RPC refuses an archived character, so the preview leaves
+ * it out instead of failing the whole change). Read fresh at save time, not from the rendered roster, so the preview
+ * prices what the server will check.
+ * @returns {Promise<Array<{id, name, ap, stats, archived:boolean, isNpc:boolean}>>}
+ */
+export async function getHouseRulesRoster(campaignId) {
+  const { data, error } = await supabase
+    .from('characters')
+    .select('id, name, ap, stats, archived_at, is_npc')
+    .eq('campaign_id', campaignId)
+    .order('name');
+  if (error) throw error;
+  return (data || []).map(c => ({ id: c.id, name: c.name, ap: c.ap, stats: c.stats,
+    archived: c.archived_at != null, isNpc: !!c.is_npc }));
+}
+
+/**
  * The AP award history for a character (newest first), each row attributed to
  * the DM who gave it. Readable by the character's owner and any campaign DM.
  * @returns {Promise<Array<{id,amount,note,created_at,dm_id,dm}>>}

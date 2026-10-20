@@ -18,6 +18,8 @@ on:
       - "testing/fixtures/**"
       - "testing/expected/**"
       - "testing/scripts/engine-parity-ci.mjs"
+      - "testing/scripts/gen-drawback-prices-sql.mjs"
+      - "sql/migrations/**"
       - "testing/scripts/log-fuzz.mjs"
       - "testing/scripts/undo-barrier-ci.mjs"
       - "testing/scripts/dm-unlock-drawback-ci.mjs"
@@ -30,6 +32,7 @@ on:
       - "testing/scripts/stored-size-ci.mjs"
       - "testing/scripts/patch-fold-aliasing-ci.mjs"
       - "testing/scripts/worn-armour-ac-ci.mjs"
+      - "testing/scripts/house-rules-ledger-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
       - "tools/DM-Console.html"
@@ -126,6 +129,29 @@ jobs:
 
       - name: Run the engine priceOf extraction gate
         run: node testing/scripts/engine-priceof-ci.mjs
+
+  house-rules-ledger:
+    # feat/campaign-house-rules-engine (D-GH-2026-10-13-campaign-house-rules). Campaign-wide house rules move a held
+    # drawback's grant in the browser (it is derived from the CURRENT effective value) while the server ledger only
+    # ever sees frozen numbers, so the DM's reprice/refund/remove events have to keep the two in step. This gate
+    # fuzzes campaign histories and asserts browser AP left == an independent port of the server ledger, plus the
+    # priceOf / buy-off / repriceDraft / Tasha / houseRulesImpact cases. Wired in the same change as the gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run the campaign house-rules ledger gate
+        run: node testing/scripts/house-rules-ledger-ci.mjs --iterations 1500 --seed ${{ github.run_id }}
+
+      # AB1: the server's printed drawback values (pact_drawback_printed) are generated from js/engine-data.js. A drawback
+      # price change without re-running the generator fails here.
+      - name: The server's drawback price list matches js/engine-data.js
+        run: node testing/scripts/gen-drawback-prices-sql.mjs --check
 
   imposed-drawback-grants:
     # fix/imposed-drawbacks-grant-no-ap. compute() once credited a DM-imposed drawback's table value as income

@@ -57,7 +57,7 @@ async function runAll() {
       rows.push({
         id, group: 'chargen', path: p,
         total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
-        ok: r.remaining >= 0, error: null,
+        ok: r.remaining >= 0, error: null, expect: build._expect, probe: r,
         // A build fixture may carry `_expectAc` / `_expectHp` (feat/livesheet-armour-ac): the AC / HP compute() must report.
         // Optional, so the CSV keeps its shape; asserted below and in engine-parity.html alike.
         ac: r.ac, expectAc: build._expectAc, hp: r.hp, expectHp: build._expectHp,
@@ -85,11 +85,14 @@ async function runAll() {
     try {
       const fixture = await loadJson(p);
       const baseSnapshot = await resolveBaseSnapshot(fixture, p);
-      const r = rebuildStateFromEvents(baseSnapshot, fixture.events);
+      // An event fixture may carry `_apOpts` too (compute()'s campaign-side options — e.g. a houseRulesCtx,
+      // D-GH-2026-10-13-campaign-house-rules), handed to rebuildStateFromEvents' third argument.
+      const r = rebuildStateFromEvents(baseSnapshot, fixture.events, fixture._apOpts);
       rows.push({
         id, group: 'event-sourcing', path: p,
         total: r.total, warnings: r.warnings.length, warningsArr: r.warnings, remaining: r.remaining,
         ok: r.ok, eventsApplied: r.eventsApplied, error: null,
+        expect: fixture._expect, probe: Object.assign({}, r.result, { economy: r.economy }),
       });
     } catch (e) {
       rows.push({ id, group: 'event-sourcing', path: p, error: e.message });
@@ -162,6 +165,14 @@ function assertRow(row, expected, expectedWarnings) {
   }
   if (row.id === 'CG-007') {
     if (row.remaining < 0) failures.push(`remaining should be >= 0, got ${row.remaining}`);
+  }
+  // `_expect` (optional, D-GH-2026-10-13-campaign-house-rules): exact values for fields the CSV doesn't carry —
+  // compute()'s `remaining`/`spendable`/`drawbackAp`, or `economy.<field>` for an event fixture. Added because a
+  // house rule changes what a drawback GRANTS, which moves neither `total` nor the warning list, so the CSV alone
+  // could not tell a custom value from the printed one. Kept in lockstep with engine-parity.html's checkExpect().
+  for (const [k, want] of Object.entries(row.expect || {})) {
+    const got = k.split('.').reduce((o, part) => (o == null ? undefined : o[part]), row.probe);
+    if (JSON.stringify(got) !== JSON.stringify(want)) failures.push(`_expect.${k}: got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
   }
   if (row.eventsApplied !== undefined) {
     if (!row.ok) failures.push('ok should be true');

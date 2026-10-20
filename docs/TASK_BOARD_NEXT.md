@@ -971,36 +971,6 @@ features read as separate entries in the Guide, not one bundle; `verify-guide.mj
 
 ---
 
-## `docs/phb-rules-final.jsonl` bundles 4 separately-leveled 2024 features under one entry — TODO
-Branch `docs/fix-phb-jsonl-bundled-entries`. The PHB text extraction that grounded round 5's level
-authoring (`D-GH-2026-08-27-feature-hd-gate`) crammed together features WotC prints at different levels on
-the class tables, because the source list was compiled by grouping similar-sounding names rather than by
-level. PACT's own data has already been corrected (the features were split), but the *source* file still
-carries the bundling, so the next person who re-derives from it inherits the same wrong premise and has to
-re-discover the split by hand, as this round did.
-The four: **Fighter** — `Tactical Mind` / `Shift` / `Master`, three distinct Battle-Master-flavoured
-features on the core Fighter table at L2/L5/L9, sharing a name theme but gained years apart. **Monk** —
-`Empowered Strikes` (unarmed strikes count as magical) / `Self-Restoration` (shed conditions), unrelated
-features at L6/L10 that the bundling hid a 4-level gap between. **Monk** — `Perfect Focus` (a focus-recovery
-feature, L15) / `Body and Mind` (the L20 capstone), two very different power tiers wrongly sharing a line.
-**Ranger** — `Roving` (extra movement/climb-swim speed) / `Tireless` (temp HP + reduced exhaustion), L6/L9
-improvements, again distinct features on the Ranger table.
-**Effort:** low · **Risk:** low — a data-quality fix to a reference extraction, not to PACT's own rules
-data; nothing in `compute()` reads this file.
-
-```text
-1. In docs/phb-rules-final.jsonl, split each of the 4 bundled Class Feature entries into its correctly-
-   separated sub-entries (Fighter's one row becomes three; the other three each become two), preserving
-   the source's own id/category/source/page/pdf_page/page_confidence shape for each new row.
-2. Assign each split entry the correct page number if it differs from the original bundled row's page --
-   check against the actual PHB page range for that class's feature table.
-3. Cross-check the split against what PACT's engine-data.js already landed for these (see the round-5
-   addendum in decisions/2026/D-GH-2026-08-27-feature-hd-gate.md) so the two agree.
-```
-
-**Done when:** the JSONL carries one entry per named 2024 feature, none of the 4 bundles remain, and a
-fresh re-derivation from the file alone would reproduce the same split PACT's engine already has.
-
 ## `tool-pricing-ci.mjs` flakes on tab readiness — TODO
 Branch `fix/tool-pricing-tab-flake`. The gate opens a fresh CDP tab per section — around ten across the
 three tools — and the later ones intermittently blow the 30-second `document.readyState==='complete'`
@@ -1252,33 +1222,6 @@ player buy-off flow still works end to end; the SQL FIFO replay agrees with the 
 includes a player-taken and an imposed drawback of the same name; `get_advisors` shows nothing new; and
 `testing/tests/engine-parity.html` and the SQL drift guard are green.
 
-## fix/random-fighter-int-priming — a Fighter on a caster theme is sometimes primed on INT — TODO
-Branch fix/random-fighter-int-priming. CI check `random-quality-ci.mjs` ("a Fighter on a caster theme still primes a
-Fighter stat, not INT") failed once on PR #569 (run 37203534734, 2026-10-04): 1 of 8 rolled Fighters had INT 20
-against STR 18 / DEX 16 / CON 14. The same code passed 7 of 7 local runs and the same job's third CI run, so it
-fails by chance. The gate itself is unseeded (it rolls `_qaRoll(theme, budget, "Fighter")` for the zealot and
-battlecaster themes with no fixed seed), which is why it looks like a flake. But the assertion encodes a real rule
-(a non-caster must not have a casting stat primed over its own; see the comment above the check about
-`DATA.castAbility` having an entry for every class), so a failure is either a real intermittent priming bug in
-CharGen's random roll or the gate being wrong about when INT may legitimately win. Find out which.
-**Effort:** low–medium · **Risk:** low — ambiguity medium (cause unknown), damage scale low (random-roll output
-only, no stored data), likelihood of harm low. Not blocking: the run passed on re-run.
-
-```text
-(a) Reproduce deterministically: add a seedable RNG (or a loop of a few hundred rolls) to
-    testing/scripts/random-quality-ci.mjs for this one case, so a failure prints its seed and the full stat block.
-    Do NOT just raise the retry count or loosen the assertion before knowing the cause.
-(b) Find why a Fighter's INT can exceed STR/DEX/CON on a caster theme (the priming code path in the CharGen
-    random roller, around _qaRoll). Likely candidates: a late INT bump from the caster theme's prerequisites,
-    a rank/feature gate that wants INT, or stat priming happening before the class is applied.
-(c) Fix the roller if INT really should not win; otherwise fix the assertion to say what is actually allowed.
-    Either way keep the check, and make a failure reproducible from the printed seed.
-(d) CHANGELOG; DECISIONS record only if the fix changes what a roll may produce. No DATA.version bump (random roll
-    only, compute() output unchanged).
-```
-**Done when:** the Fighter-priming check passes on 200 consecutive seeded rolls, a failing seed (if one is found)
-is recorded as a fixture, and `testing/scripts/random-quality-ci.mjs` reports 0 failed on CI across 3 runs.
-
 ## Anders Pipeleaf holds one ability through both purchase doors — decide how a sealed double charge is handled — TODO
 **Effort:** low · **Risk:** medium — ambiguity drives it (the DM and player must choose what, if anything, is refunded).
 
@@ -1454,19 +1397,84 @@ come from it.
 ---
 
 
-## feat/dm-house-rules-editor — a DM can set a campaign character's house rules (Bound / Boons / Drawbacks / custom boons) — TODO
-Branch feat/dm-house-rules-editor. **Effort:** medium · **Risk:** medium — touches priced data (houseRules feeds compute()).
+## feat/campaign-house-rules — campaign-wide house rules: tools, server, DM editor, #642 rework, Players Guide (PRs 2–6) — TODO
+Branches one per PR below. **Effort:** high · **Risk:** high — priced data across all three tools plus an AP-moving server migration.
 
 ```text
-Since fix/player-free-ap (#638, 2026-10-12) a player can't edit a server-confirmed campaign character's houseRules (DM Calls:
-Bound/Boons/Drawbacks/Non-core; custom and repriced boons/drawbacks), because they are priced. But nobody else can either:
-DM Console's currentHouseRules is campaign free-text labels and never reaches a character's houseRules. Decide with the owner
-whether house rules belong on the CAMPAIGN (all characters inherit — engine reads campaign rules) or per character via a DM
-RPC (dm_edit_character_log allowlist), then build it. Also revisit the #638 H2 decisions recorded in
-decisions/2026/D-GH-2026-10-12-player-free-ap.md (solo self-award not noLock; solo characters lose DM Calls after their own
-lock; starting gold refused both ways after the lock).
+Owner decisions P2/R1/U1/T2/S2/V1/W1/X1/Y1 (2026-10-13) — read decisions/2026/D-GH-2026-10-13-campaign-house-rules.md and the plan
+docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) and PR2 (tools) have landed:
+houseRulesCtx / withHouseRulesCtx / resolveHouseRules / effective tables / drawbackValue / drawbackBuyoffQuote / houseRulesImpact /
+serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events. Remaining, each its own PR:
+  PR2 feat/campaign-house-rules-tools — DONE (2026-10-13, see CHANGELOG): ctx stamped in all three tools' folds, js/campaign-rules.js
+      (houseRulesCtxFromRules / latestRulesSnapshot, re-exported by campaign.js), Live Sheet effective pickers + W1 buy-off + buyoff
+      targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
+  PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR #654 OPEN, NOT APPLIED: migration
+      sql/migrations/2026-10-13-campaign-house-rules-server.sql + rollback, Docker harness run-house-rules.sh (in sql-guards CI).
+      Owner decision AB1 (server drawback price list, generated from engine-data.js) is in. Before applying: the header's
+      read-only queries Q1-Q5, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
+      follow-up PR folds it into sql/rls-policies.sql and the baseline tests. It may be applied BEFORE the promotion (the PR
+      #654 review withdrew the "apply together" constraint: main's re-costing of a DM grant is already refused today).
+      PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
+      (dm_bind_npc, then dm_unbind_character) or on a solo character before joining, and bring them into campaign X. Count
+      AP-moving DM events only when their campaignId equals the character's current campaign_id — engine AND server, so
+      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads. Concrete case (round-2
+      review R2-6, pinned as a KNOWN GAP in run-house-rules.sh): while solo, forge a dmEdit dmHouseRules pin
+      {Fake: 1000} stamped with campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the
+      server grants 1000. The campaignId filter alone does not stop it (the forger used X's id); it needs the adjustments
+      table, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
+      campaign_dms for X) — see PR #654's body.
+  MERGE WITH #649 (feat/dm-ap-discount) — DONE 2026-10-13 (sync of the integration branch with preview; see CHANGELOG and the
+      decision record's "Merge with preview / #649" addendum). Reconciled as listed below:
+      - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
+        inside it; mixing the two signatures fails silently (wrong tally, no error).
+      - a boon refunded by dmRefundBoon after a #649 discount must not be credited twice: the refund = frozen cost MINUS the
+        discount on that target, mirrored in the server ledger (PR3).
+      - parity fixture id EV-034 is used by both — renumber one.
+      - the Live Sheet ledger's dmTag / else-if chain needs both PRs' branches.
+  PR4 feat/campaign-house-rules-dm-editor — PR OPEN (2026-10-13, see CHANGELOG): editor, S2/T2 review, one RPC call,
+      un-migrated-server message, effective grant/impose pickers, the client strictness below and the second-copy label are
+      in; real-RPC replay in CI. Owner questions answered and deferred: AC -> feat/house-rules-draft-reprice, AD1 (opt-in
+      removal on bans) -> feat/house-rules-ban-removal. Original brief: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
+      houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does. The RPC (PR3):
+      dm_apply_house_rules_change(p_campaign, p_char_house_rules [SQL null = unchanged, JSON null = remove], p_actions[]) with
+      actions {kind:'override'|'pin', character, overrides} · {kind:'reprice', character, name, targetSeq, amount, from, to} ·
+      {kind:'refundBoon'|'removeDrawback', character, name, targetSeq} (the server stamps cost / grantBack). It refuses an
+      AP-moving action on a character without an explicit creationLocked after its last creationUnlocked — so a threshold
+      auto-locked character is NOT tickable either — and refunds of DM-granted boons (use dmRemoveBoon via
+      dm_edit_character_log, FIFO by name: offer it only when the DM-granted copy is the oldest open one of that name).
+      Client strictness when campaign rules are UNKNOWN (PR #654 round 3, finding 4 — PR4 or a small follow-up): a BOUND
+      character with no rulesSnapshot and rules not active gets postLockAllowance(null) = allowed and a context without the
+      campaign's charHouseRules (Live Sheet _lsHrCtx ~560-566, CharGen ~4181 / ~4329), so a post-lock drawback can be taken
+      and a campaign-custom drawback is priced at printed/0 — then the server (PR3) refuses the whole sync. When campaign
+      rules are unknown for a bound character the tools should be strict: no post-lock drawbacks, and flag items whose price
+      depends on campaign house rules instead of pricing them.
+      Cosmetic (round 3, finding 5): a dmRemoveDrawback aimed at a SECOND open copy of a name is labelled "−v AP" in the
+      ledger rows, but moves 0 (F1: only the oldest copy grants) — the DM Console should label it, or offer removal of the
+      granting copy first.
+  PR5 feat/campaign-house-rules-overrides (rework #642) — PR OPEN (2026-10-13, see CHANGELOG): per-character overrides as a
+      dmHouseRules snapshot via the RPC, single-holder S2, inherited values shown; #642 closed in its favour.
+  PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
+      testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
+      merge BEFORE preview is promoted to main.
+SECURITY GATE: PR1's engine counts dmEdit-flagged events that a PLAYER can still write until PR3's DM-family guard is applied
+(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration.
 ```
-**Done when:** the owner has chosen campaign-level vs per-character; a DM can change a campaign character's house rules through the chosen path with an e2e test; the #638 H2 decisions are confirmed or reversed.
+**Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
+server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;
+leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
+verify-guide.mjs passes; promotion to main only after PR3 is applied (security gate above) and PR6 has landed.
+
+## feat/dm-house-rules-editor — revisit #638's H2 decisions now that DMs can set house rules — TODO
+Branch fix/player-free-ap-h2-revisit. **Effort:** low · **Risk:** low — owner decisions, then small tool changes.
+
+```text
+The editor half of this task is done by feat/campaign-house-rules (campaign-wide rules, PR4) and its per-character overrides
+(PR5, which superseded PR #642 — see decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md, addendum). What is left is the
+owner review of the #638 H2 decisions recorded in decisions/2026/D-GH-2026-10-12-player-free-ap.md: solo self-awards are not
+noLock; solo characters lose DM Calls after their own lock; starting gold is refused both ways after the lock. Confirm or
+reverse each, then make the matching tool change.
+```
+**Done when:** the owner has confirmed or reversed each of the three #638 H2 decisions and any reversal is implemented with a test.
 
 ## fix/chargen-join-generation-guard — CharGen's join-campaign flow can bind the wrong character if the player switches mid-join — TODO
 Branch fix/chargen-join-generation-guard. **Effort:** low · **Risk:** medium — damage likelihood is low (narrow race), but the damage is a character attached to the wrong campaign.
@@ -1570,40 +1578,9 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
-## feat/campaign-house-rules merge — keep customWeapons + weaponList in DM Console's Save rules — TODO
-Branch: whichever of feat/campaign-house-rules / feat/livesheet-weapons (#667) merges into preview SECOND. **Effort:** low · **Risk:** medium — a dropped key silently wipes DM data on the next Save rules.
-
-```text
-DM Console's "Save rules" builds the whole campaigns.rules blob key by key (ruleSaveBtn handler), so any key it doesn't
-name is wiped on save. feat/livesheet-weapons (#667, D-GH-2026-10-15-livesheet-weapons) adds customWeapons and weaponList
-to that literal; feat/campaign-house-rules routes the same save through _rulesBlobForSave()/_rulesKeepChr() for
-charHouseRules. Whichever merges second must resolve the conflict keeping ALL of them: customWeapons, weaponList (written
-by Save rules) AND the charHouseRules handling (never sent by Save rules; kept from the cached copy). Then run
-livesheet-weapons-e2e (its "Save rules blob includes customWeapons and weaponList" check) and the house-rules DM e2e.
-```
-**Done when:** both branches are in preview; the Save rules literal carries customWeapons and weaponList and still strips/keeps charHouseRules as the house-rules branch intends; both e2e suites pass.
-
-## feat/campaign-house-rules merge — rules version and parity fixture ids collide with feat/livesheet-armour-ac (#670) — TODO
-Branch: whichever of feat/campaign-house-rules / feat/livesheet-armour-ac (#670) merges into preview SECOND. **Effort:** small · **Risk:** medium — a wrong merge silently drops parity fixtures or a rules bump.
-
-```text
-Merge coordination, recorded 2026-10-15 from PR #670 (feat/livesheet-armour-ac). Both branches bump DATA.version v0.376 → v0.377,
-and their parity fixture ids collide: #670 adds CG-071..CG-082; feat/campaign-house-rules adds CG-071..CG-075 and EV-035..EV-040
-(#670 adds no EV fixtures). Whichever of the two merges SECOND must:
-  1. re-bump to v0.378 at every display site (js/engine-data.js `version`, CharGen <title> "Rules" half and #cgPactver chip,
-     Live Sheet #lsRulesVer — docs/VERSION-SYNC.md "Rules version display sites"; version-label-ci.mjs asserts them);
-  2. renumber its own colliding fixtures (files, expected-results.csv rows, expected-warnings.json keys, the FIXTURES list in
-     testing/tests/engine-parity.html);
-  3. merge the parity runners' optional per-fixture assertions — #670 adds `_expectAc`/`_expectHp` to both
-     testing/scripts/engine-parity-ci.mjs and testing/tests/engine-parity.html; keep the other branch's `_expect*` fields alongside;
-  4. rebaseline testing/expected/ on the COMBINED engine (re-run every fixture, old and new, against the merged js/engine.js) and
-     record the second bump in its CHANGELOG line and decision record.
-```
-**Done when:** after both have merged, preview's DATA.version is v0.378 at every display site, fixture ids are unique, and
-engine-parity reports 0 failed with every fixture from both branches present.
-
 ## feat/campaign-house-rules merge — rebuild the house-rules server migration on the live boon/drawback-notes definitions — TODO
 Branch: feat/campaign-house-rules (its server PR, feat/campaign-house-rules-server). **Effort:** low · **Risk:** medium — applying it as written would silently remove the live description lock.
+**Status 2026-10-20:** rebuilt and rehearsed in the second preview merge (`run-house-rules.sh` 209/209, notes cases 54/0 on top, rollback byte-identical to the notes BASE; decision addendum 2026-10-20). What remains is the apply itself (owner decision AE1, with the release) and the post-apply checks in **Done when**.
 
 ```text
 Carried from the graduated db/apply-boon-drawback-notes (step 3), 2026-10-19. 2026-10-15-boon-drawback-notes.sql was applied to
@@ -1705,3 +1682,30 @@ both tools pass the full kind list. Do not change what a `names` event means or 
 ```
 **Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.
 
+
+## feat/chargen-merge-not-rewrite — CharGen's remaining whole-log rebuild paths merge into the existing history instead of rewriting it (creation-lock "Part 1b") — TODO
+Branch `feat/chargen-merge-not-rewrite`. **Effort:** high · **Risk:** high — damage scale (CharGen's central load/edit path in a ~600 KB file; a wrong merge silently drops or duplicates history on a live character) and ambiguity (it overlaps `fix/chargen-post-lock-purchases` above, and how much of "Part 1b" that task already covers has not been checked).
+```
+What is left of the old "Creation-lock integrity" task (its repair, server guard and stale-copy fix all shipped 2026-10-04 — see CHANGELOG, and
+decisions/2026/D-GH-2026-10-01-creation-lock-integrity.md): CharGen still has paths that rebuild the whole LOG from the form and replace the loaded
+one, which is how locks, awards, seals and purchase lines were lost. As of origin/preview 2026-10-20, replaceWholeLogFromBuild() is still called from
+applyBuild() (~line 5191), ~line 6256 and the initial LOG bootstrap (~line 7624) in tools/PACT-CharGen-Webtool.html (line numbers drift — grep).
+Named in the original plan (docs/plans/2026-10-01-creation-lock-integrity.md, "M1 merge identity keys"): the random roll, `#b=` share links, and
+legacy / untagged imports.
+DO, in this order — this is big and risky, so do NOT start by editing:
+  1. Read-only audit: for each caller of replaceWholeLogFromBuild(), say whether it can still reach a character that has a creationLocked / award /
+     sessionSeal event, and what it does to those. Note what #553, #643 (Randomise keeps the id and keeps its lock entries in order) and the 2026-10-04
+     stale-copy fix already closed.
+  2. Compare with `fix/chargen-post-lock-purchases` and `docs/plans/2026-10-04-chargen-post-lock-purchases.md`: if that task's plan already merges these paths,
+     close this one into it; if not, list exactly which paths remain.
+  3. For what remains, draft a self-contained plan for a cold reviewer (AGENTS.md: /make-code-cold-plan-review) BEFORE implementing.
+  4. Then merge-not-rewrite, using the identity keys in the plan, plus refuse re-rolling a finished (locked) character.
+```
+**Done when:** the audit and the comparison with `fix/chargen-post-lock-purchases` are written down; every remaining whole-log rebuild path keeps a locked character's
+creationLocked / award / sessionSeal / purchase events (or is shown unable to reach one); re-rolling a finished character is refused; a test per path loads a
+locked character through it and asserts the lock events survive; `engine-parity.html` 0 failed; `chargen-flows-e2e.mjs` passes.
+
+**Carried over from the old entry, NOT part of this task (each is its own small task if wanted):** `_cgSyncAward()` relocates a burst-shaped award once on
+load; the server guard does not yet stop moving a post-lock purchase to before the lock (review H3); `random-manual-e2e.mjs` does not use the shared browser
+launcher; scan other campaigns for the same lock-loss pattern; four free-API cold reviews of the original plan (need `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
+`GROQ_API_KEY`, `DEEPSEEK_API_KEY`).

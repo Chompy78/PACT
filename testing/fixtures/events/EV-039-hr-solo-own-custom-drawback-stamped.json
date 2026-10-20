@@ -1,0 +1,53 @@
+{
+ "description": "Addendum M6 — PR1 is NOT behaviour-neutral for a SOLO character with own house rules: priceOf(cur,\"drawback\",{v}) now returns the own house-ruled value (here a custom drawback \"Bad Luck Charm\" worth 4) instead of reading DATA alone, which stamped a custom drawback at cost 0 and gave it a free buy-off. This log is what the Live Sheet now records (cost -4): the frozen ledger (economy().drawbackEarned 4) and compute()'s grant agree. The priceOf/buy-off quote halves are asserted in testing/scripts/house-rules-ledger-ci.mjs.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "_slot": "houseRules",
+   "payload": {
+    "patch": {
+     "houseRules": {
+      "draws": {
+       "Bad Luck Charm": {
+        "ap": 4,
+        "fx": "Once per session the DM may reroll one of your d20s."
+       }
+      }
+     }
+    }
+   },
+   "cost": 0,
+   "seq": 3
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Bad Luck Charm"
+   },
+   "cost": -4,
+   "seq": 4
+  }
+ ],
+ "_expect": {
+  "drawbackAp": 4,
+  "economy.drawbackEarned": 4,
+  "economy.earned": 83
+ }
+}

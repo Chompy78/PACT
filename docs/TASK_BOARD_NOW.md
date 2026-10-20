@@ -27,43 +27,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## feat/heroic-inspiration-boons — boons for 2 and 3 Heroic Inspiration; Blazing Moment triggers on 18+ (rules change) — TODO
-Branch feat/heroic-inspiration-boons. **Effort:** medium · **Risk:** medium — a mechanics change: new priced boons and a changed one (prices are an owner call; live characters may own Blazing Moment).
-
-```text
-Owner request 2026-10-14. Three rules changes, one DATA.version bump, engine AND Players Guide (AGENTS.md: a mechanics change
-isn't done until both land).
-  1. New boon: hold up to 2 Heroic Inspiration at once (instead of 1).
-  2. New boon: hold up to 3 Heroic Inspiration at once — prereq the 2-point boon (like the Bard Inspiration die ladder:
-     "prereq":[...]), so it can't be bought first.
-  3. Change "Blazing Moment" (js/engine-data.js DATA.boons, hd 9, ap 14, cat Magic): fx "When you spend Heroic Inspiration and
-     roll 19 or higher on the reroll, regain it immediately" -> "18 or higher". An fx text change alone is display-only, but
-     ask the owner whether the stronger effect should be repriced (if the AP changes, it is a compute() change).
-DO: propose hd/ap/cat/fx for the two new boons (compare: "Human: Heroic Inspiration" T1 Per-Rest, Blazing Moment 9/14,
-the Bard die ladder) and GET OWNER APPROVAL of the prices before building. Then: add to DATA.boons, bump DATA.version once,
-add parity fixtures + testing/expected rows, update every display site per docs/VERSION-SYNC.md, update the Players Guide
-(master in pact-guide, then the served copy; run verify-guide.mjs and guide-price-check.mjs), CHANGELOG + DECISIONS.
-Measure first (owner-approved read): how many live characters own Blazing Moment — a reprice would change their AP.
-```
-**Done when:** both new boons are buyable in CharGen and the Live Sheet at the owner-approved prices (3-point one needs the 2-point one); Blazing Moment reads 18+ in both tools and the guide; parity 0 failed with new fixtures; guide-price-check clean; DATA.version bumped once.
-
-## Creation-lock integrity — server guard, stale-copy bug, Amble repair — TODO
-```
-Continue the creation-lock work handed over on 2026-10-04. Read
-docs/sessions/2026-10-04-creation-lock-restart.md FIRST — it holds the live state, every owner decision
-(do not re-ask them), and the work order. In short: (1) re-check the six Amble characters are still
-locked and re-lock any that are not; ask the owner for their verdict on the six "lock check (DM copy)"
-characters; (2) settle decision T (recommended: test on a Supabase branch); (3) test, then apply
-sql/migrations/2026-10-04-creation-lock-guard.sql (server guard D1 + L1 campaign moves + S1 backup
-retention) with owner approval, run advisors/logs, mirror into sql/schema.sql; (4) root-cause the
-stale-local-copy overwrite that unlocked Skylar (2 Oct) and Archer (3 Oct); (5) Part 3: backdate each
-Amble lock to its agreed point with owner sign-off of before/after AP and gold/downtime; (6) Part 1b:
-CharGen whole-log rebuilds merge instead of rewrite.
-```
-**Done when:** the guard is live and tested (a player save that drops or reopens a lock is refused), all
-six Amble characters carry their lock at the agreed point (owner signed off), the stale-copy cause is
-fixed or tracked, and CHANGELOG/DECISIONS record it.
-
 ## Random roller: two build shapes it still cannot produce — TODO
 Branch `feat/roller-build-shapes-2`. Follow-on from the Grit and Hit-Dice fixes closed in #525. Evidence is
 **3,264 characters rolled through `testing/scripts/roll-headless.mjs`** — the real tool in a real browser,
@@ -250,6 +213,13 @@ costs. Then decide (H2 if the owner is away) a server rule that stays SQL-only a
 is the only pricing source): e.g. refuse cost < 0 on non-drawback events for campaign characters, and on a locked/sealed one
 refuse a rise in drawback earnings by anyone but the DM (mirroring pact_enforce_player_ap_ceiling). Rehearse in the Docker
 harness (testing/scripts/creation-lock-guard-test/, run-award.sh pattern) incl. legitimate post-lock drawbacks the tools allow.
+UPDATE 2026-10-13 (PR #654, campaign house rules — NOT applied yet): route (1) is closed there — a drawback grants at most its
+effective value (AB1, a generated server price list), a name grants once (F1), and a new player drawback after the lock is refused
+unless the campaign allows post-lock drawbacks. A new buyoff must name its target and pay rate × value (R2-5), which also closes a
+negative-cost BUYOFF. What remains is F2 (round-2 review of #654, R2-2/R2-4, pre-existing): a negative cost on any other
+non-drawback event — a buy of any other cat (e.g. skill), or a `names` event — lowers server spend in EVERY campaign mode, locked or
+not (harness cases R2-2 and R2-4 in run-house-rules.sh pin it as allowed today). A clamp must still allow the categories that
+legitimately carry a negative cost: Martially/Magically Bound (cat mbound / dbound) are AP-granting bindings with a negative cost.
 ```
 **Done when:** the harness refuses both negative-cost routes on a locked campaign character and accepts every legitimate save the
 tools make; the live measurement is recorded; the owner has applied it and the advisors are clean.

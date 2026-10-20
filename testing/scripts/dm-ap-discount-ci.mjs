@@ -65,6 +65,15 @@ t('a correction never goes below 0', disc(activeEvents([award, oclass, skill(3),
 t('a buy-off (its own AP cost) can be discounted', disc(activeEvents([award, oclass, draw(3), buyoff(4), dd(4, 6, 'buyoff')]).discounts), [[3, 6]]);
 t('a DM-removed boon keeps its discount (removal refunds nothing)',
   disc(activeEvents([award, oclass, boon(3), dd(3, 10, 'boon'), { type: 'dmRemoveBoon', refVal: 'Boon of Combat Prowess', seq: 5, dmEdit: true }]).discounts), [[2, 10]]);
+// Campaign house rules (merge with #649): a DM REFUND returns the boon's full frozen cost, so its discount must drop —
+// whichever came first — or the discounted AP is credited twice. The server's pact_ap_ledger_discount() does the same.
+{
+  const B = boon(3), cost = B.cost;
+  const refund = (seq) => ({ type: 'dmRefundBoon', refVal: 'Boon of Combat Prowess', targetSeq: 3, cost: -cost, seq, dmEdit: true });
+  t('a DM-refunded boon loses its discount (refund after discount)', disc(activeEvents([award, oclass, B, dd(3, 10, 'boon'), refund(5)]).discounts), []);
+  t('…and a discount aimed at an already-refunded boon is inert', disc(activeEvents([award, oclass, B, refund(4), dd(3, 10, 'boon')]).discounts), []);
+  t('…the dropped discount is recorded for display', [...activeEvents([award, oclass, B, dd(3, 10, 'boon'), refund(5)]).refundDiscount], [[2, 10]]);
+}
 
 console.log('economy() — B1: AP value vs AP paid');
 {

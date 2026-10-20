@@ -22,6 +22,17 @@ on:
     paths:
       - "sql/**"
       - "testing/sql/**"
+      - "testing/scripts/creation-lock-guard-test/**"
+      - "testing/scripts/house-rules-ledger-ci.mjs"
+      - "js/engine.js"
+      - "js/engine-data.js"
+      - "js/campaign.js"
+      - "testing/scripts/gen-drawback-prices-sql.mjs"
+      - "testing/scripts/dm-campaign-house-rules-e2e.mjs"
+      - "testing/scripts/dm-house-rules-e2e.mjs"
+      - "testing/scripts/lib/house-rules-fake-server.mjs"
+      - "tools/DM-Console.html"
+      - "js/dm.js"
       - "testing/scripts/creation-lock-guard-test/images-storage-shim.sql"   # rls-baseline-test.sql loads it
       - ".github/workflows/sql-guards.yml"
   workflow_dispatch:
@@ -108,3 +119,37 @@ jobs:
       # owner-only write, at most two slots (applied to production 2026-10-19; folded into rls-policies.sql).
       - name: Character images — storage policies, re-run, rollback
         run: testing/scripts/creation-lock-guard-test/run-images.sh
+      # feat/campaign-house-rules-server: the campaign house-rules server half (NOT applied to live by merging). Every case lands as
+      # predicted before the migration, all pass after, the SQL ledger agrees with house-rules-ledger-ci.mjs's port on the fuzz's
+      # random histories and the drawback cap with js/campaign.js on 45 shapes, and the rollback is byte-identical.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The server's drawback price list matches js/engine-data.js (AB1)
+        run: node testing/scripts/gen-drawback-prices-sql.mjs --check
+      - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
+        run: testing/scripts/creation-lock-guard-test/run-house-rules.sh
+
+  # feat/campaign-house-rules-dm-editor / -overrides: what DM Console's Character house rules editor and its per-character
+  # override editor SEND (captured by their e2e with
+  # --dump-calls) is replayed against the real migration in Docker: every call must be accepted, and the server's AP left
+  # must equal the engine's for every finished character. Needs Chromium for the capture, so it is its own job.
+  dm-house-rules-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: testing/package-lock.json
+      - name: Install test deps
+        working-directory: testing
+        run: npm ci
+      - name: Install Chromium
+        working-directory: testing
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
+      - name: DM Console house-rules calls replayed against the real RPC
+        run: testing/scripts/creation-lock-guard-test/run-dm-house-rules-replay.sh

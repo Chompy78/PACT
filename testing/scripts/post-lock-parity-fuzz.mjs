@@ -128,7 +128,7 @@ async function lsDo(intent) {   // click the matching enabled tile in the real b
     return { found: { state: ok }, before, after, accepted: after.post.length > before.post.length, dialogs: lsDialogs.slice() };
   }
   if (intent.cat === 'drawback') {   // the Live Sheet lists drawbacks as their own buttons (takeDrawback), not as buy tiles
-    const found = await ls.evaluate(v => { const bt = [...document.querySelectorAll('button.ib.draw')].find(b => (b.getAttribute('onclick') || '') === 'takeDrawback("' + v + '")'); if (bt) { bt.click(); return { state: 'clicked' }; }
+    const found = await ls.evaluate(v => { const bt = [...document.querySelectorAll('button.ib.draw')].find(b => b.dataset.v === v && /takeDrawback/.test(b.getAttribute('onclick') || '')); /* the name rides in data-v */ if (bt) { bt.click(); return { state: 'clicked' }; }
       const dis = [...document.querySelectorAll('button.ib.draw.dis')].find(b => (b.textContent || '').includes(v)); return dis ? { state: 'blocked', reason: 'barred' } : { state: 'absent' }; }, intent.payload.v);
     await ls.waitForTimeout(150); const after = await ls.evaluate(LS_SNAP);
     return { found, before, after, accepted: after.post.length > before.post.length, dialogs: lsDialogs.slice() };
@@ -136,13 +136,14 @@ async function lsDo(intent) {   // click the matching enabled tile in the real b
   // cross-class features are only listed once their class is picked in the "Cross-class features" selector (buyCls)
   if (intent.cat === 'feature') await ls.evaluate(v => { try { const c = DATA.features[v] && DATA.features[v].cls; if (c && typeof buyCls !== 'undefined') { buyCls = c; refreshBuy(); } } catch (e) {} }, intent.payload.v);
   const found = await ls.evaluate(({ cat, payload }) => {
+    // A tile's purchase rides in data-cat / data-p and a blocked tile's reason in data-msg (never inside the onclick JS —
+    // feat/campaign-house-rules-tools, a DM-typed name used to break out of it).
     const tiles = [...document.querySelectorAll('button.ib')].map(b => ({ b, on: b.getAttribute('onclick') || '', dis: b.classList.contains('dis'), title: b.getAttribute('title') || '' }));
-    const re = /^buy\("([^"]+)",(.*),"((?:[^"\\]|\\.)*)"\)$/s;
     const want = JSON.stringify(payload);
-    for (const t of tiles) { const m = t.on.match(re); if (m && m[1] === cat) { let p; try { p = JSON.parse(m[2]); } catch (e) { continue; } if (JSON.stringify(p) === want) { if (t.dis) return { state: 'blocked', reason: t.title.slice(0, 80) }; t.b.click(); return { state: 'clicked' }; } } }
+    for (const t of tiles) { if (t.b.dataset.cat === cat) { let p; try { p = JSON.parse(t.b.dataset.p); } catch (e) { continue; } if (JSON.stringify(p) === want) { if (t.dis) return { state: 'blocked', reason: t.title.slice(0, 80) }; t.b.click(); return { state: 'clicked' }; } } }
     // a BLOCKED tile's click handler is flash(reason), which carries no payload: find it by the item's name instead and report the reason it gives
     const nm = String((payload && payload.v) || '').split(': ').pop();
-    if (nm) for (const t of tiles) { if (t.on.startsWith('flash(') && (t.b.textContent || '').includes(nm)) return { state: 'blocked', reason: t.on.slice(7, 90) }; }
+    if (nm) for (const t of tiles) { if (t.on.startsWith('flash(') && (t.b.textContent || '').includes(nm)) return { state: 'blocked', reason: String(t.b.dataset.msg || '').slice(0, 83) }; }
     return { state: 'absent' };
   }, intent);
   await ls.waitForTimeout(120);

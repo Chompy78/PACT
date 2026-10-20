@@ -115,7 +115,17 @@
         { id: "CG-079", path: "../fixtures/builds/CG-079-defense-style-art-in-chain-mail.json" },
         { id: "CG-080", path: "../fixtures/builds/CG-080-defense-style-art-unarmoured.json" },
         { id: "CG-081", path: "../fixtures/builds/CG-081-defense-named-for-fighting-style-slot.json" },
-        { id: "CG-082", path: "../fixtures/builds/CG-082-defense-named-without-a-slot.json" }
+        { id: "CG-082", path: "../fixtures/builds/CG-082-defense-named-without-a-slot.json" },
+        { id: "CG-083", path: "../fixtures/builds/CG-083-threefold-inspiration-blocked-without-twofold.json" },
+        { id: "CG-084", path: "../fixtures/builds/CG-084-twofold-and-threefold-inspiration-chain-priced.json" },
+        { id: "CG-085", path: "../fixtures/builds/CG-085-twofold-inspiration-alone-priced.json" },
+        { id: "CG-086", path: "../fixtures/builds/CG-086-threefold-inspiration-hd-gate-reads-hit-dice.json" },
+        { id: "CG-087", path: "../fixtures/builds/CG-087-hr-solo-own-repriced-drawback.json" },
+        { id: "CG-088", path: "../fixtures/builds/CG-088-hr-campaign-ignores-own-patch.json" },
+        { id: "CG-089", path: "../fixtures/builds/CG-089-hr-campaign-value-beats-own.json" },
+        { id: "CG-090", path: "../fixtures/builds/CG-090-hr-campaign-tasha-owned-soft.json" },
+        { id: "CG-091", path: "../fixtures/builds/CG-091-hr-solo-tasha-owned-hard.json" },
+        { id: "CG-092", path: "../fixtures/builds/CG-092-hr-repriced-threefold-keeps-prereq.json" }
       ],
       liveSheets: [
         { id: "LS-001", path: "../fixtures/live-sheets/LS-001-clean-generator-export.json" }
@@ -154,7 +164,13 @@
         { id: "EV-031", path: "../fixtures/events/EV-031-dup-feature-first-subclass-copy-not-counted.json" },
         { id: "EV-032", path: "../fixtures/events/EV-032-dup-feature-first-hd-blocked-listed-once.json" },
         { id: "EV-033", path: "../fixtures/events/EV-033-circle-forms-before-wild-shape-final-state-priced.json" },
-        { id: "EV-034", path: "../fixtures/events/EV-034-dm-discount-covers-shortfall.json" }
+        { id: "EV-034", path: "../fixtures/events/EV-034-dm-discount-covers-shortfall.json" },
+        { id: "EV-035", path: "../fixtures/events/EV-035-hr-dm-override-other-campaign-ignored.json" },
+        { id: "EV-036", path: "../fixtures/events/EV-036-hr-solo-ignores-dm-override.json" },
+        { id: "EV-037", path: "../fixtures/events/EV-037-hr-pin-keeps-old-value.json" },
+        { id: "EV-038", path: "../fixtures/events/EV-038-hr-dm-refund-remove-reprice.json" },
+        { id: "EV-039", path: "../fixtures/events/EV-039-hr-solo-own-custom-drawback-stamped.json" },
+        { id: "EV-040", path: "../fixtures/events/EV-040-hr-dm-override-wins.json" }
       ]
     };
 
@@ -189,7 +205,8 @@
             remaining: r.remaining,
             ok: r.remaining >= 0,
             ac: r.ac, expectAc: build._expectAc, hp: r.hp, expectHp: build._expectHp,   // optional per-fixture AC / HP assertions (feat/livesheet-armour-ac)
-            error: null
+            error: null,
+            expect: build._expect, probe: r
           });
         } catch (e) {
           rows.push({ id, group: "chargen", path, error: e.message });
@@ -220,7 +237,8 @@
         try {
           const fixture = await loadJson(path);
           const baseSnapshot = await resolveBaseSnapshot(fixture, path);
-          const r = rebuildStateFromEvents(baseSnapshot, fixture.events);
+          // `_apOpts` on an event fixture = compute()'s campaign-side options (e.g. a houseRulesCtx)
+          const r = rebuildStateFromEvents(baseSnapshot, fixture.events, fixture._apOpts);
           rows.push({
             id, group: "event-sourcing", path,
             total: r.total,
@@ -229,7 +247,8 @@
             remaining: r.remaining,
             ok: r.ok,
             eventsApplied: r.eventsApplied,
-            error: null
+            error: null,
+            expect: fixture._expect, probe: Object.assign({}, r.result, { economy: r.economy })
           });
         } catch (e) {
           rows.push({ id, group: "event-sourcing", path, error: e.message });
@@ -350,6 +369,14 @@
           if (row.id === "CG-007") {
             if (row.remaining < 0)
               failures.push(`remaining should be >= 0, got ${row.remaining}`);
+          }
+
+          // `_expect` (optional): exact values the CSV doesn't carry — remaining/spendable/drawbackAp, or
+          // economy.<field> for an event fixture. Kept in lockstep with engine-parity-ci.mjs.
+          for (const [k, want] of Object.entries(row.expect || {})) {
+            const got = k.split(".").reduce((o, part) => (o == null ? undefined : o[part]), row.probe);
+            if (JSON.stringify(got) !== JSON.stringify(want))
+              failures.push(`_expect.${k}: got ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
           }
 
           // LS-001 / EV-001: assert ok + eventsApplied

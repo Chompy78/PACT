@@ -1,0 +1,70 @@
+{
+ "description": "U1, leaving a campaign: the EV-040 log with NO campaign context. The character is solo, so its own house rules (7) apply and the DM override for camp-A stops applying. Nothing in the log was rewritten.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "seq": 1,
+   "label": "Award — Level 1 (79 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "seq": 2,
+   "label": "Origin class — Fighter"
+  },
+  {
+   "type": "buy",
+   "cat": "patch",
+   "_slot": "houseRules",
+   "payload": {
+    "patch": {
+     "houseRules": {
+      "draws": {
+       "Slow to Mend": {
+        "ap": 7
+       }
+      }
+     }
+    }
+   },
+   "cost": 0,
+   "seq": 3,
+   "label": "House rules"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Slow to Mend"
+   },
+   "cost": -7,
+   "seq": 4,
+   "label": "Drawback — Slow to Mend"
+  },
+  {
+   "type": "dmHouseRules",
+   "campaignId": "camp-A",
+   "overrides": {
+    "draws": {
+     "Slow to Mend": {
+      "ap": 9
+     }
+    }
+   },
+   "seq": 5,
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "label": "House rules (set by your DM)"
+  }
+ ],
+ "_expect": {
+  "drawbackAp": 7,
+  "economy.drawbackEarned": 7
+ }
+}

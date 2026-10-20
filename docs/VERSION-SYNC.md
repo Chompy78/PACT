@@ -114,7 +114,16 @@ user ever sees if the module bridge never runs at all.
 | `tools/DM-Console.html` | `RULES` var + `#rulesVer`, set from `window.DATA.version` on `engine-ready` | No — genuinely has no literal |
 
 A `DATA.version` bump therefore needs: `js/engine-data.js`'s own `version` string, **the three literals
-above**, plus `testing/expected/` if `compute()` output moved. Run
+above**, plus `testing/expected/` if `compute()` output moved.
+
+**If any drawback's printed value changed (or a drawback was added or renamed): regenerate the drawback price SQL.** The
+database has its own copy of `DATA.drawbacks` (`public.pact_drawback_printed`, owner decision AB1,
+`D-GH-2026-10-13-campaign-house-rules`) so its AP ledger can cap a drawback's grant at its real value. Run
+`node testing/scripts/gen-drawback-prices-sql.mjs --check`; if it fails, run the generator without `--check` while the
+migration that carries the block still has its `-- STATUS: NOT APPLIED` line (it refuses otherwise), or — once it is applied —
+start a NEW migration (`--write sql/migrations/<new>.sql` on a file carrying the marked block) from
+`node testing/scripts/gen-drawback-prices-sql.mjs --stdout` and have the owner apply it with the release. CI
+(engine-parity, sql-guards) fails until the two agree. Run
 `node testing/scripts/version-label-ci.mjs` to confirm — it is the authority on this list, and it goes
 red rather than skipping if an element is renamed.
 

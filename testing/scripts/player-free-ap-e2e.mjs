@@ -106,7 +106,10 @@ section('2. CharGen — DM boons/drawbacks read-only on a confirmed campaign cha
   await cgFresh();
   check('solo, in creation: the DM customisation controls are editable', (await dmDisabled()).every(x=>!x));
   await p.evaluate(()=>{ window._cgCampaignId=window.__C1; window._cgCampaignBound=true; window._cgBindingConfirmed=false; render(); });
-  check('unconfirmed binding, in creation: still editable (no lock-out of a possibly-solo player)', (await dmDisabled()).every(x=>!x));
+  // Changed by feat/campaign-house-rules-tools (review of #655, owner decision U1): a bound character — confirmed or not —
+  // is priced under its campaign's rules, where its own house rules are ignored, so its own editor is read-only (and
+  // hidden) too. Was "still editable" while the own rules applied to an unconfirmed binding.
+  check('unconfirmed binding, in creation: the own house-rules controls are read-only (campaign rules apply, U1)', (await dmDisabled()).every(x=>x));
   await p.evaluate(()=>{ window._cgBindingConfirmed=true; render(); });
   check('confirmed campaign character: the controls are disabled', (await dmDisabled()).every(x=>x));
   const h0 = await house();
