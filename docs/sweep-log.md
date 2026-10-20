@@ -8,6 +8,37 @@
 
 Entries land here starting with the first real `/sweep-tasks` run.
 
+## 2026-10-20 — sweep run (unattended, user away)
+
+Batch size: the user asked for "the top 10–15 items" of the board and to be told which could not be done. Of 11
+tasks tried across three parallel batches, **3 shipped**, **1 was stopped by a permission block mid-rebase**, and
+**7 were skipped**. Circuit breaker never tripped. Nothing was merged by the sweep itself (user instruction); the
+user separately approved merging #697.
+
+| Task | Outcome | Effort / Risk |
+|---|---|---|
+| `feat/livesheet-buy-fullpage` | **Shipped — PR #697, merged by the user's go-ahead after all 25 checks passed.** ⤢ Expand on Buy / progress; hidden on phones; +11 e2e checks. | small / low |
+| `feat/dm-rules-lock-bars` | **Shipped — PR #701** (open). Pinned 🔒 lock bar on each locked Campaign Rules section; +7 e2e checks. | low / low |
+| `widen-protected-projection.sql` edited after apply | **Shipped — PR #699** (open). Header comment now says the file stands for both applied migrations; comments only. | small / low |
+| `chore/racialfx-single-source` | **Done, not pushed — blocked.** Two commits rebased onto `preview` conflicted in `js/engine-data.js` (one giant line, also changed by #696) and the Live Sheet. The mechanical fix (`git checkout --ours js/engine-data.js`, re-run the move script, resolve one hunk) was refused by the auto-mode classifier as a destructive overwrite, so it waits for the user. Commit `ed4fd1f` on `chore/sweep-small-ui-2026-10-20`. | low / low |
+| `fix/tool-pricing-tab-flake` | **Skipped — not reproducible again** (11 of 11 passes on an unmodified tree, second sweep in a row). Side finding: each gate run leaks a `/tmp/pact-cdp-*` Chromium profile. | small / low |
+| `test/seal-roundtrip` | **Skipped — ineligible again.** Needs a real PostgREST error body (production write or a PostgREST image not installed here). | small–medium / low |
+| `test/sql-drift-guard-auto-discovery` | **Skipped — ineligible again.** Board text is stale (the guard now loads ~20 migrations and checks 47 functions of 77 files); auto-discovery needs an owner rule for which files count. | medium / low |
+| `ui/show-granted-proficiencies` | **Skipped — risk understated.** CharGen reads its tick boxes back as the build, so ticking/locking a granted proficiency would write a derived flag into the log and could silently refund AP. A "from Warden" note beside the box is the safer variant, a different design. | low / low |
+| DECISIONS record for PR #503's SQL commits | **Skipped.** Written for the commits' author; reconstructing it would be invention. | small / none |
+| Which of D1/D2 governs a pre-lock level-up | **Skipped.** Owner picks the stated rule. | low / low |
+| `check/server-freeze-stage2-after-apply` | **Skipped (partly checked).** Needs an owner export of live characters; the log window is 24 hours. Read-only: 0 freeze refusals in the last 24 h, no advisor findings on the freeze functions. | low / low |
+| Reconcile the `documents-rules:` pointer | **Skipped.** Spans the `pact-guide` project. | low / low |
+
+Pattern worth acting on: three of the same tasks (`tool-pricing-tab-flake`, `seal-roundtrip`,
+`sql-drift-guard-auto-discovery`) have now been parked on two sweeps in a row. Their `Effort`/`Risk` tags say
+"small / low", but each needs something the sweep cannot supply (a flake that will not reproduce, a PostgREST
+image, an owner rule). They should be re-tagged or rewritten, or they will keep being re-queued.
+
+Not queued: every `Risk: high` task (the skill's absolute veto), every `DECISION NEEDED` task, the Edge Function
+task (conflicts with "no custom backend code in the repo"), `chore/character-images-orphan-sweep` (deletes files
+with the service role), and `docs/reconcile-pact-guide-primal-order` (work in another project).
+
 ## 2026-10-19 — sweep run
 
 Batch size: asked once (recommended 3) — user picked **5**. Of ~10 tagged low-risk tasks, **1 shipped**; the
