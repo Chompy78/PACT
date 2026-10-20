@@ -347,7 +347,8 @@ try {
   // roller also spreads random +2 bumps over every ability (uniform pick, weight 2) and adds the species'
   // own preferred stats, so a Tiefling Fighter (CHA, INT) can legitimately finish with INT 20 over STR 16.
   // The bug this guards left STR at its base 10 with a casting stat primed instead; the priming step
-  // (`favAbil()[0]` raised to 16) is what proves the class's own stat came first.
+  // (`favAbil()[0]` raised to 16, 14 or 12 -- feat/roller-build-shapes-2 made the target a draw so a roll
+  // can come out mediocre) is what proves the class's own stat came first. So the floor is 12, the lowest target.
   //
   // Seeded, so a failure is reproducible: Math.random is replaced by a mulberry32 stream per roll and put
   // back afterwards, and the failing (theme, seed) pair is printed. Seed 51 on 'battlecaster' is the
@@ -362,9 +363,35 @@ try {
         fighters.push({ tk, seed, ...(await cg.evaluate(`_qaRoll(${JSON.stringify(tk)},${BUDGETS[1]},"Fighter")`)) });
       }
   } finally { await cg.evaluate(`Math.random=window.__realRandom;true`); }
-  const misprimed = fighters.filter(r => r.stats.STR < 16);
+  const misprimed = fighters.filter(r => r.stats.STR < 12);
   check(`a Fighter on a caster theme still primes its own STR (${fighters.length} seeded rolls)`, misprimed.length === 0,
     misprimed.length ? `${misprimed.length}/${fighters.length}, first: theme ${misprimed[0].tk} seed ${misprimed[0].seed} → STR ${misprimed[0].stats.STR} DEX ${misprimed[0].stats.DEX} CON ${misprimed[0].stats.CON} INT ${misprimed[0].stats.INT} (replay: __seed(${misprimed[0].seed}) then _qaRoll("${misprimed[0].tk}",${BUDGETS[1]},"Fighter"))` : '');
+
+  // ---- build shapes the roller used to be unable to produce (feat/roller-build-shapes-2) ----
+  // Seeded like the Fighter check above (same __seed helper), so a failure replays. Two shapes, measured 2026-10-20:
+  //  1. a mediocre primary stat. Priming used to be a flat 14 (casting) / 16 (primary), so +4 to hit was the
+  //     floor of every roll, while a real party holds a wizard at +3. A Wizard's casting stat is its primary, so
+  //     across the seeded Wizard rolls at least one must finish with INT 12 or lower (mod +1, +3 to hit).
+  //  2. armour training. 18 of 20 Warlocks and 5 of 6 Bards used to buy none, and it costs 2 AP. A class trained
+  //     in light armour must buy it in the large majority of rolls on a theme that allows armour.
+  const SHAPE_SEEDS = Math.max(120, ROLLS * 10);
+  const wizards = [], warlocks = [];
+  try {
+    for (let seed = 1; seed <= SHAPE_SEEDS; seed++) {
+      await cg.evaluate(`__seed(${seed})`);
+      // BUDGETS[0], the 85-AP-ish rung the real-party comparison used: at a Lv10 budget the general spend buys INT up
+      // regardless of where the priming stopped, so a mediocre priming would not show.
+      wizards.push({ seed, ...(await cg.evaluate(`_qaRoll("scholar",${BUDGETS[0]},"Wizard")`)) });
+      await cg.evaluate(`__seed(${seed})`);
+      warlocks.push({ seed, ...(await cg.evaluate(`_qaRoll("scholar",${BUDGETS[1]},"Warlock")`)) });
+    }
+  } finally { await cg.evaluate(`Math.random=window.__realRandom;true`); }
+  const lowInt = wizards.filter(r => r.stats.INT <= 12);
+  check(`a rolled Wizard can finish with a mediocre casting stat (${lowInt.length}/${wizards.length} seeded rolls at INT 12 or lower)`, lowInt.length >= 1,
+    'every seeded Wizard roll reached INT 14 or more, so +4 to hit is the floor again');
+  const trainedWarlocks = warlocks.filter(r => r.armour.light || r.armour.medium || r.armour.heavy);
+  check(`a rolled Warlock usually has armour training (${trainedWarlocks.length}/${warlocks.length} seeded rolls)`, trainedWarlocks.length >= warlocks.length * 0.7,
+    `${warlocks.length - trainedWarlocks.length}/${warlocks.length} bought none`);
 
   // ---- the roll panel's preview strip must be DERIVED from the theme, not restated by hand ----
   // The strip tells the player what a theme will do before they commit to it. If it were ever hand-written
