@@ -332,9 +332,9 @@ try {
   // An epic boon's "choose an ability to raise" prompt is a follow-up, not a rules violation. Before
   // the fix buy() classified it as hard and all 12 epic:true boons were unbuyable.
   console.log('\nLive Sheet — an expected follow-up neither blocks a purchase nor asks to confirm it');
-  check('all 12 epic boons buy on a HD-17 character, with no alert and no confirm',
+  check('all 12 epic boons buy on a HD-19 character, with no alert and no confirm',
     await ls.evaluate(`(()=>{${LS_SETUP}
-      LOG.push({type:'award',amount:900,label:'AP award',seq:SEQ++,ts:Date.now()});
+      LOG.push({type:'award',amount:2500,label:'AP award',seq:SEQ++,ts:Date.now()});
       for(let h=2;h<=19;h++){const b=foldBuild(null);
         LOG.push({type:'buy',cat:'hd',payload:{to:h},cost:priceOf('hd',{to:h},b),label:'Level up',seq:SEQ++,ts:Date.now(),level:b.hd});}
       const epics=DATA.boonList.filter(x=>DATA.boons[x].epic);
