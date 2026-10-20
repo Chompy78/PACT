@@ -1,6 +1,6 @@
 # D-GH-2026-10-20-apply-numeric-grants — the sheet applies the AC, HP and speed that six abilities grant
 
-Status: Active. Rules `DATA.version` v0.383 → v0.384. Engine, Live Sheet (explanations), the served Players Guide and the `pact-guide` master in this change.
+Status: Active. Rules `DATA.version` v0.384 → v0.385. Engine, Live Sheet (explanations), the served Players Guide and the `pact-guide` master in this change.
 
 ## Context
 

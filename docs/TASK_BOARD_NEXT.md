@@ -1671,7 +1671,7 @@ Branch fix/audit-text-only-grants. **Effort:** medium · **Risk:** medium — ea
 
 ```text
 FOUND 2026-10-20 (wide ability audit; the 2024 numbers are from memory of the PHB — confirm them):
-  - Boon of Fortitude: DONE 2026-10-20 — compute() now adds the +40 HP (`fix/apply-numeric-grants`, v0.384, owner decision BK).
+  - Boon of Fortitude: DONE 2026-10-20 — compute() now adds the +40 HP (`fix/apply-numeric-grants`, v0.385, owner decision BK).
   - Monk: Body and Mind (19 / 32 AP): 2024 gives +4 DEX and +4 WIS (max 25); the engine adds nothing (scores unchanged after buying), so it is a dead purchase. The ability ladder stops at 20; the Guide says Primal Champion is "the only" cap-breaker.
   - Telepathic (5 AP art): 2024 adds Detect Thoughts once per long rest (worth ~18 AP as an innate level-2 spell). The Guide's barred list names it, yet its own table and the data sell it.
   - Tavern Brawler (4 AP art): the data text claims improvised-weapon proficiency (3 AP when bought separately); `weaponProf` stays empty. The Guide's text omits the claim and sells improvised weapons at 3 AP flat.
