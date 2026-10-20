@@ -236,6 +236,9 @@
   "⛔ Pact of the Talisman: non-core (DM-gated) ability barred by DM house rules"
  ],
  "CG-092": ["⛔ Threefold Inspiration — blocked: needs Twofold Inspiration (not counted, not owned)"],
+ "CG-093": ["Long Stride (Speed 35) adds nothing: this character already moves 35 ft"],
+ "CG-094": ["Wood Elf speed adds nothing: this character already moves 35 ft"],
+ "CG-095": [],
  "EV-035": [],
  "EV-036": [],
  "EV-037": [],
