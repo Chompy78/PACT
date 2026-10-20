@@ -35,6 +35,10 @@
 ## D-GH-2026-10-20-feat-free-proficiency — Chef and Musician hand out free tools; they count first, so later ones cost more
 - Rules v0.381. Owner rule: a feat's free proficiency is added to the build and counts toward the number owned from the start (the opposite of the Guide's old "counted last"). The tools line is `table[paid+free] − table[free]`; picks are named in the ✎ dialog (`freeProfNames`). Full record: `decisions/2026/D-GH-2026-10-20-feat-free-proficiency.md`.
 
+## D-GH-2026-10-20-speed-trait-no-gain — a speed trait that would not raise your speed can't be bought (Goliath, Wood elf)
+- Rules v0.383. Owner decision BJ: the traits stay for other species at creation; `speedTraitAddsNothing()` warns on an owned one and the purchase check refuses a new one. Prices unchanged.
+  Full record: `decisions/2026/D-GH-2026-10-20-speed-trait-no-gain.md`.
+
 ## D-GH-2026-10-20-bar-unreviewed-grants — ten abilities barred for the time being while each is reviewed; the two epic boons stay
 - Rules v0.382 (temporary, until each is reviewed). `bar:true` on six features and two arts, the free Eldritch Knight / Arcane Trickster / Magical Secrets spell picks switched off; owners keep their price.
   Full record: `decisions/2026/D-GH-2026-10-20-bar-unreviewed-grants.md`.

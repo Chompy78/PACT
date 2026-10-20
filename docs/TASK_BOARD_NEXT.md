@@ -1680,7 +1680,7 @@ MEASURE FIRST: live owners of each.
 ```
 **Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
 
-## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BH, BJ, BK decided; BI moved)
+## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BK remains; BH decided, BJ done, BI moved)
 Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
 
 ```text
@@ -1703,7 +1703,7 @@ MEASURE FIRST (each decision): query live `characters` for owners (stats::text i
 **Owner answers, 2026-10-20 (same day):**
 - **BH: decided (owner, 2026-10-20).** The Eldritch Knight and Arcane Trickster free spell picks stay barred for good; those subclasses reach Wizard spells by buying the Wizard discipline. (Already in effect since #691, v0.382, via `choiceGrants[k].bar`; a later clean-up may delete the two entries.) Magical Secrets: owner chose BO1 (unbar as a list-widening only, price unchanged); recorded and done under `chore/review-barred-abilities` item 5.
 - **BI: one ability at a time.** All three are now barred by #691, so do this inside `chore/review-barred-abilities`, not here.
-- **BJ: the speed traits stay so another species can buy them as a cross-race trait at creation, as with Goliath.** Probe on v0.382: Goliath has the same flaw. A Goliath (base speed 35) buying `Goliath: Long Stride (Speed 35)` pays 4 AP for nothing, exactly like a Wood elf buying `Elf: Wood Elf speed` (total 7 → 11, speed stays 35); a Human buying Long Stride correctly gets 35. Fix both in one pass: refuse (⛔ warning plus hide in the trait menus) any `spdSet` trait whose speed is not above the character's current speed from species and lineage. Measure live owners first.
+- **BJ: DONE** in `fix/speed-trait-no-gain` (v0.383, see CHANGELOG and `D-GH-2026-10-20-speed-trait-no-gain`).
 - **BK: BK1.** The engine applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants (Monk, Barbarian, Speedy, Boon of Speed) in compute(). Boon of Fortitude overlaps `fix/audit-text-only-grants`.
 **Done when:** BH, BI, BJ and BK each have the owner's answer in a decision record; each is implemented (here or in the overlapping task named above) in the engine AND the Players Guide (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a test per item proves the new grant or price; live owners' totals are unchanged or listed for the owner; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
 

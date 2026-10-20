@@ -194,6 +194,21 @@ const _noteDoor = (b, id, door) => {
  * Pure DATA lookup, so callers can use it BEFORE compute() (CharGen needs it inside readBuild()).
  * compute() also returns the same list as `packTraits` for callers that already have a result.
  */
+// speedTraitAddsNothing(b, lab) — a speed trait (DATA.racial[lab].spdSet, e.g. "Goliath: Long Stride (Speed 35)" or
+// "Elf: Wood Elf speed") sets walking speed to a FLOOR, so it only helps a character that moves slower. A Goliath (35 by species)
+// or a Wood elf (35 by lineage) used to be able to pay for one and gain nothing (2026-10-20 grants audit, owner decision BJ:
+// the traits stay for other species to buy at creation). Returns the speed the character already has without this trait when the
+// trait would add nothing, else 0. For an owned trait only the traits listed BEFORE it count, so of two equal traits only the
+// later one is flagged. compute() warns on an owned one (the purchase check then refuses a new one); CharGen greys the box.
+export function speedTraitAddsNothing(b, lab) {
+  const r = DATA.racial[lab]; if (!r || !r.spdSet) return 0;
+  b = b || {};
+  let sp = Math.max(DATA.speed[b.species] || 30, (DATA.lineageSpeed && DATA.lineageSpeed[b.lineage]) || 0);
+  const rts = b.racialTraits || [], i = rts.indexOf(lab);
+  (i >= 0 ? rts.slice(0, i) : rts).forEach(t => { const o = DATA.racial[t]; if (o && o.spdSet && o.spdSet > sp) sp = o.spdSet; });
+  return r.spdSet <= sp ? sp : 0;
+}
+
 export function packTraitsFor(species, species2) {
   const own = [species, species2].filter(s => s && s !== '(none)');
   if (!own.length) return [];
@@ -1109,7 +1124,7 @@ export function compute(b, opts){
     racAP+=_rc;_SI.push([lab,_rc]);}
   add("Species traits",racAP,_SI.length>0);addItems("Species traits",_SI);
   // §10 cross-species T2+ rule: traits above T1 can only be purchased by the origin species
-  for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");}}
+  for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;const isO=(r.race===b.species||r.race===b.species2);if(!isO&&(r.tier||1)>1)W.push((lab.split(': ')[1]||lab)+': only Tier 1 traits are available cross-species');}{var _rtSet=new Set(b.racialTraits||[]);var _ownsR=function(nm){if(_rtSet.has(nm))return true;var _r=DATA.racial[nm];return !!(_r&&_r.pack&&(_r.race===b.species||_r.race===b.species2));};for(const lab of (b.racialTraits||[])){const r=DATA.racial[lab];if(!r)continue;var _sn=(lab.split(": ")[1]||lab);if(r.reqRace&&!_ownsR(r.reqRace))W.push("⛔ "+_sn+" requires "+((r.reqRace.split(": ")[1])||r.reqRace));if(r.minHD&&hd<r.minHD)W.push("⛔ "+_sn+" needs "+r.minHD+" Hit Dice (level "+r.minHD+")");var _spN=speedTraitAddsNothing(b,lab);if(_spN)W.push(_sn+" adds nothing: this character already moves "+_spN+" ft");}}
   // §10 lineage spell-likes: cap-exempt cantrips + half-price 1/long-rest spells (Appendix B prices)
   {const _lin=(DATA.lineageSpells&&DATA.lineageSpells[b.lineage])||[]; let _rs=0;
    for(const nm of (b.racialSpells||[])){const s=_lin.find(x=>x[0]===nm); if(!s){W.push(nm+" is no longer in the rules data — no cost/effect applied");continue;} _rs+=s[1];
