@@ -35,6 +35,7 @@ on:
       - "testing/scripts/stored-size-ci.mjs"
       - "testing/scripts/patch-fold-aliasing-ci.mjs"
       - "testing/scripts/worn-armour-ac-ci.mjs"
+      - "testing/scripts/numeric-grants-ci.mjs"
       - "testing/scripts/house-rules-ledger-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -69,6 +70,10 @@ jobs:
       # fix/worn-armour-none: with no armour worn, AC is 10 + Dex whatever armour you are trained in. Engine-only.
       - name: No armour worn means unarmoured AC
         run: node testing/scripts/worn-armour-ac-ci.mjs
+
+      # fix/apply-numeric-grants (owner decision BK): Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants apply. Engine-only.
+      - name: AC, HP and speed grants apply
+        run: node testing/scripts/numeric-grants-ci.mjs
 
   log-fuzz:
     # Phase 2 of D-GH-2026-07-13-random-e2e-real-oracle: a pure-Node, LOG-direct fuzzer for

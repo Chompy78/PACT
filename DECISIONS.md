@@ -35,6 +35,9 @@
 ## D-GH-2026-10-20-feat-free-proficiency — Chef and Musician hand out free tools; they count first, so later ones cost more
 - Rules v0.381. Owner rule: a feat's free proficiency is added to the build and counts toward the number owned from the start (the opposite of the Guide's old "counted last"). The tools line is `table[paid+free] − table[free]`; picks are named in the ✎ dialog (`freeProfNames`). Full record: `decisions/2026/D-GH-2026-10-20-feat-free-proficiency.md`.
 
+## D-GH-2026-10-20-apply-numeric-grants — the sheet applies the AC, HP and speed six abilities grant
+- Rules v0.386. Owner decision BK: Dazzling Footwork's 10 + Dex + Cha AC, Boon of Fortitude's +40 HP, and the speed grants (Unarmored Movement, Fast Movement, Speedy, Boon of Speed) now count in compute(); no price changes.
+  Full record: `decisions/2026/D-GH-2026-10-20-apply-numeric-grants.md`.
 ## D-GH-2026-10-20-epic-boon-escalating-price — each epic boon costs more than the one before (25, 30 … 135)
 - Rules v0.385. Owner pick S1 (step table, order bought). Hit Die gate confirmed 19 against the 2024 text; the Guide's 17 was the error.
   Full record: `decisions/2026/D-GH-2026-10-20-epic-boon-escalating-price.md`.

@@ -2232,9 +2232,9 @@ function render(){
   const _hpRed=(b.drawbacks||[]).includes('Frail')||(b.drawbacks||[]).includes('Glass Frame');
   const _kbd={
     AC:(function(){var _ai=r.acInfo||{parts:[],options:[],notes:[]};var _aca=[],_acR=/[+]\s*\d+\s*(?:bonus\s+)?(?:to\s+)?(?:your\s+)?AC\b/i,_sc=function(ns,src){(ns||[]).forEach(function(n){var o=src[n];if(n!=='Defense'&&o&&o.fx&&_acR.test(o.fx)){var _nm=n.split(': ').pop();if(_aca.indexOf(_nm)<0)_aca.push(_nm);}});};_sc(b.arts,DATA.arts);_sc(b.fightingStyleNames,DATA.arts);_sc(b.boons,DATA.boons);return 'AC '+r.ac+' = '+_ai.base+' '+_ai.src+(_ai.parts||[]).map(function(p){return ' '+(p[1]<0?'− '+(-p[1]):'+ '+p[1])+' '+p[0];}).join('')+(_ai.defense?' + 1 Defense':'')+(_ai.shield?' + 2 shield':'')+(_ai.thinSkinned?' − 1 Thin-Skinned':'')+((_ai.options||[]).length>1?'  ·  best of: '+_ai.options.map(function(o){return o.src+' '+o.ac;}).join(', '):'')+((_ai.notes||[]).length?'  ·  '+_ai.notes.join('; '):'')+(_ai.nudge?'  ·  '+_ai.nudge:'')+(_aca.length?'  ·  also (apply manually): '+_aca.join(', '):'');})(),
-    HP:'HP '+r.hp+' = '+r.baseHP+' Hit Dice'+(r.conMod?' + '+(b.hd*r.conMod)+' Con':'')+(r.hpDraconic?' + '+r.hpDraconic+' Draconic Resilience':'')+(_hpRed?' − '+b.hd+' '+((b.drawbacks||[]).includes('Frail')?'Frail':'Glass Frame')+' (Vigor/Grit suppressed)':((b.hardy?' + '+(b.hd*b.hardy)+' Vigor':'')+(b.tough?' + '+(b.tough*4)+' Grit':''))),
+    HP:'HP '+r.hp+' = '+r.baseHP+' Hit Dice'+(r.conMod?' + '+(b.hd*r.conMod)+' Con':'')+(r.hpDraconic?' + '+r.hpDraconic+' Draconic Resilience':'')+(r.hpFortitude?' + '+r.hpFortitude+' Boon of Fortitude':'')+(_hpRed?' − '+b.hd+' '+((b.drawbacks||[]).includes('Frail')?'Frail':'Glass Frame')+' (Vigor/Grit suppressed)':((b.hardy?' + '+(b.hd*b.hardy)+' Vigor':'')+(b.tough?' + '+(b.tough*4)+' Grit':''))),
     Init:(b.skills||[]).includes('Initiative')?('Init '+sgn(r.init)+' = '+sgn(m.WIS)+' Wis + '+r.prof+' prof'+((b.expertise||[]).includes('Initiative')?' + '+r.prof+' expertise':'')):('Init '+sgn(r.init)+' = '+sgn(m.DEX)+' Dex'),
-    Speed:'Speed '+r.speed+' ft = '+(DATA.speed[b.species]||30)+' '+(b.species||'species')+' base'+(r.speed!==(DATA.speed[b.species]||30)?' (after racial floor, speed arts & drawbacks)':''),
+    Speed:'Speed '+r.speed+' ft = '+(DATA.speed[b.species]||30)+' '+(b.species||'species')+' base'+(((r.speedInfo&&r.speedInfo.parts)||[]).map(function(x){return ' + '+x[1]+' '+x[0];}).join(''))+(r.speed!==(DATA.speed[b.species]||30)+((r.speedInfo&&r.speedInfo.parts)||[]).reduce(function(s,x){return s+x[1];},0)?' (after racial floor, speed traits & drawbacks)':'')+(((r.speedInfo&&r.speedInfo.notes)||[]).length?' · '+r.speedInfo.notes.join(' · '):''),
     DC:r.hasDC?('Spell save DC '+r.saveDC+' = 8 + '+r.prof+' prof + '+sgn(r.castMod)+' '+(r.castAb||'casting')):'No spellcasting',
     HD:'Hit Dice: '+b.hd+' × d6 (= your level)',
     Ki:'Ki / Focus pool: '+b.ki+' point'+(b.ki===1?'':'s')+' — spent in play',
@@ -3449,7 +3449,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.385</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.386</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
