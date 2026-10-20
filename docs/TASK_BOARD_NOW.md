@@ -27,69 +27,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Find where `~/.claude/skills/` syncs from, and confirm the close-session patch survived — TODO
-Branch `docs/skills-sync-provenance`. `close-session-logging-core.md` — shared by `close-code-session-jc`
-and `close-chat-jc`, so it governs every session close in this project — was patched on 2026-08-30 to fix
-three faults that between them nearly lost four cold reviews: it checked `z-cold/processed/` but never
-`z-cold/` root, relocation ran as a copy rather than a move, and it could not see a `z-cold/` that lives
-on a branch instead of the working tree (see `D-GH-2026-08-30-archive-hd-gate-cold-reviews`).
-
-**That patch exists on this machine only.** `~/.claude/skills/` is not a git repo, and `ai-templates` — the
-upstream those skills come from — is not checked out here (only PACT is under `Documents/GitHub/`). So
-nothing in this repo can tell whether the next sync preserves the fix or silently reverts it, and a revert
-is invisible: the symptom is a close-session run reporting "clean" while sitting on unfiled reviews, which
-is exactly how the original loss went unnoticed for weeks.
-**Effort:** small · **Risk:** low — read-only investigation plus a written note; nothing here edits the
-engine, the tools, or another project. Ambiguity is the highest of the three factors (we genuinely do not
-know what writes that directory) but it is bounded by the task being to *find out and record*, not to
-change anything. Sweep-eligible.
-
-```text
-1. Identify what writes C:\Users\user\.claude\skills\. Candidates worth checking in order: a scheduled
-   task or script on this machine; the home-server MCP connector (the same route pact-guide uses); a
-   manual copy the owner performs. Do NOT edit ai-templates from a PACT session — see AGENTS.md's
-   "Technical Access ≠ Scope" and AI_templates' D-2026-07-28-technical-access-not-scope.
-2. Write the answer down where a future session will find it — a short "where skills come from" note in
-   AGENTS.md's Shell environment section is the natural home, since that is already where machine-specific
-   facts (the gh path) live. One or two sentences; this is provenance, not a procedure.
-3. Confirm the patch is still present in the local file: it is the "Cold-review processed-file relocation"
-   section, and it should contain all four of "z-cold/ ROOT as well as", "MOVE, not a copy", "may not be in
-   the working tree", and "content hash, not filename".
-4. If it has reverted, re-apply it AND note in the same AGENTS.md line that the sync is one-way downward,
-   so the next person knows a local edit there is temporary by nature.
-5. While in AGENTS.md: its "Shell environment notes" currently gives the gh CLI path as a WinGet directory
-   under a JohnChow user profile. That path does not resolve on this machine — gh is at
-   /c/Program Files/GitHub CLI/gh. Correct it in the same commit; it is the same class of stale
-   machine-fact and was hit repeatedly on 2026-09-01.
-```
-
-> **Measured 2026-09-03 from a cloud session — partial answer, and it reframes step 3.** In this
-> container the skills live at `~/.claude/skills/synced/<uuid>/`, and **`close-session-logging-core.md` is
-> not there at all.** Every `-jc` skill folder holds only `SKILL.md`. That is not the sync dropping
-> siblings: Anthropic-authored skills in the *same* tree do carry theirs — `pdf/` has `FORMS.md` +
-> `REFERENCE.md`, `skill-creator/` has `references/`, `docx`/`pptx`/`xlsx` have `scripts/`. So the
-> mechanism transports sibling files fine, and this one is absent from whatever source feeds that tree.
->
-> **Consequence, which is worse than the provenance question:** `close-code-session-jc` and
-> `close-chat-jc` both delegate four documented procedures to that file — DECISIONS format detection,
-> task-board graduation, cold-review relocation, and the session-name suggestion. For any session running
-> off the synced skills, those four procedures point at nothing. Hit live while running
-> `/close-code-session-jc` on 2026-09-03; the close was completed by judgement instead.
->
-> **What this does NOT answer.** `~/.claude/skills/synced/<uuid>/` (cloud) and
-> `C:\Users\user\.claude\skills\` (Windows) may be different distribution channels — nothing here
-> shows they share a source. Step 1 still needs a local session, and step 3's "confirm the patch is still
-> present in the local file" is untouched by this: the Windows copy was not inspected. Steps 2, 4 and 5
-> stand as written.
->
-> Worth folding into step 2's AGENTS.md note either way: a `-jc` skill's sibling files do not reach a
-> cloud session, so any procedure a skill delegates to one is unavailable there by construction.
-
-**Done when:** AGENTS.md records what writes `~/.claude/skills/` and whether that sync is one-way, the
-local `close-session-logging-core.md` is confirmed to carry all four patched clauses (or has been
-re-applied), the stale `gh` path in AGENTS.md's Shell environment notes is corrected, and the
-sibling-file gap above is either fixed at the source or recorded as a known limitation of cloud sessions.
-
 ## fix/blank-character-rows — blank "New Character" rows keep being inserted into the cloud — TODO
 Branch `fix/blank-character-rows`. **Effort:** medium · **Risk:** medium — driven by damage scale: the fix sits in `js/sync.js`'s push path, which every cloud save in both tools goes through, so a guard that's too broad could refuse a real save.
 
@@ -135,18 +72,6 @@ purchase made while expanded.
 **Done when:** on desktop one click expands Buy / progress to the full page width with its groups in several columns, one
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
-
-## Record the 2(a) re-measure for the player-award-after-lock migration (applied 2026-10-13, folded 2026-10-20) — TODO
-**Effort:** small · **Risk:** low — one read-only live query and a line in the decision record.
-
-```text
-2026-10-12-server-player-award-after-lock.sql was APPLIED 2026-10-13 and folded into sql/rls-policies.sql on 2026-10-20
-(docs/house-rules-fold, with dm_zero_player_ap() and the campaign house-rules migration; rls-baseline-test.sql drift-checks it).
-The one thing NOT done: re-measure 2(a) on production — no creation-locked or sealed campaign character whose stored award total
-would rise on its next honest save (it only refuses future saves, so it was not needed for the apply) — and record the number in
-decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md's Status.
-```
-**Done when:** the 2(a) re-measure (count and date) is recorded in the decision record.
 
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.

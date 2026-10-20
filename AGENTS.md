@@ -49,9 +49,19 @@ is staging and promotes into `main`).
   `docs/VERSION-SYNC.md`.
 
 ## Shell environment notes
-- **`gh` CLI** is installed but not on the system PATH — my shell tools can't resolve it by name.
-  Always call it via its full path:
+- **`gh` CLI:** on the Linux home server it is `/usr/bin/gh` and resolves by name (checked 2026-10-20).
+  The old Windows machine did not have it on PATH; there, call it by full path:
   `C:\Users\JohnChow\AppData\Local\Microsoft\WinGet\Packages\GitHub.cli_Microsoft.Winget.Source_8wekyb3d8bbwe\bin\gh.exe`
+  (the earlier `/c/Program Files/GitHub CLI/gh` path did not resolve either). Run `which gh` first.
+- **Where `~/.claude/skills/` comes from (checked 2026-10-20, Linux):** every `-jc` skill and
+  `close-session-logging-core.md` there is a **symlink** into the local checkout `/data/projects/ai-templates/skills/`
+  (remote `ssh://git@192.168.68.58:2222/chompy/ai-templates.git`). No cron job, sync script or copy step is involved,
+  so an edit under `~/.claude/skills/` IS an edit to that git working tree — durable only once committed there,
+  and never to be made from a PACT session (see "Technical Access ≠ Scope"). The close-session patch of
+  2026-08-30 is committed in that repo and still present. Cloud sessions are a different channel:
+  `~/.claude/skills/synced/<uuid>/` carries only each `-jc` skill's `SKILL.md`, not its sibling files, so any
+  procedure a skill delegates to one (e.g. `close-session-logging-core.md`) is unavailable there by construction
+  (measured 2026-09-03; not re-measured).
 - **A cloud/web session can push its own working branch and nothing else.** Deleting ANY remote ref —
   a tag, or a branch other than the one checked out — is blocked by the GitHub proxy, and no MCP tool
   routes around it. So don't plan post-merge branch cleanup or tag pushes into a cloud session's work;
