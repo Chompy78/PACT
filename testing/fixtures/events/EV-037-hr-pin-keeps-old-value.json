@@ -1,0 +1,71 @@
+{
+ "description": "S2 unticked holder: the campaign moved Slow to Mend from 7 to 3, and the DM left this holder unticked, so a pin (overrides.pins.draws) keeps the old value 7. The character has no own house rules (printed value 5), so the pin is the only thing keeping 7; it wins over the campaign value; the frozen ledger (cost -7) and the browser grant agree.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "seq": 1,
+   "label": "Award — Level 1 (79 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "seq": 2,
+   "label": "Origin class — Fighter"
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Slow to Mend"
+   },
+   "cost": -7,
+   "seq": 4,
+   "label": "Drawback — Slow to Mend"
+  },
+  {
+   "type": "dmHouseRules",
+   "campaignId": "camp-A",
+   "overrides": {
+    "pins": {
+     "draws": {
+      "Slow to Mend": {
+       "ap": 7,
+       "reason": "kept at old value",
+       "at": "2026-10-13"
+      }
+     }
+    }
+   },
+   "seq": 5,
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "label": "House rules (set by your DM)"
+  }
+ ],
+ "_apOpts": {
+  "houseRulesCtx": {
+   "campaignId": "camp-A",
+   "rules": {
+    "draws": {
+     "Slow to Mend": {
+      "ap": 3
+     }
+    }
+   },
+   "bans": {
+    "boons": [],
+    "draws": []
+   }
+  }
+ },
+ "_expect": {
+  "drawbackAp": 7,
+  "economy.drawbackEarned": 7
+ }
+}

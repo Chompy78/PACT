@@ -1,0 +1,138 @@
+{
+ "description": "Plan §12(f), T2 + S2 on a creation-locked character in camp-A. Bulwark (6) is refunded (dmRefundBoon, cost -6: spent 9 -> 3, the boon leaves the fold); Slow-Footed (grant 2) is removed (dmRemoveDrawback, grantBack 2); Slow to Mend is repriced 5 -> 7 by the campaign and the DM ticked this holder (dmRepriceDrawback amount +2). A FORGED dmRefundBoon without dmEdit (Deft Catch) and a refund aimed at a wrong seq are ignored. Browser AP left = (79 + 7) - 3 = 83, equal to the server ledger model (79 + min(12, 5+2+2-2) - 3). The DM adjustments line is display-only and does not move total.",
+ "baseSnapshot": {},
+ "events": [
+  {
+   "type": "award",
+   "amount": 79,
+   "seq": 1,
+   "label": "Award — Level 1 (79 AP)"
+  },
+  {
+   "type": "buy",
+   "cat": "oclass",
+   "payload": {
+    "v": "Fighter"
+   },
+   "cost": 0,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "boon",
+   "payload": {
+    "v": "Bulwark"
+   },
+   "cost": 6,
+   "seq": 3
+  },
+  {
+   "type": "buy",
+   "cat": "boon",
+   "payload": {
+    "v": "Deft Catch"
+   },
+   "cost": 3,
+   "seq": 4
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Slow to Mend"
+   },
+   "cost": -5,
+   "seq": 5
+  },
+  {
+   "type": "buy",
+   "cat": "drawback",
+   "payload": {
+    "v": "Slow-Footed"
+   },
+   "cost": -2,
+   "seq": 6
+  },
+  {
+   "type": "creationLocked",
+   "seq": 7
+  },
+  {
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "campaignId": "camp-A",
+   "type": "dmRefundBoon",
+   "refVal": "Bulwark",
+   "targetSeq": 3,
+   "cost": -6,
+   "seq": 8,
+   "label": "Refunded by DM — Bulwark"
+  },
+  {
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "campaignId": "camp-A",
+   "type": "dmRemoveDrawback",
+   "refVal": "Slow-Footed",
+   "targetSeq": 6,
+   "grantBack": 2,
+   "seq": 9,
+   "label": "Drawback removed by DM — Slow-Footed"
+  },
+  {
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "campaignId": "camp-A",
+   "type": "dmRepriceDrawback",
+   "refVal": "Slow to Mend",
+   "targetSeq": 5,
+   "amount": 2,
+   "from": 5,
+   "to": 7,
+   "seq": 10,
+   "label": "Drawback repriced by DM — Slow to Mend"
+  },
+  {
+   "type": "dmRefundBoon",
+   "refVal": "Deft Catch",
+   "targetSeq": 4,
+   "cost": -3,
+   "seq": 11,
+   "label": "forged: no dmEdit"
+  },
+  {
+   "dmEdit": true,
+   "dmId": "00000000-0000-0000-0000-000000000000",
+   "campaignId": "camp-A",
+   "type": "dmRefundBoon",
+   "refVal": "Deft Catch",
+   "targetSeq": 99,
+   "cost": -3,
+   "seq": 12,
+   "label": "wrong seq: matches nothing"
+  }
+ ],
+ "_apOpts": {
+  "houseRulesCtx": {
+   "campaignId": "camp-A",
+   "rules": {
+    "draws": {
+     "Slow to Mend": {
+      "ap": 7
+     }
+    }
+   },
+   "bans": {
+    "boons": [],
+    "draws": []
+   }
+  }
+ },
+ "_expect": {
+  "drawbackAp": 7,
+  "spendable": 86,
+  "economy.spent": 3,
+  "economy.drawbackEarned": 7,
+  "economy.earned": 86
+ }
+}

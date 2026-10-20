@@ -318,7 +318,10 @@ try {
       const stored=JSON.parse(localStorage.getItem(KEY));
       window._lsCampaignId=null; LOG.length=0; SEQ=1; __charId=null;   // as a fresh boot would
       load();
-      return [stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];})()`),
+      const r=[stored.campaignId||null, window._lsCampaignId||null, peekCharId()===idBefore];
+      // Back to solo for the cases below: a BOUND character whose campaign rules are unknown (no cloud, no snapshot) may not
+      // buy boons or drawbacks at all (feat/campaign-house-rules-dm-editor), and they price a solo character.
+      window._lsCampaignId=null; return r;})()`),
     ['camp-test-1', 'camp-test-1', true]);
   // currentCharId() mints on read — right for a genuinely new character, a hazard in a lookup.
   check('peekCharId() answers "have we an id" without minting one',
@@ -1158,6 +1161,9 @@ try {
       return [d.items.length,d.sum,d.line,d.sum===d.line];})()`), [3, -11, -11, true]);
   check('a house-ruled drawback itemises at the value actually charged, not the printed one',
     await cg.evaluate(`(()=>{const sect=${LEDGER_ROWS};
+      // SOLO: the check above left this page bound to 'test-camp'; in a campaign the character's own house rules are
+      // ignored (owner decision U1, feat/campaign-house-rules-tools), so drop that binding to test the own-rules path.
+      _cgResetCloudApState();
       const n=Object.keys(DATA.drawbacks).slice(0,3);
       const b=readBuild();b.drawbacks=n.slice();b.houseRules={draws:{[n[0]]:{ap:99}}};
       renderLedger(compute(b),b);const d=sect('Drawbacks (refund)');

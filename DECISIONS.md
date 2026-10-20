@@ -10,6 +10,27 @@
 
 ## Index
 
+## D-GH-2026-10-13-campaign-house-rules — house rules are set campaign-wide by the DM, with per-character DM overrides
+- Accepted by owner 2026-10-13 (P2/R1/U1/T2/S2/V1/W1/X1/Y1). Campaign `rules.charHouseRules` (Calls, custom/repriced boons and
+  drawbacks; "disabled" = the existing ban lists) apply to every campaign character; a DM's per-character `dmHouseRules` override
+  (campaign-scoped, with S2 "keep old value" pins) sits on top; the character's own CharGen patch applies only when solo. A Call
+  turned off stops new purchases; the DM may opt in to remove owned items with refund (T2) and choose which holders a drawback
+  reprice applies to (S2), via seq-targeted `dmRefundBoon` / `dmRemoveDrawback` / `dmRepriceDrawback` events that move browser and
+  server ledger by the same amount. Engine half landed (rules v0.377); tools, server, DM editor, #642 rework and the guide follow.
+  Owner Z1 (2026-10-13) closed the cap question: the server caps drawback grants exactly as js/campaign.js drawbackCapFromRules()
+  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration, written and rehearsed, NOT applied) adds
+  the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
+  PR4 (DM Console editor): one review dialog (S2 ticks per character + drawback, T2 removals, below 0 shown) then ONE RPC call;
+  bound characters with unknown campaign rules are strict in both player tools; owner answers AC (draft reprice) and AD1 (opt-in removal on bans) deferred to board tasks.
+  bound characters with unknown campaign rules are strict in both player tools; two owner questions open (see the PR4 addendum).
+  PR5 (per-character overrides, reworks #642): the card editor writes a whole `dmHouseRules` snapshot through the same RPC, with
+  a single-holder S2 for a held drawback (tick = reprice, untick = pin); #642's draft and held-drawback refusals are gone.
+  Full record: `decisions/2026/D-GH-2026-10-13-campaign-house-rules.md`.
+## D-GH-2026-10-12-dm-house-rules-editor — a DM sets one campaign character's house rules (PR #642) — SUPERSEDED
+- H2 (owner away) design for a per-character editor (an appended houseRules patch through `dm_edit_character_log`, refused for
+  drafts and for held drawbacks). Never merged; superseded on 2026-10-13 by D-GH-2026-10-13-campaign-house-rules (owner P2/R1):
+  PR5 reworks it into the per-character `dmHouseRules` override layer with S2 for held drawbacks. #638's H2 decisions stay open.
+  Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
 ## D-GH-2026-10-20-heroic-inspiration-boons — hold 2 or 3 Heroic Inspiration; Blazing Moment fires on 18+; boons gain an engine-enforced `prereq`
 - Rules v0.378. New boons Twofold Inspiration (HD 3 / 7 AP) and Threefold Inspiration (HD 5 / 10 AP, needs Twofold); Blazing Moment's wording 19+ → 18+ with its
   price unchanged at 14. Boons had no prerequisite mechanism, so `compute()` now reads an optional boon `prereq` like a feature's (owner pick L2); only Threefold

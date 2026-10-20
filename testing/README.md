@@ -64,6 +64,12 @@
   none of the 19 (while CharGen still lists one a character already holds); the DM Console half moved to `dm-impose-picker-e2e.mjs`.
   Parity fixtures EV-027/028/029 pin the warning lists. Run in CI as the `wounds` job of `.github/workflows/engine-parity.yml` and a
   step of `.github/workflows/dm-console-ui.yml`.
+- **`scripts/campaign-house-rules-tools-e2e.mjs`** (`feat/campaign-house-rules-tools`, D-GH-2026-10-13-campaign-house-rules PR2) —
+  browser, no Supabase. One campaign character with a `charHouseRules` context shows the engine's campaign AP left in the Live Sheet,
+  CharGen and the DM Console roster (its own house-ruled drawback ignored, U1); the Live Sheet offers, buys and buys off (3x the
+  effective value, W1, with `targetSeq`) a campaign custom drawback, escaping DM-typed names; V1 below-zero cloud saves in both player
+  tools; offline pricing from the LOG's `rulesSnapshot`; CharGen's own house-rules patch byte-identical after a campaign session, its
+  read-only effective panel, and a campaign draft re-priced at the campaign price. A step of `.github/workflows/dm-console-ui.yml`.
 - **`scripts/dm-impose-picker-e2e.mjs`** (`feat/dm-impose-picker`) — the DM Console's "Impose a drawback" pop-up (browser, no
   Supabase; bridge stubbed). Proves the card has an opener button with the old controls kept hidden as the single send path; the window
   lists every drawback once, wounds first (Grievous ones under "Other"), search narrows it and never strands the chosen item, and the

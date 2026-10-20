@@ -190,16 +190,34 @@ function genEvent(rng, DATA, ctx) {
     return { type: 'buyoff', refVal, cost: int(rng, 0, 30) };
   }
   if (roll < 0.93) return { type: 'name', name: `Char-${ctx.n}` };
-  if (roll < 0.96) return genNamesEvent(rng, ctx);
-  if (roll < 0.98) return { type: 'creationLocked' };
-  return { type: 'campaignBound', campaignId: `camp-${ctx.n}` };
+  if (roll < 0.95) return genNamesEvent(rng, ctx);
+  if (roll < 0.97) return { type: 'creationLocked' };
+  if (roll < 0.98) return { type: 'campaignBound', campaignId: `camp-${ctx.n}` };
+  return genDmHouseRulesEvent(rng, DATA, ctx);
+}
+
+// Campaign house rules (D-GH-2026-10-13-campaign-house-rules): the four new DM event types, aimed at a random
+// earlier seq (so some match and some don't), mostly DM-stamped and sometimes not (a forgery the engine must
+// ignore). The AP agreement these events exist for is asserted by house-rules-ledger-ci.mjs; here they only have
+// to survive the throw / NaN / purity / dual-entry / repriceDraft checks below.
+function genDmHouseRulesEvent(rng, DATA, ctx) {
+  const dm = chance(rng, 0.85) ? { dmEdit: true, dmId: 'dm', campaignId: chance(rng, 0.8) ? 'camp-A' : 'camp-B' } : {};
+  const targetSeq = int(rng, 1, Math.max(1, ctx.n));
+  const kind = int(rng, 0, 3);
+  if (kind === 0) return Object.assign({ type: 'dmHouseRules', overrides: { draws: { [pick(rng, DATA.drawbackList)]: { ap: int(rng, 0, 9) } },
+    boons: { [pick(rng, DATA.boonList)]: { hd: int(rng, 1, 5), ap: int(rng, 0, 12) } }, pins: { draws: { [pick(rng, DATA.drawbackList)]: { ap: int(rng, 0, 9) } } },
+    disabled: { boons: [pick(rng, DATA.boonList)], draws: [] }, dmAllows: { tasha: chance(rng, 0.5) } } }, dm);
+  if (kind === 1) return Object.assign({ type: 'dmRefundBoon', refVal: pick(rng, DATA.boonList), targetSeq, cost: -int(rng, 0, 12) }, dm);
+  if (kind === 2) return Object.assign({ type: 'dmRemoveDrawback', refVal: ctx.drawbacksBought.length ? pick(rng, ctx.drawbacksBought) : pick(rng, DATA.drawbackList), targetSeq, grantBack: int(rng, 0, 9) }, dm);
+  return Object.assign({ type: 'dmRepriceDrawback', refVal: ctx.drawbacksBought.length ? pick(rng, ctx.drawbacksBought) : pick(rng, DATA.drawbackList), targetSeq, amount: int(rng, -5, 5), from: 0, to: 0 }, dm);
 }
 
 function genLog(rng, DATA, maxEvents) {
   const ctx = makeCtx();
   const n = int(rng, 1, maxEvents);
   const events = [];
-  for (let i = 0; i < n; i++) events.push(genEvent(rng, DATA, ctx));
+  // Every event carries a seq (as both tools stamp one) so the new seq-targeted DM events can actually match.
+  for (let i = 0; i < n; i++) { const e = genEvent(rng, DATA, ctx); e.seq = ctx.n; events.push(e); }
   return events;
 }
 
@@ -300,7 +318,11 @@ function runChecks(ENGINE, LOG) {
   // divergence the repriceDrift block below already carves out, for the same reason.
   {
     const staleD = LOG.some(e => e.type === 'buy' && e.cat === 'drawback'
-      && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
+      && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0))
+      // A DM reprice moves the frozen ledger's grant by Δ while compute() (no campaign context here) reads the
+      // printed table — the same stale-value divergence as above, by design (house-rules-ledger-ci.mjs asserts the
+      // agreement that matters, in a campaign context).
+      || LOG.some(e => e.type === 'dmRepriceDrawback' && e.dmEdit === true);
     if (!staleD) {
       const eco = ENGINE.economy(LOG);
       if (result.budget !== eco.earned)
@@ -378,9 +400,15 @@ function runChecks(ENGINE, LOG) {
     // `earned`, never `spent`, while compute().total carries them as a negative.
     const hasBuyoff = rp.some(e => e.type === 'buyoff');
     const hasPaidNames = rp.some(e => e.type === 'names' && (Number(e.cost) || 0) !== 0);
+    // A DM refund carries the target's FROZEN cost while repriceDraft() re-costs the target itself. The server only
+    // allows refunds on creation-locked characters, where nothing is re-costed; a draft with one is fuzz-only.
+    // Since feat/campaign-house-rules-server every DM-stamped AP-moving event (refund / removal / reprice) is also a
+    // sealedFloor(), so repriceDraft() leaves everything under it frozen — the server freezes the same prefix — and such
+    // a draft (only reachable by a DM reopening creation afterwards) keeps its frozen costs by design.
+    const hasRefund = rp.some(e => (e.type === 'dmRefundBoon' || e.type === 'dmRemoveDrawback' || e.type === 'dmRepriceDrawback') && e.dmEdit === true);
     const staleDrawback = rp.some(e => e.type === 'buy' && e.cat === 'drawback'
       && -(Number(e.cost) || 0) !== (ENGINE.DATA.drawbacks[e.payload && e.payload.v] || 0));
-    if (!hasBuyoff && !hasPaidNames && !staleDrawback && ENGINE.isCreationDraft(rp)) {
+    if (!hasBuyoff && !hasPaidNames && !staleDrawback && !hasRefund && ENGINE.isCreationDraft(rp)) {
       driftChecked++;
       const ec = ENGINE.economy(rp);
       const total = ENGINE.compute(ENGINE.foldBuild(rp)).total;

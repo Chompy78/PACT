@@ -80,7 +80,7 @@
 -->
 <html lang="en"><head><meta charset="utf-8">
 <link rel="manifest" href="/PACT/manifest.json"><link rel="icon" type="image/png" href="../assets/icons/PACT_favicon.png"><link rel="apple-touch-icon" href="/PACT/icons/apple-touch-icon.png"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PACT Character Generator — Web Tool v1.678 · Rules v0.378</title><style>
+<title>PACT Character Generator — Web Tool v1.678 · Rules v0.379</title><style>
 :root{--navy:#1F3864;--blue:#2E5496;--teal:#2F6F6A;--lt:#DEE7F4;--ink:#222;--grey:#666;--line:#C3D0E6;
 --good:#2E7D32;--bad:#C00000;--warn:#B26A00;--warnbg:#FBEBD2;--inp:#EAF1FB;--badbg:#F7C5C5;--bg:#F4F7FC;--card:#fff;--navytx:var(--navy);
 --font:'Segoe UI',Calibri,Arial,sans-serif;--head:'Segoe UI',Calibri,Arial,sans-serif;}
@@ -538,7 +538,7 @@ window.addEventListener('error',function(e){L('uncaught error',e&&(e.error&&e.er
 window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('unhandled promise rejection',(r&&(r.stack||r.message))||r);});})();</script>
 <script src="../js/ui-helpers.js"></script>
 <script src="../js/account-ui.js"></script>
-<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.678</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.378</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
+<div class="stickyhead"><div id="mtop" class="hd-row1"><a class="homelink" href="../index.html" aria-label="Back to PACT home">← Home</a><b id="mtop-name">—</b><span id="mtop-warn" title="Build issues — click to jump" onclick="jumpFirstWarning()" style="display:none;cursor:pointer;font-size:14px;line-height:1;flex-shrink:0">⚠️</span><span id="mtop-tot" style="background:#CDEAD3;color:#14501f;padding:2px 9px;border-radius:10px;font-weight:800;font-size:13px;white-space:nowrap;flex-shrink:0">—</span></div><div class="hd-row2"><h1 class="hd-title">PACT — Character Generator</h1><span class="sub">Web Tool · v1.678</span><span id="cgPactver" class="hd-pactver">PACT rules · v0.379</span><span class="hd-localonly" id="cgCloudStatus" title="Sign in to select a DM's cloud campaign — its rules filter your species/origin-class/mastery/boon pickers live.">🔒 Local only — not connected to any cloud campaign</span><a class="hd-localonly" href="../login.html" id="cgCloudSignIn" style="text-decoration:none;color:#fff;cursor:pointer">🔑 Sign in for campaign rules</a><select id="cgCloudCampSel" class="hd-localonly" style="display:none;background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer" title="Filter your pickers by a cloud campaign's DM-set rules"><option value="">— no campaign —</option></select><span id="cgSyncChip" class="synchip" role="button" tabindex="0" aria-live="polite" title="Account — who's signed in, change password, sign out" style="cursor:pointer" onclick="renderAccountPopover(this,window._authBridge)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();renderAccountPopover(this,window._authBridge);}">🔒 Signed out</span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgLocalBtn" type="button" title="Local file actions — start a new character, save to a file, or load one" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Local menu">📁 Local</button><div id="cgLocalMenu" class="moremenu" style="right:auto;left:0;min-width:210px"><button type="button" class="mi" id="cgLocalNewBtn">🆕 New Character</button><button type="button" class="mi" id="cgLocalSaveBtn">💾 Save to file</button><button type="button" class="mi" id="cgLocalLoadBtn">📂 Load from file</button></div></span><span style="position:relative;display:inline-block"><button class="btn ghost" id="cgCloudBtn" type="button" title="Cloud save/load menu — save, load, or set autosave for this character" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.35);padding:6px 10px" aria-label="Cloud menu">☁ Cloud</button><div id="cgCloudMenu" class="moremenu" style="right:auto;left:0;min-width:260px;max-height:70vh;overflow-y:auto"></div></span><label class="hd-theme" style="display:flex;align-items:center;gap:5px;font-size:11px;margin-left:auto">🎨<select id="themesel" onchange="setTheme(this.value)" style="min-width:96px"><option value="">Default</option><option value="dark">Dark mode</option><option value="dnd">D&amp;D / Parchment</option><option value="royal">Royal</option><option value="forest">Forest</option></select></label></div><div id="cgInviteBanner" style="display:none;width:100%;box-sizing:border-box;padding:6px 14px;background:#3b3060;color:#fff;font-size:12px"></div><div id="cgDmCopyBanner" class="warnbanner" style="display:none;width:100%;box-sizing:border-box;cursor:default;background:#5a3d99;color:#fff"><span>🛡 You are viewing a DM copy — edits here never touch the original character.</span></div><div class="hd-row3">
 <button class="btn ghost" id="undoBtn" onclick="undo()" title="Undo (Ctrl/Cmd-Z)" disabled>↶ Undo</button>
 <button class="btn ghost" id="redoBtn" onclick="redo()" title="Redo (Ctrl/Cmd-Shift-Z)" disabled>↷ Redo</button>
 <input type="file" id="loadfile" accept=".json,application/json" style="display:none" onchange="if(this.files[0]){_fileHandle=null;loadFile(this.files[0]);}this.value='';">
@@ -602,9 +602,15 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   // Gold-and-downtime economy (Players Guide §16) — bridged onto window for the classic-script half,
   // the same pattern DATA/compute already use here.
   window._engineEcon = { purchaseCost, priceLabel, formatDowntime, resolveEconomySetting, resolveEconomyRules, economyOn, wealthLedger, chargesGoldAndTime, walletCheck };
+  import { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable } from '../js/engine.js';
+  import { houseRulesCtxFromRules, latestRulesSnapshot } from '../js/campaign-rules.js';
   import { genCharId, writeHandoff, takeHandoff, sweepExpiredHandoffs, CHAR_SCHEMA, buildCharacterEnvelope, readCharacterEnvelope, verifyCharacterEnvelope, recordAutosave } from '../js/character-store.js';   // shared transport/storage glue (D-GH38/D-GH40); verify = tamper-evidence (D-GH48); recordAutosave feeds the landing "Continue" list (feat/continue-recent-chars)
   DATA.racialFx={"Goliath: Powerful Build":"Count as Large for carrying capacity and for grappling.","Goliath: Giant Ancestry":"Choose one giant boon (Cloud, Fire, Frost, Hill, Stone or Storm) with the Lineage / Ancestry picker; use it Proficiency Bonus times per long rest.","Goliath: Large Form":"Once per long rest, become Large (T4+).","Goliath: Long Stride (Speed 35)":"Walking speed becomes 35 ft (floor - does not stack with itself; Wood Elf gets this free via lineage).","Dwarf: Darkvision 60 ft":"See in the dark (60 ft).","Dwarf: Dwarven Resilience (poison)":"Advantage on saves vs poison; resistance to poison damage.","Dwarf: Unslowed by Heavy Armour":"No speed penalty from wearing heavy armour.","Elf: Darkvision 60 ft":"See in the dark (60 ft).","Elf: Fey Ancestry":"Advantage vs being charmed; can't be magically put to sleep.","Halfling: Move Through Larger Creatures":"Move through the space of any larger creature.","Gnome: Darkvision 60 ft":"See in the dark (60 ft).","Gnome: Gnomish Cunning (saves vs magic)":"Advantage on INT, WIS and CHA saves vs magic.","Orc: Darkvision 60 ft":"See in the dark (60 ft).","Orc: Relentless Endurance":"Drop to 1 HP instead of 0, once per long rest.","Orc: Adrenaline Rush":"Bonus-action Dash and gain temporary HP.","Dragonborn: Breath Weapon":"Exhale area damage of your draconic ancestry.","Dragonborn: Damage Resistance (ancestry)":"Resistance to your ancestry's damage type.","Tiefling: Darkvision 60 ft":"See in the dark (60 ft).","Tiefling: Damage Resistance (lineage)":"Resistance to your legacy's damage type.","Human: Heroic Inspiration":"Regain Heroic Inspiration (per the core rule).","Dwarf: Stonecunning":"Briefly gain tremorsense to sense through stone.","Dwarf: Tremorsense (tunnels)":"Sense vibrations through the ground in tunnels.","Elf: Trance":"Finish a long rest in 4 hours of trance.","Elf: Superior Darkvision (Drow)":"See twice as far in the dark (120 ft).","Elf: Mask of the Wild (Wood)":"Hide even when only lightly obscured by nature.","Elf: Fleet of Foot (Wood)":"+5 ft walking speed.","Halfling: Naturally Stealthy":"Hide while obscured by a larger creature.","Halfling: Brave (fear resist)":"Advantage on saves vs being frightened.","Halfling: Stout Resilience (poison)":"Advantage vs poison; resistance to poison damage.","Halfling: Halfling Nimbleness":"Move through the space of any larger creature.","Gnome: Speak with Small Beasts (Forest)":"Communicate simple ideas with small animals.","Gnome: Superior Darkvision (Deep)":"See twice as far in the dark (120 ft).","Orc: Savage Critical":"Roll an extra weapon damage die on a critical hit.","Orc: Powerful Build":"Count as one size larger for carrying capacity.","Orc: Aggressive":"Bonus-action move toward an enemy.","Dragonborn: Larger breath dice (L5)":"Your breath weapon's damage die climbs the chain — 1st step (level 5).","Dragonborn: Larger breath dice (L11)":"Your breath weapon's damage die climbs the chain — 2nd step (level 11).","Dragonborn: Larger breath dice (L17)":"Your breath weapon's damage die climbs the chain — 3rd step (level 17).","Dragonborn: Draconic Flight":"Gain a temporary fly speed (at higher tiers).","Tiefling: Infernal Constitution":"Resistance to poison and cold; advantage vs poison."};   // display-only trait blurbs (CharGen); never read by compute()
-  window.DATA = DATA; window.compute = compute; window.requiredHD = requiredHD; window.sizeOf = sizeOf; window.lineageSpellHD = lineageSpellHD; window.lineageSpellLabel = lineageSpellLabel; window.MUT = MUT; window.foldBuild = foldBuild;
+  window.DATA = DATA; window.compute = compute; window.requiredHD = requiredHD; window.sizeOf = sizeOf; window.lineageSpellHD = lineageSpellHD; window.lineageSpellLabel = lineageSpellLabel; window.MUT = MUT;
+  // Campaign house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules): every fold carries the
+  // context the engine prices with (_cgHrCtx, classic script below), so the many compute()/priceOf() call sites need no
+  // change. Stamped here, at the one bridge every CharGen fold goes through; derived, never saved.
+  window.foldBuild = function(events){ var b = foldBuild(events); var f = window._cgHrCtx; return withHouseRulesCtx(b, typeof f === 'function' ? f(events) : null); };
   window.activeEvents = activeEvents; window.economy = economy; window.baseBuild = baseBuild; window.packTraitsFor = packTraitsFor; window.grantedSpells = grantedSpells; window.ownedChoiceGrants = ownedChoiceGrants; window.saveMods = saveMods;
   window.repriceDraft = repriceDraft; window.isCreationDraft = isCreationDraft;   // draft-ledger reconciliation (D-GH-2026-08-05-pricing-model, D2/D7)
   window.genCharId = genCharId; window.writeHandoff = writeHandoff; window.takeHandoff = takeHandoff; window.sweepExpiredHandoffs = sweepExpiredHandoffs; window.recordAutosave = recordAutosave;
@@ -617,6 +623,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   window.allNameableSlots = allNameableSlots; window.namesGate = namesGate; window.namesOutstanding = namesOutstanding; window.requireNamesOn = requireNamesOn;   // the languages-and-spells slot list the ✎ Name dialog is built from (refactor/names-slot-helper)
   window.RULE_BAN_FIELDS = RULE_BAN_FIELDS;
   window.campaignLanguages = campaignLanguages;   // feat/campaign-language-list
+  window._engineHR = { withHouseRulesCtx, resolveHouseRules, effectiveBoonTable, effectiveDrawbackTable, houseRulesCtxFromRules, latestRulesSnapshot };
   document.dispatchEvent(new Event('engine-ready'));
 </script>
 <script>
@@ -789,7 +796,7 @@ async function _cgResolveDmApStatus(ap, campaignId, opts){
   // this field, so a copy opened earlier in the same tab silently outlived its own load into a totally
   // unrelated cloud/local character loaded afterward, inflating that character's budget.
   window._cgCopySourceAp = 0; window._cgCopySourceName = ''; window._cgCopySourceIgnorePlayerAp = false;
-  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false;
+  window._cgCopySourceRules = null; window._cgCopySourceIsCopy = false; window._cgCopySourceCampaignId = null;
   window._dmAp = ap || 0;
   window._ignorePlayerAp = false;
   // Q2 (wallet warning): the server-held halves of the gold-and-downtime wallet, reset with the rest of the cloud state and re-fetched below once the campaign is confirmed.
@@ -1080,6 +1087,7 @@ document.addEventListener('sync-ready', function () {
         return;
       }
       if (res.error) throw res.error;
+      if (res.synced) _cgNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
       if (typeof flash === 'function') flash(res.synced ? '☁ Saved to cloud' : '☁ Saved locally (offline — will sync when online)');
     } catch (err) { alert('Save failed: ' + err.message); }
     if (btn) { btn.disabled = false; btn.textContent = '☁ Save to cloud'; }
@@ -1206,6 +1214,7 @@ document.addEventListener('sync-ready', function () {
     _cgApplyEnvelope(rec.stats, { clearHistory: true });      // bare LOG/SEQ assignment inside — same reason
     cgCloudMenu.classList.remove('open');
     await _cgResolveDmApStatus(rec.ap, rec.campaign_id);
+    _cgNoteCloudBase(rec.dirty ? null : rec.stats.LOG);   // V1: a clean cloud copy is what the server holds (after the load paths' resets)
     render();
     // An empty LOG is a legitimate state (a saved-but-never-built character) AND exactly what a failed
     // load looks like: a blank builder. Reported as "silently lands on a blank draft with no error".
@@ -1573,6 +1582,7 @@ document.addEventListener('sync-ready', function () {
           var srcCamp = await window._campaignBridge.getCampaign(rec.campaign_id);
           window._cgCopySourceIgnorePlayerAp = !!(srcCamp && srcCamp.ignore_player_ap);
           window._cgCopySourceRules = (srcCamp && srcCamp.rules) || null;
+          window._cgCopySourceCampaignId = rec.campaign_id;   // the copy's house-rules context (_cgHrCtx) resolves this campaign's rules
         }catch(e){ window._cgCopySourceIgnorePlayerAp = false; window._cgCopySourceRules = null; }
       }
       _cgApplyEnvelope({schema:CHAR_SCHEMA,rules:rec.stats.rules||DATA.version,name:copyName,
@@ -1718,14 +1728,31 @@ function _cgDmOpts(){
 // pre-lock — the divergence this guards against is specifically a LOCKED character, where re-pricing
 // stops by design (D7) but this gate would otherwise still re-price anyway. Blocks only the CLOUD save
 // path; Local "Save to file" never calls this.
+// Owner decision V1 (D-GH-2026-10-13-campaign-house-rules): a DM removal can push a character below 0. The server
+// refuses a save only when the spend INCREASED past the budget, so below 0 a save that adds no spend still goes to the
+// cloud. _cgCloudSpentBase = the spend the server was last seen to hold (a clean cloud copy, or this page's accepted
+// push); unknown = treated as increased (the old rule — nothing to compare with). Same as the Live Sheet's gate.
+// Persisted per character ('pactCloudSpent:<id>', shared with the Live Sheet) so a reload keeps it; truly unknown =
+// the spend of the local copy this page restored (same id only) — see the Live Sheet's _lsSpendBase().
+var _cgCloudSpentBase=null, _cgLocalSpentBase=null;   // _cgLocalSpentBase = {id, spent}
+function _cgNoteCloudBase(log,id){
+  try{ _cgCloudSpentBase=Array.isArray(log)?economy(log).spent:null; }catch(e){ _cgCloudSpentBase=null; }
+  var k=id||__charId; if(_cgCloudSpentBase!=null&&k){ try{ localStorage.setItem('pactCloudSpent:'+k,String(_cgCloudSpentBase)); }catch(e){} }
+}
+function _cgSpendBase(){
+  if(_cgCloudSpentBase!=null) return _cgCloudSpentBase;
+  try{ var v=__charId&&localStorage.getItem('pactCloudSpent:'+__charId); if(v!=null&&v!==''&&isFinite(+v)) return +v; }catch(e){}
+  return (_cgLocalSpentBase&&_cgLocalSpentBase.id===__charId)?_cgLocalSpentBase.spent:null;
+}
+function _cgSpendIncreased(){ var b=_cgSpendBase(); return b==null || economy(LOG).spent > b; }
 function _cgOverApBudget(){
   if(!window._cgCampaignBound || !window._cgEnforceApBudget) return false;
-  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0;
+  return (compute(readBuild(), _cgDmOpts()).spendable - economy(LOG).spent) < 0 && _cgSpendIncreased();
 }
 // Every load path EXCEPT the cloud-load handler (which sets its own values right after) must call this
 // first — otherwise a stale DM AP/campaign from a previously-loaded cloud character would silently bleed
 // into an unrelated local build/file/reset.
-function _cgResetCloudApState(){window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;
+function _cgResetCloudApState(){_cgCloudSpentBase=null;window._cgBindGen=(window._cgBindGen||0)+1;window._cgBindingConfirmed=false;window._cgBindingPending=false;window._dmAp=0;window._ignorePlayerAp=false;window._dmApStatus='none';window._cgCampaignBound=false;window._cgCampaignId=null;window._cgCopySourceAp=0;window._cgCopySourceName='';window._cgCopySourceIgnorePlayerAp=false;window._cgCopySourceRules=null;window._cgCopySourceIsCopy=false;window._cgCopySourceCampaignId=null;
   // Cleared with the rest of the cloud state so a pending binding cannot outlive its character. Guarded
   // because this function is also called from _cgBoot() paths that run before the declaration is reached.
   try{ _cgPendingCampaignId=null; }catch(e){}
@@ -1810,6 +1837,8 @@ async function _cgAdoptEnvelopeBindingInner(d, campId){
         if(typeof bnd.ap === 'number') ap = bnd.ap;
         if(!bnd.campaignId){ _cgPendingCampaignId = null; render(); return; }   // the server says solo: drop the binding
         campId = bnd.campaignId; _cgPendingCampaignId = campId;
+        // V1: the server's spend, from this device's cached copy when it is clean (peek never reconciles or pushes).
+        try{ var _pk = S.peekCharacter && await S.peekCharacter(d.id); if(stale()) return; _cgNoteCloudBase(_pk && !_pk.dirty && _pk.stats ? _pk.stats.LOG : null, d.id); }catch(e){}
       }
     } else if(S && _session && navigator.onLine && d.id){
       // refreshServerAp, not peekCharacter: peek prefers the LOCAL copy, which is right for stats (this
@@ -2161,9 +2190,54 @@ function genPortrait(){genPortraitFor(readBuild());}
 
 // ===== DM house-rules (custom / repriced / disabled boons & drawbacks) =====
 // {boons:{name:{hd,ap,fx,custom}}, draws:{name:{ap,fx,custom}}, disabled:{boons:[],draws:[]}}
+//
+// TWO sets of house rules (feat/campaign-house-rules-tools, D-GH-2026-10-13-campaign-house-rules, owner decision U1):
+//   HOUSE — the character's OWN rules: edited here, saved in its houseRules patch slot. Edited ONLY when solo.
+//   EFF   — the rules in force: in a campaign the DM's (campaign rules, then a per-character DM override), solo = HOUSE.
+//           Resolved by the engine (resolveHouseRules / effectiveBoonTable / effectiveDrawbackTable) from the context
+//           every fold carries (_cgHrCtx). Read-only here.
+// HOUSE is NEVER written from EFF: in a campaign the own patch must stay exactly as the player left it (no history
+// rewrite — it comes back when the character leaves). So the own controls are hidden in a campaign, the HOUSE_RULES
+// slot never syncs there (_cgDmCustomReadOnly), and the DM's rules are shown in a separate read-only panel.
 let HOUSE={boons:{},draws:{},disabled:{boons:[],draws:[]}};
-function effBoons(){const o={};for(const k in DATA.boons)o[k]={hd:DATA.boons[k].hd,ap:DATA.boons[k].ap,fx:DATA.boons[k].fx,cat:DATA.boons[k].cat||'Other',custom:false};
-  for(const k in (HOUSE.boons||{})){const h=HOUSE.boons[k];const builtin=DATA.boons[k];o[k]={hd:+h.hd||1,ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:builtin?(builtin.cat||'Other'):'DM custom',custom:true};}return o;}
+// The context this character's folds are priced with: the live campaign rules once the server has confirmed the
+// binding AND they belong to this character's campaign; else the rules snapshot its LOG carries (offline, signed out,
+// unconfirmed); else none. A character that is not campaign-bound is solo even if its LOG holds an old snapshot (it may
+// have left), and the campaign-rules PREVIEW picker (window._cloudCampaign on a solo character) never applies here.
+// A DM's "Copy to CharGen" sandbox uses the rules frozen with the copy.
+function _cgHrCtx(ev){
+  var H=window._engineHR; if(!H) return null;
+  if(window._cgCopySourceIsCopy && window._cgCopySourceRules) return H.houseRulesCtxFromRules(window._cgCopySourceRules, window._cgCopySourceCampaignId||null);
+  if(!_cgIsCampaignBound()) return null;
+  var c=window._cloudCampaign, cid=window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'?_cgPendingCampaignId:null)||null;
+  if(window._dmApStatus==='active' && c && c.id && c.id===window._cgCampaignId) return H.houseRulesCtxFromRules(c.rules||{}, c.id);
+  // Bound, rules not confirmed: its snapshot (when it is this campaign's), else a campaign context with no house rules —
+  // the own patch stays ignored (U1) and the own editor stays hidden, instead of falling back to solo. Same as the Live Sheet.
+  var snap=H.latestRulesSnapshot(Array.isArray(ev)?ev:LOG);
+  return H.houseRulesCtxFromRules((snap && (!snap.campaignId || !cid || snap.campaignId===cid)) ? snap.rules : {}, cid || (snap && snap.campaignId) || null);
+}
+window._cgHrCtx=_cgHrCtx;
+// Bound, but THIS campaign's rules are unknown here (feat/campaign-house-rules-dm-editor; PR #654 round-3 finding 4): not the
+// live rules of its campaign, and no snapshot of that campaign in the LOG. _cgHrCtx() then carries no campaign house rules,
+// so an in-play boon or drawback would be priced at its printed value and postLockAllowance(null) would allow a post-lock
+// drawback — and the server refuses that save. Strict instead: _cgGateRules() reads {} (refused) and _cgPostLockAppend()
+// refuses boons and drawbacks. (A draft re-prices its boons at the campaign's prices once the rules are known.)
+function _cgHrRulesUnknown(){
+  if(window._cgCopySourceIsCopy || !_cgIsCampaignBound()) return false;
+  var c=window._cloudCampaign, cid=window._cgCampaignId||(typeof _cgPendingCampaignId!=='undefined'?_cgPendingCampaignId:null)||null;
+  if(c && (!c.id || c.id===window._cgCampaignId)) return false;   // its campaign's rules are loaded (the gates' own source)
+  var H=window._engineHR; if(!H) return true;
+  var snap=H.latestRulesSnapshot(LOG);
+  return !(snap && (!snap.campaignId || !cid || snap.campaignId===cid));
+}
+// The campaign rules the post-lock gates read: unchanged (the cached campaign rules, else none) unless the character is bound
+// and its rules are unknown — then {} so postLockAllowance() refuses instead of treating it as solo.
+function _cgGateRules(){ return _cgHrRulesUnknown() ? {} : ((window._cloudCampaign&&window._cloudCampaign.rules)||null); }
+function _cgHrInCampaign(){ return !!_cgHrCtx(LOG); }
+// The source the effective tables are read from: the stamped fold in a campaign; solo, the page's own HOUSE (which the
+// DM-customisation editor updates before it writes the LOG — the grids are rebuilt in between).
+function _cgHrSrc(){ return _cgHrInCampaign() ? readBuild() : {houseRules:HOUSE}; }
+function effBoons(){ var c=_cgHrInCampaign(); return window._engineHR.effectiveBoonTable(c?readBuild():{houseRules:HOUSE}, c?undefined:null); }
 // Heritage-pack traits are ticked in the grid for VISIBILITY (render() below) but must never reach the
 // stored build. In-pack traits price at 0 only while the pack is yours; stored and then followed by a
 // species change they re-price at the CROSS rate — measured, `Dwarf: Dwarven Resilience` is a 0 AP
@@ -2175,9 +2249,28 @@ function _cgStripPackTraits(vals, sp, sp2){
   const inPack=new Set(packTraitsFor(sp,sp2));
   return (vals||[]).filter(function(v){ return !inPack.has(v); });
 }
-function effDraws(){const o={};for(const k in DATA.drawbacks)o[k]={ap:DATA.drawbacks[k],fx:(DATA.drawbackFx&&DATA.drawbackFx[k])||'',cat:(DATA.drawbackCat&&DATA.drawbackCat[k])||'Other',custom:false};
-  for(const k in (HOUSE.draws||{})){const h=HOUSE.draws[k];o[k]={ap:+h.ap||0,fx:h.fx||(o[k]&&o[k].fx)||'',cat:'DM custom',custom:true};}return o;}
+function effDraws(){ var c=_cgHrInCampaign(); return window._engineHR.effectiveDrawbackTable(c?readBuild():{houseRules:HOUSE}, c?undefined:null); }
+// The OWN (HOUSE) disabled list — the own-rules editor's list. The pickers read each effective-table row's `disabled`
+// instead: HOUSE's list when solo, the campaign's bans plus a DM override's own list in a campaign.
 function isDisabled(kind,name){return (HOUSE.disabled&&HOUSE.disabled[kind]||[]).includes(name);}
+// The DM's rules in force, read-only, with where each comes from (campaign / DM override for you / kept at your old
+// value). Every name and text is DM- or player-typed: esc() all of it.
+function _cgRenderEffPanel(){
+  var el=$('dmEffPanel'); if(!el) return;
+  if(!_cgHrInCampaign()){ el.style.display='none'; el.innerHTML=''; return; }
+  var R=window._engineHR.resolveHouseRules(readBuild());
+  var TAG={campaign:'campaign',override:'DM override for you',pin:'kept at your old value'};
+  var rows=[];
+  Object.keys(R.boons||{}).sort().forEach(function(k){var h=R.boons[k]||{};rows.push('<div class="dmrow"><span class="nm">'+esc(k)+'</span><span class="meta">'+esc('boon · HD '+(h.hd||1)+'+ · '+(h.ap!=null?h.ap:0)+' AP')+'</span><span class="dmtag">'+esc(TAG[(R.source.boons||{})[k]]||'campaign')+'</span></div>');});
+  Object.keys(R.draws||{}).sort().forEach(function(k){var h=R.draws[k]||{};rows.push('<div class="dmrow"><span class="nm">'+esc(k)+'</span><span class="meta">'+esc('drawback · +'+(h.ap!=null?h.ap:0)+' AP')+'</span><span class="dmtag">'+esc(TAG[(R.source.draws||{})[k]]||'campaign')+'</span></div>');});
+  var A=R.dmAllows||{}, calls=[['bound','Bound'],['boons','Boons'],['drawbacks','Drawbacks'],['tasha','Non-core (XGtE/TCoE)']].map(function(c){return esc(c[1])+': <b>'+(A[c[0]]===false?'off':'on')+'</b>';}).join(' · ');
+  var nDis=((R.disabled&&R.disabled.boons)||[]).length+((R.disabled&&R.disabled.draws)||[]).length;
+  el.style.display='';
+  el.innerHTML='<div class="sublab" style="color:#b35a00">House rules set by your DM — read-only</div>'
+    +'<div class="hint">In a campaign your DM\u2019s rules price your boons and drawbacks. Your own customisations are kept unchanged and apply again if this character plays solo. Ask your DM to change these.</div>'
+    +'<div style="font-size:11px;margin:2px 0">'+calls+(nDis?(' · '+nDis+' not allowed in this campaign'):'')+'</div>'
+    +'<div style="font-size:11px;margin:2px 0 6px">'+(rows.length?rows.join(''):'<span class="hint">No custom or repriced boons or drawbacks.</span>')+'</div>';
+}
 function _bdFilter(id){const e=$(id);return e?(e.value||'').toLowerCase().trim():'';}
 const BOON_ORDER=['Combat','Defence','Skill & Utility','Social','Magic','Wild & Story','DM custom','Other'];
 const DRAW_ORDER=['Body','Mind','Social','Magic','Wild & Story','DM custom','Other'];
@@ -2242,7 +2335,7 @@ function buildArtGrid(){
 
 
 function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=bOverride||readBuild();const st=_bb.stats||{};const B=effBoons();const chk=_bb.boons||[];const q=_bdFilter('boonfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly. bOverride: applyBuild() passes the build being loaded (D-GH44 fix) so this doesn't filter against the stale pre-load LOG. */
-  const byCat={};Object.keys(B).forEach(k=>{if(isDisabled('boons',k)&&!chk.includes(k))return;
+  const byCat={};Object.keys(B).forEach(k=>{if(B[k].disabled&&!chk.includes(k))return;
     if(!chk.includes(k)&&cloudRuleBarred('boons',k))return;   // cloud campaign rules (D-GH44) — mirror Live Sheet's live-filter: remove, don't disable
     const bo=B[k];
     if(q && (k+' '+(bo.fx||'')).toLowerCase().indexOf(q)<0 && !chk.includes(k))return;
@@ -2255,7 +2348,7 @@ function buildBoonGrid(bOverride){const g=$('boongrid');if(!g)return;const _bb=b
         '<span class="dsc">'+esc(bo.fx||'')+'</span></label>';}).join('')+'</div>';});
   g.innerHTML=html||'<span class="hint">No boons match your filter.</span>';}
 function buildDrawGrid(){const g=$('drawgrid');if(!g)return;const _db=readBuild();const st=_db.stats||{};const D=effDraws();const chk=_db.drawbacks||[];const q=_bdFilter('drawfilter');   /* Chunk 6: membership via readBuild() (VIEW_RENDER), not foldBuild(LOG) directly */
-  const byCat={};Object.keys(D).forEach(k=>{if(isDisabled('draws',k)&&!chk.includes(k))return;
+  const byCat={};Object.keys(D).forEach(k=>{if(D[k].disabled&&!chk.includes(k))return;
     // Wound-only drawbacks (DATA.wounds[k].dmOnly — 19 entries, see DATA.wounds) are imposed
     // by a DM and never picked by a player, so they are not offered here. One the character ALREADY holds (a DM
     // imposed it) stays listed and checked, like every other held drawback. (feat/permanent-wounds)
@@ -2284,6 +2377,7 @@ function dmAdd(){if(_cgDmCustomRefuse())return;const kind=val('dmkind');const na
 // character once creation is finished. Returns '' when editable, else the reason.
 function _cgDmCustomReadOnly(){
   if(_cgCreationApIsDms()) return 'campaign';
+  if(_cgHrInCampaign()) return 'campaign';   // any campaign context (incl. an offline snapshot): the DM's rules apply, the own ones are never edited (U1)
   if(_cgIsLocked()) return 'locked';
   return '';
 }
@@ -2292,7 +2386,7 @@ function _cgDmCustomRoText(why){
 }
 function _cgDmCustomRefuse(){
   var why=_cgDmCustomReadOnly(); if(!why) return false;
-  flash(_cgDmCustomRoText(why)+(why==='campaign'?' There is no DM editor for these yet \u2014 tell your DM if one needs to change.':''),'error');
+  flash(_cgDmCustomRoText(why)+(why==='campaign'?' Your DM sets them in DM Console \u2014 for the whole campaign (Campaign Rules \u2192 Character house rules) or for this character on its card.':''),'error');
   return true;
 }
 // Every render: disable (not hide) the controls, so the table's rules stay readable. Follows a binding that confirms late.
@@ -2301,6 +2395,11 @@ function _cgSyncDmCustomUi(){
   ['dmCallsRow','dmCustomRow','dmlist'].forEach(function(id){var box=$(id);if(!box)return;
     box.querySelectorAll('input,select,button').forEach(function(e){e.disabled=ro;});});
   var n=$('dmRoNote'); if(n) n.textContent=ro?_cgDmCustomRoText(why):'';
+  // In a campaign the own controls are HIDDEN, not just disabled: they show the character's own rules, which do not
+  // apply there, and the read-only panel shows the ones that do (D-GH-2026-10-13-campaign-house-rules).
+  var _inC=_cgHrInCampaign();
+  ['dmCallsRow','dmCustomRow','dmlist','dmCustomHead','dmCustomHint'].forEach(function(id){var box=$(id);if(box)box.style.display=_inC?'none':'';});
+  _cgRenderEffPanel();
 }
 // Every DM house-rule edit lands in the LOG (the HOUSE_RULES patch slot), not only in the page's HOUSE
 // global — otherwise a custom/repriced/disabled boon or drawback was lost on save, reload and undo, and the
@@ -2338,8 +2437,9 @@ function buildDmList(){const el=$('dmlist');if(!el)return;const rows=[];
     // XSS but leaves `onclick="fn("a"b")"`, a syntax error that silently breaks the button for any
     // name containing a quote.
     rows.push('<div class="dmrow'+(off?' off':'')+'"><span class="nm">'+esc(name)+'</span><span class="meta">'+esc(meta)+'</span>'+
-      '<button class="dmctl" type="button" onclick="'+esc('dmToggleDisable('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">'+(off?'enable':'disable')+'</button>'+
-      '<button class="btn x" type="button" onclick="'+esc('dmRemove('+JSON.stringify(kind)+','+JSON.stringify(name)+')')+'">✕</button></div>');};
+      // Data attributes, not a name inside the handler's JS (review of #655: one pattern for every user-typed name).
+      '<button class="dmctl" type="button" data-k="'+esc(kind)+'" data-v="'+esc(name)+'" onclick="dmToggleDisable(this.dataset.k,this.dataset.v)">'+(off?'enable':'disable')+'</button>'+
+      '<button class="btn x" type="button" data-k="'+esc(kind)+'" data-v="'+esc(name)+'" onclick="dmRemove(this.dataset.k,this.dataset.v)">✕</button></div>');};
   // custom boons/draws
   for(const k in (HOUSE.boons||{}))add('boon',k,'boon · HD '+(HOUSE.boons[k].hd||1)+'+ · '+(HOUSE.boons[k].ap||0)+' AP');
   for(const k in (HOUSE.draws||{}))add('draw',k,'drawback · +'+(HOUSE.draws[k].ap||0)+' AP');
@@ -2558,8 +2658,9 @@ function buildForm(F){
       '<div class="bondcard"><h5>✦ Magically Bound</h5><div class="hint">Bind a Discipline: −1 AP on its Foundation, Rank, cantrips, slots &amp; spells; stacks with the origin discount. Grants 2 AP. Set it per discipline in <b>§12 Spellcasting</b> (the “Magically Bound” box).</div>'+
         '<div class="basics" id="mboundsummary" style="margin:4px 0 0">No disciplines bound.</div></div>'+
     '</div>'+
-    '<div class="sublab" style="border-top:1px dashed var(--line);padding-top:6px;color:#b35a00">DM customisations — add, reprice, or disable boons & drawbacks</div>'+
-    '<div class="hint">Anything changed here is tagged <span class="dmtag">DM</span> and tinted orange, and is saved with the build. Re-add an existing name to reprice it.</div>'+
+    '<div id="dmEffPanel" style="display:none"></div>'+
+    '<div class="sublab" id="dmCustomHead" style="border-top:1px dashed var(--line);padding-top:6px;color:#b35a00">DM customisations — add, reprice, or disable boons & drawbacks</div>'+
+    '<div class="hint" id="dmCustomHint">Anything changed here is tagged <span class="dmtag">DM</span> and tinted orange, and is saved with the build. Re-add an existing name to reprice it.</div>'+
     '<div class="row" id="dmCustomRow" style="gap:5px;flex-wrap:wrap">'+
       '<select id="dmkind" onchange="dmPrefill()"><option value="boon">Boon</option><option value="draw">Drawback</option></select>'+
       '<input type="text" id="dmname" placeholder="name" style="min-width:120px" oninput="dmPrefill()" title="Type an existing name to reprice it — its current HD/AP/description load automatically">'+
@@ -2829,7 +2930,7 @@ function _histClone(x){return JSON.parse(JSON.stringify(x));}
 function _snapshotFrame(){return {log:_histClone(LOG),seq:SEQ,id:__charId,campaignId:_cgIsCampaignBound()?(window._cgCampaignId||_cgPendingCampaignId):null,copy:_cgCopyState()};}   // Step 5: name/budget live in the LOG now; campaignId/copy: see restoreFrame()
 // A DM copy's frozen source-AP display state (see the "Copy to CharGen" flow). Not in the LOG, so a frame
 // carries it for restoreFrame() — otherwise undo/redo back onto a DM copy reset it to a bare local build.
-function _cgCopyState(){return window._cgCopySourceIsCopy?{isCopy:true,ap:window._cgCopySourceAp||0,name:window._cgCopySourceName||'',ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,rules:window._cgCopySourceRules||null}:null;}
+function _cgCopyState(){return window._cgCopySourceIsCopy?{isCopy:true,ap:window._cgCopySourceAp||0,name:window._cgCopySourceName||'',ignorePlayerAp:!!window._cgCopySourceIgnorePlayerAp,rules:window._cgCopySourceRules||null,campaignId:window._cgCopySourceCampaignId||null}:null;}
 function _fieldKey(el){if(!el)return null;if(el.id)return el.id;if(!el._hk)el._hk='hk'+(++_hkSeq);return el._hk;}
 function _isTextish(el){return !!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|number|search|tel|url|email|)$/i.test(el.type)));}
 // Only a user text keystroke supplies a coalesce key; select/checkbox `change` and everything else stays
@@ -2898,7 +2999,7 @@ function restoreFrame(f){
     if(String(__charId)!==String(_prevId)){
       _cgAdoptEnvelopeBinding({id:__charId,campaignId:f.campaignId||null});   // resets synchronously, then resolves async
       if(f.copy){ window._cgCopySourceIsCopy=true; window._cgCopySourceAp=f.copy.ap; window._cgCopySourceName=f.copy.name;
-        window._cgCopySourceIgnorePlayerAp=f.copy.ignorePlayerAp; window._cgCopySourceRules=f.copy.rules; }
+        window._cgCopySourceIgnorePlayerAp=f.copy.ignorePlayerAp; window._cgCopySourceRules=f.copy.rules; window._cgCopySourceCampaignId=f.copy.campaignId||null; }
     }
     render();
   }finally{_histSuspended=false;}
@@ -3146,7 +3247,7 @@ window.cgFinishCreating = cgFinishCreating;
 // isCreationDraft() false, which is what correctly stops any further repricing. Both live in here rather
 // than at each call site for the same reason the burst tags noLock uniformly — a future LOG-mutating path
 // cannot forget one.
-function _cgRepriceDraft(){LOG=repriceDraft(LOG);}   // no auto-lock: see the note above cgFinishCreating()
+function _cgRepriceDraft(){LOG=repriceDraft(LOG,{houseRulesCtx:_cgHrCtx(LOG)});}   // a campaign draft prices at the campaign's prices (null = solo, byte-identical to before)   // no auto-lock: see the note above cgFinishCreating()
 function emit(ev){_cgEnsureLockArmed();ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;commitHistory();LOG.push(ev);_cgRepriceDraft();render();}
 // Several events as ONE undo step (one history frame), e.g. a purchase and the description it needs (feat/boon-drawback-notes).
 function _cgEmitAll(evs){_cgEnsureLockArmed();commitHistory();evs.forEach(function(ev){ev.seq=SEQ++;ev.ts=Date.now();ev.rules=ev.rules||DATA.version;LOG.push(ev);});_cgRepriceDraft();render();}
@@ -3336,8 +3437,20 @@ function _cgSealedFloor(){
 // WORDING: "locked", never "your DM sealed it" -- _cgSealedFloor() is non-zero for the pre-existing
 // AP-award boundary as well as for a real seal, and the two are indistinguishable here. See
 // _lsBlockedBySeal() in the Live Sheet and isSealRejection() in js/sync.js.
+// feat/campaign-house-rules-server (M1): events only a campaign DM may write — a truthy dmEdit, or a DM-only type. The
+// database (trg_pact_dm_family_guard) refuses any save by the player that adds, changes, removes or reorders one, so a
+// whole-history rebuild (Randomise, loading a file over the character) must not run while any exist. Mirrors
+// public.pact_dm_family() in sql/migrations/2026-10-13-campaign-house-rules-server.sql.
+const _CG_DM_ONLY_TYPES=new Set(['dmHouseRules','dmRefundBoon','dmRemoveDrawback','dmRepriceDrawback','dmRemoveBoon','dmUnlockDrawback','sessionSeal']);
+function _cgIsDmFamily(e){return !!(e&&(e.dmEdit||_CG_DM_ONLY_TYPES.has(e.type)));}
 function _cgBlockedBySeal(what){
-  if(_cgSealedFloor()===0) return false;
+  if(_cgSealedFloor()===0){
+    if(!LOG.some(_cgIsDmFamily)) return false;
+    alert('\uD83D\uDD12 Your DM has made changes to this character.\n\n' + what + ' rebuilds the whole history from the form, '
+        + 'which would drop or rewrite what your DM added (a granted boon, an imposed drawback or house rules) \u2014 '
+        + 'and the server will refuse it.\n\nUse \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
+    return true;
+  }
   alert('\uD83D\uDD12 Part of this character\'s history is locked.\n\n' + what + ' rebuilds the whole history from the form, '
       + 'which would drop what the server has locked (by a session seal, or by an AP award) \u2014 and it will be refused.\n\n'
       + 'Use \u201cNew Character\u201d if you want to start something fresh; that leaves this one untouched.');
@@ -3367,8 +3480,17 @@ function retractFlatEvent(cat,predicate){
   // the FIRST match, so a sealed duplicate would otherwise block retraction of a legitimately
   // removable later copy of the same item for ever.
   const _floor=_cgSealedFloor();
-  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
+  // A purchase the DM made (granted boon, imposed drawback) is never the player's to retract — the server refuses it (M1).
+  const i=LOG.findIndex(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&!_cgIsDmFamily(e)&&predicate(e);});
   if(i===-1){
+    if(LOG.some(function(e,idx){return idx>=_floor&&e.type==='buy'&&e.cat===cat&&_cgIsDmFamily(e)&&predicate(e);})){
+      if(!_histSuspended&&!_cgSealRefusedPass){
+        _cgSealRefusedPass=true;
+        flash('\uD83D\uDD12 Your DM added that \u2014 only they can remove it.');
+        Promise.resolve().then(function(){ _cgSealRefusedPass=false; try{render();}catch(e){} });
+      }
+      return false;
+    }
     // Distinguish "not there" from "there but sealed" — the caller must put the tick back only in the
     // second case, and the reconcile callers (which ignore the return) must not silently diverge.
     const _sealedMatch=LOG.some(function(e,idx){return idx<_floor&&e.type==='buy'&&e.cat===cat&&predicate(e);});
@@ -3677,7 +3799,7 @@ function _cgPostLockSteps(slot,patch,cur){
     var changed=function(key){ return !_cgDeepEq(N(cur[key]),N(patch[key])); };
     if(slot==='traditions'){
       if(patch.traditions!==undefined){
-        var rules=(window._cloudCampaign&&window._cloudCampaign.rules)||null;
+        var rules=_cgGateRules();
         var tr=_cgTraditionSteps(cur.traditions||[],patch.traditions||[],cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false),window.postLockAllowance(rules).bindings);
         steps=tr.steps; refuse=tr.refuse;
         if(refuse) tail='Nothing you have bought can be removed or lowered once creation is finished. You can still add and raise things by spending AP.';
@@ -3685,7 +3807,7 @@ function _cgPostLockSteps(slot,patch,cur){
     }else if(slot==='innate'){
       if(patch.innate!==undefined&&!_cgDeepEq(cur.innate||[],patch.innate||[])){ refuse='Innate spells are chosen during creation.'; tail='Ask your DM if something needs to change.'; }
     }else if(slot==='misc'){
-      var _al=window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null);
+      var _al=window.postLockAllowance(_cgGateRules());
       if(patch.martiallyBound!==undefined&&changed('martiallyBound')){
         // Martially Bound is a one-way +2 AP purchase for the origin class (the Live Sheet's tile); it is offered only when not yet taken, and only where the campaign allows it.
         if(_al.bindings&&N(cur.martiallyBound)===''&&patch.martiallyBound===cur.originClass) steps.push({cat:'mbound',payload:{v:cur.originClass},label:'Martially Bound: '+cur.originClass});
@@ -3722,11 +3844,12 @@ function _cgPostLockAppend(steps,opts){
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
   if(_histSuspended) return true;
-  var b=foldBuild(LOG), evs=[], total=0, charged=false, _namesWhy;   // _namesWhy: the names gate, asked once against the character as it stands BEFORE this edit, so the purchase that makes a blank slot is allowed and the next one waits
+  var b=foldBuild(LOG), evs=[], total=0, charged=false, _spendUp=0, _namesWhy;   // _namesWhy: the names gate, asked once against the character as it stands BEFORE this edit, so the purchase that makes a blank slot is allowed and the next one waits
   var _b0=b;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
+    if((st.cat==='boon'||st.cat==='drawback')&&_cgHrRulesUnknown()){ alert('\u26D4 Your campaign\'s house rules haven\'t loaded on this device, so boons and drawbacks can\'t be priced yet. Connect and reload this character to buy or take one.'); _cgRepaint(); return false; }
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
@@ -3754,10 +3877,10 @@ function _cgPostLockAppend(steps,opts){
       if(q){ ev.gp=q.gp; ev.days=q.days; totalQ.gp+=q.gp; totalQ.days+=q.days; }
     }
     virt.push(Object.assign({},ev,{ts:stampTs}));
-    evs.push(ev); total+=cost; if(st.cat!=='drawback') charged=true; b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
+    evs.push(ev); total+=cost; if(st.cat!=='drawback'){ charged=true; _spendUp+=(Number(cost)||0); } b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
-  if(charged&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
+  if(charged&&_spendUp>0&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // V1: an edit that adds no spend (free purchases only) is never refused for AP, even below 0 — as the Live Sheet's buy()   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
   // Soft shortfall warning (never a block — a DM can waive or defer any cost, \u00a717): the TOTAL of this edit against the wallet as it stands now, asked once. The Live Sheet asks per purchase;
   // CharGen edits can be several purchases at once, so this is the same question for the whole edit. Cancel abandons the edit — nothing is appended.
   if(totalQ.gp||totalQ.days){
@@ -4009,7 +4132,7 @@ const _CG_UNORDERED_FIELDS=['saves','skills','expertise','toolExpertise','tools'
 // Fields _domReadBuild() never produces (engine-only replay bookkeeping) or that legitimately take an
 // "empty" shape from either side (missing key vs null vs '' vs [] vs an all-zero array — all mean the
 // same thing here) — stripped so a real divergence isn't buried under this noise.
-const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked'];
+const _CG_IGNORE_FIELDS=['id','version','inPlay','_raceTraitLocked','_hrCtx'];
 function _cgIsEmptyish(v){
   if(v==null||v==='')return true;
   if(Array.isArray(v))return v.length===0||v.every(function(x){return x===0||_cgIsEmptyish(x);});
@@ -4150,7 +4273,7 @@ function onChecklistToggle(el){
     if(_cgIsLocked()){
       // After the lock this is an IN-PLAY purchase: priced by the engine's priceOf, gold/downtime stamped, legality and affordability
       // checked, exactly as the Live Sheet records it. A new drawback is refused outright (owner P1) — it would hand out AP.
-      if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
+      if(cat==='drawback'&&!window.postLockAllowance(_cgGateRules()).drawbacks){ el.checked=false; _cgRefuseNewDrawback(); return; }
       if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_CHECKLIST_LABEL[cat]||cat)+' — '+v}],
                             {beforeCommit:function(go){ _noteAsk(function(x,_changed){ if(x===false&&!_changed) _noteFail(); go(x); }); }})) el.checked=false;
     }else{
@@ -4302,7 +4425,7 @@ function _cgSyncFlatCategory(cat){
     let missing=currentCounts[v]-(logCounts[v]||0);
     while(missing-->0){
       if(_cgIsLocked()){   // an in-play purchase after the lock — see onChecklistToggle; stop at the first refusal (it repaints every control)
-        if(cat==='drawback'&&!window.postLockAllowance((window._cloudCampaign&&window._cloudCampaign.rules)||null).drawbacks){ _cgRefuseNewDrawback(); break; }
+        if(cat==='drawback'&&!window.postLockAllowance(_cgGateRules()).drawbacks){ _cgRefuseNewDrawback(); break; }
         if(!_cgPostLockAppend([{cat:cat,payload:{v:v},label:(_CG_RECONCILE_LABEL[cat]||cat)+' — '+v}])) break;
         continue;
       }
@@ -4606,7 +4729,10 @@ function readBuild(){
   return foldBuild(LOG);
 }
 
-function _domReadBuild(){
+// Stamped with the same house-rules context as every fold: the pre-lock checklist prices a purchase as
+// compute(cand).total - compute(dom).total, and the candidate is a JSON copy of this, so it carries the stamp too.
+function _domReadBuild(){ var _b=_domReadBuildRaw(); var f=window._cgHrCtx, H=window._engineHR; return (H&&typeof f==='function')?H.withHouseRulesCtx(_b,f(LOG)):_b; }
+function _domReadBuildRaw(){
   const stats={};for(const a of ABILS)stats[a]=+val('st_'+a);
   const wp={simple:chk('wp_simple'),martial:+val('wp_martial'),allMartial:chk('wp_all'),improvised:chk('wp_improv')};
   const trads=[...document.querySelectorAll('.tcard')].map(card=>{
@@ -4653,7 +4779,7 @@ function _domReadBuild(){
     size:(function(){var z=window.sizeOf({species:val('spec'),species2:val('spec2'),size:val('charsize')||'Small'});return z.choosable?(val('charsize')||'Small'):z.size;})(),
     houseRules:{...HOUSE,dmAllows:{bound:!($('dm_bound')&&!$('dm_bound').checked),boons:!($('dm_boons')&&!$('dm_boons').checked),drawbacks:!($('dm_draws')&&!$('dm_draws').checked),tasha:!($('dm_tasha')&&!$('dm_tasha').checked)}}, version:DATA.version, id:currentCharId()};
 }
-function _cgTashaAllowed(){return !($('dm_tasha')&&!$('dm_tasha').checked);}
+function _cgTashaAllowed(){if(_cgHrInCampaign())return window._engineHR.resolveHouseRules(readBuild()).dmAllows.tasha!==false;return !($('dm_tasha')&&!$('dm_tasha').checked);}   // the effective call in a campaign
 function _cgHasDisc(n){try{return (readBuild().traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name===n;});});}catch(e){return false;}}
 function _cgHasKi(){try{return (readBuild().ki||0)>=1;}catch(e){return false;}}
 function _cgHasWarlock(){try{return (readBuild().traditions||[]).some(function(t){return (t.disciplines||[]).some(function(d){return d&&d.name==="Warlock";});});}catch(e){return false;}}
@@ -4818,7 +4944,7 @@ function loadFile(file,fh){const _adopt=function(){_fileHandle=fh||null;_fileHan
       // nothing the rebuild would lose that the server protects (no lock-family event, award or session seal).
       // Otherwise it opens as a separate copy with a fresh id and no binding, as this branch always did.
       const _protected=d.LOG.some(function(e){return e&&(e.type==='creationLockConfig'||e.type==='creationLocked'||
-        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote');});   // + DM approvals of descriptions (feat/boon-drawback-notes): server-frozen too
+        e.type==='creationUnlocked'||e.type==='award'||e.type==='sessionSeal'||e.type==='dmApproveNote'||e.type==='dmUnlockNote'||_cgIsDmFamily(e));});   // + DM approvals of descriptions (feat/boon-drawback-notes) and every DM-family event (house rules: a dmHouseRules override is allowed on a draft, and trg_pact_dm_family_guard refuses a save that drops it): server-frozen too
       const _keepId=!!d.id&&!_protected;
       // The file's own id, as _cgApplyEnvelope (branch 1) does: the binding adopted below asks the server about
       // THIS character, and a freshly minted id has no row, so it would read as an unconfirmed binding.
@@ -4857,7 +4983,10 @@ function _copyText(text){
     const okc=document.execCommand('copy');document.body.removeChild(ta);if(okc)return true;}catch(e){}
   try{window.prompt('Copy this link (press Ctrl/Cmd-C):',text);}catch(e){}
   return false;}
-function shareLink(){try{const enc=_encB(readBuild());const base=location.href.split('#')[0];const url=base+'#b='+enc;
+// Strip every derived `_`-prefixed key (_hrCtx, _dmHouseRulesByCampaign, _lostPurchases, …) before encoding: they are
+// fold bookkeeping, never saved, and a share link is a saved build (review of #655).
+function _cgStripDerived(b){const o={};Object.keys(b||{}).forEach(function(k){if(k.charAt(0)!=='_')o[k]=b[k];});return o;}
+function shareLink(){try{const enc=_encB(_cgStripDerived(readBuild()));const base=location.href.split('#')[0];const url=base+'#b='+enc;
   try{history.replaceState(null,'','#b='+enc);}catch(e){}
   const copied=_copyText(url);
   flash(copied?('Shareable link copied to clipboard ('+url.length+' chars).'):'Link shown — copy it from the popup or the address bar.');
@@ -5360,6 +5489,7 @@ async function _cgCloudPushOnce(){
     var doSave=function(){ return window._syncBridge.saveCharacter({id:currentCharId(),name:stats.name||'Character',kind:'chargen',stats:stats,campaignId:window._cgCampaignId}); };
     var res=await _cgKeepaliveWrap(doSave);
     if(res&&res.id)__charId=res.id;   // adopt a migrated pre-UUID id, same as the manual save
+    if(res&&res.synced)_cgNoteCloudBase(stats.LOG);   // V1: the server now holds this spend
     // A conflict is the one autosave outcome worth breaking the silence for. An offline or transient
     // failure fixes itself on the next retry; this one never will, and every further keystroke is being
     // typed into a copy that is already behind another device. Warn ONCE — the whole point of the silence
@@ -5612,7 +5742,7 @@ function _cgAdoptRestoredProvenance(d){
 function _cgRestoreAutosave(){try{
   const raw=localStorage.getItem(CG_AUTOSAVE_KEY);
   if(raw){const d=JSON.parse(raw);
-    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);return true;}}
+    if(d&&(d.schema===CG_SCHEMA||d.schema===CHAR_SCHEMA)&&Array.isArray(d.LOG)){_cgApplyEnvelope(d,{clearHistory:true});_cgAdoptEnvelopeBinding(d);_cgAdoptRestoredProvenance(d);try{_cgLocalSpentBase={id:__charId,spent:economy(LOG).spent};}catch(e){_cgLocalSpentBase=null;}return true;}}
   // one-time migration of the pre-Step-4 flat-build autosave, then remove the old key
   const legacy=localStorage.getItem(CG_AUTOSAVE_KEY_LEGACY);
   if(legacy){const b=JSON.parse(legacy);
@@ -6474,6 +6604,7 @@ function annotate(b,r){
      if($('ap_height_info'))$('ap_height_info').textContent='PHB: '+fmtHeight(S.heightIn[0])+' – '+fmtHeight(S.heightIn[1]);}}
   if($('drawp')){
   const _D=effDraws();const _dks=ckVals('drawck');
+  if(_cgHrInCampaign())document.querySelectorAll('.drawck').forEach(e=>{const dr=_D[e.value];if(dr&&dr.allowed===false&&!e.checked)e.disabled=true;});   // the DM's Drawbacks call, in a campaign
   const _rawGain=_dks.reduce((s,k)=>s+((_D[k]&&_D[k].ap)||0),0);
   if($('drawp'))$('drawp').textContent='Drawbacks: +'+(-get('Drawbacks (refund)'))+' AP refunded';
   const _dc=$('drawcap');if(_dc){
@@ -6635,7 +6766,7 @@ function annotate(b,r){
   if($('innatep'))$('innatep').textContent='Innate spells: '+get('Innate spells (3×, 1/rest)')+' AP';
   // boons (v37): total + grey/disable ones whose HD requirement isn't met
   if($('boonsp'))$('boonsp').textContent='Boons total: '+get('Boons')+' AP';
-  {const EB=effBoons();document.querySelectorAll('.boonck').forEach(e=>{const bo=EB[e.value];if(!bo)return;const ok=b.hd>=bo.hd;
+  {const EB=effBoons(),_inC=_cgHrInCampaign();document.querySelectorAll('.boonck').forEach(e=>{const bo=EB[e.value];if(!bo)return;const ok=b.hd>=bo.hd&&!(_inC&&bo.allowed===false);   /* in a campaign a call switched off by the DM stops NEW picks (owned ones stay) */
     e.disabled=(!ok&&!e.checked);if(e.parentElement)e.parentElement.style.opacity=(ok||e.checked)?'1':'0.5';});}
   // feature/racial/draw row prices
   const fstep={};const _unlkR=new Set(b.unlockedClasses||[]);
