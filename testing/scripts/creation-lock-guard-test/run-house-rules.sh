@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Throwaway-Postgres rehearsal of sql/migrations/2026-10-13-campaign-house-rules-server.sql (+ rollback). Needs Docker only; touches NO real database.
-# Builds the fresh-install path (schema.sql + rls-policies.sql, which carries #649's applied 2026-10-13-dm-ap-discount.sql) plus
-# 2026-09-03-dm-zero-player-ap.sql and 2026-10-12-server-player-award-after-lock.sql (both live, not yet folded), then:
+# Builds the fresh-install path (schema.sql + rls-policies.sql). The migration was APPLIED 2026-10-20 and folded into
+# rls-policies.sql (with 2026-09-03-dm-zero-player-ap.sql and 2026-10-12-server-player-award-after-lock.sql), so the baseline
+# already HAS it: the script records those definitions (FOLDED), steps back with the rollback, and then rehearses the same
+# transition as before the fold — AFTER must match FOLDED (baseline and migration agree):
 #   BEFORE   every case lands exactly as its `before` column predicts — the attacks and new features FAIL, the legitimate paths PASS
 #   AFTER    every case PASSES, and pact_hr_drawback_cap() agrees with js/campaign.js drawbackCapFromRules() on every shape in
 #            drawback-cap-shapes.json (generated from the real JS function; house-rules-ledger-ci.mjs checks the JS side)
@@ -18,7 +20,7 @@ trap 'docker rm -f "$C" >/dev/null 2>&1' EXIT
 for i in $(seq 1 30); do docker exec "$C" pg_isready -U postgres -q && break; sleep 1; done
 sleep 2
 M=../../../sql/migrations
-{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql "$M/2026-09-03-dm-zero-player-ap.sql" "$M/2026-10-12-server-player-award-after-lock.sql"; } | psqlc >/dev/null
+{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql; } | psqlc >/dev/null
 psqlc -c "insert into auth.users(id) select ('a0000000-0000-0000-0000-0000000000' || lpad(g::text, 2, '0'))::uuid from generate_series(1,29) g union all select 'd0000000-0000-0000-0000-000000000001' union all select 'd0000000-0000-0000-0000-000000000002'"
 docker cp drawback-cap-shapes.json "$C":/tmp/caps.json >/dev/null
 
@@ -28,8 +30,11 @@ added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace
   + (select count(*) from pg_trigger where tgname in ('trg_pact_dm_family_guard','trg_pact_guard_char_house_rules','trg_pact_player_grants_guard'))"; }
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 mispredicted() { psqlc -At -F ' | ' -c "select before, verdict, got, name from res where (verdict = 'PASS') <> (before = 'pass') order by n" | cut -c1-240; }
+FOLDED=$(defs)
+[ "$(added)" = "20" ] || { echo "EXPECTED the folded baseline to carry the 17 functions + 3 triggers, found $(added)"; exit 1; }
+psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 BASE=$(defs)
-echo "BASE: $BASE"
+echo "BASE (the pre-migration definitions, reached by the rollback): $BASE"
 
 echo "=== BEFORE (today's definitions): each case must land as its 'before' column predicts ==="
 psqlc < house-rules-cases.sql >/dev/null
@@ -42,6 +47,7 @@ psqlc -1 < "$M/2026-10-13-campaign-house-rules-server.sql"
 psqlc < house-rules-cases.sql >/dev/null; echo "AFTER: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-260; echo "FAILED"; exit 1; }
 [ "$(added)" = "20" ] || { echo "EXPECTED 17 functions + 3 triggers after the migration, found $(added)"; exit 1; }
+[ "$(defs)" = "$FOLDED" ] && echo "the migration's six redefinitions are byte-identical to rls-policies.sql's (the fold)" || { echo "FOLD DIFFERS from the migration"; exit 1; }
 echo "=== Z1: pact_hr_drawback_cap() vs js/campaign.js drawbackCapFromRules() on every shape ==="
 CAPBAD=$(psqlc -At -c "select count(*) from jsonb_array_elements(pg_read_file('/tmp/caps.json')::jsonb) s
   where public.pact_hr_drawback_cap(s->'rules') is distinct from (s->>'cap')::numeric")

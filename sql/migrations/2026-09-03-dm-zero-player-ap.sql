@@ -1,6 +1,8 @@
 -- PACT — a DM can zero a character's self-declared "Player AP", and once a campaign has
 -- ignore_player_ap on, that figure can no longer be increased by anything but a DM.
 -- feat/dm-zero-player-ap (D-GH-2026-09-03-dm-zero-player-ap).
+-- STATUS: APPLIED 2026-09-03. Folded into sql/rls-policies.sql 2026-10-20 — dm_zero_player_ap() as written here;
+-- pact_enforce_player_ap_ceiling() as 2026-10-12-server-player-award-after-lock.sql (APPLIED 2026-10-13) redefined it.
 --
 -- BACKGROUND. "Player AP" (compute()'s playerAp / economy().earned's award half) is a totally
 -- separate pool from the campaign's DM-awarded `characters.ap` — it lives inside the character's own

@@ -1397,72 +1397,22 @@ come from it.
 ---
 
 
-## feat/campaign-house-rules — campaign-wide house rules: tools, server, DM editor, #642 rework, Players Guide (PRs 2–6) — TODO
-Branches one per PR below. **Effort:** high · **Risk:** high — priced data across all three tools plus an AP-moving server migration.
+## feat/house-rules-dm-event-provenance — a player can carry forged DM house-rules events into a campaign (R2-6) — TODO
+Branch feat/house-rules-dm-event-provenance. **Effort:** medium · **Risk:** high — an AP-moving server rule on every campaign join, engine and server must agree.
 
 ```text
-Owner decisions P2/R1/U1/T2/S2/V1/W1/X1/Y1 (2026-10-13) — read decisions/2026/D-GH-2026-10-13-campaign-house-rules.md and the plan
-docs/plans/2026-10-13-campaign-house-rules.md (its ADDENDUM overrides the body) first. PR1 (engine, rules v0.377) and PR2 (tools) have landed:
-houseRulesCtx / withHouseRulesCtx / resolveHouseRules / effective tables / drawbackValue / drawbackBuyoffQuote / houseRulesImpact /
-serverApLedger and the dmHouseRules / dmRefundBoon / dmRemoveDrawback / dmRepriceDrawback events. Remaining, each its own PR:
-  PR2 feat/campaign-house-rules-tools — DONE (2026-10-13, see CHANGELOG): ctx stamped in all three tools' folds, js/campaign-rules.js
-      (houseRulesCtxFromRules / latestRulesSnapshot, re-exported by campaign.js), Live Sheet effective pickers + W1 buy-off + buyoff
-      targetSeq + DM-event ledger rows, CharGen HOUSE/effective split with a read-only panel, V1 save gates.
-  PR3 feat/campaign-house-rules-server — WRITTEN, REHEARSED, PR #654 OPEN, NOT APPLIED: migration
-      sql/migrations/2026-10-13-campaign-house-rules-server.sql + rollback, Docker harness run-house-rules.sh (in sql-guards CI).
-      Owner decision AB1 (server drawback price list, generated from engine-data.js) is in. Before applying: the header's
-      read-only queries Q1-Q5, roundtrip-audit.mjs on a fresh export, apply (apply_migration or psql -1), get_advisors + logs, and a
-      follow-up PR folds it into sql/rls-policies.sql and the baseline tests. It may be applied BEFORE the promotion (the PR
-      #654 review withdrew the "apply together" constraint: main's re-costing of a DM grant is already refused today).
-      PR3 follow-up (residual risk, plan §6.7 as corrected): a player can stamp DM events as the DM of their own campaign Y
-      (dm_bind_npc, then dm_unbind_character) or on a solo character before joining, and bring them into campaign X. Count
-      AP-moving DM events only when their campaignId equals the character's current campaign_id — engine AND server, so
-      they keep agreeing — or record RPC-issued amounts in a server-side table the ledger reads. Concrete case (round-2
-      review R2-6, pinned as a KNOWN GAP in run-house-rules.sh): while solo, forge a dmEdit dmHouseRules pin
-      {Fake: 1000} stamped with campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the
-      server grants 1000. The campaignId filter alone does not stop it (the forger used X's id); it needs the adjustments
-      table, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
-      campaign_dms for X) — see PR #654's body.
-  MERGE WITH #649 (feat/dm-ap-discount) — DONE 2026-10-13 (sync of the integration branch with preview; see CHANGELOG and the
-      decision record's "Merge with preview / #649" addendum). Reconciled as listed below:
-      - both PRs repurpose _economyFrom's 3rd parameter: pass the full activeEvents() result `ae` and read ae.discounts
-        inside it; mixing the two signatures fails silently (wrong tally, no error).
-      - a boon refunded by dmRefundBoon after a #649 discount must not be credited twice: the refund = frozen cost MINUS the
-        discount on that target, mirrored in the server ledger (PR3).
-      - parity fixture id EV-034 is used by both — renumber one.
-      - the Live Sheet ledger's dmTag / else-if chain needs both PRs' branches.
-  PR4 feat/campaign-house-rules-dm-editor — PR OPEN (2026-10-13, see CHANGELOG): editor, S2/T2 review, one RPC call,
-      un-migrated-server message, effective grant/impose pickers, the client strictness below and the second-copy label are
-      in; real-RPC replay in CI. Owner questions answered and deferred: AC -> feat/house-rules-draft-reprice, AD1 (opt-in
-      removal on bans) -> feat/house-rules-ban-removal. Original brief: DM Console "Character house rules" section, S2 tick dialog and T2 checkbox/dialog from
-      houseRulesImpact(), one RPC call; feature-detect an un-migrated server like #642 does. The RPC (PR3):
-      dm_apply_house_rules_change(p_campaign, p_char_house_rules [SQL null = unchanged, JSON null = remove], p_actions[]) with
-      actions {kind:'override'|'pin', character, overrides} · {kind:'reprice', character, name, targetSeq, amount, from, to} ·
-      {kind:'refundBoon'|'removeDrawback', character, name, targetSeq} (the server stamps cost / grantBack). It refuses an
-      AP-moving action on a character without an explicit creationLocked after its last creationUnlocked — so a threshold
-      auto-locked character is NOT tickable either — and refunds of DM-granted boons (use dmRemoveBoon via
-      dm_edit_character_log, FIFO by name: offer it only when the DM-granted copy is the oldest open one of that name).
-      Client strictness when campaign rules are UNKNOWN (PR #654 round 3, finding 4 — PR4 or a small follow-up): a BOUND
-      character with no rulesSnapshot and rules not active gets postLockAllowance(null) = allowed and a context without the
-      campaign's charHouseRules (Live Sheet _lsHrCtx ~560-566, CharGen ~4181 / ~4329), so a post-lock drawback can be taken
-      and a campaign-custom drawback is priced at printed/0 — then the server (PR3) refuses the whole sync. When campaign
-      rules are unknown for a bound character the tools should be strict: no post-lock drawbacks, and flag items whose price
-      depends on campaign house rules instead of pricing them.
-      Cosmetic (round 3, finding 5): a dmRemoveDrawback aimed at a SECOND open copy of a name is labelled "−v AP" in the
-      ledger rows, but moves 0 (F1: only the oldest copy grants) — the DM Console should label it, or offer removal of the
-      granting copy first.
-  PR5 feat/campaign-house-rules-overrides (rework #642) — PR OPEN (2026-10-13, see CHANGELOG): per-character overrides as a
-      dmHouseRules snapshot via the RPC, single-holder S2, inherited values shown; #642 closed in its favour.
-  PR6 docs/campaign-house-rules-guide: Players Guide — master in pact-guide, then the served copy; run
-      testing/scripts/verify-guide.mjs before and after. A mechanics change is not done until the guide lands, so this PR must
-      merge BEFORE preview is promoted to main.
-SECURITY GATE: PR1's engine counts dmEdit-flagged events that a PLAYER can still write until PR3's DM-family guard is applied
-(dmEdit is client-set), so preview must NOT be promoted to main between PR1 and PR3's applied migration.
+Carried from the graduated feat/campaign-house-rules entry (all of PRs 2–6 shipped in v1.684; the server migration was applied
+2026-10-20 — decisions/2026/D-GH-2026-10-13-campaign-house-rules.md, "Residual risk" and the 2026-10-20 addenda). The one open
+item, pinned as a KNOWN GAP in testing/scripts/creation-lock-guard-test/run-house-rules.sh (round-2 review R2-6): a player can
+stamp DM-family events as the DM of their own campaign Y (dm_bind_npc, then dm_unbind_character), or on a solo character before
+joining, and bring them into campaign X. Concrete case: while solo, forge a dmEdit dmHouseRules pin {Fake: 1000} stamped with
+campaign X's id plus a {Fake, -1000} drawback, then join X — the pin is X's override, so the server grants 1000. A campaignId
+filter alone does not stop it (the forger used X's id). Options from PR #654's body: record RPC-issued amounts in a server-side
+table the ledger reads, or a join-time check that every DM-family event stamped with X's id was written by a DM of X (dmId in
+campaign_dms for X). Measure live first (DM-family events whose dmId is not a DM of the stamped campaign).
 ```
-**Done when:** PRs 2–6 are merged; e2e: a DM's campaign custom drawback is bought in the Live Sheet at the custom price and the
-server accepts the save; S2 tick/untick moves AP left identically in the Live Sheet, DM Console and server; T2 refund/removal works;
-leaving a campaign restores own rules; CharGen's own patch is byte-identical after a campaign session; the guide is updated and
-verify-guide.mjs passes; promotion to main only after PR3 is applied (security gate above) and PR6 has landed.
+**Done when:** the R2-6 case in run-house-rules.sh is refused (moved from KNOWN GAP to refused), honest joins and DM paths still
+pass, engine and server agree on the AP left, and the owner has applied the migration with advisors clean.
 
 ## feat/dm-house-rules-editor — revisit #638's H2 decisions now that DMs can set house rules — TODO
 Branch fix/player-free-ap-h2-revisit. **Effort:** low · **Risk:** low — owner decisions, then small tool changes.
@@ -1578,26 +1528,6 @@ DO:
 ```
 **Done when:** every DATA.features / DATA.subAbilMap / DATA.racial key has effect text (or an explicit, listed "guide silent" gap); _lsFx() returns it; a check script fails on any key with neither text nor a listed gap; `engine-parity-ci` 0 failed (output unchanged).
 
-## feat/campaign-house-rules merge — rebuild the house-rules server migration on the live boon/drawback-notes definitions — TODO
-Branch: feat/campaign-house-rules (its server PR, feat/campaign-house-rules-server). **Effort:** low · **Risk:** medium — applying it as written would silently remove the live description lock.
-**Status 2026-10-20:** rebuilt and rehearsed in the second preview merge (`run-house-rules.sh` 209/209, notes cases 54/0 on top, rollback byte-identical to the notes BASE; decision addendum 2026-10-20). What remains is the apply itself (owner decision AE1, with the release) and the post-apply checks in **Done when**.
-
-```text
-Carried from the graduated db/apply-boon-drawback-notes (step 3), 2026-10-19. 2026-10-15-boon-drawback-notes.sql was applied to
-production FIRST (2026-10-19), so sql/migrations/2026-10-13-campaign-house-rules-server.sql (NOT applied) must now be REBUILT on
-the live notes definitions before it is applied (see the notes migration's RECONCILE note; the baseline sql/rls-policies.sql
-carries the live text since the 2026-10-19 fold):
-  * dm_edit_character_log(): start from the live (notes) text and add house-rules' dmHouseRules branch + pact_next_seq() —
-    the union of both allow-lists and validation blocks, never house-rules' own older base;
-  * pact_dm_family(): add 'dmApproveNote' and 'dmUnlockNote' to its DM-only types;
-  * keep trg_pact_item_note_lock / pact_enforce_item_note_lock() as they are (they also freeze the PLAYER's approved itemNote);
-  * the house-rules ROLLBACK must restore the NOTES definitions of dm_edit_character_log, not the 2026-10-13 ones.
-Before applying: re-check live md5(pg_get_functiondef(dm_edit_character_log)) against the rebuilt file's base, and re-run
-run-notes.sh and run-house-rules.sh on the rebuilt files. Also mirror this into the integration branch's own
-feat/campaign-house-rules board entry when it next syncs with preview.
-```
-**Done when:** the house-rules server migration and its rollback are rebuilt on the notes definitions, both rehearsals pass on the rebuilt files, and production's `dm_edit_character_log` after the apply still contains `dmApproveNote` as well as `dmHouseRules`.
-
 ## feat/house-rules-draft-reprice — a DM raises a held drawback's price while a character is still in creation — TODO
 Branch feat/house-rules-draft-reprice. **Effort:** low–medium · **Risk:** medium — moves AP on characters still being built (ambiguity: owner decision still open).
 
@@ -1709,3 +1639,132 @@ locked character through it and asserts the lock events survive; `engine-parity.
 load; the server guard does not yet stop moving a post-lock purchase to before the lock (review H3); `random-manual-e2e.mjs` does not use the shared browser
 launcher; scan other campaigns for the same lock-loss pattern; four free-API cold reviews of the original plan (need `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 `GROQ_API_KEY`, `DEEPSEEK_API_KEY`).
+
+## fix/audit-saves-and-skills — five abilities sell a save or skill grant the engine never gives — TODO
+Branch fix/audit-saves-and-skills. **Effort:** medium · **Risk:** high — rules change (engine AND Players Guide both land, `DATA.version` bumped once) that can change what live characters own or pay, so measure the live owners first.
+
+```text
+FOUND 2026-10-20 by the wide ability audit (read-only, against origin/preview). The 2024 grants below come from the audit's memory of the PHB, because `features`/`subAbilMap` carry no text — confirm each against the book before changing it.
+Each is a priced ability whose 2024 text also grants something PACT sells separately, and `compute()` grants none of it (proved by buying each on a 20-HD build and diffing compute()):
+  - Monk: Disciplined Survivor (19 / 30 AP): proficiency in ALL saving throws. All six saves cost 75 AP (62 if two are owned). The Guide's own rule says convert to the saves ladder.
+  - Gloom Stalker: Iron Mind (11 / 18 AP): a WIS save. Sold, grants nothing, while the Guide says "Barred (to saves)". The player overpays.
+  - Boon of Skill (25 AP, epic boon, HD 19): the Guide says "Proficiency in every skill"; buying it adds 0 skills. 18 skills cost 72 AP.
+  - Fey Wanderer: Otherworldly Glamour (9 / 14 AP): one of Deception / Performance / Persuasion, not granted (1–3 AP).
+  - Bard, College of Lore: Bonus Skills (9 / 14 AP): three skills in the 2024 text; priced as a feature, nothing granted.
+DO (decide each with the owner, then apply the SAME pattern used for Primal Order — see D-GH-2026-10-20-primal-order-magician-warden): either (R1) make the ability free of the grant and let the existing ladders sell it (bar:true, or a free:true feature that switches the proficiency on so the ladders charge once), or (R2) grant it free and count it first (the owner's feat rule), or (R5) bar the ability. One decision per ability, written in the decision record.
+MEASURE FIRST: for each ability, query live `characters` for owners (stats::text ilike) and list them; an event-sourced character keeps its frozen ledger, but a changed compute() total will diverge from it — keep the owner's total unchanged with a grandfathered grant exactly as Primal Order did.
+```
+**Done when:** each of the five has an owner decision and an engine + Guide change (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a `prof-grants-ci.mjs` case per ability proves what it now grants and costs; any live owner's total is unchanged or listed for the owner; `DATA.version` bumped once; `engine-parity` 0 failed.
+
+## fix/audit-free-spell-picks — Eldritch Knight, Arcane Trickster and Magical Secrets give six free off-list spell picks of any level — TODO
+Branch fix/audit-free-spell-picks. **Effort:** medium · **Risk:** high — rules change; touches what two live subclasses can list, and the Guide says these spell lists are bought ("Barred → spell economy").
+
+```text
+FOUND 2026-10-20 (wide ability audit). `DATA.spellGrants.choiceGrants` makes owning Fighter: Eldritch Knight, Rogue: Arcane Trickster or Bard: Magical Secrets show a block of SIX "free off-list picks — not bought" in both tools' ✎ Name dialog, any spell level. The audit proved it: with Wish, Meteor Swarm, Time Stop and Power Word Kill named, the character's total stayed at the bare 3-HD cost of 5 AP. Value 6–30 AP for 0. Magical Secrets (13 / 22 AP) only widens the spell pool in the 2024 text; Eldritch Knight / Arcane Trickster (free first subclass) lose their 2024 school limits in PACT but still learn spells through the ordinary known-spell slots.
+DO: decide with the owner whether each grant is (R1) dropped, so the player buys those spells through the normal known-spell slots with the subclass's list widened, or (R6) capped (a level ceiling and a count that matches the 2024 feature). Keep the cantrip grants (Mage Hand for Arcane Trickster) if the 2024 text gives them.
+MEASURE FIRST: list live characters that own any of the three and have named a grant spell (`stats.LOG` names events, key `grants`); their named spells must survive as already-learned, or the owner decides otherwise.
+```
+**Done when:** the owner's decision per grant is in the decision record; the engine and both tools agree (the ✎ dialog rows come from `ownedChoiceGrants`); a test proves a high-level free pick is no longer possible and a live character's named spells are kept; Guide text (both copies) states it; `DATA.version` bumped once; `engine-parity` 0 failed; `names-dialog-e2e` and `livesheet-pack-spells-e2e` pass.
+
+## fix/audit-text-only-grants — Boon of Fortitude's +40 HP, Body and Mind, Telepathic and Tavern Brawler claim effects the engine does not apply — TODO
+Branch fix/audit-text-only-grants. **Effort:** medium · **Risk:** medium — each is a one-ability change, but they are rules changes (Guide + engine + `DATA.version`).
+
+```text
+FOUND 2026-10-20 (wide ability audit; the 2024 numbers are from memory of the PHB — confirm them):
+  - Boon of Fortitude (25 AP): the text gives +40 max HP; only the +2 CON is coded. Ten Grit purchases cost 120 AP, so the gap is about 95 AP.
+  - Monk: Body and Mind (19 / 32 AP): 2024 gives +4 DEX and +4 WIS (max 25); the engine adds nothing (scores unchanged after buying), so it is a dead purchase. The ability ladder stops at 20; the Guide says Primal Champion is "the only" cap-breaker.
+  - Telepathic (5 AP art): 2024 adds Detect Thoughts once per long rest (worth ~18 AP as an innate level-2 spell). The Guide's barred list names it, yet its own table and the data sell it.
+  - Tavern Brawler (4 AP art): the data text claims improvised-weapon proficiency (3 AP when bought separately); `weaponProf` stays empty. The Guide's text omits the claim and sells improvised weapons at 3 AP flat.
+DO: one owner decision per item — implement the text (like `_flat` does for Primal Champion's +4), bar it, or correct the text — and apply it in engine + Guide. For Tavern Brawler the simplest correct fix is to remove the claim from the data text.
+MEASURE FIRST: live owners of each.
+```
+**Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
+
+## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BK remains; BH decided, BJ done, BI moved)
+Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
+
+```text
+FOUND 2026-10-20 by a grants audit (a subagent probed compute() for 2024 abilities that hand out something PACT sells for AP). PACT's rule: a feature that only hands out something PACT already sells is removed or barred, and the thing is bought on its own ladder. Owner decides each of the four below; recommendations as given in the session that found them.
+OVERLAP: BH is the same defect as fix/audit-free-spell-picks; BI covers Bonus Skills, Iron Mind and Boon of Skill, three of the five in fix/audit-saves-and-skills (see also fix/gloom-stalker-iron-mind-decision); Boon of Fortitude's HP in BK is in fix/audit-text-only-grants. Record the owner's answer HERE, then do the work in whichever of those tasks owns it (one DATA.version bump per branch). BJ and the AC/speed half of BK are covered only by this task.
+  BH. Free choice-grant spells. Eldritch Knight, Arcane Trickster and Bard Magical Secrets let a character name 6 free spells of any level (a free Eldritch Knight with no spellcasting tradition bought can name Shield, Fireball, Counterspell). The Guide says these are barred and bought in the spell economy.
+      BH1 (recommended — matches the Guide, closes a free-spell route): the grant only widens which list the character's BOUGHT spells may come from; the 6 free picks go. Check live characters for named grant spells first.
+      BH2: keep the free spells and give them a price.
+  BI. Paid features that add nothing: Bard College of Lore Bonus Skills (9 AP, no skills), Gloom Stalker Iron Mind (11 AP, no save), Boon of Skill (25 AP, no skills).
+      BI1 (recommended — matches the Guide's own Iron Mind "Barred (to saves)" entry): bar them as Primal Order was (D-GH-2026-10-20-primal-order-magician-warden); existing owners keep what they bought.
+      BI2: make them grant their skills or save through the free-proficiency path #688 built (free, counted first).
+  BJ. Wood Elf speed is paid twice: the Wood lineage already gives speed 35, so the 4 AP speed trait changes nothing for a Wood elf.
+      BJ1 (recommended — smallest change, no one's current speed moves): refuse, or warn, when a Wood elf buys the trait.
+      BJ2: drop the free 35 from the Wood lineage so the 4 AP trait is the only route (what the Guide implies; changes compute() output).
+  BK. Grants the sheet never applies: Dazzling Footwork's AC, Boon of Fortitude's +40 HP, and every speed grant (Monk Unarmored Movement, Barbarian Fast Movement, Speedy, Boon of Speed).
+      BK1 (recommended — a correctness fix with no rules choice behind it): the engine applies them (AC, HP, speed) in compute(); needs a DATA.version bump and parity fixtures.
+      BK2: leave them as description text only.
+MEASURE FIRST (each decision): query live `characters` for owners (stats::text ilike) before changing anything; an event-sourced character keeps its frozen ledger, so keep each owner's total unchanged with a grandfathered grant as Primal Order did, or list them for the owner.
+```
+**Owner answers, 2026-10-20 (same day):**
+- **BH: decided (owner, 2026-10-20).** The Eldritch Knight and Arcane Trickster free spell picks stay barred for good; those subclasses reach Wizard spells by buying the Wizard discipline. (Already in effect since #691, v0.382, via `choiceGrants[k].bar`; a later clean-up may delete the two entries.) Magical Secrets: owner chose BO1 (unbar as a list-widening only, price unchanged); recorded and done under `chore/review-barred-abilities` item 5.
+- **BI: one ability at a time.** All three are now barred by #691, so do this inside `chore/review-barred-abilities`, not here.
+- **BJ: DONE** in `fix/speed-trait-no-gain` (v0.383, see CHANGELOG and `D-GH-2026-10-20-speed-trait-no-gain`).
+- **BK: BK1.** The engine applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants (Monk, Barbarian, Speedy, Boon of Speed) in compute(). Boon of Fortitude overlaps `fix/audit-text-only-grants`.
+**Done when:** BH, BI, BJ and BK each have the owner's answer in a decision record; each is implemented (here or in the overlapping task named above) in the engine AND the Players Guide (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a test per item proves the new grant or price; live owners' totals are unchanged or listed for the owner; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
+
+## chore/decide-spell-invocation-pricing — spell-granting Warlock invocations and similar features are priced by tier, not by the spell they give — DECISION NEEDED
+Branch chore/decide-spell-invocation-pricing. **Effort:** low (the decision) · **Risk:** low until a rule is chosen — then high.
+
+```text
+FOUND 2026-10-20 (wide ability audit) — a pricing-POLICY question, not a missing grant. The Guide says spell-granting invocations "follow the spell-grant ladder", but the engine prices them by Tier/Band. Measured against the innate-spell price of what they give: Contact Patron (10 AP; innate level 5 = 36), Beguiling Magic (6; Charm Person + Mirror Image = 30), Visions of Distant Realms (12 vs 30), Gift of the Depths (6 vs 24), Far Scribe (6 vs 24), Undying Servitude (8 vs 24), Whispers of the Grave (10 vs 24), Greater Divine Intervention (14 vs 60). The gaps are 18–46 AP each.
+DO: ask the owner whether the tier price is intended (these are class features, so a class-feature price is correct and the Guide sentence should change) or whether they should move to the spell-grant ladder. No code change until the owner decides.
+```
+**Done when:** the owner's answer is recorded in `DECISIONS.md`; if "intended", the Guide sentence is corrected in both copies; if not, a follow-up rules task is added with a live-owner measurement.
+
+## docs/reconcile-pact-guide-primal-order — bring the pact-guide project's own records and generated files up to v0.381 — TODO
+Branch docs/reconcile-pact-guide-primal-order (work in the `pact-guide` project via the home-server connector, not in this repo). **Effort:** low · **Risk:** low.
+
+```text
+2026-10-20: the Players Guide master (`PACT-Players-Guide.html` in `pact-guide`) was edited through the connector to carry the Primal Order / Divine Order split (class tables, one prose paragraph, three worked examples) and the free-feat-proficiency paragraph. Its OTHER files were not touched: `CHANGELOG.md`, `TASK_BOARD.md`, `DECISIONS.md`, the `documents-rules:` stamp (deliberately advanced only by that project's stamp tool), `py/generated/engine-prices.json` and the vendored `py/vendor/engine/` snapshot (refreshed by that project's sync), and `plans/guide-audit-report.md` items 28 (Primal Order) and 112–113 (the War Priest worked example's feature and casting totals are wrong by several AP — the three worked examples were edited for the Divine Order lines only and their other sums are still unreconciled).
+Also noted while editing: the master and the served copy differ in unrelated places (Druid "Circle bonus spells varies 5–11" vs 5–12; the War Priest archetype total 204 vs 205).
+DO: in `pact-guide`, add the CHANGELOG/TASK_BOARD/DECISIONS lines, run the sync that refreshes the vendored engine, run `stamp_guide_rules.mjs` as a deliberate reconciliation, and re-check the worked examples against the engine. Then run `node testing/scripts/verify-guide.mjs` and `guide-table-diff.mjs` here.
+```
+**Done when:** `pact-guide`'s records mention the change; its vendored engine and generated prices match v0.381; the `documents-rules` stamp names the reconciled version; `guide-table-diff.mjs` lists no row for the Primal Order / Divine Order / Musician / Chef paragraphs as differing.
+
+## ui/show-granted-proficiencies — CharGen's proficiency tick boxes do not show what Warden, Protector and the legacy Primal Order grant — TODO
+Branch ui/show-granted-proficiencies. **Effort:** low · **Risk:** low — display only, but CharGen repaints its boxes from the fold and a derived flag saved as a raw one would break the "never store derived values" rule.
+
+```text
+2026-10-20: `profGrants()` makes Warden / Protector (priced) and the legacy Primal Order (not priced) switch weapon and armour proficiency on at compute time; the Live Sheet's weapon list and armour eligibility read it, but CharGen's weapon / armour tick boxes (`wp_simple`, `wp_all`, the `armour` boxes) and the Live Sheet's "Weapons & armour" buy buttons still show only what was bought. A player can tick the same box again: it costs nothing extra (flags are on/off) but it adds a dead event.
+DO: show a granted flag as ticked-and-locked with a "from Warden" note, and never write it into the build (CharGen emits a `wprof` patch from the boxes — it must not include a granted flag).
+```
+**Done when:** a Warden character sees the four boxes ticked and locked in CharGen and as owned in the Live Sheet; saving and reloading leaves `weaponProf` / `armour` exactly as bought (no granted flag in the log); `chargen-flows-e2e` and a new case in `feature-cantrip-picker-e2e.mjs` (or a sibling) cover it.
+
+## chore/review-barred-abilities — review each of the ten abilities barred "for the time being" and decide its future — DECISION NEEDED
+Branch chore/review-barred-abilities. **Effort:** medium · **Risk:** medium — ambiguity drives it: each ability needs its own rules answer, and un-barring or re-pricing one changes what new players pay (no live character owns any of the features; one player owns Tavern Brawler).
+
+```text
+2026-10-20 (rules v0.382, branch feat/bar-unreviewed-grants, D-GH-2026-10-20-bar-unreviewed-grants): the owner barred ten abilities until each is looked at one by one. bar:true hides an ability from NEW purchases and leaves pricing and replay untouched, so reverting any one is deleting its flag. Live Supabase 2026-10-20 (stats::text ilike): no character owns any of the features or free picks; Tavern Brawler appears in 3 rows of 1 owner. Boon of Fortitude and Boon of Skill were deliberately NOT barred.
+For EACH ability below, decide with the owner: (R1) keep it barred for good and make the Guide say so plainly, (R2) un-bar it unchanged, (R3) make it grant what it claims and price it, or (R4) replace it with a ladder purchase. One decision per ability, in a decision record.
+  1. Monk: Disciplined Survivor (Focus) — engine 19 / 30, Guide printed 24 (19), T6, HD 13, class level 14. 2024 text: proficiency in all saving throws (bought separately: 75 AP for six). Engine grants nothing.
+  2. Ranger: Iron Mind (Gloom Stalker) — engine 11 / 18, T4, HD 5, class level 7. A Wisdom save (5 AP bought separately). Engine grants nothing. The Guide already said "Barred (→ saves)".
+  3. Ranger: Otherworldly Glamour (Fey Wanderer) — engine 9 / 14, Guide printed 11 (9), T3, HD 3. One of Deception, Performance or Persuasion (1–3 AP bought separately). Engine grants nothing.
+  4. Bard: Bonus Skills (College of Lore) — engine 9 / 14, Guide printed 11 (9), T3, HD 3. Three skills (5–10 AP bought separately). Engine grants nothing.
+  5. Bard: Magical Secrets — engine 13 / 22, Guide printed 17 (13), T5, HD 9, class level 10. Widens the prepared-spell pool in the 2024 text; the free picks (the real value, 6–30 AP) are switched off. **DECIDED (owner, 2026-10-20, BO1):** lift the bar and make it a list-widening only — from 10 HD the Bard discipline's own known/prepared spells may be NAMED from the Bard, Cleric, Druid and Wizard lists (name picker + `ownedChoiceGrants`/`choiceGrants` entry with no free picks); no extra spells or slots; price stays 13 / 22 (reconcile the Guide's printed 17 to the engine). Test: a Bard owning it can name a Cleric spell in a Bard slot and the total is unchanged; one without it cannot.
+  6. Monk: Body and Mind — engine 19 / 32, Guide printed 25 (19), T7, HD 17, class level 20. 2024 text: +4 DEX and +4 WIS (bought as ability points: 24 AP from 12 to 16, 48 from 16 to 20). Engine adds nothing, and the ability ladder stops at 20.
+  7. Fighter: Eldritch Knight and 8. Rogue: Arcane Trickster — the free picks (six spells of any level) are off (choiceGrants bar:true). Decide whether the subclass should instead widen the list that BOUGHT spells come from (the BH1 option on the board), and keep Mage Hand for Arcane Trickster if the 2024 text gives it.
+  9. Telepathic (art, 5 AP, HD 4) — 2024 adds Detect Thoughts once per long rest (about 18 AP as an innate spell). The Guide's barred-feats list already named it while its table priced it.
+  10. Tavern Brawler (art, 4 AP, HD 1) — the data text claims improvised-weapon proficiency (3 AP bought separately); weaponProf stays empty. One player owns it and keeps it. The simplest fix is to remove the claim from the data text.
+The 2024 numbers come from an audit that worked from memory of the PHB (the data carries no text): confirm each against the book. OVERLAPS: fix/audit-saves-and-skills, fix/audit-free-spell-picks, fix/audit-text-only-grants, fix/gloom-stalker-iron-mind-decision and fix/audit-grants-owner-decisions (BH, BI) cover the same abilities; record the owner's answer HERE, do the work in whichever task owns it, and note that BI's Boon of Skill half is overtaken (Boon of Skill stays purchasable).
+TO UN-BAR ONE: delete bar:true from its DATA entry; for the five class features also put the key back into DATA.featureList; revert its Guide row (served copy AND the pact-guide master) and remove its "Barred" line from testing/scripts/guide-price-check.mjs's reviewed list; update testing/scripts/barred-grants-ci.mjs; bump DATA.version once.
+Also reconcile one wording: the served Guide has a paragraph (the spell-granting-features one) that still names Magical Secrets as a priced feature; the pact-guide master does not contain that paragraph.
+```
+**Done when:** each of the ten has an owner decision recorded; the engine data, the served Guide and the `pact-guide` master agree for each; `testing/scripts/barred-grants-ci.mjs` matches the final state; `verify-guide.mjs` before and after; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
+
+## feat/epic-boon-escalating-price — each epic boon costs more than the one before, so a character cannot buy them all cheaply — DECISION NEEDED
+Branch feat/epic-boon-escalating-price. **Effort:** medium · **Risk:** high — rules change to `compute()` pricing: engine AND Players Guide land together, `DATA.version` bumped once, and `testing/expected/` updated if any fixture owns an epic boon. Live Supabase 2026-10-20 (stats::text ilike for all 12 names): no saved character owns an epic boon, so no frozen ledger diverges.
+
+```text
+Owner request 2026-10-20: "each epic boon costs more than the last one so people don't buy them all."
+TODAY: DATA.boons has 12 epic boons (Combat Prowess, Irresistible Offense, Dimensional Travel, Energy Resistance, Fate, Recovery, Speed, the Night Spirit, Truesight, Spell Recall, Fortitude, Skill), every one `epic:true`, hd 19, ap 25 — a flat 25 each, so all twelve cost 300 AP with nothing to stop a character taking all of them. Each epic boon also adds +2 to one chosen ability (b.epicBoonAbil, folded in compute()). The Guide's Epic Boons section calls each a Tier-7 purchase "gated behind Hit Die 17" and says "the cost is the same for every class"; the engine gate is hd 19 — check which is right.
+DO: decide the rule with the owner, then implement it in compute() and the Guide.
+  Options to put to the owner: (S1) a step table by number of epic boons already owned (for example 25, 30, 36, 43 ... a fixed ladder, like the existing cumulative price tables DATA.tools / DATA.skills), (S2) a flat surcharge that grows by a fixed amount per boon owned, (S3) a hard cap on the number of epic boons plus a flat price. Say which boon is "first": the order bought (an event-sourced character prices each buy as the compute() delta, so the later buy pays the higher rate automatically) or a fixed order per boon.
+  Things to settle: whether DM-written custom epic boons (houseRules.boons with epic:true) join the count; whether a blocked boon (HD gate not met) counts; whether a refund/removal (a DM can remove a boon, dmRemoveBoon) re-prices the others — and that the +2 ability fold must keep reading b.boons unchanged.
+MEASURE FIRST: re-query live characters (stats::text ilike each epic boon name) — 0 rows on 2026-10-20 — and keep any owner's total unchanged with a grandfather rule if one has appeared since.
+```
+**Done when:** the owner's rule is in a decision record; `compute()` prices the Nth epic boon per the rule and a test (a new case in `tool-pricing-ci.mjs` or a sibling) proves the price of the 1st, 2nd and last boon, a blocked boon and a DM custom boon; the Guide's Epic Boons section states the rule (served copy and `pact-guide` master, `verify-guide.mjs` before and after); `DATA.version` bumped once; `engine-parity` 0 failed with `testing/expected/` updated in the same change if a fixture moved.

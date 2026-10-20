@@ -18,7 +18,8 @@
   reprice applies to (S2), via seq-targeted `dmRefundBoon` / `dmRemoveDrawback` / `dmRepriceDrawback` events that move browser and
   server ledger by the same amount. Engine half landed (rules v0.377); tools, server, DM editor, #642 rework and the guide follow.
   Owner Z1 (2026-10-13) closed the cap question: the server caps drawback grants exactly as js/campaign.js drawbackCapFromRules()
-  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration, written and rehearsed, NOT applied) adds
+  does — the DM's cap when on, NO cap when off or never set. PR3 (server migration; APPLIED 2026-10-20 with v1.684 and folded into
+  `sql/rls-policies.sql` the same day — SQL sent through an MCP/JSON tool spells non-ASCII with chr()) adds
   the validated RPC, the campaign-key guard, the ledger split + Z1 cap, M4 targeted buy-off netting and the M1 DM-family guard.
   PR4 (DM Console editor): one review dialog (S2 ticks per character + drawback, T2 removals, below 0 shown) then ONE RPC call;
   bound characters with unknown campaign rules are strict in both player tools; owner answers AC (draft reprice) and AD1 (opt-in removal on bans) deferred to board tasks.
@@ -31,6 +32,21 @@
   drafts and for held drawbacks). Never merged; superseded on 2026-10-13 by D-GH-2026-10-13-campaign-house-rules (owner P2/R1):
   PR5 reworks it into the per-character `dmHouseRules` override layer with S2 for held drawbacks. #638's H2 decisions stay open.
   Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
+## D-GH-2026-10-20-feat-free-proficiency — Chef and Musician hand out free tools; they count first, so later ones cost more
+- Rules v0.381. Owner rule: a feat's free proficiency is added to the build and counts toward the number owned from the start (the opposite of the Guide's old "counted last"). The tools line is `table[paid+free] − table[free]`; picks are named in the ✎ dialog (`freeProfNames`). Full record: `decisions/2026/D-GH-2026-10-20-feat-free-proficiency.md`.
+
+## D-GH-2026-10-20-speed-trait-no-gain — a speed trait that would not raise your speed can't be bought (Goliath, Wood elf)
+- Rules v0.383. Owner decision BJ: the traits stay for other species at creation; `speedTraitAddsNothing()` warns on an owned one and the purchase check refuses a new one. Prices unchanged.
+  Full record: `decisions/2026/D-GH-2026-10-20-speed-trait-no-gain.md`.
+
+## D-GH-2026-10-20-bar-unreviewed-grants — ten abilities barred for the time being while each is reviewed; the two epic boons stay
+- Rules v0.382 (temporary, until each is reviewed). `bar:true` on six features and two arts, the free Eldritch Knight / Arcane Trickster / Magical Secrets spell picks switched off; owners keep their price.
+  Full record: `decisions/2026/D-GH-2026-10-20-bar-unreviewed-grants.md`.
+
+## D-GH-2026-10-20-primal-order-magician-warden — Primal Order and Divine Order split into their 2024 options; the proficiency one is free and the ladders charge for it
+- Rules v0.380. Warden / Protector are `free:true` features that switch weapon and armour proficiency flags on (`profGrants()`), so the existing proficiency lines charge for them once (15 / 21 AP); Magician / Thaumturge are 6 AP with a cantrip and a Wisdom skill bonus. The old keys are retired with `bar:true` — not aliased — and the one live owner's Primal Order keeps its 5 AP and martial + Medium proficiency without Simple or Light (owner Y1/Z1). Guide (both copies) updated; free proficiency from feats is a separate task.
+  Full record: `decisions/2026/D-GH-2026-10-20-primal-order-magician-warden.md`.
+
 ## D-GH-2026-10-20-heroic-inspiration-boons — hold 2 or 3 Heroic Inspiration; Blazing Moment fires on 18+; boons gain an engine-enforced `prereq`
 - Rules v0.378. New boons Twofold Inspiration (HD 3 / 7 AP) and Threefold Inspiration (HD 5 / 10 AP, needs Twofold); Blazing Moment's wording 19+ → 18+ with its
   price unchanged at 14. Boons had no prerequisite mechanism, so `compute()` now reads an optional boon `prereq` like a feature's (owner pick L2); only Threefold
@@ -108,7 +124,8 @@
   character, any rise in the LOG's award total by anyone but the campaign's DM (exempted by identity, not by the forgeable
   `dmEdit` flag), and refuses any campaign award whose amount is not a JSON number. Sum-shaped so CharGen's Budget singleton
   relocation keeps working. A redeemed AP code counts as a player award there (Live Sheet refuses Redeem first). Closes the award
-  route only (negative costs remain a board task). Migration APPLIED 2026-10-13 (owner decision N1).
+  route only (negative costs remain a board task). Migration APPLIED 2026-10-13 (owner decision N1); folded into
+  `sql/rls-policies.sql` 2026-10-20.
   Full record: `decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md`.
 ## D-GH-2026-10-12-audit-fix-followups-2026-10-12 — Randomise keeps the id; creation AP refused while confirming; Live Sheet Tasha lock
 - H2 (owner away), provisional. A CharGen re-roll is the same character, so it keeps its id (no second cloud row). CharGen's

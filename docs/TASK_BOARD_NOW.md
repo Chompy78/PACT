@@ -27,48 +27,6 @@ to `CHANGELOG.md`.
 
 # 🔴 NOW — high-severity fixes + cleanup
 
-## Random roller: two build shapes it still cannot produce — TODO
-Branch `feat/roller-build-shapes-2`. Follow-on from the Grit and Hit-Dice fixes closed in #525. Evidence is
-**3,264 characters rolled through `testing/scripts/roll-headless.mjs`** — the real tool in a real browser,
-eight themes across thirty-four AP rungs — compared against **six real player sheets** at 75-98 AP. Both
-faults are the same kind: the roller produces characters that are **legal but not what a player would
-build**, and both are places where the rolled spread still fails to cover a real party.
-
-**1. The attack floor — no roll can come out below +4 to hit.** Steps 2 and 2c of `randomizeRoll()`
-unconditionally prime the casting stat to 14 and the primary favoured ability to 16 before anything else is
-bought, so with prof +2 the minimum attack is +4. Measured across 96 rolls at 85 AP: **minimum +4, and only
-9 rolls even reach it.** The real party contains a wizard at **+3**, which the roller cannot produce at any
-budget. **Real players leave a stat mediocre; the roller cannot.** This is now the ONLY axis on which the
-rolled spread fails to bracket the real party — hit points, AC, attack count and spell slots all bracket it
-since #525. Loosening the priming has a wide blast radius (caster slot caps key off the casting stat), which
-is why it was left alone during the Hit-Dice work rather than bundled into it.
-
-**2. Half of all rolls wear nothing, and cannot fix it with money.** At 85 AP, **46 of 96 rolls have AC
-exactly 10 + DEX**. Of those 46, **one has light armour proficiency and none has shield proficiency** — so a
-25 GP armour allowance and a 25 GP shield allowance between them buy two characters a single point of AC.
-Armour and shield proficiency come out of the `kit` bucket and compete with weapons, Vigor and Grit; when the
-bucket does not buy them, the character is unarmoured **and untrainable**. Concentrated by theme: `face` 9,
-`zealot` 7, `battlecaster` 6, `scholar` 6, `trickster` 6, against `bruiser` 3. A character with no armour
-proficiency at all is an odd thing to produce at 85 AP, and it happens about half the time.
-
-**Worth a deliberate look while in here: silent fallback instead of a loud failure has now appeared twice in
-this tool chain.** The level-9 `_lvlCap` fallback fixed in #525 built a plausible-but-wrong character rather
-than failing; and the campaign's own `gen_random_spread.mjs` silently ignored `--budgets`, so a run asking
-for one rung rolled all thirty-four and the caller compared an empty bin (fixed campaign-side 2026-09-07).
-Two instances suggests looking for a third rather than waiting for it.
-
-**Not faults, but worth recording since a single-theme pool hides both:** theme matters more than anything
-else measured — at 85 AP a `bruiser` runs 8-31 hit points against a `scholar`'s 6-18, nearly twice apart at
-the same budget. And `bruiser` and `zealot` carry the **lowest** median Hit Dice while holding the most hit
-points, buying survivability through armour and Grit instead.
-
-**Done when:** a rolled character can come out below +4 to hit where the build justifies it; a character that
-buys no armour proficiency is either rare or a deliberate theme choice; and
-`testing/scripts/random-quality-ci.mjs` still passes its legality, level-tracking, coherence, theme and
-diversity gates. Evidence and the comparison harness live in the campaign repo at
-`cm-pact-campaign/analysis/2026-09-07-real-party/` — `adapt_headless.mjs` reshapes roll-headless output into
-the row form that analysis reads, and reshapes only.
-
 ## Find where `~/.claude/skills/` syncs from, and confirm the close-session patch survived — TODO
 Branch `docs/skills-sync-provenance`. `close-session-logging-core.md` — shared by `close-code-session-jc`
 and `close-chat-jc`, so it governs every session close in this project — was patched on 2026-08-30 to fix
@@ -178,26 +136,17 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
-## Fold the player-award-after-lock migration into the baseline (applied 2026-10-13) — TODO
-**Effort:** small · **Risk:** medium — baseline/drift-guard edits only, but a mistaken fold is how the 2026-09-02 regression happened.
+## Record the 2(a) re-measure for the player-award-after-lock migration (applied 2026-10-13, folded 2026-10-20) — TODO
+**Effort:** small · **Risk:** low — one read-only live query and a line in the decision record.
 
 ```text
-APPLIED to production 2026-10-13 (migration `server_player_award_after_lock`, owner decision N1, during feat/dm-ap-discount):
-the live function matched 2026-09-03-dm-zero-player-ap.sql; 0 campaign award amounts were non-numbers; afterwards the new
-version is live, `authenticated` cannot execute it, and postgres logs show no errors. The migration header, the decision
-record's Status and a CHANGELOG line already say APPLIED. NOT done that day: re-measure 2(a) — no creation-locked or sealed
-campaign character whose stored award total would rise — not needed for the apply (it only refuses future saves), but record it.
-
-Still to do, in an "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
-  - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
-    2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
-  - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (27 → 28 functions since the 2026-10-19 notes/images fold),
-    \ir the 2026-10-12 migration there, and assert the trigger function is NOT callable by authenticated.
-COORDINATE with the campaign house-rules work (session pact-cf, branch chore/campaign-house-rules-sync-preview): its
-harness BASE already loads the live 09-03/10-12 files, and it also edits rls-policies.sql.
+2026-10-12-server-player-award-after-lock.sql was APPLIED 2026-10-13 and folded into sql/rls-policies.sql on 2026-10-20
+(docs/house-rules-fold, with dm_zero_player_ap() and the campaign house-rules migration; rls-baseline-test.sql drift-checks it).
+The one thing NOT done: re-measure 2(a) on production — no creation-locked or sealed campaign character whose stored award total
+would rise on its next honest save (it only refuses future saves, so it was not needed for the apply) — and record the number in
+decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md's Status.
 ```
-**Done when:** rls-policies.sql carries the applied function, the drift guard covers it (and passes in sql-guards CI), and the
-2(a) re-measure is recorded in the decision record.
+**Done when:** the 2(a) re-measure (count and date) is recorded in the decision record.
 
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
@@ -213,7 +162,7 @@ costs. Then decide (H2 if the owner is away) a server rule that stays SQL-only a
 is the only pricing source): e.g. refuse cost < 0 on non-drawback events for campaign characters, and on a locked/sealed one
 refuse a rise in drawback earnings by anyone but the DM (mirroring pact_enforce_player_ap_ceiling). Rehearse in the Docker
 harness (testing/scripts/creation-lock-guard-test/, run-award.sh pattern) incl. legitimate post-lock drawbacks the tools allow.
-UPDATE 2026-10-13 (PR #654, campaign house rules — NOT applied yet): route (1) is closed there — a drawback grants at most its
+UPDATE 2026-10-13 (PR #654, campaign house rules — applied to production 2026-10-20): route (1) is closed there — a drawback grants at most its
 effective value (AB1, a generated server price list), a name grants once (F1), and a new player drawback after the lock is refused
 unless the campaign allows post-lock drawbacks. A new buyoff must name its target and pay rate × value (R2-5), which also closes a
 negative-cost BUYOFF. What remains is F2 (round-2 review of #654, R2-2/R2-4, pre-existing): a negative cost on any other

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Throwaway-Postgres rehearsal of sql/migrations/2026-10-15-boon-drawback-notes.sql (+ rollback). Needs Docker only; touches
 # NO real database. Builds the fresh-install path (schema.sql + rls-policies.sql — which carries this migration since its
-# 2026-10-19 fold, so the script first steps back with the rollback) plus the two migrations applied live but not
-# yet folded into the baseline (2026-09-03-dm-zero-player-ap, 2026-10-12-server-player-award-after-lock), so every characters
-# trigger live today runs. BEFORE: the attacks on an approved description are allowed and the DM's approve/unlock are unknown
+# 2026-10-19 fold, and since 2026-10-20 also 2026-09-03-dm-zero-player-ap, 2026-10-12-server-player-award-after-lock and
+# 2026-10-13-campaign-house-rules-server, which was built on this one). So the script first steps back with the house-rules
+# rollback (which restores this migration's dm_edit_character_log) and then this one's. BEFORE: the attacks on an approved
+# description are allowed and the DM's approve/unlock are unknown
 # (FAIL rows). AFTER: every row PASS. Rollback: dm_edit_character_log byte-identical to BASE, the added objects gone.
 # Usage: testing/scripts/creation-lock-guard-test/run-notes.sh
 set -euo pipefail
@@ -16,12 +17,15 @@ trap 'docker rm -f "$C" >/dev/null 2>&1' EXIT
 for i in $(seq 1 30); do docker exec "$C" pg_isready -U postgres -q && break; sleep 1; done
 sleep 2
 M=../../../sql/migrations
-{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql "$M/2026-09-03-dm-zero-player-ap.sql" "$M/2026-10-12-server-player-award-after-lock.sql"; } | psqlc >/dev/null
+{ cat award-shims.sql ../../../sql/schema.sql ../../../sql/rls-policies.sql; } | psqlc >/dev/null
 psqlc -c "insert into auth.users(id) select ('a0000000-0000-0000-0000-00000000000' || g)::uuid from generate_series(1,9) g union all select 'd0000000-0000-0000-0000-000000000001'"
 def() { psqlc -At -c "select md5(pg_get_functiondef('public.dm_edit_character_log(uuid,jsonb)'::regprocedure))"; }
-# The migration was APPLIED 2026-10-19 and folded into rls-policies.sql, so the baseline built above already HAS it. Record
-# that definition (FOLDED), then step back to the pre-migration state with the rollback, so BEFORE / AFTER / rollback below
-# still rehearse the same transition they did before the fold; AFTER must then match FOLDED (baseline and migration agree).
+# The migration was APPLIED 2026-10-19 and folded into rls-policies.sql, so the baseline built above already HAS it — under the
+# campaign house-rules migration (applied 2026-10-20, folded the same day), which redefines dm_edit_character_log on top of it.
+# Step back past house rules first (its rollback restores THIS migration's dm_edit_character_log), record that definition
+# (FOLDED), then step back to the pre-migration state with this rollback, so BEFORE / AFTER / rollback below still rehearse the
+# same transition they did before the fold; AFTER must then match FOLDED (baseline and migration agree).
+psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 FOLDED=$(def)
 psqlc -1 < "$M/2026-10-15-boon-drawback-notes-rollback.sql"
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
