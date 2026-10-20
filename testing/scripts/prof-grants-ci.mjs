@@ -10,8 +10,13 @@
 //   the old keys           kept as retired ("bar":true) features, so a saved purchase still prices and replays. Only the Druid one carries a
 //                          grandfathered grant (martial weapons + Medium armour, NOT Simple, NOT Light — owner decision Y1/Z1): it shows on
 //                          the sheet but is never priced and raises no prerequisite warning.
+//
+// Feats that hand out FREE tools or instruments (owner rule 2026-10-20, DATA.arts[k].freeProf): Chef gives Cook's utensils, Musician three
+// instruments the player names. They are added to what the character owns and COUNT TOWARD the number owned from the start, so the tools
+// bought after them cost more: the paid cost is DATA.tools[paid + free] - DATA.tools[free] ("counted first", the opposite of the Guide's
+// old "counted last"). A slot counts whether or not it is named; a named pick that was also bought is priced once.
 // Pure Node, no browser. Run: node testing/scripts/prof-grants-ci.mjs
-import { DATA, compute, baseBuild, MUT, priceOf, profGrants, skillMods, grantedSpells, weaponSheetDefaults, armourEligible } from '../../js/engine.js';
+import { DATA, compute, baseBuild, MUT, priceOf, profGrants, freeProfs, skillMods, grantedSpells, weaponSheetDefaults, armourEligible } from '../../js/engine.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, name, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
@@ -109,6 +114,41 @@ console.log('== data integrity');
   ok(badCb.length === 0, 'every skill a checkBonus names is a real skill', badCb.join(' | '));
   const free = Object.entries(F).filter(([, f]) => f.free).map(([k]) => k).sort().join(',');
   ok(free === [P, W].sort().join(','), 'exactly Warden and Protector are free:true (a stray free flag would give a feature away)', free); }
+
+
+console.log('== free tools and instruments from feats (counted first)');
+{ const T = DATA.tools, bard = extra => mk('Bard', Object.assign({ hd: 5 }, extra || {}));
+  const toolLine = b => { const l = compute(b).lines.find(x => x[0] === 'Tools & instruments'); return l ? l[1] : 0; };
+  const bought = n => ['Alchemist\'s supplies', 'Brewer\'s supplies', 'Calligrapher\'s supplies', 'Carpenter\'s tools', 'Cartographer\'s tools', 'Cobbler\'s tools'].slice(0, n);
+  const M = 'Musician', C = 'Chef';
+  ok(delta(bard({ arts: [M] }), bard()) === DATA.arts[M].ap, 'Musician alone costs only its own ' + DATA.arts[M].ap + ' AP (three free instruments, nothing to pay for)', String(delta(bard({ arts: [M] }), bard())));
+  for (let n = 0; n <= 4; n++) ok(toolLine(bard({ arts: [M], tools: bought(n) })) === (T[n + 3] || 0) - (T[3] || 0), 'Musician + ' + n + ' bought tool(s): the line is table[' + (n + 3) + '] - table[3]', toolLine(bard({ arts: [M], tools: bought(n) })) + ' vs ' + ((T[n + 3] || 0) - (T[3] || 0)));
+  ok(toolLine(bard({ arts: [M], tools: bought(1) })) > toolLine(bard({ tools: bought(1) })), 'the first tool bought after Musician costs MORE than it would without the feat (the free ones count first)', toolLine(bard({ arts: [M], tools: bought(1) })) + ' vs ' + toolLine(bard({ tools: bought(1) })));
+  for (let n = 0; n <= 4; n++) ok(toolLine(bard({ tools: bought(n) })) === (T[n] || 0), 'no feat, ' + n + ' bought: the line is exactly table[' + n + '] (byte-identical to before)');
+  const named = { Musician: ['Lute', 'Flute', 'Drum'] };
+  ok(toolLine(bard({ arts: [M], freeProfNames: named, tools: bought(2) })) === toolLine(bard({ arts: [M], tools: bought(2) })), 'naming the three instruments changes no price (the slots count either way)');
+  ok(toolLine(bard({ arts: [M], freeProfNames: named, instruments: ['Lute'] })) === 0, 'an instrument that is both a free pick and bought is priced once (the bought copy adds nothing)', String(toolLine(bard({ arts: [M], freeProfNames: named, instruments: ['Lute'] }))));
+  ok(toolLine(bard({ arts: [M], freeProfNames: named, instruments: ['Viol'] })) === (T[4] || 0) - (T[3] || 0), 'a bought instrument that is NOT one of the picks is paid for normally');
+  const fp = freeProfs(bard({ arts: [M, C], freeProfNames: named }));
+  ok(fp.slots === 4 && fp.names.length === 4 && fp.names.includes('Lute') && fp.names.includes('Cook\'s utensils'), 'freeProfs lists 3 picks + Cook\'s utensils', JSON.stringify(fp));
+  ok(freeProfs(bard({ arts: [M] })).slots === 3 && freeProfs(bard({ arts: [M] })).names.length === 0, 'unnamed picks still count as slots but list no names');
+  ok(freeProfs(bard({ arts: [M], freeProfNames: { Musician: ['A', 'B', 'C', 'D', 'E'] } })).names.length === 3, 'only as many picks as the feat gives are used');
+  ok(toolLine(bard({ arts: [C], tools: bought(1) })) === (T[2] || 0) - (T[1] || 0), 'Chef: one fixed free tool, counted first');
+  ok(freeProfs(bard({ hd: 3, arts: [C] }), new Set([C])).slots === 0 && toolLine(bard({ hd: 3, arts: [C], tools: bought(1) })) === (T[1] || 0), 'Chef below its Hit-Dice gate grants nothing (the line is as if the feat were absent)');
+  ok(delta(bard({ hd: 3, arts: [C] }), bard({ hd: 3 })) === 0, 'a Hit-Dice-blocked Chef also costs nothing');
+  // replay path
+  const b2 = bard(); MUT.art(b2, { v: M }); MUT.names(b2, { fp: named });
+  ok(JSON.stringify(b2.freeProfNames) === JSON.stringify(named) && freeProfs(b2).names.length === 3, 'the names event key fp (MUT.names) stores the picks'); }
+
+console.log('== data integrity (feats)');
+{ const bad = [];
+  for (const [k, a] of Object.entries(DATA.arts)) if (a.freeProf) {
+    for (const x of (a.freeProf.tools || [])) if (!DATA.toolList.includes(x)) bad.push(k + ' tool ' + x);
+    if ((a.freeProf.instruments || 0) < 0 || (a.freeProf.toolPicks || 0) < 0) bad.push(k + ' negative picks');
+  }
+  ok(bad.length === 0, 'every fixed free tool a feat names is in the tool list', bad.join(' | '));
+  const withFree = Object.entries(DATA.arts).filter(([, a]) => a.freeProf).map(([k]) => k).sort().join(',');
+  ok(withFree === 'Chef,Musician', 'exactly Chef and Musician carry freeProf (a stray one would give a feat away)', withFree); }
 
 console.log('\n' + (fail ? '✗' : '✓') + ' ' + pass + ' passed / ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

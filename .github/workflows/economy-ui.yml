@@ -29,6 +29,7 @@ on:
       - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
       - "testing/scripts/feature-cantrip-picker-e2e.mjs"
+      - "testing/scripts/free-prof-picker-e2e.mjs"
       - "testing/scripts/livesheet-weapons-e2e.mjs"
       - "testing/scripts/livesheet-pack-spells-e2e.mjs"
       - "testing/scripts/livesheet-saves-stats-card-e2e.mjs"
@@ -106,3 +107,5 @@ jobs:
         run: node testing/scripts/livesheet-armour-ac-e2e.mjs
       - name: Cantrip picker for Druid Magician and Cleric Thaumaturge (Live Sheet + CharGen)
         run: node testing/scripts/feature-cantrip-picker-e2e.mjs
+      - name: Free-instrument picker for the Musician feat (Live Sheet + CharGen)
+        run: node testing/scripts/free-prof-picker-e2e.mjs

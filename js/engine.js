@@ -857,6 +857,32 @@ export function profGrants(b, owned, blocked) {
   return { priced, weaponProf: wp, armour: arm };
 }
 
+/* freeProfs(b, blocked?) — the tool and instrument proficiencies that feats hand out FREE (owner rule 2026-10-20). A feat in DATA.arts
+ * may carry  freeProf: { tools: [fixed names], instruments: N (the player names N), toolPicks: N (the player names N) }  —
+ * Chef gives Cook's utensils, Musician three instruments of the player's choice. They are added to what the character owns and
+ * COUNT TOWARD the number owned from the start, so the tools and instruments bought after them cost what a character with that many
+ * would pay (compute(): table[paid + free] − table[free]). That reverses the Guide's old "treated as the last one bought" wording.
+ * The player's picks are kept in b.freeProfNames[feat label] (a `names` event, key `fp`), like the other chosen names. A slot counts
+ * whether or not it is named yet, so naming it later changes no price; a named pick that the character also bought is priced once.
+ * `blocked` is compute()'s set of Hit-Dice-blocked arts (a blocked feat grants nothing). Returns
+ * { slots, names, bySource: { <feat>: { fixed:[…], picks:[N strings, '' = not named yet], slots } } }. Derived every call, never stored. */
+export function freeProfs(b, blocked) {
+  b = b || {};
+  const out = { slots: 0, names: [], bySource: {} };
+  const named = b.freeProfNames || {};
+  for (const lab of new Set(b.arts || [])) {
+    if (blocked && blocked.has(lab)) continue;
+    const a = (DATA.arts || {})[lab], fp = a && a.freeProf; if (!fp) continue;
+    const fixed = (fp.tools || []).slice(), n = (Number(fp.instruments) || 0) + (Number(fp.toolPicks) || 0);
+    const picks = (Array.isArray(named[lab]) ? named[lab] : []).slice(0, n).map(v => (v == null ? '' : String(v).trim()));
+    while (picks.length < n) picks.push('');
+    out.bySource[lab] = { fixed, picks, slots: fixed.length + n };
+    out.slots += fixed.length + n;
+    fixed.concat(picks.filter(Boolean)).forEach(x => out.names.push(x));
+  }
+  return out;
+}
+
 export function compute(b, opts){
   b=Object.assign({},b);
   // Campaign house rules (D-GH-2026-10-13-campaign-house-rules): in a campaign context every reader of
@@ -972,13 +998,15 @@ export function compute(b, opts){
   // skills by name + expertise by name
   const skillList=(b.skills||[]); const expList=(b.expertise||[]);
   // skills and tools/instruments run on independent ladders — each gets its own first two free.
-  // (REV-13: the never-populated grantSk/grantTl/grantIn "free-grant" scaffolds were removed — they only
-  //  ever filtered an empty set, i.e. every skill/tool/instrument was paid. Byte-identical output; if a
-  //  future feature grants free proficiencies, reintroduce the filter then, with a fixture that exercises it.)
+  // (REV-13 removed the never-populated grantSk/grantTl/grantIn "free-grant" scaffolds. Free tools and instruments are back, by an
+  //  owner rule (2026-10-20): freeProfs() lists what feats hand out, those COUNT TOWARD the number owned from the start, and the
+  //  ladder is read as table[paid + free] − table[free] — the free ones are the first owned, so what you buy after them costs more.
+  //  A named free pick that the character also bought is priced once. With no such feat the line is byte-identical to before.)
   const paidSkills=skillList.length;
   add("Skills",DATA.skills[paidSkills]||0);
-  const paidTools=(b.tools||[]).length+(b.instruments||[]).length+(b.customProfs||[]).length;
-  add("Tools & instruments",DATA.tools[paidTools]||0);
+  const _fpr=freeProfs(b,_blockedArt), _freeSet=new Set(_fpr.names);
+  const paidTools=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]).filter(function(x){return !_freeSet.has(x);}).length;
+  add("Tools & instruments",(DATA.tools[paidTools+_fpr.slots]||0)-(DATA.tools[_fpr.slots]||0));
   add("Expertise",DATA.expertise[expList.length]||0);
   {const _skSet=new Set(skillList);for(const x of expList) if(!_skSet.has(x)) W.push("Expertise in "+x+" needs the skill bought first");}
   // tool expertise — its own independent track (separate count on the same Expertise ladder)
@@ -1731,7 +1759,7 @@ export const MUT = {
  // assigning the patch's nested objects straight onto the build rewrote the stored creation patch on every fold,
  // and the server refused the next save of a locked character ("protected event N changed"). fix/patch-fold-aliasing.
  patch:(b,p)=>{Object.assign(b,clone(p.patch));},   // imported-from-generator bundle (a whole field set)
- names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
+ names:(b,p)=>{if(p.fp)b.freeProfNames=p.fp;if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
  lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v,shieldWorn:(b,p)=>b.shieldWorn=!!p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
