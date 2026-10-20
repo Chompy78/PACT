@@ -4,6 +4,8 @@ Status: **accepted by owner 2026-10-13.** Engine half (PR1, `feat/campaign-house
 `DATA.version` v0.376 → v0.377. Tools, server migration, DM Console editor, reworked #642 and the Players Guide follow as
 PRs 2–6 (board entry `feat/campaign-house-rules`). Full plan, cold-reviewed: `docs/plans/2026-10-13-campaign-house-rules.md`
 (its ADDENDUM overrides its body).
+**Server migration APPLIED to production 2026-10-20** (with the v1.684 release, owner decision AE1) and folded into
+`sql/rls-policies.sql` the same day — see the last addendum, *Applied to production 2026-10-20*.
 
 ## Context
 
@@ -495,3 +497,43 @@ re-pricing a held drawback applies only to the holders the DM ticks; a buy-off c
 character can go below 0 AP left, but then can't spend. It is committed to the `pact-guide` master as one paragraph only.
 That project's working copy also has unrelated, uncommitted edits from another session dated 2026-10-17, which were left
 untouched and uncommitted. It is also in the served copy, and `verify-guide` passes all 11 checks.
+
+## Addendum 2026-10-20 — Applied to production 2026-10-20
+
+**What was applied.** `campaign_house_rules_server` (03:27Z) = `sql/migrations/2026-10-13-campaign-house-rules-server.sql`,
+then two follow-ups that only re-created `public.pact_js_number()`: `campaign_house_rules_js_number_trim` (03:31Z) and
+`campaign_house_rules_js_number_ascii` (03:37Z). The final trim line spells the four non-ASCII JavaScript whitespace characters
+by code point — `btrim(p #>> '{}', E' \t\n\r\f\u000b' || chr(160) || chr(65279) || chr(8232) || chr(8233))` — and the
+migration file now carries exactly that line, so production and the file are byte-identical. Released as v1.684 (PR #684,
+tagged), rules `v0.379`.
+
+**Verified.** `md5(pg_get_functiondef())` of all 23 functions the migration defines equals a scratch Postgres 17 built from
+`schema.sql` + `rls-policies.sql` + `2026-09-03-dm-zero-player-ap.sql` + `2026-10-12-server-player-award-after-lock.sql` + this
+file. Before the apply, two production functions (`pact_ap_ledger_spend`, `pact_enforce_locked_history`) differed from that
+baseline only in comments; both were replaced by the apply, so this is moot. Advisors: one new item —
+`dm_apply_house_rules_change` executable by `authenticated`, which is intended (it is the RPC); the three new trigger functions
+are not executable by `authenticated`. No Postgres errors. A rolled-back live spot-check as real users passed 8/8: an honest
+save accepted; a buy-off without `targetSeq` refused; a 3 AP buy-off of Hunted refused ("costs 12 AP (3 × its value)"); the
+proper 12 AP buy-off accepted; a forged `dmRefundBoon` refused by the DM-family guard; a DM whole-blob Save rules that forged
+`charHouseRules` was silently carried over (nothing stored); the DM RPC set campaign rules plus a per-character override; a
+player calling the RPC was refused. Afterwards production had 0 campaigns with `charHouseRules` and 0 house-rules events.
+
+**Blast radius (measured before the apply).** All 10 campaign characters are in one campaign (Amble: `ignore_player_ap`,
+`drawbackCap` 12, `enforceApBudget`). X1 raised server-side AP left only: Anders +12, Caspian +9, Fenwick / Moss / Skylar +4
+each. Nobody lost AP — no stored drawback grant exceeds its printed value.
+
+**Lesson: the transport mangled invisible characters.** The first apply carried the trim set as literal NBSP / BOM / LS / PS
+characters. The SQL went through an MCP tool call, whose JSON encoding decodes `\uXXXX` escapes and can turn invisible Unicode
+into plain spaces — so the live function trimmed the wrong set, although the file was right. Rule: SQL that will be sent through
+an MCP/JSON tool call must spell every non-ASCII character with `chr()` (or another pure-ASCII form), never as a literal; then
+the md5 comparison against a scratch build is what proves the transport did not change anything.
+
+**Fold (this PR, `docs/house-rules-fold`).** `sql/rls-policies.sql` now carries the migration verbatim: its helpers and
+`pact_ap_ledger_split()` before the AP-ledger section, the six redefined functions replaced in place (marked `[HOUSE RULES]`),
+and the DM-family / player-grants / `charHouseRules` guards, `dm_apply_house_rules_change()` and the grants after the notes
+section. The same PR folds the two earlier applied-but-unfolded migrations: `dm_zero_player_ap()` (2026-09-03) and
+`pact_enforce_player_ap_ceiling()` as 2026-10-12 redefined it, with its trigger, revoke and comment. A database built from
+`schema.sql` + the new `rls-policies.sql` has the same function definitions, ACLs and triggers (pg_get_functiondef /
+pg_get_triggerdef md5) as one built from the previous baseline plus the three migrations. `testing/sql/rls-baseline-test.sql`
+drift-checks 47 functions (was 27) and the four triggers; the rehearsals step back with the rollbacks before their BEFORE run.
+

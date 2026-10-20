@@ -136,26 +136,17 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
-## Fold the player-award-after-lock migration into the baseline (applied 2026-10-13) — TODO
-**Effort:** small · **Risk:** medium — baseline/drift-guard edits only, but a mistaken fold is how the 2026-09-02 regression happened.
+## Record the 2(a) re-measure for the player-award-after-lock migration (applied 2026-10-13, folded 2026-10-20) — TODO
+**Effort:** small · **Risk:** low — one read-only live query and a line in the decision record.
 
 ```text
-APPLIED to production 2026-10-13 (migration `server_player_award_after_lock`, owner decision N1, during feat/dm-ap-discount):
-the live function matched 2026-09-03-dm-zero-player-ap.sql; 0 campaign award amounts were non-numbers; afterwards the new
-version is live, `authenticated` cannot execute it, and postgres logs show no errors. The migration header, the decision
-record's Status and a CHANGELOG line already say APPLIED. NOT done that day: re-measure 2(a) — no creation-locked or sealed
-campaign character whose stored award total would rise — not needed for the apply (it only refuses future saves), but record it.
-
-Still to do, in an "applied" PR (per sql/migrations/README.md; precedents #580→#598, #600→#608):
-  - fold the new pact_enforce_player_ap_ceiling() + its trigger, revoke and comment into sql/rls-policies.sql, and fold
-    2026-09-03's dm_zero_player_ap() too (applied 2026-09-03, never folded);
-  - add pact_enforce_player_ap_ceiling to rls-baseline-test.sql's drift list (27 → 28 functions since the 2026-10-19 notes/images fold),
-    \ir the 2026-10-12 migration there, and assert the trigger function is NOT callable by authenticated.
-COORDINATE with the campaign house-rules work (session pact-cf, branch chore/campaign-house-rules-sync-preview): its
-harness BASE already loads the live 09-03/10-12 files, and it also edits rls-policies.sql.
+2026-10-12-server-player-award-after-lock.sql was APPLIED 2026-10-13 and folded into sql/rls-policies.sql on 2026-10-20
+(docs/house-rules-fold, with dm_zero_player_ap() and the campaign house-rules migration; rls-baseline-test.sql drift-checks it).
+The one thing NOT done: re-measure 2(a) on production — no creation-locked or sealed campaign character whose stored award total
+would rise on its next honest save (it only refuses future saves, so it was not needed for the apply) — and record the number in
+decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md's Status.
 ```
-**Done when:** rls-policies.sql carries the applied function, the drift guard covers it (and passes in sql-guards CI), and the
-2(a) re-measure is recorded in the decision record.
+**Done when:** the 2(a) re-measure (count and date) is recorded in the decision record.
 
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
@@ -171,7 +162,7 @@ costs. Then decide (H2 if the owner is away) a server rule that stays SQL-only a
 is the only pricing source): e.g. refuse cost < 0 on non-drawback events for campaign characters, and on a locked/sealed one
 refuse a rise in drawback earnings by anyone but the DM (mirroring pact_enforce_player_ap_ceiling). Rehearse in the Docker
 harness (testing/scripts/creation-lock-guard-test/, run-award.sh pattern) incl. legitimate post-lock drawbacks the tools allow.
-UPDATE 2026-10-13 (PR #654, campaign house rules — NOT applied yet): route (1) is closed there — a drawback grants at most its
+UPDATE 2026-10-13 (PR #654, campaign house rules — applied to production 2026-10-20): route (1) is closed there — a drawback grants at most its
 effective value (AB1, a generated server price list), a name grants once (F1), and a new player drawback after the lock is refused
 unless the campaign allows post-lock drawbacks. A new buyoff must name its target and pay rate × value (R2-5), which also closes a
 negative-cost BUYOFF. What remains is F2 (round-2 review of #654, R2-2/R2-4, pre-existing): a negative cost on any other

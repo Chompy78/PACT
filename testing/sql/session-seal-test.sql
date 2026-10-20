@@ -92,6 +92,9 @@ end; $$;
 -- character-images migrations (applied to production 2026-10-19) are deliberately NOT loaded here: this file's stubs
 -- are the seal/locked-history family only (no campaigns, no characters.created_at, no storage). They are built and
 -- drift-checked by rls-baseline-test.sql and rehearsed by testing/scripts/creation-lock-guard-test/run-notes.sh / run-images.sh.
+-- The same holds for 2026-09-03-dm-zero-player-ap.sql, 2026-10-12-server-player-award-after-lock.sql and
+-- 2026-10-13-campaign-house-rules-server.sql (all folded into rls-policies.sql 2026-10-20; house rules applied that day): they
+-- need campaigns, so they are built and drift-checked by rls-baseline-test.sql and rehearsed by run-award.sh / run-house-rules.sh.
 
 drop trigger if exists trg_pact_locked_history on public.characters;
 create trigger trg_pact_locked_history

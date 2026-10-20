@@ -95,4 +95,6 @@ makes the existing rule honest too.
 the trigger function. Before applying, confirm the live `pact_enforce_player_ap_ceiling()` still matches
 `2026-09-03-dm-zero-player-ap.sql`, so the rollback is exact. Rehearsed by
 `testing/scripts/creation-lock-guard-test/run-award.sh` (39 cases; 17 attacks allowed today, all 39 pass after, rollback
-byte-identical).
+byte-identical). **Folded into `sql/rls-policies.sql` on 2026-10-20** (`docs/house-rules-fold`, with `dm_zero_player_ap()` from
+2026-09-03 and the campaign house-rules migration); `rls-baseline-test.sql` now drift-checks both functions. Still open: the 2(a)
+re-measure (no creation-locked or sealed campaign character whose stored award total would rise) is not yet recorded here.
