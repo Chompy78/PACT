@@ -535,6 +535,10 @@
   /* ---- campaign panel: nested tiles (feat/dm-console-ui) ---- */
   .subtile{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
   .subtile:last-child{margin-bottom:0}
+  /* feat/dm-rules-lock-bars: while Campaign Rules are locked, each rules section shows this bar pinned to its top as the DM scrolls it.
+     A span, not a <button>: the lock disables every button inside the tiles. --rlbar-top is set from the pinned header's height in JS. */
+  .rlbar{position:sticky;top:var(--rlbar-top,56px);z-index:5;margin:0 0 8px;font-size:12px;color:var(--ink);background:var(--warn-bg);border:1px solid var(--warn);border-radius:8px;padding:6px 10px;cursor:pointer}
+  .rlbar-sub{color:var(--muted)}
   /* A "supercard" wrapping several .subtiles that share one lock/save control (feat/campaign-rules-
      lock-supercard) — deliberately no fill of its own (transparent, so the panel's own --card shows
      through), just a border, so the .subtiles inside still read as the visually distinct layer against
@@ -868,6 +872,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campRulesDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Campaign Rules</summary>
               <div style="margin-top:8px">
+                <span class="rlbar" role="button" tabindex="0" style="display:none">🔒 Locked — <u>Unlock to edit</u> <span class="rlbar-sub">(then Save rules)</span></span>
                 <div class="ruleblock" id="ruleCopyBlock" style="display:none">
                   <div class="lbl">Copy rules from another campaign</div>
                   <div style="display:flex;gap:6px;align-items:center">
@@ -1010,6 +1015,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campCharHouseRulesDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Character house rules <span class="dsum" id="chrSummary"></span></summary>
               <div style="margin-top:8px">
+                <span class="rlbar" role="button" tabindex="0" style="display:none">🔒 Locked — <u>Unlock to edit</u> <span class="rlbar-sub">(then Save rules)</span></span>
                 <div id="chrServerMsg" class="dp-warn" role="status" hidden></div>
                 <div class="grantnote" style="margin-top:0">What CharGen calls the DM Calls and DM customisations, set once for the whole table. Every character in this campaign is priced with these; a character&rsquo;s own CharGen house rules apply only when it is not in a campaign.</div>
                 <div class="ruleblock">
@@ -1045,6 +1051,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campAdvancementDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Level budget curve &middot; award pace &middot; starting tier <span class="dsum" id="campRulesSummary"></span></summary>
               <div style="margin-top:8px">
+                <span class="rlbar" role="button" tabindex="0" style="display:none">🔒 Locked — <u>Unlock to edit</u> <span class="rlbar-sub">(then Save rules)</span></span>
             <div class="ruleblock">
               <div class="lbl">📈 Level budget curve <button type="button" class="infobtn" title="How much cumulative AP a COMPLETE character of each level is expected to have SPENT. L1 is the level-1 figure, “+per lvl” the step: Lean 75/+20 reaches 455 at L20, Standard 79/+24 reaches 535, Generous 83/+28 reaches 615. Run the same formula at level 0 and all three land on 55 — the Guide’s optional prelude/apprentice tier. Two things read this curve: the “Track-Level” label a player sees on their sheet (their AP spent, measured against it), and the creation-pricing lock stamped into new characters, which fires once spend passes L1. It never changes what any individual option costs to buy.">ⓘ</button></div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -1099,6 +1106,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
             <details id="campCustomFieldsDetails">
               <summary style="cursor:pointer;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Custom character fields <span class="dsum" id="campCustomFieldsSummary"></span></summary>
               <div style="margin-top:8px">
+                <span class="rlbar" role="button" tabindex="0" style="display:none">🔒 Locked — <u>Unlock to edit</u> <span class="rlbar-sub">(then Save rules)</span></span>
                 <div class="ruleblock" style="margin-bottom:0">
                   <div class="lbl">Up to 4 fields shown on every roster card — 2 numeric, 2 text <button type="button" class="infobtn" title="Definitions are campaign-wide, shared by the whole roster — name a field here once and every character gets it. Each field defaults to DM-only ('Visible to players' off); tick it on to also let it show wherever a player views their own character. This only sets the field's name and visibility — set each character's actual value from that character's DM tools below. Leave a name blank to remove that field.">ⓘ</button></div>
                   <div class="customfielddefs" id="ruleCustomFields">
@@ -6479,6 +6487,8 @@ document.addEventListener('campaign-ready', function () {
   function _setRulesLocked(locked){
     _ruleLockEls().forEach(function(el){ el.disabled = locked; });
     var _lln = document.getElementById('ruleLanguagesLockNote'); if(_lln) _lln.style.display = locked ? 'block' : 'none';
+    var _tb = document.querySelector('header.topbar'); if(_tb) document.documentElement.style.setProperty('--rlbar-top', Math.ceil(_tb.getBoundingClientRect().height) + 'px');
+    document.querySelectorAll('.rlbar').forEach(function(b){ b.style.display = locked ? 'block' : 'none'; });
     if(ruleLockHint){
       ruleLockHint.innerHTML = locked
         ? '🔒 <b>Campaign Rules are locked</b> — including the economy band, banned lists, and everything else below. Click here to unlock them (or use "Locked" next to Save rules at the bottom).'
@@ -6500,6 +6510,12 @@ document.addEventListener('campaign-ready', function () {
     n.addEventListener('click', go);
     n.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
   })(document.getElementById('ruleLanguagesLockNote'));
+  // feat/dm-rules-lock-bars: the pinned bars unlock every rules section, and are inert whenever ruleLockHint is (archived-campaign peek).
+  document.querySelectorAll('.rlbar').forEach(function(bar){
+    var go = function(){ if(ruleLockHint && ruleLockHint.disabled) return; _setRulesLocked(false); };
+    bar.addEventListener('click', go);
+    bar.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } });
+  });
   if(document.getElementById('ruleLockInfo'))
     document.getElementById('ruleLockInfo').addEventListener('click', function(){ alert(this.title); });
   _setRulesLocked(true);   // initial state, before any campaign is even selected
