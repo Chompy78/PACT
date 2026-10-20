@@ -29,6 +29,7 @@ on:
       - "testing/scripts/livesheet-second-origin-class-e2e.mjs"
       - "testing/scripts/livesheet-center-panel-e2e.mjs"
       - "testing/scripts/feature-cantrip-picker-e2e.mjs"
+      - "testing/scripts/magical-secrets-widening-e2e.mjs"
       - "testing/scripts/free-prof-picker-e2e.mjs"
       - "testing/scripts/livesheet-weapons-e2e.mjs"
       - "testing/scripts/livesheet-pack-spells-e2e.mjs"
@@ -109,3 +110,5 @@ jobs:
         run: node testing/scripts/feature-cantrip-picker-e2e.mjs
       - name: Free-instrument picker for the Musician feat (Live Sheet + CharGen)
         run: node testing/scripts/free-prof-picker-e2e.mjs
+      - name: Bard Magical Secrets widens the known-spell pool (Live Sheet + CharGen)
+        run: node testing/scripts/magical-secrets-widening-e2e.mjs

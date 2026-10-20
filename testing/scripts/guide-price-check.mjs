@@ -279,7 +279,6 @@ const ALLOW = {
   'unparsed-price|Ranger|Gloom Stalker|Iron Mind': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
   'unparsed-price|Ranger|Fey Wanderer|Otherworldly Glamour': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
   'unparsed-price|Bard|College of Lore|Bonus Skills': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
-  'unparsed-price|Bard|-|Magical Secrets': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
   'unparsed-price|Monk|-|Body and Mind': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
   // -- OPEN QUESTIONS: the guide and the engine look like they disagree; listed here only so the checker stays green until an owner decides
   'unparsed-price|Fighter|Battle Master|Improved Combat Superiority': 'OPEN QUESTION (board: guide-vs-engine rows the checker cannot see): the guide says "Included in Premium" and prints no price, but the engine sells it separately at 14 (10) with no bar.',

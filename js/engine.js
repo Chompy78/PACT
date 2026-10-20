@@ -365,11 +365,29 @@ export function ownedChoiceGrants(b) {
     if (key === "Wizard: Spellbook") continue;
     const g = cg[key], [kcls, ksub] = key.split(": ");
     if (g.bar) continue;   // barred for now (feat/bar-unreviewed-grants): the free off-list picks are switched off; the subclass / feature itself is untouched
+    if (g.widen) continue;   // a list-widening (Magical Secrets), not a free pick: widenedLists() reads it, this block stays empty
     let owned = false;
     if ((DATA.features || {})[key]) owned = (b.features || []).indexOf(key) >= 0;
     else if (ksub) owned = ((b.freeSub || {})[kcls] === ksub) || (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0);
     if (!owned || hd < (Number(g.charLevel) || 1)) continue;
     out.push({ key, label: ksub || key, from: _GRANT_LISTS.filter(c => (g.from || "").indexOf(c) >= 0), note: g.from || "", charLevel: Number(g.charLevel) || 1 });
+  }
+  return out;
+}
+
+// widenedLists(b, cls) — the EXTRA class spell lists a discipline's known/prepared pool may draw from, beyond its own.
+// Bard: Magical Secrets (owner decision BO1, feat/magical-secrets-list-widening) widens the Bard discipline's pool to the Bard,
+// Cleric, Druid and Wizard lists from 10 HD. It is a list-widening ONLY: no extra spells or slots, no free picks, price unchanged.
+// A choiceGrants entry carries `widen: "<discipline>"`; ownedChoiceGrants() skips it so the free-pick block stays off. Returns
+// the lists to ADD (never the discipline's own), [] when nothing widens it. Pure and display-side: compute() never calls it.
+export function widenedLists(b, cls) {
+  b = b || {};
+  const cg = (DATA.spellGrants && DATA.spellGrants.choiceGrants) || {}, hd = Number(b.hd) || 1, out = [];
+  for (const key of Object.keys(cg)) {
+    const g = cg[key];
+    if (!g.widen || g.widen !== cls || g.bar) continue;
+    if (!(DATA.features || {})[key] || (b.features || []).indexOf(key) < 0 || hd < (Number(g.charLevel) || 1)) continue;
+    for (const c of _GRANT_LISTS) if ((g.from || "").indexOf(c) >= 0 && c !== cls && out.indexOf(c) < 0) out.push(c);
   }
   return out;
 }
