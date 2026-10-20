@@ -1488,24 +1488,6 @@ campaign-house-rules engine PR reads the effective value); (3) decide with the o
 ```
 **Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
 
-## feat/dm-rules-lock-bars — every locked Campaign Rules section says it is locked, right where the DM is looking — TODO
-Branch feat/dm-rules-lock-bars. **Effort:** low · **Risk:** low — DM-Console-only UI on the existing lock (`_setRulesLocked`); nothing saved changes (damage scale low).
-
-```text
-Found 2026-10-13 (owner: "i found [the languages] but can't see how to edit it"). Campaign Rules, the advancement tile and the
-custom-fields tile start LOCKED (every control disabled by _setRulesLocked(true)), and the only ways out are ruleLockHint at the
-top of the rules group and ruleLockBtn beside "Save rules" — both out of sight while a DM scrolls a long section. #651 fixed this
-for the 🗣 Languages box only (a 🔒 note on the box, ruleLanguagesLockNote — owner choice C2). The 11 "Banned …" lists, the
-economy band and the advancement/curve fields still look simply greyed out.
-
-DO (owner's option C1 from that session): a bar pinned to the top of each locked section while it scrolls —
-"🔒 Locked — Unlock to edit" with the unlock action right there — shown only while locked, hidden once unlocked. It must NOT be
-a <button> inside the swept tiles (_scopedControlEls disables every button there) — use the same span role="button" pattern as
-ruleLanguagesLockNote, and stay inert during an archived-campaign peek (check ruleLockHint.disabled, as that note does).
-Consider replacing the languages-only note with the general bar so there is one mechanism.
-```
-**Done when:** with rules locked, every rules section (including the Banned lists and the curve) shows the bar at its top while scrolled; clicking it unlocks all of them; it hides once unlocked and does nothing during an archived peek; `campaign-language-list-e2e` and `dm-console-ui-e2e` pass with new checks for this.
-
 ## feat/feature-effect-text — class features, subclass abilities and racial traits get real ⓘ effect text — TODO
 Branch feat/feature-effect-text. **Effort:** high · **Risk:** medium — ~600 short rules summaries must agree with the Players Guide (ambiguity drives it); display-only, so no pricing can break.
 
