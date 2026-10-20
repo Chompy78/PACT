@@ -96,5 +96,9 @@ the trigger function. Before applying, confirm the live `pact_enforce_player_ap_
 `2026-09-03-dm-zero-player-ap.sql`, so the rollback is exact. Rehearsed by
 `testing/scripts/creation-lock-guard-test/run-award.sh` (39 cases; 17 attacks allowed today, all 39 pass after, rollback
 byte-identical). **Folded into `sql/rls-policies.sql` on 2026-10-20** (`docs/house-rules-fold`, with `dm_zero_player_ap()` from
-2026-09-03 and the campaign house-rules migration); `rls-baseline-test.sql` now drift-checks both functions. Still open: the 2(a)
-re-measure (no creation-locked or sealed campaign character whose stored award total would rise) is not yet recorded here.
+2026-09-03 and the campaign house-rules migration); `rls-baseline-test.sql` now drift-checks both functions. **2(a) re-measure,
+2026-10-20 (read-only, live):** 10 campaign-bound characters, all 10 creation-locked or sealed, none in a campaign that lets players
+enter their own AP (`ignore_player_ap` is on for all of them). 3 carry a positive stored award total, but none has a positive
+`award` after its lock/seal boundary, and 0 `award` amounts are non-numbers. So no stored total sits where an honest re-save would
+raise it: **0 characters affected.** Limit of the evidence: this is the stored state, not a replay of every save path, and the
+Supabase log window is only 24 hours, so refused saves since 2026-10-13 cannot be counted from logs (none in the last 24 hours).

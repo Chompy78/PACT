@@ -73,18 +73,6 @@ purchase made while expanded.
 click restores the normal three-panel layout, the choice survives a reload, a purchase made while expanded is recorded
 exactly as in the normal layout, and the e2e covering this passes.
 
-## Record the 2(a) re-measure for the player-award-after-lock migration (applied 2026-10-13, folded 2026-10-20) — TODO
-**Effort:** small · **Risk:** low — one read-only live query and a line in the decision record.
-
-```text
-2026-10-12-server-player-award-after-lock.sql was APPLIED 2026-10-13 and folded into sql/rls-policies.sql on 2026-10-20
-(docs/house-rules-fold, with dm_zero_player_ap() and the campaign house-rules migration; rls-baseline-test.sql drift-checks it).
-The one thing NOT done: re-measure 2(a) on production — no creation-locked or sealed campaign character whose stored award total
-would rise on its next honest save (it only refuses future saves, so it was not needed for the apply) — and record the number in
-decisions/2026/D-GH-2026-10-12-server-player-award-after-lock.md's Status.
-```
-**Done when:** the 2(a) re-measure (count and date) is recorded in the decision record.
-
 ## fix/server-negative-cost-after-lock — a locked character can still gain AP through a negative client-stamped cost — TODO
 **Effort:** medium · **Risk:** high — a trigger change on every campaign character save; needs a live measurement and owner approval to apply.
 
