@@ -35,6 +35,10 @@
 ## D-GH-2026-10-20-feat-free-proficiency — Chef and Musician hand out free tools; they count first, so later ones cost more
 - Rules v0.381. Owner rule: a feat's free proficiency is added to the build and counts toward the number owned from the start (the opposite of the Guide's old "counted last"). The tools line is `table[paid+free] − table[free]`; picks are named in the ✎ dialog (`freeProfNames`). Full record: `decisions/2026/D-GH-2026-10-20-feat-free-proficiency.md`.
 
+## D-GH-2026-10-20-bar-unreviewed-grants — ten abilities barred for the time being while each is reviewed; the two epic boons stay
+- Rules v0.382 (temporary, until each is reviewed). `bar:true` on six features and two arts, the free Eldritch Knight / Arcane Trickster / Magical Secrets spell picks switched off; owners keep their price.
+  Full record: `decisions/2026/D-GH-2026-10-20-bar-unreviewed-grants.md`.
+
 ## D-GH-2026-10-20-primal-order-magician-warden — Primal Order and Divine Order split into their 2024 options; the proficiency one is free and the ladders charge for it
 - Rules v0.380. Warden / Protector are `free:true` features that switch weapon and armour proficiency flags on (`profGrants()`), so the existing proficiency lines charge for them once (15 / 21 AP); Magician / Thaumturge are 6 AP with a cantrip and a Wisdom skill bonus. The old keys are retired with `bar:true` — not aliased — and the one live owner's Primal Order keeps its 5 AP and martial + Medium proficiency without Simple or Light (owner Y1/Z1). Guide (both copies) updated; free proficiency from feats is a separate task.
   Full record: `decisions/2026/D-GH-2026-10-20-primal-order-magician-warden.md`.

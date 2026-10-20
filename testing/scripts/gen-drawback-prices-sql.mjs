@@ -80,7 +80,10 @@ if (a < 0 || b < a) { console.error(`${file}: malformed generated block`); proce
 const have = src.slice(a, b + END.length);
 const rel = path.relative(REPO, file);
 if (args.includes('--check')) {
-  if (have === want) { console.log(`✓ ${rel}: pact_drawback_printed matches js/engine-data.js (rules ${DATA.version}, ${Object.keys(DATA.drawbacks).length} drawbacks)`); process.exit(0); }
+  // The block's comment line names the rules version it was generated at. Once the migration is APPLIED that line is history and
+  // can never be rewritten, so a later version bump that moves no drawback price must not fail the check: compare without it.
+  const noVer = t => t.replace(/js\/engine-data\.js rules v\d+\.\d+/, 'js/engine-data.js rules <version>');
+  if (noVer(have) === noVer(want)) { console.log(`✓ ${rel}: pact_drawback_printed matches js/engine-data.js (rules ${DATA.version}, ${Object.keys(DATA.drawbacks).length} drawbacks)`); process.exit(0); }
   console.error(`✗ ${rel}: pact_drawback_printed is out of date with js/engine-data.js — re-run the generator:\n    node testing/scripts/gen-drawback-prices-sql.mjs\n  (if that migration is already APPLIED, start a NEW migration from --stdout instead; docs/VERSION-SYNC.md)`);
   process.exit(1);
 }

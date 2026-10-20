@@ -275,9 +275,14 @@ const ALLOW = {
   'unparsed-price|Ranger|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
   'unparsed-price|Rogue|-|Weapon Mastery': 'Engine entry is bar:true (not buyable as a feature) and the guide prints no price and points to the mastery ladder: they agree.',
   'unparsed-price|Fighter|Champion|Additional Fighting Style': 'Engine entry is bar:true and the guide says "Barred → A&T": they agree.',
+  'unparsed-price|Monk|-|Disciplined Survivor (Focus)': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
+  'unparsed-price|Ranger|Gloom Stalker|Iron Mind': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
+  'unparsed-price|Ranger|Fey Wanderer|Otherworldly Glamour': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
+  'unparsed-price|Bard|College of Lore|Bonus Skills': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
+  'unparsed-price|Bard|-|Magical Secrets': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
+  'unparsed-price|Monk|-|Body and Mind': 'Engine entry is bar:true (retired from new purchases, v0.382) and the guide prints no price and says "Barred": they agree. Existing owners keep what they paid.',
   // -- OPEN QUESTIONS: the guide and the engine look like they disagree; listed here only so the checker stays green until an owner decides
   'unparsed-price|Fighter|Battle Master|Improved Combat Superiority': 'OPEN QUESTION (board: guide-vs-engine rows the checker cannot see): the guide says "Included in Premium" and prints no price, but the engine sells it separately at 14 (10) with no bar.',
-  'unparsed-price|Ranger|Gloom Stalker|Iron Mind': 'OPEN QUESTION (board: guide-vs-engine rows the checker cannot see): the guide says "Barred (→ saves)" with no price but status "Buy", while the engine sells it at 14 (11) with no bar.',
   // -- stepped
   'stepped-feature|Sorcerer|-|Metamagic (2 options, L2) (SP)': 'The engine prices Metamagic as 2 x purchase number (a special case in engine.js), so a single printed cell has no one engine price to match.',
   'stepped-feature|Sorcerer|-|Metamagic (+1 option, L10) (SP)': 'The engine prices Metamagic as 2 x purchase number (a special case in engine.js), so a single printed cell has no one engine price to match.',

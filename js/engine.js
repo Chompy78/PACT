@@ -349,6 +349,7 @@ export function ownedChoiceGrants(b) {
   for (const key of Object.keys(cg)) {
     if (key === "Wizard: Spellbook") continue;
     const g = cg[key], [kcls, ksub] = key.split(": ");
+    if (g.bar) continue;   // barred for now (feat/bar-unreviewed-grants): the free off-list picks are switched off; the subclass / feature itself is untouched
     let owned = false;
     if ((DATA.features || {})[key]) owned = (b.features || []).indexOf(key) >= 0;
     else if (ksub) owned = ((b.freeSub || {})[kcls] === ksub) || (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0);

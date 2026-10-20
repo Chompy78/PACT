@@ -46,8 +46,17 @@ const logOf = (patch) => [
 ];
 
 const browser = await launchChromium();
+// v0.382 bars the free off-list spell picks of Eldritch Knight, Arcane Trickster and Magical Secrets ("choiceGrants[k].bar", skipped by
+// ownedChoiceGrants(); pinned in barred-grants-ci.mjs). This test is about the MECHANISM that shows a choice-grant pick (its source label,
+// its level gate, the escaping of a player-typed name), so it serves the engine data with the bar lifted; the day an owner un-bars the
+// grants for good this rewrite can go.
+const unbarGrants = (ctx) => ctx.route('**/js/engine-data.js', async (route) => {
+  const res = await route.fetch(); const body = await res.text();
+  await route.fulfill({ response: res, body: body.replace(/"bar":true,("grant":"choice")/g, '$1') });
+});
 const open = async (LOG, viewport = { width: 1400, height: 1000 }) => {
   const ctx = await browser.newContext({ viewport });
+  await unbarGrants(ctx);
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(String(e)));
   await page.addInitScript((env) => { try { localStorage.setItem('pactLiveSheet', JSON.stringify(env)); localStorage.setItem('pactLSnoSpell', '0'); } catch (e) {} },
@@ -134,6 +143,7 @@ const has = (rows, re) => rows.some(t => re.test(t));
 // 3. CharGen's Sheet tab renders through its own copy of renderCharSheet — it must list them too.
 {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await unbarGrants(ctx);
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(String(e)));
   await page.goto(`http://localhost:${PORT}/PACT/tools/PACT-CharGen-Webtool.html`, { waitUntil: 'load' });

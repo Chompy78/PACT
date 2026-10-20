@@ -2551,7 +2551,7 @@ function buildBuyPanel(b,r,eco,head){
       const gate=blocked?(hdOk?('needs '+statNote):('needs '+(+ar.hd||1)+' HD'+(statNote?' \u0026 '+statNote:''))):(ar.prereqNote?('Prereq: '+ar.prereqNote+' \u2713'):'');
       const label=x+' \u2014 '+ar.ap+' AP ('+BAND_S[ar.band||0]+')';
       if(b.arts.includes(x))return ibOwned(label);return ib(label,'art',{v:x},gate);};
-    const avail=(DATA.artList||[]).filter(x=>{const a=DATA.arts[x]||{};if(!(_tashaOK||!a.noncore))return false;if(!b.arts.includes(x)&&cloudRuleBarred('arts',x))return false;if(a.cat==='Fighting Style'&&a.reqFeat)return false;return true;});
+    const avail=(DATA.artList||[]).filter(x=>{const a=DATA.arts[x]||{};if(!(_tashaOK||!a.noncore))return false;if(a.bar&&!b.arts.includes(x))return false;if(!b.arts.includes(x)&&cloudRuleBarred('arts',x))return false;if(a.cat==='Fighting Style'&&a.reqFeat)return false;return true;});
     const byCat={};avail.forEach(x=>{const c=(DATA.arts[x]||{}).cat||'Other';(byCat[c]=byCat[c]||[]).push(x);});
     const cats=CATORD.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>CATORD.indexOf(c)<0).sort());
     return cats.map(c=>{const items=byCat[c].slice().sort();return '<div class="atcat" style="width:100%;font-size:10px;color:var(--grey);margin:6px 0 1px;text-transform:uppercase;letter-spacing:.4px;font-weight:700">'+c+(c==='Fighting Style'?' \u2014 11 AP each (feature-granted ones are named free in the \u270E picker)':'')+'</div>'+items.map(renderArt).join('');}).join('') || '<span class="hint">No arts available.</span>';}],
@@ -3419,7 +3419,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.381</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.382</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see
