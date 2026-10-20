@@ -1087,31 +1087,6 @@ migration-list half needs a design decision, which is why it is filed rather tha
 **Done when:** adding a new migration to `sql/migrations/` requires no edit to
 `testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
 
-## `2026-09-02-widen-protected-projection.sql` was edited after it was applied — TODO
-Branch `docs/migration-record-dm-remove-boon`. The file's header records "BLAST RADIUS: zero. Measured
-before applying" and was applied on 2026-09-02; commit `f2418a9` then rewrote the applied file's `in
-(...)` list to add `dmRemoveBoon` and amended its scope comment. `sql/migrations/README.md`, added in the
-same promotion, states: "A dated migration file is a historical record of one change. It is NOT the
-current definition of anything." To its credit the header documents the extension honestly ("AS FIRST
-SHIPPED AND THEN EXTENDED") — but it says the second change was "applied as `seal_protects_dm_removals`",
-and **no migration file by that name exists** (the only other occurrence in the repo is an `\echo` label
-in `testing/sql/session-seal-test.sql:343`). So replaying `sql/migrations/` in filename order produces in
-one file a state production reached in two, and there is no dated record of when `dmRemoveBoon` was
-actually added.
-**Effort:** small · **Risk:** low — repo history hygiene, no behaviour change.
-
-```text
-1. Confirm with the author which change production actually received and when.
-2. Restore 2026-09-02-widen-protected-projection.sql to what was applied on 2026-09-02, and add a
-   separate dated file for the dmRemoveBoon extension named to match what it was applied as.
-3. If restoring is judged worse than leaving it (a defensible call — the current file IS the end state),
-   then at minimum fix the header so it does not name a file that does not exist, and say plainly that
-   this file represents two applications.
-```
-
-**Done when:** `grep -rn seal_protects_dm_removals sql/` either resolves to a real migration file or the
-reference is gone, and `sql/migrations/` replayed in filename order reproduces production's sequence.
-
 ## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
 Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
 documented fresh-install path (which EXECUTE grants exist on trigger functions; that the baseline, not
