@@ -1666,3 +1666,30 @@ If the owner picks (b), the engine side needs its own rules change and DATA.vers
 **Done when:** the pact-guide master carries Twofold Inspiration, Threefold Inspiration and Blazing Moment's 18+ wording with its "never more than one" rule rewritten to
 match (or the fortune-boons reconciliation has settled the set and the engine and both guide copies agree), and `guide-table-diff.mjs` reports the served copy and
 the master identical on those rows.
+
+## feat/chargen-merge-not-rewrite — CharGen's remaining whole-log rebuild paths merge into the existing history instead of rewriting it (creation-lock "Part 1b") — TODO
+Branch `feat/chargen-merge-not-rewrite`. **Effort:** high · **Risk:** high — damage scale (CharGen's central load/edit path in a ~600 KB file; a wrong merge silently drops or duplicates history on a live character) and ambiguity (it overlaps `fix/chargen-post-lock-purchases` above, and how much of "Part 1b" that task already covers has not been checked).
+```
+What is left of the old "Creation-lock integrity" task (its repair, server guard and stale-copy fix all shipped 2026-10-04 — see CHANGELOG, and
+decisions/2026/D-GH-2026-10-01-creation-lock-integrity.md): CharGen still has paths that rebuild the whole LOG from the form and replace the loaded
+one, which is how locks, awards, seals and purchase lines were lost. As of origin/preview 2026-10-20, replaceWholeLogFromBuild() is still called from
+applyBuild() (~line 5191), ~line 6256 and the initial LOG bootstrap (~line 7624) in tools/PACT-CharGen-Webtool.html (line numbers drift — grep).
+Named in the original plan (docs/plans/2026-10-01-creation-lock-integrity.md, "M1 merge identity keys"): the random roll, `#b=` share links, and
+legacy / untagged imports.
+DO, in this order — this is big and risky, so do NOT start by editing:
+  1. Read-only audit: for each caller of replaceWholeLogFromBuild(), say whether it can still reach a character that has a creationLocked / award /
+     sessionSeal event, and what it does to those. Note what #553, #643 (Randomise keeps the id and keeps its lock entries in order) and the 2026-10-04
+     stale-copy fix already closed.
+  2. Compare with `fix/chargen-post-lock-purchases` and `docs/plans/2026-10-04-chargen-post-lock-purchases.md`: if that task's plan already merges these paths,
+     close this one into it; if not, list exactly which paths remain.
+  3. For what remains, draft a self-contained plan for a cold reviewer (AGENTS.md: /make-code-cold-plan-review) BEFORE implementing.
+  4. Then merge-not-rewrite, using the identity keys in the plan, plus refuse re-rolling a finished (locked) character.
+```
+**Done when:** the audit and the comparison with `fix/chargen-post-lock-purchases` are written down; every remaining whole-log rebuild path keeps a locked character's
+creationLocked / award / sessionSeal / purchase events (or is shown unable to reach one); re-rolling a finished character is refused; a test per path loads a
+locked character through it and asserts the lock events survive; `engine-parity.html` 0 failed; `chargen-flows-e2e.mjs` passes.
+
+**Carried over from the old entry, NOT part of this task (each is its own small task if wanted):** `_cgSyncAward()` relocates a burst-shaped award once on
+load; the server guard does not yet stop moving a post-lock purchase to before the lock (review H3); `random-manual-e2e.mjs` does not use the shared browser
+launcher; scan other campaigns for the same lock-loss pattern; four free-API cold reviews of the original plan (need `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
+`GROQ_API_KEY`, `DEEPSEEK_API_KEY`).
