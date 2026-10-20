@@ -25,3 +25,7 @@ Barring is reversible (delete a flag) and cannot reprice anyone; it stops new pl
 ## Open
 
 A task on the board reviews each of the ten one by one; a second task makes each epic boon cost more than the one before. The `pact-guide` project's own CHANGELOG / TASK_BOARD / generated files still need the reconciliation task already on the board.
+
+## Update 2026-10-20
+
+Magical Secrets was unbarred in v0.384 as a list-widening only (owner decision BO1): see `D-GH-2026-10-20-magical-secrets-list-widening`. The other nine stay barred.

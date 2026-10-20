@@ -1,10 +1,11 @@
 // feat/bar-unreviewed-grants — ten abilities are barred "for the time being" (v0.382) until the owner reviews each one.
-// Six class features (Disciplined Survivor, Iron Mind, Otherworldly Glamour, Bonus Skills, Magical Secrets, Body and Mind) and two arts
-// (Telepathic, Tavern Brawler) carry bar:true; the free off-list spell picks of Eldritch Knight, Arcane Trickster and Magical Secrets
-// (DATA.spellGrants.choiceGrants) carry bar:true and ownedChoiceGrants() skips them. bar never touches pricing: a character that already
+// Five class features (Disciplined Survivor, Iron Mind, Otherworldly Glamour, Bonus Skills, Body and Mind) and two arts
+// (Telepathic, Tavern Brawler) carry bar:true; the free off-list spell picks of Eldritch Knight and Arcane Trickster
+// (DATA.spellGrants.choiceGrants) carry bar:true and ownedChoiceGrants() skips them. Bard: Magical Secrets was UNBARRED in v0.384 (owner
+// decision BO1, feat/magical-secrets-list-widening): a list-widening only (widenedLists), price unchanged, still no free picks. bar never touches pricing: a character that already
 // owns one keeps the same price and replays unchanged. The two epic boons Boon of Fortitude and Boon of Skill are deliberately NOT barred.
 // Pure Node. Run: node testing/scripts/barred-grants-ci.mjs
-import { DATA, compute, baseBuild, ownedChoiceGrants, grantedSpells } from '../../js/engine.js';
+import { DATA, compute, baseBuild, ownedChoiceGrants, grantedSpells, widenedLists } from '../../js/engine.js';
 
 let pass = 0, fail = 0;
 const ok = (c, n, x) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (x ? ' — ' + x : '')); } };
@@ -13,8 +14,8 @@ const mk = (cls, extra) => Object.assign(baseBuild(), { originClass: cls, hd: 20
 const total = b => compute(b).total;
 
 const FEATS = { 'Monk: Disciplined Survivor (Focus)': 'Monk', 'Ranger: Iron Mind': 'Ranger', 'Ranger: Otherworldly Glamour': 'Ranger',
-  'Bard: Bonus Skills': 'Bard', 'Bard: Magical Secrets': 'Bard', 'Monk: Body and Mind': 'Monk' };
-const ARTS = ['Telepathic', 'Tavern Brawler'], GRANTS = ['Bard: Magical Secrets', 'Fighter: Eldritch Knight', 'Rogue: Arcane Trickster'];
+  'Bard: Bonus Skills': 'Bard', 'Monk: Body and Mind': 'Monk' };
+const ARTS = ['Telepathic', 'Tavern Brawler'], GRANTS = ['Fighter: Eldritch Knight', 'Rogue: Arcane Trickster'];
 
 console.log('== the flags');
 for (const k of Object.keys(FEATS)) ok(DATA.features[k] && DATA.features[k].bar === true, k + ' is bar:true');
@@ -26,7 +27,7 @@ ok(!DATA.spellGrants.choiceGrants['Wizard: Spellbook'].bar, 'Wizard: Spellbook i
 
 console.log('== an owner keeps their price (bar never reprices)');
 const PRICE = { 'Monk: Disciplined Survivor (Focus)': [19, 30], 'Ranger: Iron Mind': [11, 18], 'Ranger: Otherworldly Glamour': [9, 14],
-  'Bard: Bonus Skills': [9, 14], 'Bard: Magical Secrets': [13, 22], 'Monk: Body and Mind': [19, 32] };
+  'Bard: Bonus Skills': [9, 14], 'Monk: Body and Mind': [19, 32] };
 for (const [k, cls] of Object.entries(FEATS)) {
   const own = total(mk(cls, { features: [k] })) - total(mk(cls));
   const other = total(mk('Wizard', { features: [k] })) - total(mk('Wizard'));
@@ -54,6 +55,23 @@ for (const [n, b] of [['Eldritch Knight', ek], ['Arcane Trickster', at], ['Magic
   DATA.spellGrants.choiceGrants['Fighter: Eldritch Knight'].bar = saved;
 }
 ok(total(ek) === total(mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' } })), 'naming grant spells changes no price');
+
+console.log('== Bard: Magical Secrets is back, as a list-widening only');
+const MS = 'Bard: Magical Secrets', msg = DATA.spellGrants.choiceGrants[MS];
+ok(!DATA.features[MS].bar && !msg.bar, 'Magical Secrets is not barred (feature or grant)');
+ok(DATA.featureList.indexOf(MS) >= 0, 'Magical Secrets is back in featureList (search-all)');
+ok(total(mk('Bard', { features: [MS] })) - total(mk('Bard')) === 13, 'Magical Secrets costs 13 to a Bard (price unchanged)');
+ok(total(mk('Wizard', { features: [MS] })) - total(mk('Wizard')) === 22, 'Magical Secrets costs 22 to another class (price unchanged)');
+ok(msg.widen === 'Bard' && ownedChoiceGrants(ms).length === 0, 'it is a widening, not a free-pick block');
+const wb = (hd, features) => mk('Bard', { hd, features: features || [MS] });
+ok(JSON.stringify(widenedLists(wb(10), 'Bard')) === JSON.stringify(['Cleric', 'Druid', 'Wizard']), 'at 10 HD the Bard pool gains Cleric, Druid, Wizard', JSON.stringify(widenedLists(wb(10), 'Bard')));
+ok(widenedLists(wb(9), 'Bard').length === 0, 'at 9 HD nothing is widened (the level gate)');
+ok(widenedLists(wb(12, []), 'Bard').length === 0, 'without the feature nothing is widened');
+ok(widenedLists(wb(12), 'Wizard').length === 0 && widenedLists(wb(12), 'Cleric').length === 0, 'only the Bard discipline is widened');
+{ // mutation control: the bar flag on the grant switches the widening off
+  msg.bar = true; ok(widenedLists(wb(12), 'Bard').length === 0, 'control: a barred grant widens nothing'); delete msg.bar;
+}
+ok(total(ms) === total(mk('Bard', { features: [MS] })), 'naming spells under Magical Secrets changes no price');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
