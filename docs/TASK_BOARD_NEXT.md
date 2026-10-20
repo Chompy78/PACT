@@ -1683,20 +1683,29 @@ both tools pass the full kind list. Do not change what a `names` event means or 
 **Done when:** a CharGen character with a Warlock Mystic Arcanum slot can name it in ✎ Name spells & languages, the name survives Save and reload and shows in Live Sheet's dialog; the gate's CharGen kind list includes Arcanum; `engine-parity.html` 0 failed; the CharGen e2e for the names dialog covers an Arcanum slot.
 
 
-## pact-guide master — reconcile Heroic Inspiration with Twofold / Threefold Inspiration and Blazing Moment 18+ (PR #681) — TODO
-Branch `docs/guide-master-heroic-inspiration`. **Effort:** medium · **Risk:** medium — ambiguity drives it (the master states a rule the
-new boons contradict, and which side wins is the owner's call); damage scale is low (display only) but a transfer from the master today silently drops the change.
+## feat/chargen-merge-not-rewrite — CharGen's remaining whole-log rebuild paths merge into the existing history instead of rewriting it (creation-lock "Part 1b") — TODO
+Branch `feat/chargen-merge-not-rewrite`. **Effort:** high · **Risk:** high — damage scale (CharGen's central load/edit path in a ~600 KB file; a wrong merge silently drops or duplicates history on a live character) and ambiguity (it overlaps `fix/chargen-post-lock-purchases` above, and how much of "Part 1b" that task already covers has not been checked).
 ```
-PR #681 (rules v0.378, D-GH-2026-10-20-heroic-inspiration-boons) added the boons Twofold Inspiration (HD 3, 7 AP) and Threefold Inspiration (HD 5, 10 AP, needs
-Twofold) and moved Blazing Moment to an 18+ reroll (still 14 AP). This repo's served docs/PACT-Players-Guide.html has them; the pact-guide MASTER does not, on purpose:
-  - the master says, in prose, "You can never hold more than one Heroic Inspiration at a time" — the opposite of the new boons;
-  - its fortune-boon section has diverged from the engine (Defiant Spark, Undying Ember, a different Renewed Fire wording, Blazing Moment moved) — see
-    pact-guide/plans/engine-sync-2026-08-27-fortune-boons.md and the related task "The pact-guide master has drifted far behind the served Players Guide" above.
-DO: get the owner's call first — (a) rewrite the "never more than one" rule and add the two boons + the 18+ wording to the master, or (b) fold them into the
-fortune-boons reconciliation (which may change the engine's boon set too). Then make the edit in pact-guide via the home-server connector (project key
-pact-guide), run testing/scripts/verify-guide.mjs, guide-price-check.mjs and guide-table-diff.mjs against the result, and transfer per docs/VERSION-SYNC.md.
-If the owner picks (b), the engine side needs its own rules change and DATA.version bump — do not edit the engine under this task.
+What is left of the old "Creation-lock integrity" task (its repair, server guard and stale-copy fix all shipped 2026-10-04 — see CHANGELOG, and
+decisions/2026/D-GH-2026-10-01-creation-lock-integrity.md): CharGen still has paths that rebuild the whole LOG from the form and replace the loaded
+one, which is how locks, awards, seals and purchase lines were lost. As of origin/preview 2026-10-20, replaceWholeLogFromBuild() is still called from
+applyBuild() (~line 5191), ~line 6256 and the initial LOG bootstrap (~line 7624) in tools/PACT-CharGen-Webtool.html (line numbers drift — grep).
+Named in the original plan (docs/plans/2026-10-01-creation-lock-integrity.md, "M1 merge identity keys"): the random roll, `#b=` share links, and
+legacy / untagged imports.
+DO, in this order — this is big and risky, so do NOT start by editing:
+  1. Read-only audit: for each caller of replaceWholeLogFromBuild(), say whether it can still reach a character that has a creationLocked / award /
+     sessionSeal event, and what it does to those. Note what #553, #643 (Randomise keeps the id and keeps its lock entries in order) and the 2026-10-04
+     stale-copy fix already closed.
+  2. Compare with `fix/chargen-post-lock-purchases` and `docs/plans/2026-10-04-chargen-post-lock-purchases.md`: if that task's plan already merges these paths,
+     close this one into it; if not, list exactly which paths remain.
+  3. For what remains, draft a self-contained plan for a cold reviewer (AGENTS.md: /make-code-cold-plan-review) BEFORE implementing.
+  4. Then merge-not-rewrite, using the identity keys in the plan, plus refuse re-rolling a finished (locked) character.
 ```
-**Done when:** the pact-guide master carries Twofold Inspiration, Threefold Inspiration and Blazing Moment's 18+ wording with its "never more than one" rule rewritten to
-match (or the fortune-boons reconciliation has settled the set and the engine and both guide copies agree), and `guide-table-diff.mjs` reports the served copy and
-the master identical on those rows.
+**Done when:** the audit and the comparison with `fix/chargen-post-lock-purchases` are written down; every remaining whole-log rebuild path keeps a locked character's
+creationLocked / award / sessionSeal / purchase events (or is shown unable to reach one); re-rolling a finished character is refused; a test per path loads a
+locked character through it and asserts the lock events survive; `engine-parity.html` 0 failed; `chargen-flows-e2e.mjs` passes.
+
+**Carried over from the old entry, NOT part of this task (each is its own small task if wanted):** `_cgSyncAward()` relocates a burst-shaped award once on
+load; the server guard does not yet stop moving a post-lock purchase to before the lock (review H3); `random-manual-e2e.mjs` does not use the shared browser
+launcher; scan other campaigns for the same lock-loss pattern; four free-API cold reviews of the original plan (need `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
+`GROQ_API_KEY`, `DEEPSEEK_API_KEY`).
