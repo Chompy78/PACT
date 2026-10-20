@@ -258,6 +258,14 @@ check('engine: drawbackCountAdvice:false switches it off', !has({ drawbackCountA
 check('engine: purchaseLegality honours it too',
   !E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }, { drawbackCountAdvice: false }).warnings.some(w => /drawbacks chosen/.test(w))
   && E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }).warnings.some(w => /drawbacks chosen/.test(w)));
+// chore/racialfx-single-source: the racial-trait blurbs live in js/engine-data.js once; no tool re-defines them.
+{
+  const fx = E.DATA.racialFx || {};
+  check('racialFx: one map in the engine data, all 40 old blurbs plus the engine\'s own 3 extras', Object.keys(fx).length === 43 && fx['Goliath: Powerful Build'] && fx['Gnome: Rock Clockwork Device'], String(Object.keys(fx).length));
+  const dups = ['tools/PACT-CharGen-Webtool.html', 'tools/PACT-Live-Char-Sheet.html', 'tools/DM-Console.html']
+    .filter(f => /DATA\.racialFx\s*=/.test(fs.readFileSync(path.join(REPO, f), 'utf8')));
+  check('racialFx: no tool assigns its own copy', dups.length === 0, dups.join(', '));
+}
 if (C) {
   check('campaign rule: absent means on', C.drawbackCountAdviceFromRules({}) === undefined && C.drawbackCountAdviceFromRules(null) === undefined);
   check('campaign rule: false switches it off', C.drawbackCountAdviceFromRules({ drawbackCountAdvice: false }) === false);
