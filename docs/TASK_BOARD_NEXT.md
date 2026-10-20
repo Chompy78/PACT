@@ -1680,7 +1680,7 @@ MEASURE FIRST: live owners of each.
 ```
 **Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
 
-## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — DECISION NEEDED
+## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BJ, BK decided; BH to confirm; BI moved)
 Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
 
 ```text
@@ -1700,6 +1700,11 @@ OVERLAP: BH is the same defect as fix/audit-free-spell-picks; BI covers Bonus Sk
       BK2: leave them as description text only.
 MEASURE FIRST (each decision): query live `characters` for owners (stats::text ilike) before changing anything; an event-sourced character keeps its frozen ledger, so keep each owner's total unchanged with a grandfathered grant as Primal Order did, or list them for the owner.
 ```
+**Owner answers, 2026-10-20 (same day):**
+- **BH: BH1, provisionally.** Since #691 (v0.382) the free picks are already switched off (`choiceGrants[k].bar`). What is left: Eldritch Knight and Arcane Trickster already reach Wizard spells by buying the Wizard discipline, so they likely need no grant at all. Magical Secrets (barred by #691) is the only real list-widening: a Bard discipline's bought spells may come from the Cleric, Druid and Wizard lists. Confirm with the owner, then decide whether to delete the three `choiceGrants` entries.
+- **BI: one ability at a time.** All three are now barred by #691, so do this inside `chore/review-barred-abilities`, not here.
+- **BJ: the speed traits stay so another species can buy them as a cross-race trait at creation, as with Goliath.** Probe on v0.382: Goliath has the same flaw. A Goliath (base speed 35) buying `Goliath: Long Stride (Speed 35)` pays 4 AP for nothing, exactly like a Wood elf buying `Elf: Wood Elf speed` (total 7 → 11, speed stays 35); a Human buying Long Stride correctly gets 35. Fix both in one pass: refuse (⛔ warning plus hide in the trait menus) any `spdSet` trait whose speed is not above the character's current speed from species and lineage. Measure live owners first.
+- **BK: BK1.** The engine applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants (Monk, Barbarian, Speedy, Boon of Speed) in compute(). Boon of Fortitude overlaps `fix/audit-text-only-grants`.
 **Done when:** BH, BI, BJ and BK each have the owner's answer in a decision record; each is implemented (here or in the overlapping task named above) in the engine AND the Players Guide (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a test per item proves the new grant or price; live owners' totals are unchanged or listed for the owner; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
 
 ## chore/decide-spell-invocation-pricing — spell-granting Warlock invocations and similar features are priced by tier, not by the spell they give — DECISION NEEDED
