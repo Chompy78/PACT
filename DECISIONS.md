@@ -38,6 +38,9 @@
 ## D-GH-2026-10-20-magical-secrets-list-widening — Bard Magical Secrets is back, as a list-widening only
 - Rules v0.384. Owner decision BO1: unbar it, keep the price, switch off the free picks for good. `widenedLists()` adds the Cleric, Druid and Wizard lists (leveled spells) to the Bard discipline's pool from 10 HD.
   Full record: `decisions/2026/D-GH-2026-10-20-magical-secrets-list-widening.md`.
+## D-GH-2026-10-20-epic-boon-escalating-price — each epic boon costs more than the one before (25, 30 … 135)
+- Rules v0.385. Owner pick S1 (step table, order bought). Hit Die gate confirmed 19 against the 2024 text; the Guide's 17 was the error.
+  Full record: `decisions/2026/D-GH-2026-10-20-epic-boon-escalating-price.md`.
 
 ## D-GH-2026-10-20-speed-trait-no-gain — a speed trait that would not raise your speed can't be bought (Goliath, Wood elf)
 - Rules v0.383. Owner decision BJ: the traits stay for other species at creation; `speedTraitAddsNothing()` warns on an owned one and the purchase check refuses a new one. Prices unchanged.
