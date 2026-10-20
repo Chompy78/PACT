@@ -1729,18 +1729,3 @@ Branch ui/show-granted-proficiencies. **Effort:** low · **Risk:** low — displ
 DO: show a granted flag as ticked-and-locked with a "from Warden" note, and never write it into the build (CharGen emits a `wprof` patch from the boxes — it must not include a granted flag).
 ```
 **Done when:** a Warden character sees the four boxes ticked and locked in CharGen and as owned in the Live Sheet; saving and reloading leaves `weaponProf` / `armour` exactly as bought (no granted flag in the log); `chargen-flows-e2e` and a new case in `feature-cantrip-picker-e2e.mjs` (or a sibling) cover it.
-
-## fix/roller-silent-fallbacks — the roller still skips a Ranger's signature feature, and drops the DM creation cap, without saying so — TODO
-Branch `fix/roller-silent-fallbacks`. Found by the "look for a third silent fallback" audit of `randomizeRoll()` (2026-10-20), after the Grit/Hit-Dice `_lvlCap` fallback and the `--budgets` fallback. **Effort:** low · **Risk:** low — ambiguity is low-to-medium (which Ranger feature is the signature is a small owner call); damage scale is low (roller output only); damage likelihood is low.
-```
-Two quiet failures in tools/PACT-CharGen-Webtool.html randomizeRoll():
-1. buyClassIdentity()'s SIGNATURE table names 'Ranger: Weapon Mastery', but DATA.features['Ranger: Weapon Mastery'] carries bar:true (barred from purchase), so the
-   guard `if(!f || f.inv || f.hidden || f.bar) return;` skips it silently and EVERY rolled Ranger gets no signature feature. All other 11 classes' names resolve and are
-   buyable (checked against js/engine-data.js 2026-10-20). Pick a buyable Ranger signature (Ranger: Fighting Style, tier 2, is the cheapest; confirm with the owner), and
-   make the guard LOUD for a table entry that exists but is unbuyable or missing (throw, or a CI failure), instead of returning. Add a random-quality-ci.mjs check that
-   every SIGNATURE entry resolves to a buyable feature, and one that a seeded Ranger roll owns a class feature.
-2. The creation-ceiling lookup `try{ const _ce=creationCeiling(LOG,_cgCeilOpts()); ... }catch(e){}` swallows any error and then rolls UNCAPPED, overshooting a DM-set
-   limit the render() check will refuse. Let it fail loudly (flash + rethrow) or fall back to the CURRENT spendable only with a visible message.
-Do not change what any feature costs. No DATA.version bump.
-```
-**Done when:** a seeded Ranger roll owns a class feature; `random-quality-ci.mjs` fails if a SIGNATURE entry stops resolving to a buyable feature; a creationCeiling error surfaces to the user instead of producing an uncapped roll; `random-quality-ci.mjs` and `engine-parity-ci.mjs` pass.

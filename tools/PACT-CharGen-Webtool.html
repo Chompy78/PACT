@@ -5970,7 +5970,12 @@ function randomizeRoll(themeKey,lvlWanted){
   try{
     const _ce=creationCeiling(LOG,_cgCeilOpts());
     if(_ce.enforced&&!_ce.locked&&_ce.ceiling<_spendable)_capBase=_ce.base;
-  }catch(e){}
+  }catch(e){
+    // NO SILENT UNCAP. Swallowing this rolled with no cap at all, overshooting a DM-set limit the render()
+    // check then refuses edits past (fix/roller-silent-fallbacks). Say so and stop rather than guess.
+    if(typeof flash==='function')flash('🎲 Roll aborted — could not read the creation limit ('+(e&&e.message||e)+').');
+    throw e;
+  }
   let budget=(_capBase!=null)?Math.min(_spendable,_capBase+(compute(b,_dmO).drawbackAp||0)):_spendable;
   const C=x=>compute(x,_dmO);
   const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
@@ -6227,7 +6232,7 @@ function randomizeRoll(themeKey,lvlWanted){
       Barbarian:'Barbarian: Rage', Rogue:'Rogue: Sneak Attack', Fighter:'Fighter: Second Wind',
       Druid:'Druid: Wild Shape', Monk:'Monk: Martial Arts die', Paladin:'Paladin: Lay on Hands',
       Cleric:'Cleric: Channel Divinity', Bard:'Bard: Bardic Inspiration die',
-      Ranger:'Ranger: Weapon Mastery', Sorcerer:'Sorcerer: Innate Sorcery',
+      Ranger:'Ranger: Fighting Style', Sorcerer:'Sorcerer: Innate Sorcery',
       Warlock:'Warlock: Magical Cunning', Wizard:'Wizard: Arcane Recovery',
       // Names verified against engine-data.js on 2026-09-07 rather than assumed from memory. A wrong
       // name fails silently — the first pass invented "Warlock: Eldritch Invocations", "Ranger:
@@ -6237,7 +6242,14 @@ function randomizeRoll(themeKey,lvlWanted){
     const want = SIGNATURE[b.originClass];
     if(!want) return;
     const f = DATA.features[want];
-    if(!f || f.inv || f.hidden || f.bar) return;            // not a real, buyable feature here
+    // NO SILENT SKIP. This guard used to just `return`, and the table named 'Ranger: Weapon Mastery', which is
+    // barred from purchase (bar:true), so every rolled Ranger came out with no class feature and nothing said
+    // so (found 2026-10-20, fix/roller-silent-fallbacks). A class that has a signature entry must resolve to a
+    // buyable feature; if it stops doing so (a rename, a new bar) the roll fails loudly, like the apLevel() check.
+    if(!f || f.inv || f.hidden || f.bar){
+      if(typeof flash==='function')flash('🎲 Roll aborted — the signature feature for '+b.originClass+' ("'+want+'") is missing or not buyable.');
+      throw new Error('randomizeRoll: SIGNATURE["'+b.originClass+'"]="'+want+'" is not a buyable feature in DATA.features.');
+    }
     if((b.features||[]).includes(want)) return;
     tryAct(x=>{ x.features.push(want); }, 'powers');         // still budget- and warning-checked
   })();
