@@ -1680,7 +1680,7 @@ MEASURE FIRST: live owners of each.
 ```
 **Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
 
-## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BJ, BK decided; BH to confirm; BI moved)
+## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BH, BJ, BK decided; BI moved)
 Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
 
 ```text
@@ -1701,7 +1701,7 @@ OVERLAP: BH is the same defect as fix/audit-free-spell-picks; BI covers Bonus Sk
 MEASURE FIRST (each decision): query live `characters` for owners (stats::text ilike) before changing anything; an event-sourced character keeps its frozen ledger, so keep each owner's total unchanged with a grandfathered grant as Primal Order did, or list them for the owner.
 ```
 **Owner answers, 2026-10-20 (same day):**
-- **BH: BH1, provisionally.** Since #691 (v0.382) the free picks are already switched off (`choiceGrants[k].bar`). What is left: Eldritch Knight and Arcane Trickster already reach Wizard spells by buying the Wizard discipline, so they likely need no grant at all. Magical Secrets (barred by #691) is the only real list-widening: a Bard discipline's bought spells may come from the Cleric, Druid and Wizard lists. Confirm with the owner, then decide whether to delete the three `choiceGrants` entries.
+- **BH: decided (owner, 2026-10-20).** The Eldritch Knight and Arcane Trickster free spell picks stay barred for good; those subclasses reach Wizard spells by buying the Wizard discipline. (Already in effect since #691, v0.382, via `choiceGrants[k].bar`; a later clean-up may delete the two entries.) Magical Secrets is being explored separately: it is a 13 / 22 AP (T5, 10 HD) list-widening for the Bard discipline, now barred, and its future is decided under `chore/review-barred-abilities`.
 - **BI: one ability at a time.** All three are now barred by #691, so do this inside `chore/review-barred-abilities`, not here.
 - **BJ: the speed traits stay so another species can buy them as a cross-race trait at creation, as with Goliath.** Probe on v0.382: Goliath has the same flaw. A Goliath (base speed 35) buying `Goliath: Long Stride (Speed 35)` pays 4 AP for nothing, exactly like a Wood elf buying `Elf: Wood Elf speed` (total 7 → 11, speed stays 35); a Human buying Long Stride correctly gets 35. Fix both in one pass: refuse (⛔ warning plus hide in the trait menus) any `spdSet` trait whose speed is not above the character's current speed from species and lineage. Measure live owners first.
 - **BK: BK1.** The engine applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants (Monk, Barbarian, Speedy, Boon of Speed) in compute(). Boon of Fortitude overlaps `fix/audit-text-only-grants`.
