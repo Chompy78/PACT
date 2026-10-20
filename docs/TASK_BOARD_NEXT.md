@@ -1680,6 +1680,28 @@ MEASURE FIRST: live owners of each.
 ```
 **Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
 
+## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — DECISION NEEDED
+Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
+
+```text
+FOUND 2026-10-20 by a grants audit (a subagent probed compute() for 2024 abilities that hand out something PACT sells for AP). PACT's rule: a feature that only hands out something PACT already sells is removed or barred, and the thing is bought on its own ladder. Owner decides each of the four below; recommendations as given in the session that found them.
+OVERLAP: BH is the same defect as fix/audit-free-spell-picks; BI covers Bonus Skills, Iron Mind and Boon of Skill, three of the five in fix/audit-saves-and-skills (see also fix/gloom-stalker-iron-mind-decision); Boon of Fortitude's HP in BK is in fix/audit-text-only-grants. Record the owner's answer HERE, then do the work in whichever of those tasks owns it (one DATA.version bump per branch). BJ and the AC/speed half of BK are covered only by this task.
+  BH. Free choice-grant spells. Eldritch Knight, Arcane Trickster and Bard Magical Secrets let a character name 6 free spells of any level (a free Eldritch Knight with no spellcasting tradition bought can name Shield, Fireball, Counterspell). The Guide says these are barred and bought in the spell economy.
+      BH1 (recommended — matches the Guide, closes a free-spell route): the grant only widens which list the character's BOUGHT spells may come from; the 6 free picks go. Check live characters for named grant spells first.
+      BH2: keep the free spells and give them a price.
+  BI. Paid features that add nothing: Bard College of Lore Bonus Skills (9 AP, no skills), Gloom Stalker Iron Mind (11 AP, no save), Boon of Skill (25 AP, no skills).
+      BI1 (recommended — matches the Guide's own Iron Mind "Barred (to saves)" entry): bar them as Primal Order was (D-GH-2026-10-20-primal-order-magician-warden); existing owners keep what they bought.
+      BI2: make them grant their skills or save through the free-proficiency path #688 built (free, counted first).
+  BJ. Wood Elf speed is paid twice: the Wood lineage already gives speed 35, so the 4 AP speed trait changes nothing for a Wood elf.
+      BJ1 (recommended — smallest change, no one's current speed moves): refuse, or warn, when a Wood elf buys the trait.
+      BJ2: drop the free 35 from the Wood lineage so the 4 AP trait is the only route (what the Guide implies; changes compute() output).
+  BK. Grants the sheet never applies: Dazzling Footwork's AC, Boon of Fortitude's +40 HP, and every speed grant (Monk Unarmored Movement, Barbarian Fast Movement, Speedy, Boon of Speed).
+      BK1 (recommended — a correctness fix with no rules choice behind it): the engine applies them (AC, HP, speed) in compute(); needs a DATA.version bump and parity fixtures.
+      BK2: leave them as description text only.
+MEASURE FIRST (each decision): query live `characters` for owners (stats::text ilike) before changing anything; an event-sourced character keeps its frozen ledger, so keep each owner's total unchanged with a grandfathered grant as Primal Order did, or list them for the owner.
+```
+**Done when:** BH, BI, BJ and BK each have the owner's answer in a decision record; each is implemented (here or in the overlapping task named above) in the engine AND the Players Guide (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a test per item proves the new grant or price; live owners' totals are unchanged or listed for the owner; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
+
 ## chore/decide-spell-invocation-pricing — spell-granting Warlock invocations and similar features are priced by tier, not by the spell they give — DECISION NEEDED
 Branch chore/decide-spell-invocation-pricing. **Effort:** low (the decision) · **Risk:** low until a rule is chosen — then high.
 
