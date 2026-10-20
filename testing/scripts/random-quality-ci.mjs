@@ -166,7 +166,7 @@ window._qaRoll=function(themeKey,budget,forceClass){
     hardy:+b.hardy||0, tough:+b.tough||0,
     slots:(((((b.traditions||[])[0]||{}).disciplines||[])[0])||{}).slots||[],
     pactSlots:(((((b.traditions||[])[0]||{}).disciplines||[])[0])||{}).pactSlots||0,
-    nRacial:(b.racialTraits||[]).length, nDraw:(b.drawbacks||[]).length,
+    features:(b.features||[]).slice(), nRacial:(b.racialTraits||[]).length, nDraw:(b.drawbacks||[]).length,
     boonCats:catsOf(b.boons,DATA.boons), artCats:catsOf(b.arts,DATA.arts),
     kit:[].concat((b.skills||[]).map(function(x){return 's:'+x;}),
                   (b.boons||[]).map(function(x){return 'b:'+x;}),
@@ -392,6 +392,23 @@ try {
   const trainedWarlocks = warlocks.filter(r => r.armour.light || r.armour.medium || r.armour.heavy);
   check(`a rolled Warlock usually has armour training (${trainedWarlocks.length}/${warlocks.length} seeded rolls)`, trainedWarlocks.length >= warlocks.length * 0.7,
     `${warlocks.length - trainedWarlocks.length}/${warlocks.length} bought none`);
+
+  // ---- every class's signature feature must actually be bought (fix/roller-silent-fallbacks) ----
+  // The roller's SIGNATURE table once named a feature that is barred from purchase ('Ranger: Weapon Mastery'), and the
+  // guard skipped it silently, so every Ranger came out with no class feature. One seeded roll per class, at the Lv10
+  // budget, must own at least one feature of its own class; and the roller now throws if the table goes stale.
+  const classNames = await cg.evaluate(`DATA.classes.slice()`);
+  const featureless = [];
+  try {
+    for (const cls of classNames) {
+      await cg.evaluate(`__seed(7)`);
+      const r = await cg.evaluate(`_qaRoll("bruiser",${BUDGETS[1]},${JSON.stringify(cls)})`);
+      const own = await cg.evaluate(`${JSON.stringify(r.features)}.filter(function(f){return (DATA.features[f]||{}).cls===${JSON.stringify(cls)};}).length`);
+      if (!own) featureless.push(cls);
+    }
+  } finally { await cg.evaluate(`Math.random=window.__realRandom;true`); }
+  check(`every class's roll owns a feature of its own class (${classNames.length} classes)`, featureless.length === 0,
+    'no class feature bought for: ' + featureless.join(', '));
 
   // ---- the roll panel's preview strip must be DERIVED from the theme, not restated by hand ----
   // The strip tells the player what a theme will do before they commit to it. If it were ever hand-written
