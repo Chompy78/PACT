@@ -121,6 +121,7 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
 }
 #lmobar{display:none}
 .colgrip{display:none}@media(min-width:1001px){.colgrip{display:block}}
+.bxbtn{display:none}   /* ⤢ Expand on the Buy panel: hidden here, shown by the desktop block below */
 .topname,.h1short{display:none}
 /* feat/livesheet-center-panel: on desktop the Buy and History panels fold to a thin strip (click the heading),
    and the Character panel widens into the space. Phones keep the M8 fold above. Remembered per browser. */
@@ -145,6 +146,16 @@ body{font-family:'Segoe UI',Calibri,Arial,sans-serif;color:var(--ink);background
  .colgrip:hover::after,.colgrip:focus-visible::after,.colgrip.drag::after{background:var(--blue)}
  .layout>.card:nth-child(1)>.colgrip{right:-11px}
  .layout>.card:nth-child(3)>.colgrip{left:-11px}
+ /* feat/livesheet-buy-fullpage: ⤢ Expand on the Buy panel makes it the whole page (Character and History hide), its
+    categories laid out in as many columns as fit. The AP bar above .layout stays put. Desktop only — phones already show
+    Buy full width. !important: the fold's :has() grid rules above are more specific. */
+ .bxbtn{display:inline-block;position:absolute;top:8px;right:10px;font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--lt);color:var(--navytx);cursor:pointer;z-index:6}
+ .bxbtn:hover,.bxbtn:focus-visible{background:var(--line)}
+ .layout.buyx{grid-template-columns:minmax(0,1fr) !important}
+ .layout.buyx>.card:not(:nth-child(1)){display:none}
+ .layout.buyx>.card:nth-child(1)>.colgrip{display:none}
+ .layout.buyx #buy{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;align-items:start}
+ .layout.buyx .bgcat{margin:0}
 }
 @media(max-width:600px){
  body{font-size:14px}
@@ -520,7 +531,7 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
   <span id="histwrap" style="margin-left:14px">Time-travel: <input type="range" min="0" value="0" step="1" id="tt" class="tt" style="width:240px;vertical-align:middle"> <span id="ttlabel"></span></span></span>
 </div>
 <div class="layout">
-  <div class="card"><h3 role="button" tabindex="0" title="Show or hide this panel" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Buy / progress</h3><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
+  <div class="card"><h3 role="button" tabindex="0" title="Show or hide this panel" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Buy / progress</h3><button type="button" class="bxbtn" id="buyExpandBtn" aria-pressed="false" title="Make Buy / progress fill the whole page">⤢ Expand</button><input id="buysearch" placeholder="search purchases… (e.g. skill, rage, vigor)" oninput="setBuyQuery(this.value)"><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setAffordOnly(this.checked)"> Affordable only (hide what I can't afford)</label><label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin:0 0 8px"><input type="checkbox" onchange="setHideUnavail(this.checked)"> Hide unavailable (hide what I can't buy yet)</label><div id="buy"></div></div>
   <div class="card"><h3 role="button" tabindex="0" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">Character</h3><div id="sheet"></div>
     <h3 style="margin-top:10px">Needs review</h3><div id="tray"></div></div>
   <div class="card"><h3 role="button" tabindex="0" title="Show or hide this panel" aria-expanded="true" onclick="this.parentElement.classList.toggle('clp');this.setAttribute('aria-expanded',this.parentElement.classList.contains('clp')?'false':'true')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">History &amp; ledger</h3>
@@ -1965,6 +1976,24 @@ function _lsPanelFoldInit(){
     new MutationObserver(function(){st[keys[i]]=c.classList.contains('clp')?1:0;try{localStorage.setItem('pactLsPanelFold',JSON.stringify(st));}catch(e){}}).observe(c,{attributes:true,attributeFilter:['class']});});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsPanelFoldInit);else _lsPanelFoldInit();
+// feat/livesheet-buy-fullpage: ⤢ Expand makes Buy / progress fill the page (desktop only; the button is hidden on phones, where
+// Buy is already one full-width column). Remembered per browser in 'pactLsBuyExpand', separate from the panel fold. Expanding
+// unfolds Buy first, since a folded Buy is only a strip.
+function _lsBuyExpandInit(){
+  var lay=document.querySelector('.layout'),btn=document.getElementById('buyExpandBtn'),card=lay&&lay.children[0];if(!lay||!btn||!card)return;
+  function set(on,save){
+    lay.classList.toggle('buyx',on);
+    if(on){card.classList.remove('clp');var h=card.querySelector('h3');if(h)h.setAttribute('aria-expanded','true');}
+    btn.setAttribute('aria-pressed',on?'true':'false');
+    btn.textContent=on?'⤡ Back to panels':'⤢ Expand';
+    btn.title=on?'Show the Character and History panels again':'Make Buy / progress fill the whole page';
+    if(save){try{localStorage.setItem('pactLsBuyExpand',on?'1':'0');}catch(e){}}
+  }
+  btn.addEventListener('click',function(){set(!lay.classList.contains('buyx'),true);});
+  var on=false;try{on=localStorage.getItem('pactLsBuyExpand')==='1';}catch(e){}
+  set(on,false);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',_lsBuyExpandInit);else _lsBuyExpandInit();
 // fix/livesheet-header-and-panel-width: widen Buy / History by dragging their inner edge (desktop only — the grips are hidden
 // below 1001px). Arrow keys nudge a focused grip; double-click resets to 300px. Remembered per browser.
 function _lsPanelWidthInit(){
@@ -3420,7 +3449,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeInfo();
   <!-- The rules version is painted from DATA.version in _lsBoot(), the same live read DM Console uses.
        It was hardcoded until 2026-08-06 and had drifted to v0.309 while the rules were v0.339. The
        literal below is only what shows if the engine bridge never fires. -->
-  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.385</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
+  <p style="margin-top:12px;font-size:11.5px;color:var(--grey,#666)">PACT <span id="lsRulesVer">v0.386</span> &middot; 2024 D&amp;D &middot; DragonReach Forge</p>
 </div></div>
 <script>
 // Moved from a persistent header span into the Info panel (D-GH-2026-08-08-header-declutter) — see

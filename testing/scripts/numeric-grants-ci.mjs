@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * PACT — grants the sheet now applies: Dazzling Footwork's AC, Boon of Fortitude's HP and the speed grants
- * (fix/apply-numeric-grants, rules v0.385, owner decision BK of the 2026-10-20 grants audit).
+ * (fix/apply-numeric-grants, rules v0.386, owner decision BK of the 2026-10-20 grants audit).
  *
  * WHY THIS EXISTS. Each of these was priced and described but compute() never added its number, so a player paid
  * for an AC, HP or speed bonus the sheet did not show. engine-parity pins AP totals and warnings, not AC/HP/speed,

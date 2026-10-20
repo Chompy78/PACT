@@ -1478,7 +1478,12 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=_fin(bo.ap);
+  // Epic boons escalate (feat/epic-boon-escalating-price, owner pick S1): the Nth printed epic boon a character holds, in the order
+  // bought, costs DATA.epicBoonSteps[N-1] (the last step repeats), so nobody buys all twelve cheaply. A blocked boon is not counted;
+  // a DM house-rules re-price of the boon wins over the step; only printed epic boons count (a DM custom boon never does).
+  let boonAP=0,_epicN=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}let _bc=_fin(bo.ap);
+    const _isEpic=!!(DATA.boons[lab]&&DATA.boons[lab].epic)&&!_blockedBoon.has(lab);
+    if(_isEpic){const _st=DATA.epicBoonSteps||[];if(!HRb[lab]&&_st.length)_bc=_fin(_st[Math.min(_epicN,_st.length-1)]);_epicN++;}
     if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(_prereqBlockedBoon.has(lab)?_boonPrereq(lab,bo).filter(function(r){return !_ownedBoonSet.has(r)||_blockedBoon.has(r);}).join(' & '):(Number(bo.hd)||1)+' Hit Dice')+' (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
     boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}

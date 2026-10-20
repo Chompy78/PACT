@@ -29,6 +29,7 @@ on:
       - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/prof-grants-ci.mjs"
       - "testing/scripts/barred-grants-ci.mjs"
+      - "testing/scripts/epic-boon-price-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "testing/scripts/lineage-spell-gates-ci.mjs"
       - "testing/scripts/stored-size-ci.mjs"
@@ -300,6 +301,9 @@ jobs:
 
       - name: Barred-for-now abilities keep their price and lose their free spell picks
         run: node testing/scripts/barred-grants-ci.mjs
+
+      - name: Each epic boon costs more than the one before
+        run: node testing/scripts/epic-boon-price-ci.mjs
 
   lineage-spell-gates:
     # fix/lineage-spell-gates (D-GH-2026-10-11-lineage-spell-gates, v0.373). Lineage spell-likes carry the PHB 2024 character
