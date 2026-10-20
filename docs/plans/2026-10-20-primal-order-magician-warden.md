@@ -1,6 +1,7 @@
 # Plan: split the Druid feature "Primal Order" into Magician and Warden
 
-Date: 2026-10-20 · Status: DRAFT for cold review · Supersedes: none (no prior plan covers Primal Order)
+Date: 2026-10-20 · Status: DRAFT for cold review, round 2 (round 1 outcome is at the bottom; the plan has grown
+since: Cleric Divine Order, free feat proficiency and a grandfathered grant were added) · Supersedes: none
 
 ## Goal
 Today the Druid feature "Primal Order" is a flat 5 AP purchase that does nothing at all. Replace it with the
@@ -41,7 +42,7 @@ warnings are always recomputed from that log by `compute()` and never stored. On
 only display what it returns. Rules text for players lives in a Players Guide HTML that must be changed in
 the same task as any mechanics change, or the task is not finished. `DATA.version` (the rules version) is
 bumped exactly once, in the engine, only when mechanics change. A test page (`engine-parity`) must report
-0 failed. The app has real users: 35 characters across 8 owners at the last count (a dated snapshot).
+0 failed. The app has real users: 40 characters at the last count, 2026-10-20 (a dated snapshot).
 
 ## Verified facts vs. assumptions
 **Verified (read in code or live data on 2026-10-20):**
@@ -80,18 +81,27 @@ bumped exactly once, in the engine, only when mechanics change. A test page (`en
    granting Warden's real benefit — all martial weapons and Medium armour — but NOT Simple weapons and NOT
    Light armour.** That is a state the normal ladder forbids (all-martial without Simple raises a warning;
    choosing Medium auto-charges Light), so this needs a grandfathered grant that skips the prerequisite warning
-   and the Light charge. Open: does it also skip the 8 + 4 AP for those two lines (keep them for the 5 AP
-   already paid), or charge them? And the sheet code that reads proficiency (weapon and armour display, armour
-   eligibility) must see the grant. Apply `bar:true` to `Cleric: Divine Order (Protector/Thaumaturge)` too. Update the places that list feature names (the `FEAT_PG`
-   page-number maps in CharGen and Live Sheet, and the feature-order lists).
+   and the Light charge. **Owner decision Z1: it adds no further charge — the 5 AP already paid covers the
+   martial and Medium parts** (the one deliberate exception to the "no undercut" principle, for one character
+   who bought it in good faith). The sheet code that reads proficiency (weapon and armour display, armour
+   eligibility) must see the grant. Apply `bar:true` to `Cleric: Divine Order (Protector/Thaumaturge)` too.
+   Update the places that list feature names (the `FEAT_PG` page-number maps in CharGen and Live Sheet, and
+   the feature-order lists).
 3. **Engine:** in `compute()`, before the proficiency lines are priced, treat a build owning the Warden key as
    if `weaponProf.simple`, `weaponProf.allMartial`, `armour.light` and `armour.medium` were set. Add Magician's
-   cantrip grant and its skill bonus (location to be decided in review).
+   cantrip grant and its skill bonus (location to be decided in review). Do the same for Cleric Protector
+   (adding `armour.heavy`) and Thaumaturge. Add the grandfathered legacy grant described in step 2. Add the
+   free feat proficiency: feats that grant one (Chef, Crafter, Musician) add it to the tools/instruments or
+   skills list at compute time, counted first, so paid cost = table price(paid + free) - table price(free).
 4. Bump `DATA.version` once. Do not change the BUILD number (that happens at release promotion).
 5. **Tests:** add fixtures: (a) Druid with Warden alone totals 15 AP across the two proficiency lines;
    (b) Warden after Simple and Light adds only the remainder; (c) Warden plus separately bought martial/Medium
-   charges nothing extra; (d) an old-style log with `Druid: Primal Order` still replays at 5 AP, grants no proficiency, and cannot be
-   bought again.
+   charges nothing extra; (d) an old-style log with `Druid: Primal Order` still replays at 5 AP, grants all
+   martial weapons and Medium armour but not Simple or Light, raises no warning, and cannot be bought again;
+   (e) Warden dropped after Simple was bought separately leaves Simple in place (only if a removal path
+   exists); (f) a character with Musician: the instrument is present, is counted first, and the next tool
+   costs the higher table price; (g) Cleric Protector totals about 21 AP across the lines; (h) a Cleric and a
+   Druid log from before the change still replay with no "no longer in the rules data" warning.
    Update `testing/expected/` if existing output changes.
 6. **Guide:** change the Druid feature table row and add prose for both choices, in the served guide copy and
    in the separate master; verify the two stay consistent with the repo's guide-check script.
@@ -120,30 +130,36 @@ the rate-limiting and AP-model work already on the board.
   design choice the owner accepted, but the guide must not imply a discount.
 - **The live player's character stays unchanged** (legacy item at 5 AP). Verified 2026-10-20: they own no Simple
   weapons and no armour, are at Hit Die 3 with Strength 10, and have roughly 80 AP unspent (rough arithmetic:
-  79 base + 105 awarded - about 103 recorded spend). Open: how they later swap the legacy item for Warden, which
-  would cost 15 AP in proficiency lines. **Decision (owner, 2026-10-20): use the existing DM discount, not a new
-  removal event.** Verified: the engine has no way to remove a purchased feature (`dmRemoveBoon` is boons only,
-  no refund), but the shipped `dmDiscount` event (DM-only, any priced purchase, up to its full price, AP only,
-  never alters the build; the migration is applied in production and one live discount exists) lets the
-  campaign DM discount the legacy purchase by 100%. The player then buys Warden normally. The legacy purchase
-  stays on the sheet as a zero-cost item that grants nothing; it still counts at full price as AP value
-  (owner decision B1 of the discount feature). No engine change is needed for this.
+  79 base + 105 awarded - about 103 recorded spend). Under decision Y1/Z1 the legacy item keeps granting all
+  martial weapons and Medium armour (not Simple, not Light) for the 5 AP already paid, so no swap is needed.
+  Any build that owns the legacy key gets the same grant. If a DM ever wants to move that player to the new
+  Warden, the shipped `dmDiscount` event (DM-only, any priced purchase, up to its full price, AP only, never
+  alters the build; migration applied in production, one live discount exists) can discount the legacy
+  purchase by 100%; the engine has no way to remove a purchased feature (`dmRemoveBoon` is boons only).
+- **The grandfathered grant is a one-off state the ladder forbids** (martial without Simple, Medium without
+  Light). It must not leak: it applies only to the legacy key, and the new Warden/Protector keys use the
+  normal flags and prices.
+- **Free feat proficiency reverses a stated guide rule** ("counted last"); the guide must change with the
+  engine. No live character is affected, but local files could hold the feats.
+- Per owner decision AB1 the guide gets no new "loophole" rule; the DM's existing authority (the guide's
+  section on the DM's final say over any purchase) is relied on instead.
 - Removing a Warden purchase later removes the proficiencies it implied unless bought separately.
 - The Arcana/Nature bonus needs a place in the engine and the sheet display; if no clean one exists this
   grows beyond a small change.
 - Guide and engine must land together; the guide's master is a separate project.
 
 ## Verification
-- The parity test page reports 0 failed after fixtures (a)–(d) are added.
-- The guide price check reports no new mismatch for the Druid rows.
-- Replaying the real player's saved log (all four rows) produces no "no longer in the rules data" warning and
-  the expected feature appears as Magician.
+- The parity test page reports 0 failed after fixtures (a)–(h) are added.
+- The guide price check reports no new mismatch for the Druid and Cleric rows.
+- Replaying the real player's saved log (all four rows) produces no "no longer in the rules data" warning,
+  still totals the same AP, and shows all martial weapons and Medium armour but not Simple or Light.
 - Fixture (a) shows exactly 9 AP weapon proficiency plus 6 AP armour proficiency.
 
 ## Done when
-Both choices are purchasable and non-exclusive, Warden's proficiencies price at 15 AP total with no double
-charge, the existing player's purchase replays cleanly as Magician, rules version bumped once, tests pass, and
-guide (both copies) and changelog/decision record are updated.
+Both choices of Primal Order and of Divine Order are purchasable and non-exclusive, Warden prices at 15 AP and
+Protector at about 21 AP with no double charge, the existing player's purchase replays at the same total with
+martial weapons and Medium armour only, feats that grant a proficiency add it and make later ones dearer,
+rules version bumped once, tests pass, and guide and changelog/decision record are updated.
 
 ---
 ## Reviewer instructions
@@ -151,7 +167,10 @@ Start your reply with one line naming your model and any settings. Judge logic, 
 cannot run code, so do not judge correctness you cannot verify from this text. Answer: (1) Does this achieve
 the goal? (2) Which assumptions look shaky? (3) Is there a better alternative, especially to the two-key
 design? (4) What is missing? (5) Is "Verification" objectively checkable? (6) Should this be split into several
-plans? Save as `primal-order-magician-warden-review-<model>.md`.
+plans? Round 2 asks you to look hardest at three new parts: the grandfathered legacy grant (can it leak to
+other characters?), the "free proficiency counted first" pricing formula (is it right and does it need a
+migration for saved logs?), and whether the plan is now too big for one change. Save as
+`primal-order-magician-warden-review-<model>.md`.
 
 ## Review outcome
 Round 1, 2026-10-20: two API reviewers, no severe or contested findings, so no fresh-agent judge was needed.
