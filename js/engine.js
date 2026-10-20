@@ -424,6 +424,13 @@ export function grantedSpells(b) {
     for (const v of (fsc[st] || []).slice(0, gc.n || 2)) { const n = nm(v); if (n)
       out.push({ name: n, level: 0, kind: 'style', source: st + ' fighting style', note: gc.list + ' list · cast with ' + gc.ab, needHD: 1 }); }
   }
+  // Features that grant a cantrip (Druid Magician, Cleric Thaumaturge): the name the player chose is kept in the same map as the
+  // fighting-style cantrips (b.fsCantripNames, keyed by the feature's label); at most the feature's own cantrip count.
+  for (const lab of new Set((b.features || []).map(FEAT_ALIAS))) {
+    const f = (DATA.features || {})[lab], gc = f && f.grantCantrips; if (!gc) continue;
+    for (const v of (fsc[lab] || []).slice(0, gc.n || 1)) { const n = nm(v); if (n)
+      out.push({ name: n, level: 0, kind: 'feature', source: (lab.split(': ')[1] || lab), note: gc.list + ' list · cast with ' + gc.ab, needHD: 1 }); }
+  }
   // Bought innate spell-likes (b.innate counts per level, b.innateNames their names).
   for (let L = 1; L <= 9; L++) {
     const c = (b.innate || [])[L - 1] || 0;
@@ -440,17 +447,24 @@ export function grantedSpells(b) {
 // 37 live characters stored "Small" while being Medium). Moved verbatim out of compute(), which calls it.
 // skillMods(b, r?) — every skill's total bonus, owned or not, for display (feat/livesheet-center-panel).
 // One row per DATA.skillList entry: { skill, ab, abMod, prof (0 none, 1 proficient, 2 expertise), total }.
-// total = the ability modifier + proficiency (doubled for expertise). Initiative follows compute()'s own rule:
+// total = the ability modifier + proficiency (doubled for expertise) + bonus. Initiative follows compute()'s own rule:
 // unproficient it is plain DEX; proficient it switches to WIS + proficiency — so its row always equals r.init.
+// bonus: a flat addition an owned feature gives a skill check (DATA.features[k].checkBonus {skills, ab, min} — Druid Magician and
+// Cleric Thaumaturge add their WIS modifier, at least +1, to Arcana + Nature / Arcana + Religion). Whether the skill is proficient
+// does not matter; several features add. 0 for nearly every row.
 // Pass compute(b)'s result as r to avoid a second compute.
 export function skillMods(b, r) {
   r = r || compute(b);
   const mods = r.mods || {}, prof = r.prof || 0, sk = b.skills || [], ex = b.expertise || [];
+  const cb = [];
+  for (const lab of new Set((b.features || []).map(FEAT_ALIAS))) { const f = (DATA.features || {})[lab]; if (f && f.checkBonus) cb.push(f.checkBonus); }
   return (DATA.skillList || []).map(([skill, ab0]) => {
     const p = sk.includes(skill) ? (ex.includes(skill) ? 2 : 1) : 0;
     const ab = (skill === 'Initiative' && !p) ? 'DEX' : ab0;
     const abMod = mods[ab] || 0;
-    return { skill, ab, abMod, prof: p, total: abMod + p * prof };
+    let bonus = 0;
+    for (const c of cb) if ((c.skills || []).indexOf(skill) >= 0) bonus += Math.max(Number(c.min) || 0, mods[c.ab] || 0);
+    return { skill, ab, abMod, prof: p, bonus, total: abMod + p * prof + bonus };
   });
 }
 
@@ -550,7 +564,7 @@ export function weaponSheetDefaults(w, b) {
   w = w || {}; const props = (Array.isArray(w.props) ? w.props : []).map(p => String(p).toLowerCase());
   const has = p => props.some(x => x === p || x.startsWith(p + ' '));
   const ab = has('finesse') ? 'FIN' : (w.kind === 'ranged' && !has('thrown')) ? 'DEX' : 'STR';
-  const wp = (b && b.weaponProf) || {};
+  const wp = profGrants(b).weaponProf;   // owned flags + feature grants (Warden/Protector/the legacy Primal Order)
   let prof = null;
   if (w.id === 'unarmed-strike') prof = true;
   else if (w.cat === 'simple') prof = !!wp.simple;
@@ -818,6 +832,57 @@ export function effectiveDrawbackTable(b, ctx) {
   return o;
 }
 
+/* profGrants(b, owned?, blocked?) — the weapon and armour proficiency flags a build effectively has: what it bought
+ * (b.weaponProf, b.armour) PLUS what an owned feature hands out. Derived on every call and never stored (the LOG keeps only
+ * raw purchases), and foldBuild() does not call it: CharGen repaints its checkboxes from the fold, so a derived flag in the
+ * fold would be saved back as a raw one.
+ *   DATA.features[k].grantsProf   {weapons:[…], armour:[…]} — Warden, Protector. These flags are PRICED: compute() charges
+ *                                 the existing proficiency lines for the union, so the feature itself is free ("free":true)
+ *                                 and costs exactly what buying the same proficiencies by hand costs.
+ *   DATA.features[k].grandfather  the same shape, for a retired ("bar") feature that earlier characters paid for: the flags
+ *                                 show on the sheet but are NOT priced and raise no prerequisite warning (the old Primal Order
+ *                                 grants martial weapons and Medium armour without Simple or Light, for the 5 AP already paid).
+ * Returns {priced:{weaponProf,armour}, weaponProf, armour}: `priced` is what compute() charges for, the others are for display.
+ * owned/blocked are compute()'s own feature sets (a blocked feature grants nothing); other callers omit them. */
+export function profGrants(b, owned, blocked) {
+  b = b || {};
+  const own = owned || new Set((b.features || []).map(FEAT_ALIAS));
+  const wp = Object.assign({}, b.weaponProf || {}), arm = Object.assign({}, b.armour || {});
+  const put = (g, w, a) => { if (!g) return; for (const k of (g.weapons || [])) w[k] = true; for (const k of (g.armour || [])) a[k] = true; };
+  const live = [];
+  for (const lab of own) { if (blocked && blocked.has(lab)) continue; const f = (DATA.features || {})[lab]; if (f) live.push(f); }
+  live.forEach(f => put(f.grantsProf, wp, arm));
+  const priced = { weaponProf: Object.assign({}, wp), armour: Object.assign({}, arm) };
+  live.forEach(f => put(f.grandfather, wp, arm));
+  return { priced, weaponProf: wp, armour: arm };
+}
+
+/* freeProfs(b, blocked?) — the tool and instrument proficiencies that feats hand out FREE (owner rule 2026-10-20). A feat in DATA.arts
+ * may carry  freeProf: { tools: [fixed names], instruments: N (the player names N), toolPicks: N (the player names N) }  —
+ * Chef gives Cook's utensils, Musician three instruments of the player's choice. They are added to what the character owns and
+ * COUNT TOWARD the number owned from the start, so the tools and instruments bought after them cost what a character with that many
+ * would pay (compute(): table[paid + free] − table[free]). That reverses the Guide's old "treated as the last one bought" wording.
+ * The player's picks are kept in b.freeProfNames[feat label] (a `names` event, key `fp`), like the other chosen names. A slot counts
+ * whether or not it is named yet, so naming it later changes no price; a named pick that the character also bought is priced once.
+ * `blocked` is compute()'s set of Hit-Dice-blocked arts (a blocked feat grants nothing). Returns
+ * { slots, names, bySource: { <feat>: { fixed:[…], picks:[N strings, '' = not named yet], slots } } }. Derived every call, never stored. */
+export function freeProfs(b, blocked) {
+  b = b || {};
+  const out = { slots: 0, names: [], bySource: {} };
+  const named = b.freeProfNames || {};
+  for (const lab of new Set(b.arts || [])) {
+    if (blocked && blocked.has(lab)) continue;
+    const a = (DATA.arts || {})[lab], fp = a && a.freeProf; if (!fp) continue;
+    const fixed = (fp.tools || []).slice(), n = (Number(fp.instruments) || 0) + (Number(fp.toolPicks) || 0);
+    const picks = (Array.isArray(named[lab]) ? named[lab] : []).slice(0, n).map(v => (v == null ? '' : String(v).trim()));
+    while (picks.length < n) picks.push('');
+    out.bySource[lab] = { fixed, picks, slots: fixed.length + n };
+    out.slots += fixed.length + n;
+    fixed.concat(picks.filter(Boolean)).forEach(x => out.names.push(x));
+  }
+  return out;
+}
+
 export function compute(b, opts){
   b=Object.assign({},b);
   // Campaign house rules (D-GH-2026-10-13-campaign-house-rules): in a campaign context every reader of
@@ -933,13 +998,15 @@ export function compute(b, opts){
   // skills by name + expertise by name
   const skillList=(b.skills||[]); const expList=(b.expertise||[]);
   // skills and tools/instruments run on independent ladders — each gets its own first two free.
-  // (REV-13: the never-populated grantSk/grantTl/grantIn "free-grant" scaffolds were removed — they only
-  //  ever filtered an empty set, i.e. every skill/tool/instrument was paid. Byte-identical output; if a
-  //  future feature grants free proficiencies, reintroduce the filter then, with a fixture that exercises it.)
+  // (REV-13 removed the never-populated grantSk/grantTl/grantIn "free-grant" scaffolds. Free tools and instruments are back, by an
+  //  owner rule (2026-10-20): freeProfs() lists what feats hand out, those COUNT TOWARD the number owned from the start, and the
+  //  ladder is read as table[paid + free] − table[free] — the free ones are the first owned, so what you buy after them costs more.
+  //  A named free pick that the character also bought is priced once. With no such feat the line is byte-identical to before.)
   const paidSkills=skillList.length;
   add("Skills",DATA.skills[paidSkills]||0);
-  const paidTools=(b.tools||[]).length+(b.instruments||[]).length+(b.customProfs||[]).length;
-  add("Tools & instruments",DATA.tools[paidTools]||0);
+  const _fpr=freeProfs(b,_blockedArt), _freeSet=new Set(_fpr.names);
+  const paidTools=[].concat(b.tools||[],b.instruments||[],b.customProfs||[]).filter(function(x){return !_freeSet.has(x);}).length;
+  add("Tools & instruments",(DATA.tools[paidTools+_fpr.slots]||0)-(DATA.tools[_fpr.slots]||0));
   add("Expertise",DATA.expertise[expList.length]||0);
   {const _skSet=new Set(skillList);for(const x of expList) if(!_skSet.has(x)) W.push("Expertise in "+x+" needs the skill bought first");}
   // tool expertise — its own independent track (separate count on the same Expertise ladder)
@@ -973,7 +1040,8 @@ export function compute(b, opts){
     }}
   add("Arts & Techniques",artAP);addItems("Arts & Techniques",_AI);
   // weapon proficiency
-  const wp=b.weaponProf||{}; let wpAP=0;
+  const _pg=profGrants(b,_ownedFeatSet,_blockedFeat);   // owned flags + feature grants (Warden/Protector); the grandfathered legacy grant is NOT in .priced
+  const wp=_pg.priced.weaponProf; let wpAP=0;
   if(wp.simple)wpAP+=DATA.weaponProf.simple;
   if(wp.allMartial){wpAP+=DATA.weaponProf.allMartial; if(!wp.simple)W.push("All-martial proficiency needs Simple first");}
   else if(wp.martial){wpAP+=wp.martial*DATA.weaponProf.oneMartial; if(!wp.simple)W.push("Martial weapon proficiency needs Simple first");}
@@ -983,7 +1051,7 @@ export function compute(b, opts){
   const mast=(b.masteries||[]); add("Weapon masteries",DATA.mastery[mast.length]||0);
   if(mast.length>0 && !(wp.simple||wp.martial||wp.allMartial)) W.push("Weapon masteries need any weapon proficiency first (Simple is enough)");
   // armour climb (force prerequisites)
-  const arm=b.armour||{}; let armAP=0; const A=DATA.armourClimb;
+  const arm=_pg.priced.armour; let armAP=0; const A=DATA.armourClimb;
   const wantHeavy=arm.heavy, wantMed=arm.medium||arm.heavy, wantLight=arm.light||arm.medium||arm.heavy;
   if(wantLight)armAP+=A.light; if(wantMed)armAP+=A.medium; if(wantHeavy)armAP+=A.heavy; if(arm.shield)armAP+=A.shield;
   add("Armour proficiency",armAP);
@@ -1121,7 +1189,7 @@ export function compute(b, opts){
     if(f.rep){const tier=Math.min(7,f.tier+n-1);stick=DATA.MASTER[tier][f.band];origin=Math.max(1,stick-(tier-1));cross=stick+tier;}
     else {origin=f.origin;cross=f.cross;stick=Math.max(1,f.cross-f.tier);}
     const isO=(f.cls===b.originClass||f.cls===b.originClass2);const isUnlk=!isO&&_unlkSet.has(f.cls);let c=isO?origin:(isUnlk?stick:cross);
-    c=_mbAdj(f.cls,c,f);if(lab==="Sorcerer: Metamagic")c=2*n;   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
+    c=_mbAdj(f.cls,c,f);if(lab==="Sorcerer: Metamagic")c=2*n;if(f.free)c=0;   // f.free: no price of its own (Warden/Protector — their proficiencies are charged by the proficiency lines); keeps a cross-class or Martially Bound buyer from paying the floor of 1   // Martially Bound discount (floor 1); Metamagic Steep ladder (option N=2N) v0.314
     if(_dupFeat.has(lab)){
       // The later copy of an ability whose subclass copy was bought first. If the counted (subclass) copy is itself Hit-Dice-blocked
       // its own line already stands for this ability, so the duplicate is not listed a second time (or its price counted twice).
@@ -1691,7 +1759,7 @@ export const MUT = {
  // assigning the patch's nested objects straight onto the build rewrote the stored creation patch on every fold,
  // and the server refused the next save of a locked character ("protected event N changed"). fix/patch-fold-aliasing.
  patch:(b,p)=>{Object.assign(b,clone(p.patch));},   // imported-from-generator bundle (a whole field set)
- names:(b,p)=>{if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
+ names:(b,p)=>{if(p.fp)b.freeProfNames=p.fp;if(p.eb)b.epicBoonAbil=p.eb;if(p.fs)b.fightingStyleNames=p.fs;if(p.mm)b.metamagicNames=p.mm;if(p.mv)b.maneuverNames=p.mv;if(p.fsc)b.fsCantripNames=p.fsc;if(p.dab)b.dabblerCantripNames=p.dab;if(p.inn)b.innateNames=p.inn;if(p.feat)b.featNames=p.feat;if(p.lang)b.languageNames=p.lang;if(p.grants)b.grantNames=p.grants;(p.tr||[]).forEach(function(t){var d=b.traditions[t.ti]&&b.traditions[t.ti].disciplines[t.di];if(d){d.cantripNames=t.cn;d.knownNames=t.kn;if(t.an)d.arcanumNames=t.an;}});},
  hd:(b,p)=>b.hd=p.to, prof:(b,p)=>b.profBonus=p.to, abil:(b,p)=>b.stats[p.ab]=p.to,
  skill:(b,p)=>b.skills.push(p.v), expertise:(b,p)=>b.expertise.push(p.v), toolexpertise:(b,p)=>(b.toolExpertise=b.toolExpertise||[]).push(p.v), save:(b,p)=>b.saves.push(p.v),
  lineage:(b,p)=>b.lineage=p.v,wornArmour:(b,p)=>b.wornArmour=p.v,shieldWorn:(b,p)=>b.shieldWorn=!!p.v, racialspell:(b,p)=>(b.racialSpells=b.racialSpells||[]).push(p.v),
@@ -3209,7 +3277,7 @@ export function armourEligible(b, name) {
   const a = DATA.armours && DATA.armours[name];
   if (!a) return { ok: true, reasons: [] };
   const st = (b && b.stats) || {};
-  const arm = (b && b.armour) || {};
+  const arm = profGrants(b).armour;   // owned flags + feature grants (Warden/Protector/the legacy Primal Order)
   const strScore = st.STR || 10;
   const reasons = [];
   if (!arm[a.cat]) reasons.push('no ' + a.cat + ' armour proficiency');

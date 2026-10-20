@@ -32,6 +32,13 @@
   drafts and for held drawbacks). Never merged; superseded on 2026-10-13 by D-GH-2026-10-13-campaign-house-rules (owner P2/R1):
   PR5 reworks it into the per-character `dmHouseRules` override layer with S2 for held drawbacks. #638's H2 decisions stay open.
   Full record: `decisions/2026/D-GH-2026-10-12-dm-house-rules-editor.md`.
+## D-GH-2026-10-20-feat-free-proficiency — Chef and Musician hand out free tools; they count first, so later ones cost more
+- Rules v0.381. Owner rule: a feat's free proficiency is added to the build and counts toward the number owned from the start (the opposite of the Guide's old "counted last"). The tools line is `table[paid+free] − table[free]`; picks are named in the ✎ dialog (`freeProfNames`). Full record: `decisions/2026/D-GH-2026-10-20-feat-free-proficiency.md`.
+
+## D-GH-2026-10-20-primal-order-magician-warden — Primal Order and Divine Order split into their 2024 options; the proficiency one is free and the ladders charge for it
+- Rules v0.380. Warden / Protector are `free:true` features that switch weapon and armour proficiency flags on (`profGrants()`), so the existing proficiency lines charge for them once (15 / 21 AP); Magician / Thaumturge are 6 AP with a cantrip and a Wisdom skill bonus. The old keys are retired with `bar:true` — not aliased — and the one live owner's Primal Order keeps its 5 AP and martial + Medium proficiency without Simple or Light (owner Y1/Z1). Guide (both copies) updated; free proficiency from feats is a separate task.
+  Full record: `decisions/2026/D-GH-2026-10-20-primal-order-magician-warden.md`.
+
 ## D-GH-2026-10-20-heroic-inspiration-boons — hold 2 or 3 Heroic Inspiration; Blazing Moment fires on 18+; boons gain an engine-enforced `prereq`
 - Rules v0.378. New boons Twofold Inspiration (HD 3 / 7 AP) and Threefold Inspiration (HD 5 / 10 AP, needs Twofold); Blazing Moment's wording 19+ → 18+ with its
   price unchanged at 14. Boons had no prerequisite mechanism, so `compute()` now reads an optional boon `prereq` like a feature's (owner pick L2); only Threefold
