@@ -28,6 +28,7 @@ on:
       - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/prof-grants-ci.mjs"
+      - "testing/scripts/barred-grants-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
       - "testing/scripts/lineage-spell-gates-ci.mjs"
       - "testing/scripts/stored-size-ci.mjs"
@@ -291,6 +292,9 @@ jobs:
 
       - name: Features that grant proficiencies, cantrips and skill bonuses
         run: node testing/scripts/prof-grants-ci.mjs
+
+      - name: Barred-for-now abilities keep their price and lose their free spell picks
+        run: node testing/scripts/barred-grants-ci.mjs
 
   lineage-spell-gates:
     # fix/lineage-spell-gates (D-GH-2026-10-11-lineage-spell-gates, v0.373). Lineage spell-likes carry the PHB 2024 character
