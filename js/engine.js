@@ -1478,7 +1478,12 @@ export function compute(b, opts){
   // boons (§14): flat AP priced like features, gated by Hit Dice. DM house-rules (b.houseRules) may
   // add custom boons/drawbacks or override their AP; those overrides win over the printed values.
   const HR=b.houseRules||{}; const HRb=HR.boons||{}; const HRd=HR.draws||{};
-  let boonAP=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}const _bc=_fin(bo.ap);
+  // Epic boons escalate (feat/epic-boon-escalating-price, owner pick S1): the Nth printed epic boon a character holds, in the order
+  // bought, costs DATA.epicBoonSteps[N-1] (the last step repeats), so nobody buys all twelve cheaply. A blocked boon is not counted;
+  // a DM house-rules re-price of the boon wins over the step; only printed epic boons count (a DM custom boon never does).
+  let boonAP=0,_epicN=0;const _BI=[];for(const lab of (b.boons||[])){const bo=HRb[lab]||DATA.boons[lab];if(!bo){W.push(lab+" is no longer in the rules data — no cost/effect applied");continue;}let _bc=_fin(bo.ap);
+    const _isEpic=!!(DATA.boons[lab]&&DATA.boons[lab].epic)&&!_blockedBoon.has(lab);
+    if(_isEpic){const _st=DATA.epicBoonSteps||[];if(!HRb[lab]&&_st.length)_bc=_fin(_st[Math.min(_epicN,_st.length-1)]);_epicN++;}
     if(_blockedBoon.has(lab)){W.push('⛔ '+lab+' — blocked: needs '+(_prereqBlockedBoon.has(lab)?_boonPrereq(lab,bo).filter(function(r){return !_ownedBoonSet.has(r)||_blockedBoon.has(r);}).join(' & '):(Number(bo.hd)||1)+' Hit Dice')+' (not counted, not owned)');blockedAP+=_bc;_BLI.push([lab,_bc]);continue;}
     boonAP+=_bc;_BI.push([lab,_bc]);
     const _bms=bo.minStats||{};for(const [_ba,_bm] of Object.entries(_bms)){if((st[_ba]||10)<_bm) W.push(lab+': boon requires '+_ba+' '+_bm+'+');}
@@ -1709,14 +1714,17 @@ export function compute(b, opts){
   // purchaseLegality(), and owning a shield must never make buying Monk Unarmored Defense look illegal — advice goes in acInfo.notes.
   const _shieldOn=!!arm.shield&&b.shieldWorn!==false;
   const _ownsEff=lab=>(_ownedFeatSet.has(lab)&&!_blockedFeat.has(lab)&&!_dupFeat.has(lab))||(b.subAbilities||[]).some(function(k){const a=DATA.subAbilMap[k];return !!a&&_subIdent(a)===lab&&!_dupSub.has(k)&&!_subWhy(a).length;});
-  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];const _acC=[];const _acNotes=[];let _monkAc=null;
+  var _wa=b.wornArmour&&DATA.armours&&DATA.armours[b.wornArmour];const _acC=[];const _acNotes=[];let _monkAc=null,_danceAc=null;
   if(_wa){const _dx=_wa.cat==="heavy"?0:_wa.cat==="medium"?Math.min(dexMod,2):dexMod;_acC.push({src:b.wornArmour,base:_wa.base,parts:_wa.cat==="heavy"?[]:[["Dex",_dx]]});if(!arm[_wa.cat])W.push("⛔ Wearing "+b.wornArmour+" needs "+_wa.cat+" armour proficiency");if(_wa.str&&(st.STR||10)<_wa.str)W.push("⚠ "+b.wornArmour+" needs STR "+_wa.str+" (speed penalty)");}
   else{   /* no armour worn = unarmoured, whatever you are trained in (D-GH-2026-10-12-worn-armour-none) */
     _acC.push({src:"Unarmoured",base:10,parts:[["Dex",dexMod]]});
     if(b.wornArmour===MAGE_ARMOR)_acC.push({src:"Mage Armor",base:13,parts:[["Dex",dexMod]]});
     if(_ownsEff("Barbarian: Unarmored Defense"))_acC.push({src:"Unarmored Defense (Barbarian)",base:10,parts:[["Dex",dexMod],["Con",mod.CON]]});
     if(_ownsEff("Monk: Unarmored Defense")){if(_shieldOn){_acNotes.push("Monk Unarmored Defense does not work with a shield in hand");_monkAc=10+dexMod+mod.WIS;}else _acC.push({src:"Unarmored Defense (Monk)",base:10,parts:[["Dex",dexMod],["Wis",mod.WIS]]});}
-    if(_ownsEff("Sorcerer: Draconic Resilience"))_acC.push({src:"Draconic Resilience",base:10,parts:[["Dex",dexMod],["Cha",mod.CHA]]});}
+    if(_ownsEff("Sorcerer: Draconic Resilience"))_acC.push({src:"Draconic Resilience",base:10,parts:[["Dex",dexMod],["Cha",mod.CHA]]});
+    // College of Dance's Dazzling Footwork (owner decision BK, 2026-10-20; 2024 PHB): Unarmored Defense 10 + Dex + Cha while wearing no
+    // armour and wielding no shield — the Monk's rule, so a shield in hand gives a note and the same nudge instead.
+    if(_ownsEff("Bard: Dazzling Footwork")){if(_shieldOn){_acNotes.push("Dazzling Footwork's Unarmored Defense does not work with a shield in hand");_danceAc=10+dexMod+mod.CHA;}else _acC.push({src:"Dazzling Footwork",base:10,parts:[["Dex",dexMod],["Cha",mod.CHA]]});}}
   _acC.forEach(function(c){c.ac=c.base+c.parts.reduce(function(s,p){return s+p[1];},0);});
   const _acBest=_acC.reduce(function(a,c){return c.ac>a.ac?c:a;},_acC[0]);   // ties keep the earlier (simpler) formula
   // Defense Fighting Style (owner decision AP1, 2026-10-15): +1 AC while WEARING armour (Mage Armor is not armour). Owned either as a
@@ -1725,25 +1733,40 @@ export function compute(b, opts){
   const _defense=!!_wa&&(((b.arts||[]).indexOf("Defense")>=0&&!_blockedArt.has("Defense"))||(b.fightingStyleNames||[]).slice(0,_fsSlots).indexOf("Defense")>=0);
   let ac=_acBest.ac;if(_defense)ac+=1;if(_shieldOn)ac+=2;if(dset["Thin-Skinned"])ac-=1;
   // A nudge, never a rule: the shield stays the player's choice. Shown only when setting it down would actually raise AC.
-  const _nudge=(_monkAc!=null&&_monkAc>_acBest.ac+2)?("Set the shield down: Monk Unarmored Defense would give AC "+(_monkAc+(dset["Thin-Skinned"]?-1:0))+" (now "+ac+")"):null;
+  const _nsAc=(_danceAc!=null&&(_monkAc==null||_danceAc>_monkAc))?{src:"Dazzling Footwork",ac:_danceAc}:(_monkAc!=null?{src:"Monk Unarmored Defense",ac:_monkAc}:null);
+  const _nudge=(_nsAc&&_nsAc.ac>_acBest.ac+2)?("Set the shield down: "+_nsAc.src+" would give AC "+(_nsAc.ac+(dset["Thin-Skinned"]?-1:0))+" (now "+ac+")"):null;
   const acInfo={src:_acBest.src,base:_acBest.base,parts:_acBest.parts,defense:_defense?1:0,shield:_shieldOn?2:0,shieldTrained:!!arm.shield,thinSkinned:dset["Thin-Skinned"]?-1:0,
     options:_acC.map(function(c){return {src:c.src,ac:c.ac};}),notes:_acNotes,nudge:_nudge};
   // Draconic Resilience's hit points (owner decision AP1; 2024 PHB: "Your Hit Point maximum increases by 3, and it increases by 1
   // whenever you gain another Sorcerer level" — gained at Sorcerer level 3, so the bonus equals that level). PACT is classless and a
   // character's level is its Hit Dice, and the ability needs 3 Hit Dice (T3), so the bonus is +1 HP per Hit Die: +3 at 3 HD, +1 per HD after.
   const _hpDraconic=_ownsEff("Sorcerer: Draconic Resilience")?hd:0;
+  // Boon of Fortitude (owner decision BK, 2026-10-20; 2024 PHB "Fortified Health"): Hit Point maximum +40. Counted only when owned and not
+  // blocked (Hit Dice / prerequisite), exactly as its price is.
+  const _boonOn=lab=>_ownedBoonSet.has(lab)&&!_blockedBoon.has(lab);
+  const _hpFortitude=_boonOn("Boon of Fortitude")?40:0;
   if((arm.medium||arm.heavy)&&!strOK) W.push("⛔ Medium armour requires Strength 10 (STR is "+(st.STR||10)+")");
   // §14: Frail and Glass Frame are HP-reduction drawbacks that do not stack (and may not be taken together)
   if(dset["Frail"]&&dset["Glass Frame"]) W.push("Frail and Glass Frame can't be taken together — their HP penalties don't stack");
-  let hp2=hp+_hpDraconic; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
-  let _spB=DATA.speed[b.species]||30,_spF=_spB; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spdSet&&rr.spdSet>_spF)_spF=rr.spdSet;}); var _lsp=(DATA.lineageSpeed&&DATA.lineageSpeed[b.lineage]); if(_lsp&&_lsp>_spF)_spF=_lsp; let speed=_spF; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spd)speed+=rr.spd;}); if(dset["Slow-Footed"])speed-=5; if(dset["Lame"])speed-=10;
+  let hp2=hp+_hpDraconic+_hpFortitude; if(dset["Frail"]||dset["Glass Frame"]){const _vg=hd*hardy+tough*4; if(_vg>0){hp2-=_vg; W.push("Frail/Glass Frame: Grit & Vigor cannot offset HP loss at creation; their HP is suppressed");}} if(dset["Frail"])hp2-=hd; else if(dset["Glass Frame"])hp2-=hd; hp2=Math.max(1,hp2);
+  let _spB=DATA.speed[b.species]||30,_spF=_spB; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spdSet&&rr.spdSet>_spF)_spF=rr.spdSet;}); var _lsp=(DATA.lineageSpeed&&DATA.lineageSpeed[b.lineage]); if(_lsp&&_lsp>_spF)_spF=_lsp; let speed=_spF; (b.racialTraits||[]).forEach(function(rt){var rr=DATA.racial[rt]; if(rr&&rr.spd)speed+=rr.spd;});
+  // Speed grants (owner decision BK, 2026-10-20; 2024 PHB). Monk Unarmored Movement: +10 ft, raised by its bought steps to +15/+20/+25/+30,
+  // while wearing no armour and wielding no shield (Mage Armor is a spell, not armour). Barbarian Fast Movement: +10 ft unless wearing
+  // heavy armour. Speedy (art): +10 ft. Boon of Speed: +30 ft. speedInfo lists each for the sheets' explanation.
+  const _spParts=[],_spNotes=[];
+  {let _um=0;[["Monk: Unarmored Movement",10],["Monk: Unarmored Movement (+15 ft)",15],["Monk: Unarmored Movement (+20 ft)",20],["Monk: Unarmored Movement (+25 ft)",25],["Monk: Unarmored Movement (+30 ft)",30]].forEach(function(x){if(_ownsEff(x[0])&&x[1]>_um)_um=x[1];});
+   if(_um){if(_wa||_shieldOn)_spNotes.push("Unarmored Movement (+"+_um+" ft) needs no armour and no shield");else _spParts.push(["Unarmored Movement",_um]);}
+   if(_ownsEff("Barbarian: Fast Movement")){if(_wa&&_wa.cat==="heavy")_spNotes.push("Fast Movement (+10 ft) does not work in heavy armour");else _spParts.push(["Fast Movement",10]);}
+   if((b.arts||[]).indexOf("Speedy")>=0&&!_blockedArt.has("Speedy"))_spParts.push(["Speedy",10]);
+   if(_boonOn("Boon of Speed"))_spParts.push(["Boon of Speed",30]);
+   _spParts.forEach(function(x){speed+=x[1];});} if(dset["Slow-Footed"])speed-=5; if(dset["Lame"])speed-=10;
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
   const {size, choosable:sizeChoosable}=sizeOf(b);
   return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
-    ac,acInfo,hpDraconic:_hpDraconic,init,speed,castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
+    ac,acInfo,hpDraconic:_hpDraconic,hpFortitude:_hpFortitude,init,speed,speedInfo:{base:_spF,parts:_spParts,notes:_spNotes},castMod,castAb,hasDC,saveAdj,discInfo,tradInfo,dabbler,
     saveDC:hasDC?(8+prof+castMod):null,spellAtk:hasDC?(prof+castMod):null,hardyCap:vgcap,conMod:cm,goldGp:DATA.goldPurse+(b.gold||0)*50,
     status: remaining<0?("OVER BUDGET by "+(-remaining)+" AP"):remaining===0?"exact — fully spent":(remaining+" AP under budget")};
 }
