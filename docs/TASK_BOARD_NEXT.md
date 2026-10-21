@@ -986,6 +986,9 @@ real cost: a gate that fails at random trains people to re-run rather than read 
 
 **Effort:** small · **Risk:** low — test harness only, no app code, no rules logic; worst case the gate
 stays as flaky as it already is.
+**Sweep status (2026-10-20): not sweep-eligible — needs a reproduction first.** An unattended sweep re-ran the
+gate 11 times and it passed 11 of 11, so a fix cannot be proven against a failure that will not show. A person
+should capture a failing run (note the machine load), then the fix is checked against that.
 
 ```
 Reuse ONE tab per tool (CharGen, Live Sheet, DM Console) across all of that tool's sections instead of
@@ -1035,7 +1038,10 @@ because no test ever produced that shape for real. A stub that can be told to an
 genuine `P0001` from `pact_enforce_locked_history()` would have failed on each.
 **Effort:** small–medium · **Risk:** low — test harness only; no app code, no rules logic, no SQL change.
 Ambiguity is the driving factor (where the seam belongs in the stub is a design call), and its worst case
-is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
+is a test that has to be rewritten, not a defect shipped.
+**Sweep status (2026-10-20): not sweep-eligible** (this line said "Sweep-eligible" until two sweeps in a row
+parked it). It needs a real PostgREST `P0001` error body captured from the live trigger, and the stub seam is a
+design call for a person. Re-tag it eligible only once that sample exists in the repo.
 
 ```text
 1. Give the test stub server an error-injection seam — the smallest thing that lets a test say "answer
@@ -1071,6 +1077,9 @@ comparison is testing the wrong thing. Forget the fold entirely and it passes fo
 function-list half of this hole was closed on 2026-09-03 by a count assertion (a typo now fails); the
 migration-list half needs a design decision, which is why it is filed rather than improvised.
 **Effort:** medium · **Risk:** low — test harness only.
+**Sweep status (2026-10-20): not sweep-eligible — needs an owner rule.** Step 1 below (which migrations load,
+which are excluded as one-way or paired) is a decision, not a mechanical step. The numbers above date from
+2026-09; re-read `testing/sql/rls-baseline-test.sql` as it stands before starting, because it may have changed since.
 
 ```text
 1. Decide how migrations are discovered and ordered: every file in sql/migrations/ in filename order is
