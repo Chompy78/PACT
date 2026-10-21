@@ -1689,3 +1689,72 @@ DO: decide the rule with the owner, then implement it in compute() and the Guide
 MEASURE FIRST: re-query live characters (stats::text ilike each epic boon name) — 0 rows on 2026-10-20 — and keep any owner's total unchanged with a grandfather rule if one has appeared since.
 ```
 **Done when:** the owner's rule is in a decision record; `compute()` prices the Nth epic boon per the rule and a test (a new case in `tool-pricing-ci.mjs` or a sibling) proves the price of the 1st, 2nd and last boon, a blocked boon and a DM custom boon; the Guide's Epic Boons section states the rule (served copy and `pact-guide` master, `verify-guide.mjs` before and after); `DATA.version` bumped once; `engine-parity` 0 failed with `testing/expected/` updated in the same change if a fixture moved.
+
+## fix/server-owner-delete-reinsert-lock-bypass — an owner can delete a campaign-bound character and re-insert it solo without its lock — TODO
+Branch fix/server-owner-delete-reinsert-lock-bypass. **Effort:** medium · **Risk:** high — changes who may delete characters and touches the lock/seal enforcement; wrong rule can strand a legitimate owner or a DM's own cleanup.
+
+```text
+Security audit 2026-10-22 (read from the SQL, NOT run): lock, seal and DM-imposed events are enforced only on UPDATE of a campaign-bound row. `characters_delete` lets the owner delete their own bound character (`owner_id = auth.uid()`), and `characters_insert` lets them insert a row with a chosen `id` as long as `campaign_id is null` and `ap = 0`. So an owner can delete the character, re-insert it solo with the same id and a LOG minus the creation lock and the DM events, then bind it back with `bind_character_to_campaign`.
+Related, already tracked: `feat/house-rules-dm-event-provenance` (forged DM events carried in through a solo character) — decide whether one provenance mechanism closes both before building two.
+DO: (1) re-confirm the chain against the live policies and `pg_get_functiondef` of the bind/unbind functions with read-only queries; (2) choose the fix and put shallow vs deep to the owner: shallow = refuse owner DELETE of a campaign-bound character (leaving to a DM or an unbind first), deep = a server record of each locked/sealed character id so a re-insert with that id is refused or restored; (3) implement it as a migration with a SQL test of the full chain; (4) measure the blast radius on the live `characters` table first (AGENTS.md: re-measure, don't assume).
+```
+**Done when:** a test reproduces delete → re-insert solo → re-bind and shows it refused (or the lock restored); an owner can still delete a solo character and leave a campaign through the normal unbind; `get_advisors` (security) and `get_logs` run after the apply; decision record written.
+
+## fix/server-cost-zero-and-gold-patch — the server cannot check a purchase's cost, a 0-cost buy, a `wealth` event or the `gold` patch key — TODO
+Branch fix/server-cost-zero-and-gold-patch. **Effort:** high · **Risk:** high — an AP/gold-moving server rule; a rule that is too strict refuses honest saves from every player.
+
+```text
+Security audit 2026-10-22 (from the SQL, not run): purchase costs in the LOG are client-stamped. Negative costs on non-drawback buys are already tracked as `fix/server-negative-cost-after-lock` (docs/TASK_BOARD_NOW.md). Not covered anywhere: a cost of 0 is not checked at all, so nothing on the server guarantees the frozen total equals what `compute()` would charge; `wealth` events and a `buy` with `cat:'patch'` setting `gold` are unprotected, so gold can be written directly.
+DO: (1) read the live AP-ledger functions (`pact_ap_ledger_split`, `pact_ap_ledger_spend`) and the gold model; (2) decide with the owner how far the server should go — shallow = clamp cost >= 0 and refuse `gold`/`wealth` writes from the player after the lock, deep = an offline audit script that folds each live character with `engine.js` and compares the frozen spend to `compute()` (a Supabase Edge Function running the real engine is its own task, "Supabase Edge Function running the real engine.js for AP-budget validation"); (3) land the negative-cost fix first, then this one on top.
+```
+**Done when:** the owner has chosen the depth in a decision record; a SQL test shows a 0-cost buy, a `wealth` event and a `gold` patch by a player are refused (or accounted) on a locked character; if the audit script is chosen it runs against a local export outside the repo and its result is recorded.
+
+## fix/stats-poisoned-json-shape — a player can set `stats.SEQ` or an award flag to junk and make DM actions fail — TODO
+Branch fix/stats-poisoned-json-shape. **Effort:** medium · **Risk:** medium — touches several DM RPCs and a trigger, but each change is a safer cast of a value they already read.
+
+```text
+Security audit 2026-10-22 (reasoned from the SQL, NOT run): `stats.SEQ` is cast to integer raw in `pact_campaign_move_clears_creation` (`(NEW.stats->>'SEQ')::integer`) and in several DM RPCs; award `disc` and `noLock` are cast to boolean raw. A player who saves `SEQ = "abc"` makes unbind, seal, zero-AP, reopen-creation and set-creation-ceiling raise a cast error for that character, and the owner's DELETE of a campaign may fail too (the foreign-key set-null update fires the campaign-move trigger).
+DO: (1) reproduce each failure in a local Postgres first and mark the "campaign delete fails" claim confirmed or refuted; (2) replace the raw casts with the existing `pact_next_seq()` / `pact_num` / `pact_js_truthy` helpers; (3) add a cheap `stats` shape check (SEQ numeric, LOG an array) in the character write path that rejects junk instead of storing it.
+```
+**Done when:** SQL tests with `SEQ = "abc"`, `SEQ = null` and a non-boolean `disc` show every named RPC and the campaign delete succeed (or the write is refused with a clear message); existing SQL tests unchanged; `get_advisors` and `get_logs` run after the apply.
+
+## docs/record-player-self-award-trust-assumption — write down that players can award themselves AP on a default campaign until the DM seals it — TODO
+Branch docs/record-player-self-award-trust-assumption. **Effort:** low · **Risk:** low — a decision record, no code.
+
+```text
+Security audit 2026-10-22: on a default campaign a player may add `award` events to their own LOG (AP the tool itself offers during creation) until the DM seals the character, sets the creation limit or turns on `ignore_player_ap`; `pact_enforce_player_ap_ceiling` only blocks it after that. That is a deliberate trust model, but it is written down nowhere, so a future audit will keep re-finding it as a hole.
+DO: write `decisions/2026/D-GH-<date>-player-self-award-trust-assumption.md` (Context -> Options -> Decision -> Why -> Status) stating the assumption, which switches turn it off, and that the AP budget check still caps spending; add the one-line pointer in DECISIONS.md. Ask the owner whether the default should change instead — if so, that is a separate rules task, not this one.
+```
+**Done when:** the record and its DECISIONS.md pointer exist and name the three switches; the owner has said whether the default stays.
+
+## chore/storage-abuse-caps — no cap on character size, character count or backups, and anonymous feedback is not rate-limited — TODO
+Branch chore/storage-abuse-caps. **Effort:** medium · **Risk:** medium — a cap set too low breaks honest saves, so measure first.
+
+```text
+Security audit 2026-10-22 (from the SQL, not run): there is no limit on the size of `characters.stats`, or on how many characters one account may hold; campaign-bound characters keep every backup snapshot (`trg_characters_snapshot` into `character_backups`); `feedback` accepts anonymous inserts (message capped at 2,000 characters) with no rate limit. On the free tier this is a way to fill the database.
+DO: measure first with read-only queries (largest `stats` size, characters per owner, backup rows per character, feedback rows) and state the numbers with today's date; then propose caps well above the live maximum — a `stats` size check, a per-account character count, a backup retention rule (keep the last N per character), a per-hour limit on feedback — and put the choice of numbers to the owner.
+```
+**Done when:** the live measurements are in the decision record; each chosen cap is enforced by a migration with a test showing an honest maximum character still saves and an oversize one is refused; backups prune to the chosen retention.
+
+## chore/security-audit-low-items — small hardening items from the 2026-10-22 audit — TODO
+Branch chore/security-audit-low-items. **Effort:** low · **Risk:** low — each item is a one-statement or one-line change; verify each against the live database first.
+
+```text
+From the 2026-10-22 security audit (read from the SQL; items marked live were also seen in the live database that day):
+(a) `dm_set_creation_ceiling` and `dm_reopen_creation` lack `assert_campaign_active`, so they still work on an archived campaign;
+(b) both are missing from `sql/rls-policies.sql` (only in a migration), so the baseline does not describe the live database;
+(c) `pact_patch_exempt_keys`, `pact_patch_protected_projection`, `pact_patch_temp_exempt_keys` are executable by `anon` (live) — harmless pure helpers, but revoke from public/anon like the other helpers;
+(d) `award_ap` has no idempotency key, so a retried request awards twice (compare `award_ap_and_seal`, which takes `p_idem`);
+(e) `campaigns` has a table-level INSERT grant on `invite_code`, so a client can choose its own join code (live: INSERT is granted on `invite_code`, `archived_at`, `created_at`, `rules`); decide whether to narrow it.
+DO: one migration for (a), (c) and (e) if the owner agrees, a baseline sync for (b), and a decision on (d).
+```
+**Done when:** each item is fixed or has a recorded reason to leave it; the SQL drift guard passes; `get_advisors` (security) run after the apply.
+
+## chore/enable-leaked-password-protection — turn on Supabase Auth leaked-password protection — TODO
+Branch chore/enable-leaked-password-protection. **Effort:** low · **Risk:** low — a dashboard toggle; existing users are unaffected until their next password change.
+
+```text
+The Supabase security advisor (2026-10-22) reports `auth_leaked_password_protection`: Auth does not check new passwords against HaveIBeenPwned. This is a dashboard setting (Authentication -> Providers/Password security), not a code change, and a session cannot flip it.
+DO: the owner turns it on in the Supabase dashboard for the PACT project (piuprrrnaotrtxucrtsb); then re-run the security advisor to confirm the warning is gone and note it in CHANGELOG.md.
+```
+**Done when:** the security advisor no longer lists `auth_leaked_password_protection`.
