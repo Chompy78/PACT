@@ -1303,24 +1303,6 @@ characters to a local file outside the repo, run the audit on it, then delete th
 ```
 **Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
 
-## chore/racialfx-single-source — the racial-trait descriptions live in three tool copies (one dead, one already drifted) — TODO
-**Effort:** low · **Risk:** low — display-only text never read by `compute()`; damage scale is a missing tooltip at worst.
-
-```text
-DATA.racialFx (the hover text on racial-trait checkboxes) is overwritten inside each tool's module bridge:
-CharGen (~line 604), Live Sheet (~2723) and DM Console (~3395). js/engine-data.js also carries a partial
-racialFx map (4 keys) that all three tools then replace. Measured on preview a064f68 (2026-10-11):
-  - CharGen and Live Sheet copies are identical (40 keys).
-  - DM Console's copy (38 keys) has drifted: it lacks "Dragonborn: Larger breath dice (L5)/(L11)/(L17)" (the
-    real DATA.racial keys) and carries a stale "Dragonborn: Larger Breath Dice" that matches no trait.
-  - Nothing in DM Console reads DATA.racialFx at all (only the definition and a comment) — its copy is dead.
-Deep fix (recommended): move the full map into js/engine-data.js once, merged with the 4 keys already there,
-and delete all three tool copies — the same shape as DATA.lineageFx (PR #603). Check CharGen and Live Sheet
-render the same tooltips/sheet text afterwards. Shallow alternative: delete DM Console's dead copy only and
-leave the CharGen/Live Sheet duplication. Display-only: no DATA.version bump; log in CHANGELOG.md.
-```
-**Done when:** `DATA.racialFx` is defined in exactly one place (or, if the shallow fix is chosen, DM Console's dead copy is gone and the choice is noted in the changelog line); CharGen's racial-trait checkbox tooltips show the same text as before for all 40 keys; `engine-parity` 0 failed.
-
 ## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
 **Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
 
