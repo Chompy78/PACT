@@ -986,6 +986,9 @@ real cost: a gate that fails at random trains people to re-run rather than read 
 
 **Effort:** small · **Risk:** low — test harness only, no app code, no rules logic; worst case the gate
 stays as flaky as it already is.
+**Sweep status (2026-10-20): not sweep-eligible — needs a reproduction first.** An unattended sweep re-ran the
+gate 11 times and it passed 11 of 11, so a fix cannot be proven against a failure that will not show. A person
+should capture a failing run (note the machine load), then the fix is checked against that.
 
 ```
 Reuse ONE tab per tool (CharGen, Live Sheet, DM Console) across all of that tool's sections instead of
@@ -1035,7 +1038,10 @@ because no test ever produced that shape for real. A stub that can be told to an
 genuine `P0001` from `pact_enforce_locked_history()` would have failed on each.
 **Effort:** small–medium · **Risk:** low — test harness only; no app code, no rules logic, no SQL change.
 Ambiguity is the driving factor (where the seam belongs in the stub is a design call), and its worst case
-is a test that has to be rewritten, not a defect shipped. Sweep-eligible.
+is a test that has to be rewritten, not a defect shipped.
+**Sweep status (2026-10-20): not sweep-eligible** (this line said "Sweep-eligible" until two sweeps in a row
+parked it). It needs a real PostgREST `P0001` error body captured from the live trigger, and the stub seam is a
+design call for a person. Re-tag it eligible only once that sample exists in the repo.
 
 ```text
 1. Give the test stub server an error-injection seam — the smallest thing that lets a test say "answer
@@ -1071,6 +1077,9 @@ comparison is testing the wrong thing. Forget the fold entirely and it passes fo
 function-list half of this hole was closed on 2026-09-03 by a count assertion (a typo now fails); the
 migration-list half needs a design decision, which is why it is filed rather than improvised.
 **Effort:** medium · **Risk:** low — test harness only.
+**Sweep status (2026-10-20): not sweep-eligible — needs an owner rule.** Step 1 below (which migrations load,
+which are excluded as one-way or paired) is a decision, not a mechanical step. The numbers above date from
+2026-09; re-read `testing/sql/rls-baseline-test.sql` as it stands before starting, because it may have changed since.
 
 ```text
 1. Decide how migrations are discovered and ordered: every file in sql/migrations/ in filename order is
@@ -1086,31 +1095,6 @@ migration-list half needs a design decision, which is why it is filed rather tha
 
 **Done when:** adding a new migration to `sql/migrations/` requires no edit to
 `testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
-
-## `2026-09-02-widen-protected-projection.sql` was edited after it was applied — TODO
-Branch `docs/migration-record-dm-remove-boon`. The file's header records "BLAST RADIUS: zero. Measured
-before applying" and was applied on 2026-09-02; commit `f2418a9` then rewrote the applied file's `in
-(...)` list to add `dmRemoveBoon` and amended its scope comment. `sql/migrations/README.md`, added in the
-same promotion, states: "A dated migration file is a historical record of one change. It is NOT the
-current definition of anything." To its credit the header documents the extension honestly ("AS FIRST
-SHIPPED AND THEN EXTENDED") — but it says the second change was "applied as `seal_protects_dm_removals`",
-and **no migration file by that name exists** (the only other occurrence in the repo is an `\echo` label
-in `testing/sql/session-seal-test.sql:343`). So replaying `sql/migrations/` in filename order produces in
-one file a state production reached in two, and there is no dated record of when `dmRemoveBoon` was
-actually added.
-**Effort:** small · **Risk:** low — repo history hygiene, no behaviour change.
-
-```text
-1. Confirm with the author which change production actually received and when.
-2. Restore 2026-09-02-widen-protected-projection.sql to what was applied on 2026-09-02, and add a
-   separate dated file for the dmRemoveBoon extension named to match what it was applied as.
-3. If restoring is judged worse than leaving it (a defensible call — the current file IS the end state),
-   then at minimum fix the header so it does not name a file that does not exist, and say plainly that
-   this file represents two applications.
-```
-
-**Done when:** `grep -rn seal_protects_dm_removals sql/` either resolves to a real migration file or the
-reference is gone, and `sql/migrations/` replayed in filename order reproduces production's sequence.
 
 ## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
 Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
@@ -1328,24 +1312,6 @@ characters to a local file outside the repo, run the audit on it, then delete th
 ```
 **Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
 
-## chore/racialfx-single-source — the racial-trait descriptions live in three tool copies (one dead, one already drifted) — TODO
-**Effort:** low · **Risk:** low — display-only text never read by `compute()`; damage scale is a missing tooltip at worst.
-
-```text
-DATA.racialFx (the hover text on racial-trait checkboxes) is overwritten inside each tool's module bridge:
-CharGen (~line 604), Live Sheet (~2723) and DM Console (~3395). js/engine-data.js also carries a partial
-racialFx map (4 keys) that all three tools then replace. Measured on preview a064f68 (2026-10-11):
-  - CharGen and Live Sheet copies are identical (40 keys).
-  - DM Console's copy (38 keys) has drifted: it lacks "Dragonborn: Larger breath dice (L5)/(L11)/(L17)" (the
-    real DATA.racial keys) and carries a stale "Dragonborn: Larger Breath Dice" that matches no trait.
-  - Nothing in DM Console reads DATA.racialFx at all (only the definition and a comment) — its copy is dead.
-Deep fix (recommended): move the full map into js/engine-data.js once, merged with the 4 keys already there,
-and delete all three tool copies — the same shape as DATA.lineageFx (PR #603). Check CharGen and Live Sheet
-render the same tooltips/sheet text afterwards. Shallow alternative: delete DM Console's dead copy only and
-leave the CharGen/Live Sheet duplication. Display-only: no DATA.version bump; log in CHANGELOG.md.
-```
-**Done when:** `DATA.racialFx` is defined in exactly one place (or, if the shallow fix is chosen, DM Console's dead copy is gone and the choice is noted in the changelog line); CharGen's racial-trait checkbox tooltips show the same text as before for all 40 keys; `engine-parity` 0 failed.
-
 ## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
 **Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
 
@@ -1487,24 +1453,6 @@ campaign-house-rules engine PR reads the effective value); (3) decide with the o
 (a DM-run correction RPC or a one-off migration) — measure first.
 ```
 **Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
-
-## feat/dm-rules-lock-bars — every locked Campaign Rules section says it is locked, right where the DM is looking — TODO
-Branch feat/dm-rules-lock-bars. **Effort:** low · **Risk:** low — DM-Console-only UI on the existing lock (`_setRulesLocked`); nothing saved changes (damage scale low).
-
-```text
-Found 2026-10-13 (owner: "i found [the languages] but can't see how to edit it"). Campaign Rules, the advancement tile and the
-custom-fields tile start LOCKED (every control disabled by _setRulesLocked(true)), and the only ways out are ruleLockHint at the
-top of the rules group and ruleLockBtn beside "Save rules" — both out of sight while a DM scrolls a long section. #651 fixed this
-for the 🗣 Languages box only (a 🔒 note on the box, ruleLanguagesLockNote — owner choice C2). The 11 "Banned …" lists, the
-economy band and the advancement/curve fields still look simply greyed out.
-
-DO (owner's option C1 from that session): a bar pinned to the top of each locked section while it scrolls —
-"🔒 Locked — Unlock to edit" with the unlock action right there — shown only while locked, hidden once unlocked. It must NOT be
-a <button> inside the swept tiles (_scopedControlEls disables every button there) — use the same span role="button" pattern as
-ruleLanguagesLockNote, and stay inert during an archived-campaign peek (check ruleLockHint.disabled, as that note does).
-Consider replacing the languages-only note with the general bar so there is one mechanism.
-```
-**Done when:** with rules locked, every rules section (including the Banned lists and the curve) shows the bar at its top while scrolled; clicking it unlocks all of them; it hides once unlocked and does nothing during an archived peek; `campaign-language-list-e2e` and `dm-console-ui-e2e` pass with new checks for this.
 
 ## feat/feature-effect-text — class features, subclass abilities and racial traits get real ⓘ effect text — TODO
 Branch feat/feature-effect-text. **Effort:** high · **Risk:** medium — ~600 short rules summaries must agree with the Players Guide (ambiguity drives it); display-only, so no pricing can break.
@@ -1666,12 +1614,12 @@ MEASURE FIRST: list live characters that own any of the three and have named a g
 ```
 **Done when:** the owner's decision per grant is in the decision record; the engine and both tools agree (the ✎ dialog rows come from `ownedChoiceGrants`); a test proves a high-level free pick is no longer possible and a live character's named spells are kept; Guide text (both copies) states it; `DATA.version` bumped once; `engine-parity` 0 failed; `names-dialog-e2e` and `livesheet-pack-spells-e2e` pass.
 
-## fix/audit-text-only-grants — Boon of Fortitude's +40 HP, Body and Mind, Telepathic and Tavern Brawler claim effects the engine does not apply — TODO
+## fix/audit-text-only-grants — Body and Mind, Telepathic and Tavern Brawler claim effects the engine does not apply — TODO
 Branch fix/audit-text-only-grants. **Effort:** medium · **Risk:** medium — each is a one-ability change, but they are rules changes (Guide + engine + `DATA.version`).
 
 ```text
 FOUND 2026-10-20 (wide ability audit; the 2024 numbers are from memory of the PHB — confirm them):
-  - Boon of Fortitude (25 AP): the text gives +40 max HP; only the +2 CON is coded. Ten Grit purchases cost 120 AP, so the gap is about 95 AP.
+  - Boon of Fortitude: DONE 2026-10-20 — compute() now adds the +40 HP (`fix/apply-numeric-grants`, v0.386, owner decision BK).
   - Monk: Body and Mind (19 / 32 AP): 2024 gives +4 DEX and +4 WIS (max 25); the engine adds nothing (scores unchanged after buying), so it is a dead purchase. The ability ladder stops at 20; the Guide says Primal Champion is "the only" cap-breaker.
   - Telepathic (5 AP art): 2024 adds Detect Thoughts once per long rest (worth ~18 AP as an innate level-2 spell). The Guide's barred list names it, yet its own table and the data sell it.
   - Tavern Brawler (4 AP art): the data text claims improvised-weapon proficiency (3 AP when bought separately); `weaponProf` stays empty. The Guide's text omits the claim and sells improvised weapons at 3 AP flat.
@@ -1679,33 +1627,6 @@ DO: one owner decision per item — implement the text (like `_flat` does for Pr
 MEASURE FIRST: live owners of each.
 ```
 **Done when:** each item has a decision and the engine, data text and Guide (both copies) agree; a test per item proves the effect or its absence; `DATA.version` bumped if a price or an effect changed; `engine-parity` 0 failed.
-
-## fix/audit-grants-owner-decisions — the four open grant decisions from the 2026-10-20 grants audit (BH, BI, BJ, BK) — TODO (BK remains; BH decided, BJ done, BI moved)
-Branch fix/audit-grants-owner-decisions. **Effort:** medium · **Risk:** high — damage scale drives it: every option except BJ1 changes `compute()` output, which live characters' frozen ledgers can diverge from.
-
-```text
-FOUND 2026-10-20 by a grants audit (a subagent probed compute() for 2024 abilities that hand out something PACT sells for AP). PACT's rule: a feature that only hands out something PACT already sells is removed or barred, and the thing is bought on its own ladder. Owner decides each of the four below; recommendations as given in the session that found them.
-OVERLAP: BH is the same defect as fix/audit-free-spell-picks; BI covers Bonus Skills, Iron Mind and Boon of Skill, three of the five in fix/audit-saves-and-skills (see also fix/gloom-stalker-iron-mind-decision); Boon of Fortitude's HP in BK is in fix/audit-text-only-grants. Record the owner's answer HERE, then do the work in whichever of those tasks owns it (one DATA.version bump per branch). BJ and the AC/speed half of BK are covered only by this task.
-  BH. Free choice-grant spells. Eldritch Knight, Arcane Trickster and Bard Magical Secrets let a character name 6 free spells of any level (a free Eldritch Knight with no spellcasting tradition bought can name Shield, Fireball, Counterspell). The Guide says these are barred and bought in the spell economy.
-      BH1 (recommended — matches the Guide, closes a free-spell route): the grant only widens which list the character's BOUGHT spells may come from; the 6 free picks go. Check live characters for named grant spells first.
-      BH2: keep the free spells and give them a price.
-  BI. Paid features that add nothing: Bard College of Lore Bonus Skills (9 AP, no skills), Gloom Stalker Iron Mind (11 AP, no save), Boon of Skill (25 AP, no skills).
-      BI1 (recommended — matches the Guide's own Iron Mind "Barred (to saves)" entry): bar them as Primal Order was (D-GH-2026-10-20-primal-order-magician-warden); existing owners keep what they bought.
-      BI2: make them grant their skills or save through the free-proficiency path #688 built (free, counted first).
-  BJ. Wood Elf speed is paid twice: the Wood lineage already gives speed 35, so the 4 AP speed trait changes nothing for a Wood elf.
-      BJ1 (recommended — smallest change, no one's current speed moves): refuse, or warn, when a Wood elf buys the trait.
-      BJ2: drop the free 35 from the Wood lineage so the 4 AP trait is the only route (what the Guide implies; changes compute() output).
-  BK. Grants the sheet never applies: Dazzling Footwork's AC, Boon of Fortitude's +40 HP, and every speed grant (Monk Unarmored Movement, Barbarian Fast Movement, Speedy, Boon of Speed).
-      BK1 (recommended — a correctness fix with no rules choice behind it): the engine applies them (AC, HP, speed) in compute(); needs a DATA.version bump and parity fixtures.
-      BK2: leave them as description text only.
-MEASURE FIRST (each decision): query live `characters` for owners (stats::text ilike) before changing anything; an event-sourced character keeps its frozen ledger, so keep each owner's total unchanged with a grandfathered grant as Primal Order did, or list them for the owner.
-```
-**Owner answers, 2026-10-20 (same day):**
-- **BH: decided (owner, 2026-10-20).** The Eldritch Knight and Arcane Trickster free spell picks stay barred for good; those subclasses reach Wizard spells by buying the Wizard discipline. (Already in effect since #691, v0.382, via `choiceGrants[k].bar`; a later clean-up may delete the two entries.) Magical Secrets: owner chose BO1 (unbar as a list-widening only, price unchanged); recorded and done under `chore/review-barred-abilities` item 5.
-- **BI: one ability at a time.** All three are now barred by #691, so do this inside `chore/review-barred-abilities`, not here.
-- **BJ: DONE** in `fix/speed-trait-no-gain` (v0.383, see CHANGELOG and `D-GH-2026-10-20-speed-trait-no-gain`).
-- **BK: BK1.** The engine applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and the speed grants (Monk, Barbarian, Speedy, Boon of Speed) in compute(). Boon of Fortitude overlaps `fix/audit-text-only-grants`.
-**Done when:** BH, BI, BJ and BK each have the owner's answer in a decision record; each is implemented (here or in the overlapping task named above) in the engine AND the Players Guide (served copy and `pact-guide` master, `verify-guide.mjs` before and after); a test per item proves the new grant or price; live owners' totals are unchanged or listed for the owner; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
 
 ## chore/decide-spell-invocation-pricing — spell-granting Warlock invocations and similar features are priced by tier, not by the spell they give — DECISION NEEDED
 Branch chore/decide-spell-invocation-pricing. **Effort:** low (the decision) · **Risk:** low until a rule is chosen — then high.
@@ -1750,7 +1671,7 @@ For EACH ability below, decide with the owner: (R1) keep it barred for good and 
   7. Fighter: Eldritch Knight and 8. Rogue: Arcane Trickster — the free picks (six spells of any level) are off (choiceGrants bar:true). Decide whether the subclass should instead widen the list that BOUGHT spells come from (the BH1 option on the board), and keep Mage Hand for Arcane Trickster if the 2024 text gives it.
   9. Telepathic (art, 5 AP, HD 4) — 2024 adds Detect Thoughts once per long rest (about 18 AP as an innate spell). The Guide's barred-feats list already named it while its table priced it.
   10. Tavern Brawler (art, 4 AP, HD 1) — the data text claims improvised-weapon proficiency (3 AP bought separately); weaponProf stays empty. One player owns it and keeps it. The simplest fix is to remove the claim from the data text.
-The 2024 numbers come from an audit that worked from memory of the PHB (the data carries no text): confirm each against the book. OVERLAPS: fix/audit-saves-and-skills, fix/audit-free-spell-picks, fix/audit-text-only-grants, fix/gloom-stalker-iron-mind-decision and fix/audit-grants-owner-decisions (BH, BI) cover the same abilities; record the owner's answer HERE, do the work in whichever task owns it, and note that BI's Boon of Skill half is overtaken (Boon of Skill stays purchasable).
+The 2024 numbers come from an audit that worked from memory of the PHB (the data carries no text): confirm each against the book. OVERLAPS: fix/audit-saves-and-skills, fix/audit-free-spell-picks, fix/audit-text-only-grants, fix/gloom-stalker-iron-mind-decision and fix/audit-grants-owner-decisions (graduated 2026-10-20: BH recorded here as item 5 and the EK/AT picks stay barred, BJ and BK done) (BH, BI) cover the same abilities; record the owner's answer HERE, do the work in whichever task owns it, and note that BI's Boon of Skill half is overtaken (Boon of Skill stays purchasable).
 TO UN-BAR ONE: delete bar:true from its DATA entry; for the five class features also put the key back into DATA.featureList; revert its Guide row (served copy AND the pact-guide master) and remove its "Barred" line from testing/scripts/guide-price-check.mjs's reviewed list; update testing/scripts/barred-grants-ci.mjs; bump DATA.version once.
 Also reconcile one wording: the served Guide has a paragraph (the spell-granting-features one) that still names Magical Secrets as a priced feature; the pact-guide master does not contain that paragraph.
 ```

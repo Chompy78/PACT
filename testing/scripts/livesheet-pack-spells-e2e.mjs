@@ -46,7 +46,7 @@ const logOf = (patch) => [
 ];
 
 const browser = await launchChromium();
-// v0.382 bars the free off-list spell picks of Eldritch Knight, Arcane Trickster and Magical Secrets ("choiceGrants[k].bar", skipped by
+// v0.382 bars the free off-list spell picks of Eldritch Knight and Arcane Trickster (Magical Secrets became a list-widening in v0.384, so it is no longer a pick fixture) ("choiceGrants[k].bar", skipped by
 // ownedChoiceGrants(); pinned in barred-grants-ci.mjs). This test is about the MECHANISM that shows a choice-grant pick (its source label,
 // its level gate, the escaping of a player-typed name), so it serves the engine data with the bar lifted; the day an owner un-bars the
 // grants for good this rewrite can go.
@@ -119,20 +119,20 @@ const has = (rows, re) => rows.some(t => re.test(t));
       ownTrait: names({ species: 'Tiefling', racialTraits: ['Tiefling: Thaumaturgy cantrip'] }),
       grantNotHeld: names({ originClass: 'Rogue', hd: 5, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
       grantHeld: names({ originClass: 'Rogue', hd: 5, freeSub: { Rogue: 'Arcane Trickster' }, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
-      secretsHd9: names({ originClass: 'Bard', hd: 9, features: ['Bard: Magical Secrets'], grantNames: { 'Bard: Magical Secrets': ['Fireball'] } }),
-      secretsHd10: names({ originClass: 'Bard', hd: 10, features: ['Bard: Magical Secrets'], grantNames: { 'Bard: Magical Secrets': ['Fireball'] } }),
+      ekHd2: names({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' }, grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
+      ekHd3: names({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' }, grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
       styleNoSlot: names({ fightingStyleNames: ['Blessed Warrior'], fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light'] } }),
       styleOneSlot: names({ features: ['Paladin: Fighting Style'], fightingStyleNames: ['Blessed Warrior', 'Druidic Warrior'],
         fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light', 'Sacred Flame'], 'Druidic Warrior': ['Druidcraft'] } }),
-      dialogUsesEngine: _ownedGrants(B({ originClass: 'Bard', hd: 9, features: ['Bard: Magical Secrets'] })).length === 0
-                     && _ownedGrants(B({ originClass: 'Bard', hd: 10, features: ['Bard: Magical Secrets'] })).length === 1,
+      dialogUsesEngine: _ownedGrants(B({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' } })).length === 0
+                     && _ownedGrants(B({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' } })).length === 1,
     }; });
   check('a spell left over from an old lineage is not listed', probe.staleLineage === 'Prestidigitation', probe.staleLineage);
   check('an origin-race-only cantrip trait on another species is not listed', probe.crossTrait === '', probe.crossTrait);
   check('…but is on its own species', probe.ownTrait === 'Thaumaturgy', probe.ownTrait);
   check('a choice grant the character does not hold is not listed', probe.grantNotHeld === '', probe.grantNotHeld);
   check('…and is once the subclass is held', probe.grantHeld === 'Shield', probe.grantHeld);
-  check('Magical Secrets picks only from 10 Hit Dice (the grant\'s charLevel)', probe.secretsHd9 === '' && probe.secretsHd10 === 'Fireball', JSON.stringify([probe.secretsHd9, probe.secretsHd10]));
+  check('Eldritch Knight picks only from 3 Hit Dice (the grant\'s charLevel)', probe.ekHd2 === '' && probe.ekHd3 === 'Fireball', JSON.stringify([probe.ekHd2, probe.ekHd3]));
   check('fighting-style cantrips need an owned Fighting Style slot', probe.styleNoSlot === '', probe.styleNoSlot);
   check('…only the styles within the slots, at most the style\'s own cantrip count', probe.styleOneSlot === 'Guidance,Light', probe.styleOneSlot);
   check('the ✎ Name dialog\'s owned-grant list is the engine\'s (same level gate)', probe.dialogUsesEngine);

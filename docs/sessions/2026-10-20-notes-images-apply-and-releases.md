@@ -37,6 +37,20 @@ covers the closing stretch: getting those features live on production and releas
   (BH free choice-grant spells, BI paid features that add nothing, BJ Wood Elf speed, BK grants the sheet never
   applies) became one NEXT task, `fix/audit-grants-owner-decisions`, cross-referenced to the overlapping
   `fix/audit-*` tasks that the other session's wide audit added.
+- **The owner's answers.** BH1: the Eldritch Knight and Arcane Trickster free spell picks stay barred. BO1: Bard
+  Magical Secrets becomes a list-widening at its current price (13 AP origin / 22 cross), which is cheaper than the
+  alternatives it replaces (a Wizard discipline is about 20 AP, a Divine or Primal tradition 26–43, all three lists
+  about 100). Another session built it in #696. BI goes to `chore/review-barred-abilities`, one ability at a time.
+- **BJ: #693 (v0.383).** A speed trait that adds nothing can't be bought. Goliath had the same double charge as the
+  Wood elf, so the fix is generic: `speedTraitAddsNothing()` in the engine. CharGen greys the box, the roller skips
+  the trait and the Sheet says why. The trait stays buyable cross-race when it does add speed (the owner's point:
+  that is what it exists for). One live owner (Moss Stormspud) keeps the trait and its AP and now sees an advisory.
+- **BK: #698 (v0.386).** The sheet now applies Dazzling Footwork's AC, Boon of Fortitude's +40 HP and four speed
+  grants (Unarmored Movement, Fast Movement, Speedy, Boon of Speed), each only under its own conditions. No live
+  character owns any of the six. New CI script `numeric-grants-ci.mjs` (22 assertions). The task graduated.
+- **Version race.** While #698 waited, #696 claimed v0.384 and #700 claimed v0.385, so #698 moved twice and ended
+  on v0.386. Its squash commit title still says v0.384, because the PR title was not updated; CHANGELOG, the engine
+  and the decision record all say v0.386.
 
 ## Worth remembering
 

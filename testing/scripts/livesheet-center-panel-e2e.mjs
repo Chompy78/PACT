@@ -5,6 +5,7 @@
  *   3. The "not named" notice lists WHICH spells and languages are blank.
  *   6. The player's own sheet: coins, weapons (engine weaponAttack()) and note sections, saved with the character.
  *   5. On desktop the Buy and History panels fold to a strip (remembered per browser).
+ *   7. ⤢ Expand on Buy / progress fills the page (feat/livesheet-buy-fullpage): several columns, AP bar stays, remembered, none on a phone.
  *   4. A campaign DM can switch off the "N drawbacks chosen" advice (DM Console → rules.drawbackCountAdvice).
  *
  *   node testing/scripts/livesheet-center-panel-e2e.mjs   (expect 0 failed)
@@ -168,6 +169,51 @@ const kept = await page.evaluate(() => foldBuild(null).appearance.overall);
 check('…and asks before replacing a hand-written paragraph (cancel keeps it)', asked === 1 && kept === 'Hand-written.', kept);
 const SHOT = process.env.SHOT_DIR;
 if (SHOT) { fs.mkdirSync(SHOT, { recursive: true }); await page.locator('#sheet').screenshot({ path: path.join(SHOT, 'livesheet-center-panel-desktop.png') }); }
+// feat/livesheet-buy-fullpage: ⤢ Expand makes Buy / progress fill the page; Back restores; remembered after a reload; the AP bar
+// stays visible; a purchase made while expanded is recorded exactly as in the normal layout.
+{
+  const lay = () => page.evaluate(() => {
+    const r = i => document.querySelector('.layout>.card:nth-child(' + i + ')').getBoundingClientRect();
+    const L = document.querySelector('.layout').getBoundingClientRect(), eco = document.getElementById('eco').getBoundingClientRect();
+    const cols = new Set([...document.querySelectorAll('#buy>.bgcat')].map(e => Math.round(e.getBoundingClientRect().left))).size;
+    return { buy: Math.round(r(1).width), layout: Math.round(L.width), midShown: r(2).width > 0, ledShown: r(3).width > 0,
+      ecoShown: eco.width > 0 && eco.height > 0, cols, btn: document.getElementById('buyExpandBtn').textContent };
+  });
+  // start from the normal three-panel layout (the fold test above left the History panel folded)
+  await page.evaluate(() => document.querySelectorAll('.layout>.card.clp').forEach(c => c.classList.remove('clp')));
+  const n0 = await lay();
+  check('Expand: the button is offered on desktop, labelled Expand', /Expand/.test(n0.btn) && n0.midShown && n0.ledShown, JSON.stringify(n0));
+  await page.click('#buyExpandBtn');
+  const x = await lay();
+  check('Expand: Buy / progress fills the page width', x.buy >= x.layout - 30, x.buy + ' of ' + x.layout);
+  check('Expand: Character and History hide, the button now says Back', !x.midShown && !x.ledShown && /Back/.test(x.btn), JSON.stringify(x));
+  check('Expand: the buy categories use several columns', x.cols >= 2, String(x.cols));
+  check('Expand: the AP bar stays visible', x.ecoShown);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelector('#sheet .shskills'), { timeout: 25000 });
+  const xr = await lay();
+  check('Expand: remembered after a reload', xr.buy >= xr.layout - 30 && !xr.midShown && /Back/.test(xr.btn), JSON.stringify(xr));
+  // a purchase made while expanded is an ordinary buy event
+  const bought = await page.evaluate(async () => {
+    const before = LOG.length, apBefore = economy(null).spent;
+    for (const q of ['Athletics', 'Acrobatics', 'Survival', 'skill']) {
+      setBuyQuery(q);
+      const b = [...document.querySelectorAll('#buy button')].find(e => !e.disabled && !e.hasAttribute('disabled') && e.offsetParent);
+      if (b) { b.click(); break; }
+    }
+    setBuyQuery('');
+    const ev = LOG.slice(before);
+    return { added: ev.length, type: ev[0] && ev[0].type, cost: ev[0] && ev[0].cost, spentUp: economy(null).spent > apBefore };
+  });
+  check('Expand: a purchase made while expanded is recorded like any other buy', bought.added === 1 && bought.type === 'buy' && Number.isFinite(bought.cost) && bought.spentUp, JSON.stringify(bought));
+  await page.click('#buyExpandBtn');
+  const back = await lay();
+  check('Expand: Back restores the three-panel layout', back.buy < 400 && back.midShown && back.ledShown && /Expand/.test(back.btn), JSON.stringify(back));
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(() => document.querySelector('#sheet .shskills'), { timeout: 25000 });
+  const br = await lay();
+  check('Expand: the restored layout is remembered after a reload', br.buy < 400 && br.midShown && br.ledShown, JSON.stringify(br));
+}
 // fix/livesheet-header-and-panel-width: drag Buy's inner edge to widen it; remembered after a reload; double-click resets.
 {
   const buyW = () => page.evaluate(() => Math.round(document.querySelector('.layout>.card').getBoundingClientRect().width));
@@ -191,6 +237,7 @@ check('on a phone the skills list stacks above the sheet', await ph.page.evaluat
   const a = document.querySelector('.shskills').getBoundingClientRect(), b = document.querySelector('.shmain').getBoundingClientRect();
   return a.bottom <= b.top + 1; }));
 check('no sideways scroll on a phone', await ph.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+check('phone: no Expand button (Buy is already one full-width column)', await ph.page.evaluate(() => getComputedStyle(document.getElementById('buyExpandBtn')).display === 'none'));
 // fix/livesheet-header-and-panel-width: the pinned phone header is only the sheet name, the character name and the buttons.
 const hdr = await ph.page.evaluate(() => { const t = document.querySelector('.top'), r = t.getBoundingClientRect();
   return { h: Math.round(r.height), over: t.scrollWidth > t.clientWidth + 1, name: getComputedStyle(document.getElementById('topCharName')).display !== 'none' && document.getElementById('topCharName').textContent,
@@ -211,6 +258,14 @@ check('engine: drawbackCountAdvice:false switches it off', !has({ drawbackCountA
 check('engine: purchaseLegality honours it too',
   !E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }, { drawbackCountAdvice: false }).warnings.some(w => /drawbacks chosen/.test(w))
   && E.purchaseLegality(Object.assign(E.baseBuild(), { drawbacks: many.drawbacks.slice(0, 3) }), 'drawback', { v: many.drawbacks[3] }).warnings.some(w => /drawbacks chosen/.test(w)));
+// chore/racialfx-single-source: the racial-trait blurbs live in js/engine-data.js once; no tool re-defines them.
+{
+  const fx = E.DATA.racialFx || {};
+  check('racialFx: one map in the engine data, all 40 old blurbs plus the engine\'s own 3 extras', Object.keys(fx).length === 43 && fx['Goliath: Powerful Build'] && fx['Gnome: Rock Clockwork Device'], String(Object.keys(fx).length));
+  const dups = ['tools/PACT-CharGen-Webtool.html', 'tools/PACT-Live-Char-Sheet.html', 'tools/DM-Console.html']
+    .filter(f => /DATA\.racialFx\s*=/.test(fs.readFileSync(path.join(REPO, f), 'utf8')));
+  check('racialFx: no tool assigns its own copy', dups.length === 0, dups.join(', '));
+}
 if (C) {
   check('campaign rule: absent means on', C.drawbackCountAdviceFromRules({}) === undefined && C.drawbackCountAdviceFromRules(null) === undefined);
   check('campaign rule: false switches it off', C.drawbackCountAdviceFromRules({ drawbackCountAdvice: false }) === false);

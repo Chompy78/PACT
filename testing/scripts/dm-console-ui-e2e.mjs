@@ -796,6 +796,55 @@ console.log('\n[dm-console-ui] roster lock icons');
   await lp.close();
 }
 
+// feat/dm-rules-lock-bars: while Campaign Rules are locked, every rules section shows a bar pinned to its top; clicking it
+// unlocks them all; it hides once unlocked; it does nothing during an archived-campaign peek (ruleLockHint disabled).
+console.log('\n[dm-console-ui] rules lock bars');
+{
+  const bp = await browser.newPage({ viewport: { width: 1200, height: 600 } });
+  const berrs = []; bp.on('pageerror', e => berrs.push(String(e)));
+  await bp.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil:'load' });
+  await bp.waitForFunction(() => !!window._campBridge, { timeout: 15000 });
+  // The rules group sits inside the campaign panel, hidden until a campaign is open: show it and open its four sections.
+  await bp.evaluate(() => {
+    ['campCodes', 'campControls'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'block'; });
+    ['campRulesDetails', 'campCharHouseRulesDetails', 'campAdvancementDetails', 'campCustomFieldsDetails'].forEach(id => { document.getElementById(id).open = true; });
+  });
+  const tiles = ['campRulesTile', 'campCharHouseRulesTile', 'campAdvancementTile', 'campCustomFieldsTile'];
+  const state = () => bp.evaluate((tiles) => ({
+    shown: tiles.map(id => { const b = document.querySelector('#' + id + ' .rlbar'); return !!b && getComputedStyle(b).display !== 'none'; }),
+    first: tiles.map(id => { const d = document.querySelector('#' + id + ' details > div'); return !!d && d.firstElementChild.classList.contains('rlbar'); }),
+    pressed: document.getElementById('ruleLockBtn').getAttribute('aria-pressed'),
+    controlsOff: document.getElementById('ruleMultiDisc').disabled,
+  }), tiles);
+  const s0 = await state();
+  check('lock bars: every rules section shows the bar while locked, as its first element', s0.shown.every(Boolean) && s0.first.every(Boolean) && s0.controlsOff, JSON.stringify(s0));
+  // pinned: scroll to the lower part of the tall Campaign Rules section; its bar must still sit just under the pinned header
+  const pin = await bp.evaluate(() => {
+    const tile = document.getElementById('campRulesTile'), bar = tile.querySelector('.rlbar'), hdr = document.querySelector('header.topbar');
+    const r = tile.getBoundingClientRect(), tall = r.height > window.innerHeight * 1.2;
+    window.scrollTo(0, window.scrollY + r.bottom - window.innerHeight * 0.6);
+    const b = bar.getBoundingClientRect();
+    return { tall, barTop: Math.round(b.top), hdrBottom: Math.round(hdr.getBoundingClientRect().bottom), barVisible: b.bottom > 0 && b.top < window.innerHeight };
+  });
+  check('lock bars: the bar stays pinned under the header while the section scrolls', pin.tall && pin.barVisible && Math.abs(pin.barTop - pin.hdrBottom) <= 3, JSON.stringify(pin));
+  // archived peek: ruleLockHint is disabled -> the bar is inert
+  await bp.evaluate(() => { document.getElementById('ruleLockHint').disabled = true; document.querySelector('#campAdvancementTile .rlbar').click(); });
+  check('lock bars: inert while ruleLockHint is disabled (archived peek)', (await state()).pressed === 'true');
+  await bp.evaluate(() => { document.getElementById('ruleLockHint').disabled = false; });
+  await bp.evaluate(() => document.querySelector('#campAdvancementTile .rlbar').click());
+  const s1 = await state();
+  check('lock bars: clicking any bar unlocks every section and hides all four bars', s1.pressed === 'false' && !s1.controlsOff && s1.shown.every(v => !v), JSON.stringify(s1));
+  await bp.evaluate(() => document.getElementById('ruleLockBtn').click());
+  const s2 = await state();
+  check('lock bars: locking again brings the bars back', s2.pressed === 'true' && s2.shown.every(Boolean), JSON.stringify(s2));
+  await bp.focus('#campCustomFieldsTile .rlbar');
+  await bp.keyboard.press('Enter');
+  check('lock bars: Enter on a focused bar unlocks too', (await state()).pressed === 'false');
+  const bfatal = berrs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('lock bars: no fatal page errors', bfatal.length === 0, bfatal.slice(0,2).join(' | '));
+  await bp.close();
+}
+
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
 if (errors.length) console.log('\n(non-fatal errors seen: ' + errors.length + ')\n' + errors.slice(0,5).join('\n'));
 await browser.close(); server.close();
