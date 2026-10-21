@@ -19,7 +19,7 @@ user separately approved merging #697.
 |---|---|---|
 | `feat/livesheet-buy-fullpage` | **Shipped — PR #697, merged by the user's go-ahead after all 25 checks passed.** ⤢ Expand on Buy / progress; hidden on phones; +11 e2e checks. | small / low |
 | `feat/dm-rules-lock-bars` | **Shipped — PR #701** (merged 2026-10-20). Pinned 🔒 lock bar on each locked Campaign Rules section; +7 e2e checks. | low / low |
-| `widen-protected-projection.sql` edited after apply | **Shipped — PR #699** (open). Header comment now says the file stands for both applied migrations; comments only. | small / low |
+| `widen-protected-projection.sql` edited after apply | **Shipped — PR #699** (merged 2026-10-21). Header comment now says the file stands for both applied migrations; comments only. | small / low |
 | `chore/racialfx-single-source` | **Shipped — PR #703** (open), after a delay. The rebase onto `preview` conflicted in `js/engine-data.js` (one giant line, also changed by #696) and the Live Sheet. The mechanical fix (`git checkout --ours js/engine-data.js`) was refused by the auto-mode classifier as a destructive overwrite, so the user ran it themselves; the move was then redone from `origin/preview`'s CharGen copy (43 keys) and the Live Sheet hunk resolved by hand. Parity 136/0, `livesheet-center-panel-e2e` 66/0. | low / low |
 | `fix/tool-pricing-tab-flake` | **Skipped — not reproducible again** (11 of 11 passes on an unmodified tree, second sweep in a row). Side finding: each gate run leaks a `/tmp/pact-cdp-*` Chromium profile. | small / low |
 | `test/seal-roundtrip` | **Skipped — ineligible again.** Needs a real PostgREST error body (production write or a PostgREST image not installed here). | small–medium / low |
