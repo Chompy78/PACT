@@ -2,6 +2,15 @@
 -- Widen pact_ap_ledger_protected()'s projection from six enumerated fields to the whole event.
 -- Applied to production 2026-09-02 as `widen_protected_projection_to_whole_event`.
 --
+-- THIS FILE REPRESENTS TWO PRODUCTION APPLICATIONS, not one (record added 2026-10-20; comments only, the SQL is
+-- unchanged). Production's migration history shows both, from `supabase_migrations.schema_migrations`:
+--   20260902000819  widen_protected_projection_to_whole_event   the whole-event projection, WITHOUT 'dmRemoveBoon'
+--   20260902105725  seal_protects_dm_removals                   the same function with 'dmRemoveBoon' ADDED to the IN list
+-- No separate `seal_protects_dm_removals` file exists in sql/migrations/: commit f2418a9 edited this file in place
+-- instead, so replaying the directory reaches in one step the state production reached in two. The current text is
+-- the END state (the second application). Restoring the first-shipped text and splitting the extension into its own
+-- dated file was judged not worth it — the result is identical either way — so this note is the record.
+--
 -- WHY. The 2026-09-01 session-seal migration added `'v', ev#>>'{payload,v}'` so a sealed 6 AP boon
 -- could not be swapped for a different 6 AP boon. That closed the hole only for events whose payload
 -- is shaped {v:...}. js/engine.js's MUT table shows that is a minority of categories:
@@ -40,7 +49,8 @@
 --     species/class/ability edit, so a positional rule would refuse ordinary editing. Species and ability
 --     scores are compared by DERIVED VALUE inside pact_enforce_locked_history() instead — see
 --     D-GH-2026-09-02-seal-freezes-species-and-ratchets-stats.
---   * 'dmRemoveBoon' -> ADDED to the IN list below (applied as `seal_protects_dm_removals`). Positional
+--   * 'dmRemoveBoon' -> ADDED to the IN list below (applied 2026-09-02 as `seal_protects_dm_removals`, version 20260902105725,
+--     with no file of its own — see the note at the top). Positional
 --     protection is correct for this one: it is created in exactly one place (tools/DM-Console.html, via
 --     dm_edit_character_log's append-only `v_log := v_log || v_new`), and every other reference merely
 --     READS it (js/engine.js activeEvents, the Live Sheet's history renderer).

@@ -1087,31 +1087,6 @@ migration-list half needs a design decision, which is why it is filed rather tha
 **Done when:** adding a new migration to `sql/migrations/` requires no edit to
 `testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
 
-## `2026-09-02-widen-protected-projection.sql` was edited after it was applied — TODO
-Branch `docs/migration-record-dm-remove-boon`. The file's header records "BLAST RADIUS: zero. Measured
-before applying" and was applied on 2026-09-02; commit `f2418a9` then rewrote the applied file's `in
-(...)` list to add `dmRemoveBoon` and amended its scope comment. `sql/migrations/README.md`, added in the
-same promotion, states: "A dated migration file is a historical record of one change. It is NOT the
-current definition of anything." To its credit the header documents the extension honestly ("AS FIRST
-SHIPPED AND THEN EXTENDED") — but it says the second change was "applied as `seal_protects_dm_removals`",
-and **no migration file by that name exists** (the only other occurrence in the repo is an `\echo` label
-in `testing/sql/session-seal-test.sql:343`). So replaying `sql/migrations/` in filename order produces in
-one file a state production reached in two, and there is no dated record of when `dmRemoveBoon` was
-actually added.
-**Effort:** small · **Risk:** low — repo history hygiene, no behaviour change.
-
-```text
-1. Confirm with the author which change production actually received and when.
-2. Restore 2026-09-02-widen-protected-projection.sql to what was applied on 2026-09-02, and add a
-   separate dated file for the dmRemoveBoon extension named to match what it was applied as.
-3. If restoring is judged worse than leaving it (a defensible call — the current file IS the end state),
-   then at minimum fix the header so it does not name a file that does not exist, and say plainly that
-   this file represents two applications.
-```
-
-**Done when:** `grep -rn seal_protects_dm_removals sql/` either resolves to a real migration file or the
-reference is gone, and `sql/migrations/` replayed in filename order reproduces production's sequence.
-
 ## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
 Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
 documented fresh-install path (which EXECUTE grants exist on trigger functions; that the baseline, not
@@ -1469,24 +1444,6 @@ campaign-house-rules engine PR reads the effective value); (3) decide with the o
 (a DM-run correction RPC or a one-off migration) — measure first.
 ```
 **Done when:** a new CharGen drawback is stored at −its value and the server ledger matches the browser in an e2e; the live count and the backfill decision are recorded; `engine-parity-ci` 0 failed.
-
-## feat/dm-rules-lock-bars — every locked Campaign Rules section says it is locked, right where the DM is looking — TODO
-Branch feat/dm-rules-lock-bars. **Effort:** low · **Risk:** low — DM-Console-only UI on the existing lock (`_setRulesLocked`); nothing saved changes (damage scale low).
-
-```text
-Found 2026-10-13 (owner: "i found [the languages] but can't see how to edit it"). Campaign Rules, the advancement tile and the
-custom-fields tile start LOCKED (every control disabled by _setRulesLocked(true)), and the only ways out are ruleLockHint at the
-top of the rules group and ruleLockBtn beside "Save rules" — both out of sight while a DM scrolls a long section. #651 fixed this
-for the 🗣 Languages box only (a 🔒 note on the box, ruleLanguagesLockNote — owner choice C2). The 11 "Banned …" lists, the
-economy band and the advancement/curve fields still look simply greyed out.
-
-DO (owner's option C1 from that session): a bar pinned to the top of each locked section while it scrolls —
-"🔒 Locked — Unlock to edit" with the unlock action right there — shown only while locked, hidden once unlocked. It must NOT be
-a <button> inside the swept tiles (_scopedControlEls disables every button there) — use the same span role="button" pattern as
-ruleLanguagesLockNote, and stay inert during an archived-campaign peek (check ruleLockHint.disabled, as that note does).
-Consider replacing the languages-only note with the general bar so there is one mechanism.
-```
-**Done when:** with rules locked, every rules section (including the Banned lists and the curve) shows the bar at its top while scrolled; clicking it unlocks all of them; it hides once unlocked and does nothing during an archived peek; `campaign-language-list-e2e` and `dm-console-ui-e2e` pass with new checks for this.
 
 ## feat/feature-effect-text — class features, subclass abilities and racial traits get real ⓘ effect text — TODO
 Branch feat/feature-effect-text. **Effort:** high · **Risk:** medium — ~600 short rules summaries must agree with the Players Guide (ambiguity drives it); display-only, so no pricing can break.
