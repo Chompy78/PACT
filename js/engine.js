@@ -891,6 +891,26 @@ export function profGrants(b, owned, blocked) {
   return { priced, weaponProf: wp, armour: arm };
 }
 
+/* profGrantSources(b) — WHICH owned feature hands out each weapon / armour flag, for a "from Warden" note beside a proficiency box.
+ * Display only, derived on every call, never stored, and never merged into the build (CharGen reads its checkboxes back as the
+ * build, so a granted flag drawn as a ticked box would be saved as a purchase). Same feature set and the same two grant shapes
+ * (grantsProf, grandfather) as profGrants. Returns { weapons:{ simple:['Ranger: Warden'], … }, armour:{ light:[…], … } }. */
+export function profGrantSources(b) {
+  b = b || {};
+  const out = { weapons: {}, armour: {} };
+  const seen = new Set();
+  for (const raw of (b.features || [])) {
+    const lab = FEAT_ALIAS(raw); if (seen.has(lab)) continue; seen.add(lab);
+    const f = (DATA.features || {})[lab]; if (!f) continue;
+    for (const g of [f.grantsProf, f.grandfather]) {
+      if (!g) continue;
+      for (const k of (g.weapons || [])) (out.weapons[k] = out.weapons[k] || []).push(lab);
+      for (const k of (g.armour || [])) (out.armour[k] = out.armour[k] || []).push(lab);
+    }
+  }
+  return out;
+}
+
 /* freeProfs(b, blocked?) — the tool and instrument proficiencies that feats hand out FREE (owner rule 2026-10-20). A feat in DATA.arts
  * may carry  freeProf: { tools: [fixed names], instruments: N (the player names N), toolPicks: N (the player names N) }  —
  * Chef gives Cook's utensils, Musician three instruments of the player's choice. They are added to what the character owns and
