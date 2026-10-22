@@ -108,7 +108,7 @@ import { LEVEL_BUDGET_CURVES, AWARD_PACES, STARTING_TIER_RATIOS } from './advanc
 // Gold-and-downtime training bands (Players Guide §16); surfaced on DATA below.
 import { ECONOMY_BANDS, DEFAULT_BAND, START_GOLD_AP_CAP, TRADE_RATES } from './economy-bands.js';
 
-export const BUILD = "v1.704";
+export const BUILD = "v1.712";
 
 // Rules dataset lives in its own editable file (REV-14a); imported here and
 // re-exported unchanged so every tool/importer sees the same DATA surface.
@@ -889,6 +889,26 @@ export function profGrants(b, owned, blocked) {
   const priced = { weaponProf: Object.assign({}, wp), armour: Object.assign({}, arm) };
   live.forEach(f => put(f.grandfather, wp, arm));
   return { priced, weaponProf: wp, armour: arm };
+}
+
+/* profGrantSources(b) — WHICH owned feature hands out each weapon / armour flag, for a "from Warden" note beside a proficiency box.
+ * Display only, derived on every call, never stored, and never merged into the build (CharGen reads its checkboxes back as the
+ * build, so a granted flag drawn as a ticked box would be saved as a purchase). Same feature set and the same two grant shapes
+ * (grantsProf, grandfather) as profGrants. Returns { weapons:{ simple:['Ranger: Warden'], … }, armour:{ light:[…], … } }. */
+export function profGrantSources(b) {
+  b = b || {};
+  const out = { weapons: {}, armour: {} };
+  const seen = new Set();
+  for (const raw of (b.features || [])) {
+    const lab = FEAT_ALIAS(raw); if (seen.has(lab)) continue; seen.add(lab);
+    const f = (DATA.features || {})[lab]; if (!f) continue;
+    for (const g of [f.grantsProf, f.grandfather]) {
+      if (!g) continue;
+      for (const k of (g.weapons || [])) (out.weapons[k] = out.weapons[k] || []).push(lab);
+      for (const k of (g.armour || [])) (out.armour[k] = out.armour[k] || []).push(lab);
+    }
+  }
+  return out;
 }
 
 /* freeProfs(b, blocked?) — the tool and instrument proficiencies that feats hand out FREE (owner rule 2026-10-20). A feat in DATA.arts
@@ -3128,7 +3148,36 @@ export function foldBuild(events) {
   // spendable OUTSIDE the ignorePlayerAp bracket, so it must not ride in on the awards-only budget.
   b.budget = _eco.earned - _eco.drawbackEarned - _eco.discounted;
   b.dmDiscount = _eco.discounted;
+  _coerceFoldedNumerics(b);
   return b;
+}
+
+// Numeric build fields are numbers by the time a UI reads them (fix/xss-unescaped-build-fields).
+//
+// MUT.patch is Object.assign(b, clone(p.patch)), so a hostile saved LOG can park an HTML string in any field a
+// patch event may carry. compute() coerces its own COPY (the list near the top of compute()), but the build the
+// tools read for display comes straight from here, and several of them concatenate hd/languages/ki/sorcery/
+// hardy/tough/attune and traditions[].rank / disciplines[].slots/known/cantrips/pactSlots/arcanum[] into
+// innerHTML. Coerce once, at the fold's output, with exactly the rules compute() applies — so compute() of the
+// coerced build is identical to compute() of the raw one (same list, same clamp), and honest data is untouched.
+// Never touches the events; b is the fold's own fresh object (patches are cloned in), so in-place is safe.
+const _FOLD_NUMERIC = ['hardy','tough','gold','extraClasses','dabblerCantrips','languages','budget','profBonus','attune','ki','sorcery'];
+function _coerceFoldedNumerics(b) {
+  for (const k of _FOLD_NUMERIC) b[k] = Number(b[k]) || 0;
+  b.hd = Math.min(20, Math.max(1, Math.floor(Number(b.hd) || 1)));
+  const arr = (v, n) => { const a = Array.isArray(v) ? v : []; const o = []; for (let i = 0; i < Math.max(n, a.length); i++) o.push(Number(a[i]) || 0); return o; };
+  if (Array.isArray(b.traditions)) for (const t of b.traditions) {
+    if (!t || typeof t !== 'object') continue;
+    if ('rank' in t) t.rank = Number(t.rank) || 0;
+    if (Array.isArray(t.disciplines)) for (const d of t.disciplines) {
+      if (!d || typeof d !== 'object') continue;
+      if ('cantrips' in d) d.cantrips = Number(d.cantrips) || 0;
+      if ('pactSlots' in d) d.pactSlots = Number(d.pactSlots) || 0;
+      if ('slots' in d) d.slots = arr(d.slots, 9);
+      if ('known' in d) d.known = arr(d.known, 9);
+      if ('arcanum' in d) d.arcanum = arr(d.arcanum, 4);
+    }
+  }
 }
 
 // isCreationDraft(events): has the creation lock fired at any point in this log?

@@ -10,6 +10,19 @@
 
 ## Index
 
+## D-GH-2026-10-22-xss-unescaped-build-fields — numeric build fields are coerced in the fold, and every render site is escaped too
+- Accepted 2026-10-22. A hostile LOG `patch` event could leave HTML in `hd`/`languages`/`ki`/`sorcery`/`hardy`/`tough`/`attune`/tradition `rank`/`slots[]`, and several tool render sites concatenated them raw (stored XSS reaching a DM or a link recipient). Deep fix: `foldBuild()` coerces them with compute()'s own rules (no mechanics change, no version bump); shallow fix: those sites now `Number()`/`esc()`, and CharGen `addRow` escapes unknown subabil/subbundle presets.
+  Full record: `decisions/2026/D-GH-2026-10-22-xss-unescaped-build-fields.md`.
+
+## D-GH-2026-09-02-baseline-is-the-authority — `sql/rls-policies.sql`, not the dated migrations, is the current definition of the security functions
+- PR #503's baseline fold: the fresh-install path had no seal functions and re-running it would have reverted the locked-history trigger and re-granted EXECUTE; it now carries the live definitions, with a drift guard in CI. Reconstructed 2026-10-22 from commit `cb323ca`.
+  Full record: `decisions/2026/D-GH-2026-09-02-baseline-is-the-authority.md`.
+## D-GH-2026-09-02-protect-dm-removals — a DM-removed boon cannot be un-removed from a locked history
+- `dmRemoveBoon` joins the protected projection: positional protection is right because nothing legitimately rewrites or moves that event (checked per type). Zero live events, zero seals at apply. Reconstructed 2026-10-22 from commit `f2418a9`.
+  Full record: `decisions/2026/D-GH-2026-09-02-protect-dm-removals.md`.
+## D-GH-2026-10-22-ap-minting-and-edit-award-campaign — AP and gold are campaign-scoped; edit_ap_award requires the character still be in the award's campaign
+- A move into a different non-null campaign resets `ap`/`gold` to that campaign's award sums (new trigger; leaving to solo keeps them; admin exempt); `edit_ap_award` checks current membership and locks the rows. PROPOSED, migration not yet applied.
+  Full record: `decisions/2026/D-GH-2026-10-22-ap-minting-and-edit-award-campaign.md`.
 ## D-GH-2026-10-13-campaign-house-rules — house rules are set campaign-wide by the DM, with per-character DM overrides
 - Accepted by owner 2026-10-13 (P2/R1/U1/T2/S2/V1/W1/X1/Y1). Campaign `rules.charHouseRules` (Calls, custom/repriced boons and
   drawbacks; "disabled" = the existing ban lists) apply to every campaign character; a DM's per-character `dmHouseRules` override
