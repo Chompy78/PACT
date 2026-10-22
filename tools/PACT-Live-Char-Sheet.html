@@ -1918,8 +1918,8 @@ function spellPanel(b,r){
       +'<div class="spstat"><small>Ability</small><b style="color:'+(ABCOL[castAb]||'')+'">'+castAb+'</b></div>'
       +'<div class="spstat"><small>Spell Save DC</small><b>'+saveDC+'</b></div>'
       +'<div class="spstat"><small>Spell Attack</small><b>'+atk+'</b></div>'
-      +'<div class="spstat"><small>Rank · Cast at</small><b>'+(t.rank||0)+'<span style="font-size:10px;font-weight:600;color:var(--grey)"> · Lv'+castAtLv+'</span></b></div></div>';
-    const slots='<div class="slotgrid">'+(d.slots||[]).map(function(n,i){return '<div class="slotcell'+(n?'':' empty')+'"><div class="lv">L'+(i+1)+'</div><div class="n">'+(n||'—')+'</div></div>';}).join('')+'</div>';
+      +'<div class="spstat"><small>Rank · Cast at</small><b>'+(Number(t.rank)||0)+'<span style="font-size:10px;font-weight:600;color:var(--grey)"> · Lv'+castAtLv+'</span></b></div></div>';
+    const slots='<div class="slotgrid">'+(d.slots||[]).map(function(n,i){return '<div class="slotcell'+(n?'':' empty')+'"><div class="lv">L'+(i+1)+'</div><div class="n">'+(Number(n)||'—')+'</div></div>';}).join('')+'</div>';
     const groups=[];
     const cn=(d.cantripNames||[]).filter(Boolean), ccount=d.cantrips||0;
     if(ccount||cn.length){let cr=cn.map(function(nm){return '<div class="sprow cant"><span class="bul">◆</span><span>'+esc(nm)+'</span></div>';}).join('');
@@ -2236,14 +2236,14 @@ function render(){
     Init:(b.skills||[]).includes('Initiative')?('Init '+sgn(r.init)+' = '+sgn(m.WIS)+' Wis + '+r.prof+' prof'+((b.expertise||[]).includes('Initiative')?' + '+r.prof+' expertise':'')):('Init '+sgn(r.init)+' = '+sgn(m.DEX)+' Dex'),
     Speed:'Speed '+r.speed+' ft = '+(DATA.speed[b.species]||30)+' '+(b.species||'species')+' base'+(((r.speedInfo&&r.speedInfo.parts)||[]).map(function(x){return ' + '+x[1]+' '+x[0];}).join(''))+(r.speed!==(DATA.speed[b.species]||30)+((r.speedInfo&&r.speedInfo.parts)||[]).reduce(function(s,x){return s+x[1];},0)?' (after racial floor, speed traits & drawbacks)':'')+(((r.speedInfo&&r.speedInfo.notes)||[]).length?' · '+r.speedInfo.notes.join(' · '):''),
     DC:r.hasDC?('Spell save DC '+r.saveDC+' = 8 + '+r.prof+' prof + '+sgn(r.castMod)+' '+(r.castAb||'casting')):'No spellcasting',
-    HD:'Hit Dice: '+b.hd+' × d6 (= your level)',
-    Ki:'Ki / Focus pool: '+b.ki+' point'+(b.ki===1?'':'s')+' — spent in play',
-    SP:'Sorcery pool: '+b.sorcery+' point'+(b.sorcery===1?'':'s')+' — fuels metamagic',
-    Vigor:'Vigor rank '+(b.hardy||0)+' — +'+(b.hardy||0)+' HP per Hit Die, capped at your CON modifier ('+sgn(m.CON)+')',
-    Grit:'Grit '+(b.tough||0)+' — +'+((b.tough||0)*4)+' flat HP',
-    Attune:'Attunement slots: '+(b.attune||0)
+    HD:'Hit Dice: '+(Number(b.hd)||1)+' × d6 (= your level)',
+    Ki:'Ki / Focus pool: '+(Number(b.ki)||0)+' point'+(b.ki===1?'':'s')+' — spent in play',
+    SP:'Sorcery pool: '+(Number(b.sorcery)||0)+' point'+(b.sorcery===1?'':'s')+' — fuels metamagic',
+    Vigor:'Vigor rank '+(Number(b.hardy)||0)+' — +'+(Number(b.hardy)||0)+' HP per Hit Die, capped at your CON modifier ('+sgn(m.CON)+')',
+    Grit:'Grit '+(Number(b.tough)||0)+' — +'+((Number(b.tough)||0)*4)+' flat HP',
+    Attune:'Attunement slots: '+(Number(b.attune)||0)
   };
-  sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',b.hd+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+k[1]+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
+  sh+='<div class="kpis">'+[['AC',r.ac],['HP',r.hp],['Init',sgn(r.init)],['Speed',r.speed+'ft'],['DC',r.hasDC?r.saveDC:'—'],['HD',(Number(b.hd)||1)+'d6']].concat((b.ki>0)?[['Ki',b.ki]]:[]).concat((b.sorcery>0)?[['SP',b.sorcery]]:[]).concat((b.hardy>0)?[['Vigor',b.hardy]]:[]).concat((b.tough>0)?[['Grit',b.tough]]:[]).concat((b.attune>0)?[['Attune',b.attune]]:[]).map(k=>'<div class="kp" title="'+esc(_kbd[k[0]]||'')+'"><b>'+esc(String(k[1]))+'</b><span>'+k[0]+'</span></div>').join('')+'</div>';
   // feat/livesheet-sheet-layout: the 📋 Sheet renders this same body, so its copy of the row gets id suffix "Sh" (ids stay unique).
   const _wid=opts.sheet?'Sh':'';
   // feat/livesheet-armour-ac: what the character is WEARING (free choices, logged) — the AC above follows it via compute().
@@ -2267,7 +2267,7 @@ function render(){
   {const _sp=(b.species2&&b.species2!=='(none)'?'Half-'+b.species+' '+b.species2:b.species)+(b.lineage?' · '+b.lineage+' lineage':'')+' · '+(r.size||'Medium');
    sh+='<div class="seg"><b>Species:</b> '+esc(_sp)+'</div>';
    const _ln=(b.languageNames||[]).filter(Boolean);
-   sh+='<div class="seg"><b>Languages:</b> '+(_ln.length?_ln.map(esc).join(', '):'—')+' <span class="hint">('+(b.languages||1)+')</span></div>';
+   sh+='<div class="seg"><b>Languages:</b> '+(_ln.length?_ln.map(esc).join(', '):'—')+' <span class="hint">('+(Number(b.languages)||1)+')</span></div>';
    const _wp=b.weaponProf||{},_ar=b.armour||{};
    const _pf=[(_wp.simple?'Simple weapons':''),(_wp.allMartial?'All martial weapons':(_wp.martial?_wp.martial+' martial weapon'+(_wp.martial>1?'s':''):'')),(_wp.improvised?'Improvised weapons':'')]
      .concat([['light','Light armour'],['medium','Medium armour'],['heavy','Heavy armour'],['shield','Shields']].filter(function(a){return _ar[a[0]];}).map(function(a){return a[1];})).filter(Boolean);
@@ -2749,7 +2749,7 @@ function _lsTableExtras(b,r,eco,avail){
   var H='<div class="pssec lstable"><h4>🎲 At the table <span class="hint">· 📱 this device only — not saved to the cloud or shared with other devices</span></h4>';
   H+='<div class="cs-hpbox"><div class="cs-hp big"><label>Current HP  ·  (max '+r.hp+')</label>'+_mfIn('curHP',String(r.hp),'cs-num','','Current HP')+'</div>'
     +'<div class="cs-hp"><label>Temp HP</label>'+_mfIn('tempHP','','cs-num','','Temporary HP')+'</div>'
-    +'<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(b.hd),'cs-num','','Hit Dice remaining')+'</div></div>';
+    +'<div class="cs-hp"><label>Hit Dice left</label>'+_mfIn('hdLeft',String(Number(b.hd)||1),'cs-num','','Hit Dice remaining')+'</div></div>';
   H+='<div class="dsv"><b>Death Saves</b> <span>✓ '+_mfCk('ds_s1',false,'Death save success 1')+_mfCk('ds_s2',false,'Death save success 2')+_mfCk('ds_s3',false,'Death save success 3')+'</span> <span>✗ '+_mfCk('ds_f1',false,'Death save failure 1')+_mfCk('ds_f2',false,'Death save failure 2')+_mfCk('ds_f3',false,'Death save failure 3')+'</span>'
     +' <span class="cs-insp"><b>Inspiration</b> '+_mfCk('insp',false,'Inspiration')+'</span></div>';
   var caster=(b.traditions||[]).some(function(t){return t&&t.name&&t.name!=='(none)';});

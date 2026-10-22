@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-22-xss-unescaped-build-fields — numeric build fields are coerced in the fold, and every render site is escaped too
+- Accepted 2026-10-22. A hostile LOG `patch` event could leave HTML in `hd`/`languages`/`ki`/`sorcery`/`hardy`/`tough`/`attune`/tradition `rank`/`slots[]`, and several tool render sites concatenated them raw (stored XSS reaching a DM or a link recipient). Deep fix: `foldBuild()` coerces them with compute()'s own rules (no mechanics change, no version bump); shallow fix: those sites now `Number()`/`esc()`, and CharGen `addRow` escapes unknown subabil/subbundle presets.
+  Full record: `decisions/2026/D-GH-2026-10-22-xss-unescaped-build-fields.md`.
+
 ## D-GH-2026-09-02-baseline-is-the-authority — `sql/rls-policies.sql`, not the dated migrations, is the current definition of the security functions
 - PR #503's baseline fold: the fresh-install path had no seal functions and re-running it would have reverted the locked-history trigger and re-granted EXECUTE; it now carries the live definitions, with a drift guard in CI. Reconstructed 2026-10-22 from commit `cb323ca`.
   Full record: `decisions/2026/D-GH-2026-09-02-baseline-is-the-authority.md`.

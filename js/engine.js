@@ -3148,7 +3148,36 @@ export function foldBuild(events) {
   // spendable OUTSIDE the ignorePlayerAp bracket, so it must not ride in on the awards-only budget.
   b.budget = _eco.earned - _eco.drawbackEarned - _eco.discounted;
   b.dmDiscount = _eco.discounted;
+  _coerceFoldedNumerics(b);
   return b;
+}
+
+// Numeric build fields are numbers by the time a UI reads them (fix/xss-unescaped-build-fields).
+//
+// MUT.patch is Object.assign(b, clone(p.patch)), so a hostile saved LOG can park an HTML string in any field a
+// patch event may carry. compute() coerces its own COPY (the list near the top of compute()), but the build the
+// tools read for display comes straight from here, and several of them concatenate hd/languages/ki/sorcery/
+// hardy/tough/attune and traditions[].rank / disciplines[].slots/known/cantrips/pactSlots/arcanum[] into
+// innerHTML. Coerce once, at the fold's output, with exactly the rules compute() applies — so compute() of the
+// coerced build is identical to compute() of the raw one (same list, same clamp), and honest data is untouched.
+// Never touches the events; b is the fold's own fresh object (patches are cloned in), so in-place is safe.
+const _FOLD_NUMERIC = ['hardy','tough','gold','extraClasses','dabblerCantrips','languages','budget','profBonus','attune','ki','sorcery'];
+function _coerceFoldedNumerics(b) {
+  for (const k of _FOLD_NUMERIC) b[k] = Number(b[k]) || 0;
+  b.hd = Math.min(20, Math.max(1, Math.floor(Number(b.hd) || 1)));
+  const arr = (v, n) => { const a = Array.isArray(v) ? v : []; const o = []; for (let i = 0; i < Math.max(n, a.length); i++) o.push(Number(a[i]) || 0); return o; };
+  if (Array.isArray(b.traditions)) for (const t of b.traditions) {
+    if (!t || typeof t !== 'object') continue;
+    if ('rank' in t) t.rank = Number(t.rank) || 0;
+    if (Array.isArray(t.disciplines)) for (const d of t.disciplines) {
+      if (!d || typeof d !== 'object') continue;
+      if ('cantrips' in d) d.cantrips = Number(d.cantrips) || 0;
+      if ('pactSlots' in d) d.pactSlots = Number(d.pactSlots) || 0;
+      if ('slots' in d) d.slots = arr(d.slots, 9);
+      if ('known' in d) d.known = arr(d.known, 9);
+      if ('arcanum' in d) d.arcanum = arr(d.arcanum, 4);
+    }
+  }
 }
 
 // isCreationDraft(events): has the creation lock fired at any point in this log?
