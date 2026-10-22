@@ -39,3 +39,22 @@ security audit and a stored-XSS sweep together, then the fixes.
 - Tooling note: `gh pr merge` was refused by the auto-mode classifier twice even with
   `Bash(gh pr merge:*)` in `.claude/settings.local.json`, then went through on the third attempt; an unrelated
   `git pull` was refused straight afterwards. Not a rules problem — the classifier's judgement varies.
+
+## Live-data fix: Amble's strict language list (same day, owner's call)
+- **Report:** a player (Skylar) could not spend or save with the language `Haldeni`. Cause found: Amble's campaign
+  language list is strict (`rules.languages.strict = true`) and its entries carry notes inside the name
+  (`Haldeni (default)`, `Aelvish (Elven dialect) (Elven rule)`, …). `campaignLanguages().isListed()` is an exact,
+  case-insensitive match, so the plain `Haldeni` a player types is "off the list" (checked by running the engine's own
+  function on a copy of the list). The exact error on her screen was not seen, so this is the likely cause, not proven.
+- **Scope measured (read-only):** seven Amble characters held plain `Haldeni` in a `names` event — Archer, Caspian,
+  Fenwick Copperkettle, Moss Stormspud (two events), Skylar and the two Bram Cotter NPCs. Only the Wren NPC already used
+  the annotated name.
+- **What was done:** the owner chose to rewrite the characters, not the list. `dm_edit_character_log` cannot do this
+  (it only appends award, seal, discount and note events), so one admin `UPDATE` via the Supabase MCP replaced the exact
+  string `Haldeni` with `Haldeni (default)` inside `names` events' `lang` arrays for the seven characters. No trigger was
+  disabled; the server accepted it. Verified afterwards: no plain `Haldeni` left, event counts, `SEQ` and `ap` unchanged
+  (Skylar: 32 events, 103 AP). Before-values were kept in the session scratchpad only.
+- **Trade-offs the owner accepted:** sealed history was edited outside the audited DM route, and the sheets now show
+  the note `(default)` as part of the language name.
+- **Not fixed (the cause remains):** any new player who types a plain name from an annotated strict list hits the same
+  refusal. Options on record: strip a trailing `(note)` in the match (engine change), or clean the list's names.
