@@ -474,6 +474,7 @@ returns integer language plpgsql security definer set search_path = public, pg_t
 declare
   v_character      uuid;
   v_campaign       uuid;
+  v_char_campaign  uuid;
   v_old_amount     integer;
   v_old_note       text;
   v_old_created_at timestamptz;
@@ -484,9 +485,10 @@ begin
     raise exception 'An edit note is required';
   end if;
 
+  -- for update: two concurrent edits of one award serialise, so each computes its delta from the amount the other left.
   select character_id, campaign_id, amount, note, created_at
     into v_character, v_campaign, v_old_amount, v_old_note, v_old_created_at
-    from ap_awards where id = p_award_id;
+    from ap_awards where id = p_award_id for update;
 
   if v_character is null then
     raise exception 'Award not found';
@@ -498,6 +500,12 @@ begin
     raise exception 'Only a campaign DM can edit an AP award';
   end if;
   perform assert_campaign_active(v_campaign);
+
+  -- The award belongs to a campaign; the AP it paid out only counts while the character is still IN that campaign.
+  select campaign_id into v_char_campaign from characters where id = v_character for update;
+  if v_char_campaign is distinct from v_campaign then
+    raise exception 'This character is no longer in the campaign that made this award';
+  end if;
 
   v_delta := p_new_amount - v_old_amount;
 
@@ -519,6 +527,7 @@ begin
   update characters set ap = ap + v_delta
     where id = v_character
     returning ap into v_ap;
+
   return v_ap;
 end;
 $$;
@@ -2872,6 +2881,36 @@ drop trigger if exists trg_pact_campaign_move_clears_creation on public.characte
 create trigger trg_pact_campaign_move_clears_creation
   before update on public.characters
   for each row execute function public.pact_campaign_move_clears_creation();
+
+-- fix/ap-minting-and-edit-award-campaign (D-GH-2026-10-22-ap-minting-and-edit-award-campaign): ap/gold cannot be carried between campaigns.
+-- Folded from sql/migrations/2026-10-22-ap-minting-and-edit-award-campaign.sql (NOT yet applied to production when this was written).
+create or replace function public.pact_reset_campaign_grants_on_move()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if NEW.campaign_id is null or NEW.campaign_id is not distinct from OLD.campaign_id then
+    return NEW;
+  end if;
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;  -- admin session
+
+  NEW.ap := coalesce((select sum(a.amount) from public.ap_awards a
+                       where a.character_id = NEW.id and a.campaign_id = NEW.campaign_id), 0);
+  NEW.gold := coalesce((select sum(g.gold) from public.gold_awards g
+                         where g.character_id = NEW.id and g.campaign_id = NEW.campaign_id), 0);
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_aa_reset_grants_on_campaign_move on public.characters;
+create trigger trg_pact_aa_reset_grants_on_campaign_move
+  before update on public.characters
+  for each row
+  when (NEW.campaign_id is not null and NEW.campaign_id is distinct from OLD.campaign_id)
+  execute function public.pact_reset_campaign_grants_on_move();
+
+revoke execute on function public.pact_reset_campaign_grants_on_move() from public, anon, authenticated;
+
+comment on function public.pact_reset_campaign_grants_on_move() is
+  'On a move into a different non-null campaign, resets characters.ap / gold to that campaign''s ap_awards / gold_awards sums for the character, so granted AP and gold cannot be carried between campaigns. D-GH-2026-10-22-ap-minting-and-edit-award-campaign.';
 
 -- ---------------------------------------------------------------------------
 -- Account-level "basic mode" (feat/player-basic-mode). Restricts a flagged player to one active

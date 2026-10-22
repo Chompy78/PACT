@@ -111,6 +111,10 @@ jobs:
       # fix/server-player-award-after-lock: a player cannot raise a locked/sealed campaign character's award total (applied to production 2026-10-13; folded into rls-policies.sql 2026-10-20).
       - name: Player award after the lock — migration, attacks, legitimate paths, rollback
         run: testing/scripts/creation-lock-guard-test/run-award.sh
+      # fix/ap-minting-and-edit-award-campaign: AP and gold cannot be carried from one campaign into another, and a former DM cannot edit an award of a
+      # character that has left (rls-policies.sql carries the fix; the script rolls it back first so BEFORE shows the attacks working).
+      - name: AP minting between campaigns and edit_ap_award on a moved character — migration, attacks, legitimate paths, rollback
+        run: testing/scripts/creation-lock-guard-test/run-ap-minting.sh
       # feat/boon-drawback-notes: a DM approves a boon/drawback description and the server then refuses a player's change to it (applied to production 2026-10-19; folded into rls-policies.sql).
       - name: Boon & drawback descriptions — migration, attacks, legitimate paths, rollback
         run: testing/scripts/creation-lock-guard-test/run-notes.sh
