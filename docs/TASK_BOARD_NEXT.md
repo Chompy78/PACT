@@ -1646,15 +1646,6 @@ DO: in `pact-guide`, add the CHANGELOG/TASK_BOARD/DECISIONS lines, run the sync 
 ```
 **Done when:** `pact-guide`'s records mention the change; its vendored engine and generated prices match v0.381; the `documents-rules` stamp names the reconciled version; `guide-table-diff.mjs` lists no row for the Primal Order / Divine Order / Musician / Chef paragraphs as differing.
 
-## ui/show-granted-proficiencies — CharGen's proficiency tick boxes do not show what Warden, Protector and the legacy Primal Order grant — TODO
-Branch ui/show-granted-proficiencies. **Effort:** low · **Risk:** low — display only, but CharGen repaints its boxes from the fold and a derived flag saved as a raw one would break the "never store derived values" rule.
-
-```text
-2026-10-20: `profGrants()` makes Warden / Protector (priced) and the legacy Primal Order (not priced) switch weapon and armour proficiency on at compute time; the Live Sheet's weapon list and armour eligibility read it, but CharGen's weapon / armour tick boxes (`wp_simple`, `wp_all`, the `armour` boxes) and the Live Sheet's "Weapons & armour" buy buttons still show only what was bought. A player can tick the same box again: it costs nothing extra (flags are on/off) but it adds a dead event.
-DO: show a granted flag as ticked-and-locked with a "from Warden" note, and never write it into the build (CharGen emits a `wprof` patch from the boxes — it must not include a granted flag).
-```
-**Done when:** a Warden character sees the four boxes ticked and locked in CharGen and as owned in the Live Sheet; saving and reloading leaves `weaponProf` / `armour` exactly as bought (no granted flag in the log); `chargen-flows-e2e` and a new case in `feature-cantrip-picker-e2e.mjs` (or a sibling) cover it.
-
 ## chore/review-barred-abilities — review each of the nine abilities still barred "for the time being" and decide its future — DECISION NEEDED
 Branch chore/review-barred-abilities. **Effort:** medium · **Risk:** medium — ambiguity drives it: each ability needs its own rules answer, and un-barring or re-pricing one changes what new players pay (no live character owns any of the features; one player owns Tavern Brawler).
 
