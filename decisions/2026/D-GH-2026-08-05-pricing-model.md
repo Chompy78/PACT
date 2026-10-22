@@ -105,6 +105,8 @@ character:
 This also explains why `b._raceTraitLocked` stamps **per trait**: one character can hold purchases from
 both sides of the lock.
 
+> **Narrowed 2026-10-22 — see "Ruling" below.** "Re-pricing the whole build on any change" holds only while no context change (a level-up, a class unlock) has happened. A context change takes its listed price (D1), before the lock as well as after.
+
 ### D3 — The lock trigger: first spend past a threshold
 
 Already implemented and fixture-covered (`js/engine.js:634-655`, fixtures EV-003/EV-007/EV-009):
@@ -308,6 +310,23 @@ Neither rule is being violated — that is the problem:
 CharGen is unaffected either way: it builds a character at one level, and its edits are revisions of a
 single draft rather than progression. The question only bites where a pre-lock character levels up.
 Tracked as `fix/livesheet-draft-reconcile` on the task board; it needs a rules answer before code.
+
+## Ruling (2026-10-22, owner) — D1 governs a pre-lock level-up; D2's wording is narrowed
+
+The open question above asked which rule applies to a pre-lock character who levels up. D8 removed the numeric divergence without choosing. This section records the choice, so a reader of the original table does not take a closed case for a live bug.
+
+**D1 is the stated rule.** A level-up is a context change and takes its listed price, before the lock as well as after it. **D2 is narrowed:** the pre-lock "draft" re-prices the whole build only *while no context change has occurred* (for example, CharGen changing species re-prices the already-selected species traits). It does not override D1 for a level-up. This matches what the tools already do: the Live Sheet does not call `repriceDraft()` for a pre-lock character, and no code changes with this ruling.
+
+**Re-measured 2026-08-19 on v0.356** (driving `buy()` directly, Live Sheet, fresh character under the 79 AP threshold):
+
+| sequence | ledger | `compute()` | drift |
+|---|---|---|---|
+| Grit at HD 1, then level to 5 | 15 | 15 | 0 |
+| level to 5 first, then Grit | 15 | 15 | 0 |
+
+The original 2026-08-05 report (ledger 34 vs `compute()` 46 after one level-up; 44 vs 83 by HD 5) no longer reproduces. `tool-pricing-ci.mjs` now drives a pre-lock character through level-ups in both purchase orders and asserts `economy().spent === compute().total` (141 → 143 checks); that gate is what stops this regressing silently.
+
+**Not traced:** which post-5-August branch closed the gap beyond D8's per-rank Vigor stamp and the Grit correction. The record says the rules stopped disagreeing, not exactly which change did it.
 
 ## Open question — campaign vs player threshold precedence
 

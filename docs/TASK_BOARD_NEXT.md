@@ -322,45 +322,6 @@ today's behaviour exactly, joining past the limit fails with a message naming th
 limit never removes an existing character, the race guard is demonstrably still closed at the new N,
 the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
 
-## Record which of D1/D2 governs a pre-lock level-up — the divergence itself is GONE — TODO
-Branch `docs/prelock-pricing-rule`. **Re-measured 2026-08-19 on v0.356: the divergence does not
-reproduce.** This was filed as a live bug needing an owner rules ruling *before any code*; the code
-question has since answered itself, and what remains is a docs task.
-
-The original report (2026-08-05) measured a fresh Live Sheet character under the 79 AP threshold whose
-ledger read **34 against `compute()`'s 46** after one level-up, and **44 against 83** by HD 5. Re-run
-through the real tool on v0.356, driving `buy()` directly:
-
-| sequence | ledger | `compute()` | drift |
-|---|---|---|---|
-| Grit at HD 1, then level to 5 | 15 | 15 | **0** |
-| level to 5 first, then Grit | 15 | 15 | **0** |
-
-Zero drift in both orders. The Live Sheet still does **not** call `repriceDraft()` (checked), so this was
-not fixed by adopting D2 — one of the pricing branches that landed after 5 Aug made the two rules stop
-producing different numbers, rather than one of them winning. Which branch did it has not been traced.
-
-**Effort:** low · **Risk:** low — no behaviour changes; it is a decision-record edit. Downgraded from
-high, which was correct while a live 44-vs-83 divergence was believed to be sitting in the tool.
-
-**Already done, so don't redo it:** step 5 of the original task (assert the case rather than remember it)
-shipped on 2026-08-19 — `tool-pricing-ci.mjs` now drives a pre-lock character through level-ups in both
-purchase orders and asserts `economy().spent === compute().total`. It was 141 → **143** checks. That gate
-is what stops this silently regressing while the wording question waits.
-
-```text
-1. Decide, at leisure, whether D1 or D2 is the STATED rule for a pre-lock level-up. This is now a
-   question of what the record should say, not of what the tool does - nothing is broken either way.
-2. Amend D-GH-2026-08-05-pricing-model to narrow whichever one loses, so the next agent does not read
-   the two as still conflicting. Include the 2026-08-19 re-measurement above, or the closed case will
-   be re-reported as a bug by whoever reads the original table.
-3. Optional, and worth it if anyone touches draft pricing again: trace WHICH branch closed the gap, so
-   the record says why the rules stopped disagreeing instead of just noting that they did.
-```
-
-**Done when:** `D-GH-2026-08-05-pricing-model` states which rule governs a pre-lock level-up, and carries
-the 2026-08-19 re-measurement showing the original divergence no longer reproduces.
-
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
 (see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
@@ -1096,30 +1057,6 @@ which are excluded as one-way or paired) is a decision, not a mechanical step. T
 **Done when:** adding a new migration to `sql/migrations/` requires no edit to
 `testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
 
-## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
-Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
-documented fresh-install path (which EXECUTE grants exist on trigger functions; that the baseline, not
-the migrations, is the authority) and `f2418a9` changed what the server refuses. `AGENTS.md` per-change
-checklist step 5 requires a `DECISIONS.md` entry when a change involves a non-obvious *why* —
-"security model, trust boundary" is named explicitly — and step 7 says "A merged PR with missing docs is
-treated as incomplete." The `DECISIONS.md` diff in that promotion contains only the
-`D-GH-2026-08-25` warnings-race addendum. The reasoning currently lives only in
-`sql/migrations/README.md` and a workflow comment, neither of which the decisions index points at.
-**Effort:** small · **Risk:** none — docs only. **For the author of those commits**, not a third party:
-writing it from the outside would be reconstruction, which is what this rule exists to prevent.
-
-```text
-1. Add decisions/2026/D-GH-2026-09-02-<slug>.md for the baseline fold: why the baseline and not the
-   migrations is the authority, what the grant changes were, and why re-running rls-policies.sql is now
-   safe when it was not.
-2. Add one for the dmRemoveBoon projection widening — or fold it into the same record if they were one
-   decision.
-3. Add the one-line pointers to DECISIONS.md.
-```
-
-**Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
-agent wonder why this was done this way?"
-
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
 **STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
 `D-GH-2026-10-04-dm-unlock-drawback`):** `sql/migrations/2026-10-04-dm-unlock-drawback.sql` was applied to production
@@ -1296,21 +1233,20 @@ When either of these two tasks lands, trim part B of "The pact-guide master has 
 ```
 **Done when:** the owner's choice is recorded in a decision record; the engine and both guide copies agree; `verify-guide.mjs` passes 11 of 11 with that ALLOW entry gone; `engine-parity` 0 failed if the engine changed.
 
-## check/server-freeze-stage2-after-apply — look for refused saves and run the checks stage 2's apply skipped — TODO
-**Effort:** low · **Risk:** low — read-only checks; the only action they could lead to is the one-statement rollback.
+## check/server-freeze-stage2-after-apply — run the round-trip audit stage 2's apply skipped — TODO
+**Effort:** low · **Risk:** low — read-only check; the only action it could lead to is the one-statement rollback.
+**Owner step needed:** the audit needs an export of the live characters, which a Claude session cannot save. Not sweep-eligible until then.
 
 ```text
-Server freeze stage 2 was applied to the live database on 2026-10-11 (migration `server_freeze_stage2`). Three checks did not happen then:
-(1) the Supabase SECURITY advisor was blocked by the permission classifier (the performance advisor ran, nothing related);
-(2) the Postgres log query returned a backend error, so refused saves since the apply were not looked for;
-(3) `roundtrip-audit.mjs --stage2 --campaign-all` needs a full export of the live characters, which cannot be saved from a Claude session.
-DO, once players have had a couple of play days on it: run the security advisor and confirm nothing new mentions the freeze functions;
-query the Postgres logs for "locked character history" since 2026-10-11 and, for each hit, find out whether it was an honest save
-(a stale copy of the tool) or a real problem; if a real player's save was wrongly refused, apply
-`sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql` and open a task for the cause. For (3), have the owner export the live
-characters to a local file outside the repo, run the audit on it, then delete the file.
+Server freeze stage 2 was applied to the live database on 2026-10-11 (migration `server_freeze_stage2`). Two of the three checks the apply
+skipped were run on 2026-10-22 and are written up in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md` (Stage 2, "Post-apply check"):
+the security advisor shows nothing about the freeze functions, and the logs show 62 refusals since the apply (a few repeating patterns,
+tapering to zero; consistent with stale copies of a tool, not proven; nothing suggests a wrongly refused save). What is left:
+`roundtrip-audit.mjs --stage2 --campaign-all` against a full export of the live characters. DO: have the owner export the live characters
+to a local file outside the repo, run the audit on it, then delete the file. If the audit shows a current tool's save would be refused,
+apply `sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql` and open a task for the cause.
 ```
-**Done when:** the advisor shows nothing new; the log check is written down (number of refusals, and the cause of each); the round-trip audit is run or the owner has chosen to skip it, and that choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
+**Done when:** the round-trip audit is run, or the owner has chosen to skip it, and that result or choice is recorded in `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`.
 
 ## Lineage 2nd-level spells cost the 3rd-level rate — the guide's rule and the prices disagree — TODO
 **Effort:** low · **Risk:** medium — a rules/price decision for the owner (ambiguity drove it); the edit itself is small and no live character owns one of these spells.
@@ -1647,16 +1583,7 @@ DO: in `pact-guide`, add the CHANGELOG/TASK_BOARD/DECISIONS lines, run the sync 
 ```
 **Done when:** `pact-guide`'s records mention the change; its vendored engine and generated prices match v0.381; the `documents-rules` stamp names the reconciled version; `guide-table-diff.mjs` lists no row for the Primal Order / Divine Order / Musician / Chef paragraphs as differing.
 
-## ui/show-granted-proficiencies — CharGen's proficiency tick boxes do not show what Warden, Protector and the legacy Primal Order grant — TODO
-Branch ui/show-granted-proficiencies. **Effort:** low · **Risk:** low — display only, but CharGen repaints its boxes from the fold and a derived flag saved as a raw one would break the "never store derived values" rule.
-
-```text
-2026-10-20: `profGrants()` makes Warden / Protector (priced) and the legacy Primal Order (not priced) switch weapon and armour proficiency on at compute time; the Live Sheet's weapon list and armour eligibility read it, but CharGen's weapon / armour tick boxes (`wp_simple`, `wp_all`, the `armour` boxes) and the Live Sheet's "Weapons & armour" buy buttons still show only what was bought. A player can tick the same box again: it costs nothing extra (flags are on/off) but it adds a dead event.
-DO: show a granted flag as ticked-and-locked with a "from Warden" note, and never write it into the build (CharGen emits a `wprof` patch from the boxes — it must not include a granted flag).
-```
-**Done when:** a Warden character sees the four boxes ticked and locked in CharGen and as owned in the Live Sheet; saving and reloading leaves `weaponProf` / `armour` exactly as bought (no granted flag in the log); `chargen-flows-e2e` and a new case in `feature-cantrip-picker-e2e.mjs` (or a sibling) cover it.
-
-## chore/review-barred-abilities — review each of the ten abilities barred "for the time being" and decide its future — DECISION NEEDED
+## chore/review-barred-abilities — review each of the nine abilities still barred "for the time being" and decide its future — DECISION NEEDED
 Branch chore/review-barred-abilities. **Effort:** medium · **Risk:** medium — ambiguity drives it: each ability needs its own rules answer, and un-barring or re-pricing one changes what new players pay (no live character owns any of the features; one player owns Tavern Brawler).
 
 ```text
@@ -1666,26 +1593,81 @@ For EACH ability below, decide with the owner: (R1) keep it barred for good and 
   2. Ranger: Iron Mind (Gloom Stalker) — engine 11 / 18, T4, HD 5, class level 7. A Wisdom save (5 AP bought separately). Engine grants nothing. The Guide already said "Barred (→ saves)".
   3. Ranger: Otherworldly Glamour (Fey Wanderer) — engine 9 / 14, Guide printed 11 (9), T3, HD 3. One of Deception, Performance or Persuasion (1–3 AP bought separately). Engine grants nothing.
   4. Bard: Bonus Skills (College of Lore) — engine 9 / 14, Guide printed 11 (9), T3, HD 3. Three skills (5–10 AP bought separately). Engine grants nothing.
-  5. Bard: Magical Secrets — engine 13 / 22, Guide printed 17 (13), T5, HD 9, class level 10. Widens the prepared-spell pool in the 2024 text; the free picks (the real value, 6–30 AP) are switched off. **DECIDED (owner, 2026-10-20, BO1):** lift the bar and make it a list-widening only — from 10 HD the Bard discipline's own known/prepared spells may be NAMED from the Bard, Cleric, Druid and Wizard lists (name picker + `ownedChoiceGrants`/`choiceGrants` entry with no free picks); no extra spells or slots; price stays 13 / 22 (reconcile the Guide's printed 17 to the engine). Test: a Bard owning it can name a Cleric spell in a Bard slot and the total is unchanged; one without it cannot.
+  5. Bard: Magical Secrets — DONE 2026-10-20 (rules v0.384, PR #696, D-GH-2026-10-20-magical-secrets-list-widening): the bar is lifted and it is a list-widening only, price unchanged at 13 / 22 (the Guide's printed 17 was the sticker column and was right).
   6. Monk: Body and Mind — engine 19 / 32, Guide printed 25 (19), T7, HD 17, class level 20. 2024 text: +4 DEX and +4 WIS (bought as ability points: 24 AP from 12 to 16, 48 from 16 to 20). Engine adds nothing, and the ability ladder stops at 20.
   7. Fighter: Eldritch Knight and 8. Rogue: Arcane Trickster — the free picks (six spells of any level) are off (choiceGrants bar:true). Decide whether the subclass should instead widen the list that BOUGHT spells come from (the BH1 option on the board), and keep Mage Hand for Arcane Trickster if the 2024 text gives it.
   9. Telepathic (art, 5 AP, HD 4) — 2024 adds Detect Thoughts once per long rest (about 18 AP as an innate spell). The Guide's barred-feats list already named it while its table priced it.
   10. Tavern Brawler (art, 4 AP, HD 1) — the data text claims improvised-weapon proficiency (3 AP bought separately); weaponProf stays empty. One player owns it and keeps it. The simplest fix is to remove the claim from the data text.
 The 2024 numbers come from an audit that worked from memory of the PHB (the data carries no text): confirm each against the book. OVERLAPS: fix/audit-saves-and-skills, fix/audit-free-spell-picks, fix/audit-text-only-grants, fix/gloom-stalker-iron-mind-decision and fix/audit-grants-owner-decisions (graduated 2026-10-20: BH recorded here as item 5 and the EK/AT picks stay barred, BJ and BK done) (BH, BI) cover the same abilities; record the owner's answer HERE, do the work in whichever task owns it, and note that BI's Boon of Skill half is overtaken (Boon of Skill stays purchasable).
 TO UN-BAR ONE: delete bar:true from its DATA entry; for the five class features also put the key back into DATA.featureList; revert its Guide row (served copy AND the pact-guide master) and remove its "Barred" line from testing/scripts/guide-price-check.mjs's reviewed list; update testing/scripts/barred-grants-ci.mjs; bump DATA.version once.
-Also reconcile one wording: the served Guide has a paragraph (the spell-granting-features one) that still names Magical Secrets as a priced feature; the pact-guide master does not contain that paragraph.
 ```
 **Done when:** each of the ten has an owner decision recorded; the engine data, the served Guide and the `pact-guide` master agree for each; `testing/scripts/barred-grants-ci.mjs` matches the final state; `verify-guide.mjs` before and after; `DATA.version` bumped once per branch; `engine-parity` 0 failed.
 
-## feat/epic-boon-escalating-price — each epic boon costs more than the one before, so a character cannot buy them all cheaply — DECISION NEEDED
-Branch feat/epic-boon-escalating-price. **Effort:** medium · **Risk:** high — rules change to `compute()` pricing: engine AND Players Guide land together, `DATA.version` bumped once, and `testing/expected/` updated if any fixture owns an epic boon. Live Supabase 2026-10-20 (stats::text ilike for all 12 names): no saved character owns an epic boon, so no frozen ledger diverges.
+## fix/server-owner-delete-reinsert-lock-bypass — an owner can delete a campaign-bound character and re-insert it solo without its lock — TODO
+Branch fix/server-owner-delete-reinsert-lock-bypass. **Effort:** medium · **Risk:** high — changes who may delete characters and touches the lock/seal enforcement; wrong rule can strand a legitimate owner or a DM's own cleanup.
 
 ```text
-Owner request 2026-10-20: "each epic boon costs more than the last one so people don't buy them all."
-TODAY: DATA.boons has 12 epic boons (Combat Prowess, Irresistible Offense, Dimensional Travel, Energy Resistance, Fate, Recovery, Speed, the Night Spirit, Truesight, Spell Recall, Fortitude, Skill), every one `epic:true`, hd 19, ap 25 — a flat 25 each, so all twelve cost 300 AP with nothing to stop a character taking all of them. Each epic boon also adds +2 to one chosen ability (b.epicBoonAbil, folded in compute()). The Guide's Epic Boons section calls each a Tier-7 purchase "gated behind Hit Die 17" and says "the cost is the same for every class"; the engine gate is hd 19 — check which is right.
-DO: decide the rule with the owner, then implement it in compute() and the Guide.
-  Options to put to the owner: (S1) a step table by number of epic boons already owned (for example 25, 30, 36, 43 ... a fixed ladder, like the existing cumulative price tables DATA.tools / DATA.skills), (S2) a flat surcharge that grows by a fixed amount per boon owned, (S3) a hard cap on the number of epic boons plus a flat price. Say which boon is "first": the order bought (an event-sourced character prices each buy as the compute() delta, so the later buy pays the higher rate automatically) or a fixed order per boon.
-  Things to settle: whether DM-written custom epic boons (houseRules.boons with epic:true) join the count; whether a blocked boon (HD gate not met) counts; whether a refund/removal (a DM can remove a boon, dmRemoveBoon) re-prices the others — and that the +2 ability fold must keep reading b.boons unchanged.
-MEASURE FIRST: re-query live characters (stats::text ilike each epic boon name) — 0 rows on 2026-10-20 — and keep any owner's total unchanged with a grandfather rule if one has appeared since.
+Security audit 2026-10-22 (read from the SQL, NOT run): lock, seal and DM-imposed events are enforced only on UPDATE of a campaign-bound row. `characters_delete` lets the owner delete their own bound character (`owner_id = auth.uid()`), and `characters_insert` lets them insert a row with a chosen `id` as long as `campaign_id is null` and `ap = 0`. So an owner can delete the character, re-insert it solo with the same id and a LOG minus the creation lock and the DM events, then bind it back with `bind_character_to_campaign`.
+Related, already tracked: `feat/house-rules-dm-event-provenance` (forged DM events carried in through a solo character) — decide whether one provenance mechanism closes both before building two.
+DO: (1) re-confirm the chain against the live policies and `pg_get_functiondef` of the bind/unbind functions with read-only queries; (2) choose the fix and put shallow vs deep to the owner: shallow = refuse owner DELETE of a campaign-bound character (leaving to a DM or an unbind first), deep = a server record of each locked/sealed character id so a re-insert with that id is refused or restored; (3) implement it as a migration with a SQL test of the full chain; (4) measure the blast radius on the live `characters` table first (AGENTS.md: re-measure, don't assume).
 ```
-**Done when:** the owner's rule is in a decision record; `compute()` prices the Nth epic boon per the rule and a test (a new case in `tool-pricing-ci.mjs` or a sibling) proves the price of the 1st, 2nd and last boon, a blocked boon and a DM custom boon; the Guide's Epic Boons section states the rule (served copy and `pact-guide` master, `verify-guide.mjs` before and after); `DATA.version` bumped once; `engine-parity` 0 failed with `testing/expected/` updated in the same change if a fixture moved.
+**Done when:** a test reproduces delete → re-insert solo → re-bind and shows it refused (or the lock restored); an owner can still delete a solo character and leave a campaign through the normal unbind; `get_advisors` (security) and `get_logs` run after the apply; decision record written.
+
+## fix/server-cost-zero-and-gold-patch — the server cannot check a purchase's cost, a 0-cost buy, a `wealth` event or the `gold` patch key — TODO
+Branch fix/server-cost-zero-and-gold-patch. **Effort:** high · **Risk:** high — an AP/gold-moving server rule; a rule that is too strict refuses honest saves from every player.
+
+```text
+Security audit 2026-10-22 (from the SQL, not run): purchase costs in the LOG are client-stamped. Negative costs on non-drawback buys are already tracked as `fix/server-negative-cost-after-lock` (docs/TASK_BOARD_NOW.md). Not covered anywhere: a cost of 0 is not checked at all, so nothing on the server guarantees the frozen total equals what `compute()` would charge; `wealth` events and a `buy` with `cat:'patch'` setting `gold` are unprotected, so gold can be written directly.
+DO: (1) read the live AP-ledger functions (`pact_ap_ledger_split`, `pact_ap_ledger_spend`) and the gold model; (2) decide with the owner how far the server should go — shallow = clamp cost >= 0 and refuse `gold`/`wealth` writes from the player after the lock, deep = an offline audit script that folds each live character with `engine.js` and compares the frozen spend to `compute()` (a Supabase Edge Function running the real engine is its own task, "Supabase Edge Function running the real engine.js for AP-budget validation"); (3) land the negative-cost fix first, then this one on top.
+```
+**Done when:** the owner has chosen the depth in a decision record; a SQL test shows a 0-cost buy, a `wealth` event and a `gold` patch by a player are refused (or accounted) on a locked character; if the audit script is chosen it runs against a local export outside the repo and its result is recorded.
+
+## fix/stats-poisoned-json-shape — a player can set `stats.SEQ` or an award flag to junk and make DM actions fail — TODO
+Branch fix/stats-poisoned-json-shape. **Effort:** medium · **Risk:** medium — touches several DM RPCs and a trigger, but each change is a safer cast of a value they already read.
+
+```text
+Security audit 2026-10-22 (reasoned from the SQL, NOT run): `stats.SEQ` is cast to integer raw in `pact_campaign_move_clears_creation` (`(NEW.stats->>'SEQ')::integer`) and in several DM RPCs; award `disc` and `noLock` are cast to boolean raw. A player who saves `SEQ = "abc"` makes unbind, seal, zero-AP, reopen-creation and set-creation-ceiling raise a cast error for that character, and the owner's DELETE of a campaign may fail too (the foreign-key set-null update fires the campaign-move trigger).
+DO: (1) reproduce each failure in a local Postgres first and mark the "campaign delete fails" claim confirmed or refuted; (2) replace the raw casts with the existing `pact_next_seq()` / `pact_num` / `pact_js_truthy` helpers; (3) add a cheap `stats` shape check (SEQ numeric, LOG an array) in the character write path that rejects junk instead of storing it.
+```
+**Done when:** SQL tests with `SEQ = "abc"`, `SEQ = null` and a non-boolean `disc` show every named RPC and the campaign delete succeed (or the write is refused with a clear message); existing SQL tests unchanged; `get_advisors` and `get_logs` run after the apply.
+
+## docs/record-player-self-award-trust-assumption — write down that players can award themselves AP on a default campaign until the DM seals it — TODO
+Branch docs/record-player-self-award-trust-assumption. **Effort:** low · **Risk:** low — a decision record, no code.
+
+```text
+Security audit 2026-10-22: on a default campaign a player may add `award` events to their own LOG (AP the tool itself offers during creation) until the DM seals the character, sets the creation limit or turns on `ignore_player_ap`; `pact_enforce_player_ap_ceiling` only blocks it after that. That is a deliberate trust model, but it is written down nowhere, so a future audit will keep re-finding it as a hole.
+DO: write `decisions/2026/D-GH-<date>-player-self-award-trust-assumption.md` (Context -> Options -> Decision -> Why -> Status) stating the assumption, which switches turn it off, and that the AP budget check still caps spending; add the one-line pointer in DECISIONS.md. Ask the owner whether the default should change instead — if so, that is a separate rules task, not this one.
+```
+**Done when:** the record and its DECISIONS.md pointer exist and name the three switches; the owner has said whether the default stays.
+
+## chore/storage-abuse-caps — no cap on character size, character count or backups, and anonymous feedback is not rate-limited — TODO
+Branch chore/storage-abuse-caps. **Effort:** medium · **Risk:** medium — a cap set too low breaks honest saves, so measure first.
+
+```text
+Security audit 2026-10-22 (from the SQL, not run): there is no limit on the size of `characters.stats`, or on how many characters one account may hold; campaign-bound characters keep every backup snapshot (`trg_characters_snapshot` into `character_backups`); `feedback` accepts anonymous inserts (message capped at 2,000 characters) with no rate limit. On the free tier this is a way to fill the database.
+DO: measure first with read-only queries (largest `stats` size, characters per owner, backup rows per character, feedback rows) and state the numbers with today's date; then propose caps well above the live maximum — a `stats` size check, a per-account character count, a backup retention rule (keep the last N per character), a per-hour limit on feedback — and put the choice of numbers to the owner.
+```
+**Done when:** the live measurements are in the decision record; each chosen cap is enforced by a migration with a test showing an honest maximum character still saves and an oversize one is refused; backups prune to the chosen retention.
+
+## chore/security-audit-low-items — small hardening items from the 2026-10-22 audit — TODO
+Branch chore/security-audit-low-items. **Effort:** low · **Risk:** low — each item is a one-statement or one-line change; verify each against the live database first.
+
+```text
+From the 2026-10-22 security audit (read from the SQL; items marked live were also seen in the live database that day):
+(a) `dm_set_creation_ceiling` and `dm_reopen_creation` lack `assert_campaign_active`, so they still work on an archived campaign;
+(b) both are missing from `sql/rls-policies.sql` (only in a migration), so the baseline does not describe the live database;
+(c) `pact_patch_exempt_keys`, `pact_patch_protected_projection`, `pact_patch_temp_exempt_keys` are executable by `anon` (live) — harmless pure helpers, but revoke from public/anon like the other helpers;
+(d) `award_ap` has no idempotency key, so a retried request awards twice (compare `award_ap_and_seal`, which takes `p_idem`);
+(e) `campaigns` has a table-level INSERT grant on `invite_code`, so a client can choose its own join code (live: INSERT is granted on `invite_code`, `archived_at`, `created_at`, `rules`); decide whether to narrow it.
+DO: one migration for (a), (c) and (e) if the owner agrees, a baseline sync for (b), and a decision on (d).
+```
+**Done when:** each item is fixed or has a recorded reason to leave it; the SQL drift guard passes; `get_advisors` (security) run after the apply.
+
+## chore/enable-leaked-password-protection — turn on Supabase Auth leaked-password protection — TODO
+Branch chore/enable-leaked-password-protection. **Effort:** low · **Risk:** low — a dashboard toggle; existing users are unaffected until their next password change.
+
+```text
+The Supabase security advisor (2026-10-22) reports `auth_leaked_password_protection`: Auth does not check new passwords against HaveIBeenPwned. This is a dashboard setting (Authentication -> Providers/Password security), not a code change, and a session cannot flip it.
+DO: the owner turns it on in the Supabase dashboard for the PACT project (piuprrrnaotrtxucrtsb); then re-run the security advisor to confirm the warning is gone and note it in CHANGELOG.md.
+```
+**Done when:** the security advisor no longer lists `auth_leaked_password_protection`.
