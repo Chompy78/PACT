@@ -858,7 +858,9 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
                   'pact_hr_drawback_cap','pact_hr_entry_ok','pact_hr_validate','pact_hr_resolve',
                   'pact_drawback_printed','pact_hr_drawback_effective','pact_ap_ledger_split',
                   'pact_dm_family','pact_enforce_dm_family','pact_enforce_player_grants','pact_guard_char_house_rules',
-                  'dm_apply_house_rules_change');
+                  'dm_apply_house_rules_change',
+                  -- fix/ap-minting-and-edit-award-campaign (2026-10-22; folded into rls-policies.sql with the migration)
+                  'edit_ap_award','pact_reset_campaign_grants_on_move');
 
 -- THE GUARD NEEDS ITS OWN GUARD. The comparison below is an INNER JOIN with no count assertion, so a
 -- function missing from one side simply produces no row, v_bad stays empty, and the whole thing prints
@@ -866,8 +868,8 @@ where proname in ('dm_edit_character_log','award_ap_and_seal','seal_character_hi
 -- this file silently stops covering it. version-label-ci.mjs states the rule one directory over: "A
 -- missing match is a FAILURE, not a skip." Assert the count on both sides.
 do $$ begin
-  perform pg_temp.ok('all 47 baseline function bodies were snapshotted',
-    (select count(*) from pg_temp.baseline_bodies) = 47);
+  perform pg_temp.ok('all 49 baseline function bodies were snapshotted',
+    (select count(*) from pg_temp.baseline_bodies) = 49);
 end $$;
 
 \ir ../../sql/migrations/2026-09-01-session-seal.sql
@@ -899,6 +901,8 @@ end $$;
 -- carries the final text). It REDEFINES dm_edit_character_log on top of the notes definition, and pact_ap_ledger_spend /
 -- _discount / _protected, pact_enforce_ap_budget_consistency and pact_enforce_locked_history, so it loads last.
 \ir ../../sql/migrations/2026-10-13-campaign-house-rules-server.sql
+-- fix/ap-minting-and-edit-award-campaign (2026-10-22): loads after everything above; edit_ap_award is not touched by any earlier migration here.
+\ir ../../sql/migrations/2026-10-22-ap-minting-and-edit-award-campaign.sql
 
 do $$
 declare r record; v_bad text := ''; v_n int := 0;
@@ -918,8 +922,8 @@ begin
       v_bad := v_bad || r.proname || ' ';
     end if;
   end loop;
-  perform pg_temp.ok('the drift comparison actually covered all 47 functions (saw ' || v_n || ')',
-    v_n = 47);
+  perform pg_temp.ok('the drift comparison actually covered all 49 functions (saw ' || v_n || ')',
+    v_n = 49);
   perform pg_temp.ok('rls-policies.sql and the migrations define the SAME logic'
     || case when v_bad = '' then '' else ' — DIVERGED: ' || v_bad end, v_bad = '');
 end $$;

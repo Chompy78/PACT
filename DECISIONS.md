@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-22-ap-minting-and-edit-award-campaign — AP and gold are campaign-scoped; edit_ap_award requires the character still be in the award's campaign
+- A move into a different non-null campaign resets `ap`/`gold` to that campaign's award sums (new trigger; leaving to solo keeps them; admin exempt); `edit_ap_award` checks current membership and locks the rows. PROPOSED, migration not yet applied.
+  Full record: `decisions/2026/D-GH-2026-10-22-ap-minting-and-edit-award-campaign.md`.
 ## D-GH-2026-10-13-campaign-house-rules — house rules are set campaign-wide by the DM, with per-character DM overrides
 - Accepted by owner 2026-10-13 (P2/R1/U1/T2/S2/V1/W1/X1/Y1). Campaign `rules.charHouseRules` (Calls, custom/repriced boons and
   drawbacks; "disabled" = the existing ban lists) apply to every campaign character; a DM's per-character `dmHouseRules` override
