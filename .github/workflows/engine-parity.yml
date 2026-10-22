@@ -37,6 +37,7 @@ on:
       - "testing/scripts/worn-armour-ac-ci.mjs"
       - "testing/scripts/numeric-grants-ci.mjs"
       - "testing/scripts/fold-numeric-coercion-ci.mjs"
+      - "testing/scripts/free-feature-effective-cost-ci.mjs"
       - "testing/scripts/house-rules-ledger-ci.mjs"
       - "tools/PACT-CharGen-Webtool.html"
       - "tools/PACT-Live-Char-Sheet.html"
@@ -79,6 +80,10 @@ jobs:
       # fix/xss-unescaped-build-fields: a hostile LOG patch cannot leave HTML in a numeric build field. Engine-only.
       - name: Folded numeric fields are numbers
         run: node testing/scripts/fold-numeric-coercion-ci.mjs
+
+      # fix/free-feature-effective-cost: a free feature's itemize row carries its real cost for this character. Display only.
+      - name: Free features show their effective cost
+        run: node testing/scripts/free-feature-effective-cost-ci.mjs
 
   log-fuzz:
     # Phase 2 of D-GH-2026-07-13-random-e2e-real-oracle: a pure-Node, LOG-direct fuzzer for

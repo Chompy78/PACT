@@ -2805,7 +2805,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         if(!ls.length)return;var sub=ls.reduce(function(s,l){return s+(l[1]||0);},0);
         h+='<tr><td style="'+TH+'">'+esc(g.t)+'</td><td style="'+TH+';text-align:right">'+sub+'</td></tr>';
         ls.forEach(function(l){h+='<tr><td style="padding:1px 8px 1px 16px">'+esc(l[0])+'</td><td style="padding:1px 8px;text-align:right">'+l[1]+'</td></tr>';
-          var items=it[l[0]];if(items&&items.length)items.forEach(function(x){h+='<tr><td style="padding:0 8px 0 28px;color:var(--grey,#9aa3b2);font-size:11px">'+esc(x[0])+'</td><td style="padding:0 8px;text-align:right;color:var(--grey,#9aa3b2);font-size:11px">'+x[1]+'</td></tr>';});});
+          var items=it[l[0]];if(items&&items.length)items.forEach(function(x){h+='<tr><td style="padding:0 8px 0 28px;color:var(--grey,#9aa3b2);font-size:11px">'+esc(x[0])+'</td><td style="padding:0 8px;text-align:right;color:var(--grey,#9aa3b2);font-size:11px"'+(x[2]!=null?' title="No price of its own: its cost is charged on the weapon and armour lines"':'')+'>'+(x[2]!=null?x[2]+'*':x[1])+'</td></tr>';});});
       });
       var other=lines.filter(function(l){return !matched[l[0]];});
       if(other.length){h+='<tr><td style="'+TH+'">Other</td><td style="'+TH+';text-align:right">'+other.reduce(function(s,l){return s+(l[1]||0);},0)+'</td></tr>';other.forEach(function(l){h+='<tr><td style="padding:1px 8px 1px 16px">'+esc(l[0])+'</td><td style="padding:1px 8px;text-align:right">'+l[1]+'</td></tr>';});}

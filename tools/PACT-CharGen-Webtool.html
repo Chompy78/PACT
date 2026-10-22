@@ -7071,7 +7071,7 @@ function renderLedger(r,b){
   let html='',matched={};
   const row=l=>'<tr class="lrow" data-lab="'+esc(l[0])+'" onclick="explainCost(this.dataset.lab)" title="'+esc(explainText(l[0],b,r))+' — click for the full breakdown"><td style="padding-left:12px">'+esc(l[0])+' <span class="qm">?</span></td><td class="v">'+l[1]+'</td></tr>';
   // v0.314: show each item purchased under its category line, not just the category subtotal
-  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+_csEsc(x[0])+'</td><td class="v" style="color:var(--grey);font-size:11px">'+x[1]+'</td></tr>';
+  const itemRow=x=>'<tr class="lrow litem"><td style="padding-left:26px;color:var(--grey);font-size:11px">'+_csEsc(x[0])+'</td><td class="v" style="color:var(--grey);font-size:11px"'+(x[2]!=null?' title="No price of its own: its cost is charged on the weapon and armour lines"':'')+'>'+(x[2]!=null?x[2]+'*':x[1])+'</td></tr>';
   LGROUPS.forEach(g=>{const ls=r.lines.filter(l=>g.lines.some(p=>l[0].indexOf(p)===0));ls.forEach(l=>matched[l[0]]=1);
     if(!ls.length)return;const sub=ls.reduce((s,l)=>s+l[1],0);
     html+='<tr class="lgh"><td>'+g.t+'</td><td class="v">'+sub+'</td></tr>';
