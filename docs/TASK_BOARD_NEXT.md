@@ -322,45 +322,6 @@ today's behaviour exactly, joining past the limit fails with a message naming th
 limit never removes an existing character, the race guard is demonstrably still closed at the new N,
 the advisor reports no new findings, and `cloud-e2e` covers limit=1, limit=2 and the refusal.
 
-## Record which of D1/D2 governs a pre-lock level-up — the divergence itself is GONE — TODO
-Branch `docs/prelock-pricing-rule`. **Re-measured 2026-08-19 on v0.356: the divergence does not
-reproduce.** This was filed as a live bug needing an owner rules ruling *before any code*; the code
-question has since answered itself, and what remains is a docs task.
-
-The original report (2026-08-05) measured a fresh Live Sheet character under the 79 AP threshold whose
-ledger read **34 against `compute()`'s 46** after one level-up, and **44 against 83** by HD 5. Re-run
-through the real tool on v0.356, driving `buy()` directly:
-
-| sequence | ledger | `compute()` | drift |
-|---|---|---|---|
-| Grit at HD 1, then level to 5 | 15 | 15 | **0** |
-| level to 5 first, then Grit | 15 | 15 | **0** |
-
-Zero drift in both orders. The Live Sheet still does **not** call `repriceDraft()` (checked), so this was
-not fixed by adopting D2 — one of the pricing branches that landed after 5 Aug made the two rules stop
-producing different numbers, rather than one of them winning. Which branch did it has not been traced.
-
-**Effort:** low · **Risk:** low — no behaviour changes; it is a decision-record edit. Downgraded from
-high, which was correct while a live 44-vs-83 divergence was believed to be sitting in the tool.
-
-**Already done, so don't redo it:** step 5 of the original task (assert the case rather than remember it)
-shipped on 2026-08-19 — `tool-pricing-ci.mjs` now drives a pre-lock character through level-ups in both
-purchase orders and asserts `economy().spent === compute().total`. It was 141 → **143** checks. That gate
-is what stops this silently regressing while the wording question waits.
-
-```text
-1. Decide, at leisure, whether D1 or D2 is the STATED rule for a pre-lock level-up. This is now a
-   question of what the record should say, not of what the tool does - nothing is broken either way.
-2. Amend D-GH-2026-08-05-pricing-model to narrow whichever one loses, so the next agent does not read
-   the two as still conflicting. Include the 2026-08-19 re-measurement above, or the closed case will
-   be re-reported as a bug by whoever reads the original table.
-3. Optional, and worth it if anyone touches draft pricing again: trace WHICH branch closed the gap, so
-   the record says why the rules stopped disagreeing instead of just noting that they did.
-```
-
-**Done when:** `D-GH-2026-08-05-pricing-model` states which rule governs a pre-lock level-up, and carries
-the 2026-08-19 re-measurement showing the original divergence no longer reproduces.
-
 ## One-off reconciliation pass for characters built before the pricing fixes — TODO
 Branch `fix/ledger-reconciliation-pass`. **Sequence LAST — after all four pricing branches have landed**
 (see `decisions/2026/D-GH-2026-08-05-pricing-model.md`, D6, where the owner decided this on 2026-08-05).
@@ -1095,30 +1056,6 @@ which are excluded as one-way or paired) is a decision, not a mechanical step. T
 
 **Done when:** adding a new migration to `sql/migrations/` requires no edit to
 `testing/sql/rls-baseline-test.sql` for the drift guard to cover it, and step 4's proof is recorded.
-
-## No `DECISIONS.md` record for either behaviour-changing SQL commit in PR #503 — TODO
-Branch `docs/decisions-for-2026-09-02-sql-commits`. `cb323ca` changed the security posture of the
-documented fresh-install path (which EXECUTE grants exist on trigger functions; that the baseline, not
-the migrations, is the authority) and `f2418a9` changed what the server refuses. `AGENTS.md` per-change
-checklist step 5 requires a `DECISIONS.md` entry when a change involves a non-obvious *why* —
-"security model, trust boundary" is named explicitly — and step 7 says "A merged PR with missing docs is
-treated as incomplete." The `DECISIONS.md` diff in that promotion contains only the
-`D-GH-2026-08-25` warnings-race addendum. The reasoning currently lives only in
-`sql/migrations/README.md` and a workflow comment, neither of which the decisions index points at.
-**Effort:** small · **Risk:** none — docs only. **For the author of those commits**, not a third party:
-writing it from the outside would be reconstruction, which is what this rule exists to prevent.
-
-```text
-1. Add decisions/2026/D-GH-2026-09-02-<slug>.md for the baseline fold: why the baseline and not the
-   migrations is the authority, what the grant changes were, and why re-running rls-policies.sql is now
-   safe when it was not.
-2. Add one for the dmRemoveBoon projection widening — or fold it into the same record if they were one
-   decision.
-3. Add the one-line pointers to DECISIONS.md.
-```
-
-**Done when:** both commits are reachable from `DECISIONS.md`, and each record answers "would a future
-agent wonder why this was done this way?"
 
 ## feat/dm-unlock-drawback — a DM can unlock a locked imposed drawback after a story beat — TODO
 **STATUS 2026-10-04 — code, tests AND the production migration are DONE (see CHANGELOG and
