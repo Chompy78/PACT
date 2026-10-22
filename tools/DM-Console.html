@@ -1353,7 +1353,7 @@ function dmAnalyze(exported, apOpts){
     // raw eco.earned (below, unrenamed — the "(own log)" breakdown row deliberately shows log-only)
     // for detailHTML's terser inline summary, which pairs directly with apLevel and would otherwise
     // show a DIFFERENT, uncorrected number right next to the now-corrected Track-Level.
-    hd: b.hd, tier: r.tier, apLevel: trackLevel(earnedWithDm(eco, apOpts)), earnedTotal: earnedWithDm(eco, apOpts),
+    hd: Number(b.hd)||0, tier: r.tier, apLevel: trackLevel(earnedWithDm(eco, apOpts)), earnedTotal: earnedWithDm(eco, apOpts),
     hp: r.hp, ac: r.ac, prof: r.prof, saveDC: r.hasDC?r.saveDC:null, spellAtk: r.hasDC?r.spellAtk:null,
     castAb: r.hasDC?r.castAb:null, speed: r.speed, init: r.init, size: r.size,
     mods: r.mods, conMod: r.conMod, goldGp: r.goldGp,
@@ -1684,7 +1684,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   }
   function slotLine(c){
     var parts=[];
-    if((c.pactSlots||0)>0) parts.push(c.pactSlots+' pact ×L'+(c.pactLevel||0));
+    if((c.pactSlots||0)>0) parts.push((+c.pactSlots)+' pact ×L'+(+c.pactLevel||0));
     (c.slots||[]).forEach(function(n,i){ if(+n>0) parts.push('L'+(i+1)+' ×'+(+n)); });
     (c.arcanum||[]).forEach(function(n,i){ if(+n>0) parts.push('Arcanum L'+(6+i)+' ×'+(+n)); });
     if(!parts.length) return '';
@@ -1699,8 +1699,8 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       h+='<div class="ov-sub" style="margin:10px 0 4px">'+esc(c.trad||'')+' › '+esc(c.disc||'')+(c.prepared?' (prepared)':'')+'</div>'+
         '<table class="sktab"><thead><tr><th>Level</th><th class="num">Known</th><th>Spells</th></tr></thead><tbody>';
       if((c.cantrips||0)>0){ var cn=((c.cantripNames||[])||[]).filter(Boolean);
-        h+='<tr><td>Cantrips</td><td class="num">'+c.cantrips+'</td><td>'+(cn.length?cn.map(esc).join(', '):none)+'</td></tr>'; }
-      for(var L=1;L<=9;L++){ var n=(c.known&&c.known[L-1])||0; if(!n) continue;
+        h+='<tr><td>Cantrips</td><td class="num">'+(+c.cantrips||0)+'</td><td>'+(cn.length?cn.map(esc).join(', '):none)+'</td></tr>'; }
+      for(var L=1;L<=9;L++){ var n=+((c.known&&c.known[L-1])||0)||0; if(!n) continue;
         var nm=((c.knownNames&&c.knownNames[L-1])||[]).filter(Boolean);
         h+='<tr><td>L'+L+'</td><td class="num">'+n+'</td><td>'+(nm.length?nm.map(esc).join(', '):none)+'</td></tr>'; }
       h+='</tbody></table>'; });
@@ -1716,7 +1716,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       if(c.dc!=null) bits.push('DC '+(+c.dc));
       if(c.atk!=null) bits.push('Atk '+((+c.atk)>=0?'+':'')+(+c.atk));
       if(c.rank) bits.push('Rank '+(+c.rank));
-      if((c.cantrips||0)>0) bits.push('Cantrips '+c.cantrips);
+      if((c.cantrips||0)>0) bits.push('Cantrips '+(+c.cantrips));
       if(bits.length) line += ' · ' + bits.join(' · ');
       if(c.prepared) line += ' (prepared)';
       var sl=slotLine(c);
@@ -2386,7 +2386,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       ['Save DC', (s.saveDC==null?'—':s.saveDC)],
       cfCell('num1'),
       cfCell('num2'),
-      ['HD', (s.hd||0)]
+      ['HD', (Number(s.hd)||0)]
     ].filter(Boolean);
     var statsHTML = statCells.map(function(c){
       return '<div class="stat"><div class="k">'+esc(c[0])+'</div><div class="v">'+(c[2]?c[1]:esc(c[1]))+'</div></div>';
@@ -2465,7 +2465,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     {key:'class',    label:'Class',    type:'text', get:function(a){return classText(a);}, disp:function(a){return esc(classText(a));}},
     {key:'species2', label:'Species 2',type:'text', get:function(a){return (a.species2&&a.species2!=='(none)')?a.species2:'';}, disp:function(a){return esc((a.species2&&a.species2!=='(none)')?a.species2:'—');}},
     {key:'class2',   label:'Class 2',  type:'text', get:function(a){return (a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'';}, disp:function(a){return esc((a.originClass2&&a.originClass2!=='(none)')?a.originClass2:'—');}},
-    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return a.hd||0;}, disp:function(a){return 'HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a);}},
+    {key:'lvl',      label:'Lvl',      type:'num',  cls:'ctr', get:function(a){return Number(a.hd)||0;}, disp:function(a){return 'HD '+(Number(a.hd)||0)+' · T'+(a.tier||0)+lockIconHTML(a);}},
     {key:'hp',       label:'HP',       type:'num',  cls:'num', get:function(a){return a.hp||0;}, disp:function(a){return a.hp;}},
     {key:'ac',       label:'AC',       type:'num',  cls:'num', get:function(a){return a.ac||0;}, disp:function(a){return acCellHTML(a.ac, a.name);}},
     {key:'dc',       label:'DC',       type:'num',  cls:'num', get:function(a){return a.saveDC==null?-1:a.saveDC;}, disp:function(a){return dcDisp(a);}},
@@ -2489,7 +2489,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function compactNum(v){ v=+v||0; return v>0?String(v):'<span class="flag-none">—</span>'; }
   var SAVE_ABBR={STR:'St',DEX:'De',CON:'Co',INT:'In',WIS:'Wi',CHA:'Ch'};
   function savesCell(a){ return saveRows(a).map(function(r){ return '<span'+(r.prof?' class="save-prof"':'')+'>'+SAVE_ABBR[r.ab]+(r.bonus>=0?'+':'')+r.bonus+'</span>'; }).join(' '); }
-  function slotSummary(a){ var out=[]; (a.casting||[]).forEach(function(c){ var p=[]; if((c.cantrips||0)>0) p.push('C'+c.cantrips); (c.slots||[]).forEach(function(n,i){ if(+n>0) p.push('L'+(i+1)+'×'+(+n)); }); if((c.pactSlots||0)>0) p.push(c.pactSlots+'p'); if(p.length) out.push(p.join(' ')); }); return out.join('  |  '); }
+  function slotSummary(a){ var out=[]; (a.casting||[]).forEach(function(c){ var p=[]; if((+c.cantrips||0)>0) p.push('C'+(+c.cantrips)); (c.slots||[]).forEach(function(n,i){ if(+n>0) p.push('L'+(i+1)+'×'+(+n)); }); if((+c.pactSlots||0)>0) p.push((+c.pactSlots)+'p'); if(p.length) out.push(p.join(' ')); }); return out.join('  |  '); }
   function colByKey(k){ for(var i=0;i<COLS.length;i++) if(COLS[i].key===k) return COLS[i]; return null; }
   function sortedRoster(){ var col=colByKey(sort.key)||COLS[0]; var arr=_rows().map(function(a,i){return {a:a,i:i};}); arr.sort(function(x,y){ var va=col.get(x.a), vb=col.get(y.a), r; if(col.type==='num'){ r=(va||0)-(vb||0); } else { var sa=String(va).toLowerCase(), sb=String(vb).toLowerCase(); r=sa<sb?-1:(sa>sb?1:0); } if(r===0) r=x.i-y.i; return r*sort.dir; }); return arr; }
   // Like listSection but for [label, ap] pairs, so a DM sees what a line COST as well as that it exists.
@@ -2501,7 +2501,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     pairs.forEach(function(p){ h+='<li>'+esc(p[0])+' <span class="meta">'+(p[1]||0)+' AP</span></li>'; });
     return h+'</ul></div>'; }
   function listSection(title,arr){ if(!arr||!arr.length) return ''; var h='<div class="detail-col"><h3>'+esc(title)+'</h3><ul class="flaglist">'; arr.forEach(function(x){ h+='<li>'+esc(x)+'</li>'; }); return h+'</ul></div>'; }
-  function castingSection(a){ var cs=a.casting||[]; if(!cs.length) return ''; var h='<div class="detail-col"><h3>Spellcasting</h3><ul class="flaglist">'; cs.forEach(function(c){ var line=''; if(c.trad) line+=esc(c.trad)+' › '; line+=esc(c.disc||'—'); var bits=[]; if(c.ab) bits.push(esc(c.ab)); if(c.dc!=null) bits.push('DC '+(+c.dc)); if(c.atk!=null) bits.push('Atk '+((+c.atk)>=0?'+':'')+(+c.atk)); if(c.rank) bits.push('Rank '+(+c.rank)); if((c.cantrips||0)>0) bits.push('Cantrips '+c.cantrips); if(bits.length) line+=' · '+bits.join(' · '); if(c.prepared) line+=' <span class="badge">prepared</span>'; var sl=slotLine(c); h+='<li>'+line+(sl?'<div class="castslots">'+sl+'</div>':'')+'</li>'; }); h+='</ul>'; if(hasKnown(a)) h+='<div class="detail-actions"><button type="button" class="skbtn" data-known="'+esc(_idOf(a))+'">📖 Known spells</button></div>'; return h+'</div>'; }
+  function castingSection(a){ var cs=a.casting||[]; if(!cs.length) return ''; var h='<div class="detail-col"><h3>Spellcasting</h3><ul class="flaglist">'; cs.forEach(function(c){ var line=''; if(c.trad) line+=esc(c.trad)+' › '; line+=esc(c.disc||'—'); var bits=[]; if(c.ab) bits.push(esc(c.ab)); if(c.dc!=null) bits.push('DC '+(+c.dc)); if(c.atk!=null) bits.push('Atk '+((+c.atk)>=0?'+':'')+(+c.atk)); if(c.rank) bits.push('Rank '+(+c.rank)); if((c.cantrips||0)>0) bits.push('Cantrips '+(+c.cantrips)); if(bits.length) line+=' · '+bits.join(' · '); if(c.prepared) line+=' <span class="badge">prepared</span>'; var sl=slotLine(c); h+='<li>'+line+(sl?'<div class="castslots">'+sl+'</div>':'')+'</li>'; }); h+='</ul>'; if(hasKnown(a)) h+='<div class="detail-actions"><button type="button" class="skbtn" data-known="'+esc(_idOf(a))+'">📖 Known spells</button></div>'; return h+'</div>'; }
   function lineageSection(a){ var hasLin=a.lineage&&a.lineage!==''; var rs=a.racialSpells||[]; if(!hasLin&&!rs.length) return ''; var h='<div class="detail-col"><h3>Lineage</h3>'; if(hasLin) h+='<div class="meta">'+esc(a.lineage)+'</div>'; if(rs.length){ h+='<ul class="flaglist">'; rs.forEach(function(x){ h+='<li>'+esc(x)+'</li>'; }); h+='</ul>'; } return h+'</div>'; }
   function resourcesSection(a){ var rows=[]; if(a.vigor>0) rows.push(['Vigor', a.vigor+(a.vigorCap!=null?(' / '+a.vigorCap+' cap'):'')]); if(a.grit>0) rows.push(['Grit',a.grit]); if(a.ki>0) rows.push(['Ki / Focus',a.ki]); if(a.sorcery>0) rows.push(['Sorcery (extra)',a.sorcery]); if(a.attune>0) rows.push(['Attunement',a.attune]); if(a.martiallyBound) rows.push(['Martially Bound',a.martiallyBound]); if(!rows.length) return ''; var h='<div class="detail-col"><h3>Resources</h3><table class="awards"><tbody>'; rows.forEach(function(r){ h+='<tr><td>'+esc(r[0])+'</td><td style="text-align:right;font-weight:700;color:var(--navy);white-space:nowrap;">'+esc(r[1])+'</td></tr>'; }); return h+'</tbody></table></div>'; }
   function weaponArmourSection(a){ var wp=weaponProfList(a.weaponProf), ar=armourProfList(a.armour); var h='<div class="detail-col"><h3>Weapons &amp; Armour</h3><ul class="flaglist">'; h+='<li><b>Weapons:</b> '+(wp.length?wp.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; h+='<li><b>Armour:</b> '+(ar.length?ar.map(esc).join(', '):'<span class="none">None</span>')+'</li>'; return h+'</ul></div>'; }
@@ -2512,7 +2512,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   function kv(k,v){ return '<div class="kv"><span class="k">'+esc(k)+'</span><span class="v">'+esc(v)+'</span></div>'; }
   function renderHead(){ var tr='<tr><th class="exq"></th>'; visCols().forEach(function(c){ var active=(sort.key===c.key); var arrow=active?(sort.dir>0?'▲':'▼'):''; var cls=(c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':''); tr+='<th data-key="'+c.key+'" class="'+(active?'active ':'')+cls+'">'+esc(c.label)+'<span class="arrow">'+arrow+'</span></th>'; }); tr+='</tr>'; $('thead').innerHTML=tr; Array.prototype.forEach.call($('thead').querySelectorAll('th'),function(th){ th.addEventListener('click',function(){ var k=th.getAttribute('data-key'); if(!k) return; if(sort.key===k) sort.dir=-sort.dir; else { sort.key=k; sort.dir=(colByKey(k).type==='num')?-1:1; } render(); }); }); }
   function renderBody(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, isSel=(expanded===ri); html+='<tr class="data'+(isSel?' sel':'')+'" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(isSel?'true':'false')+'" aria-label="'+esc(a.name||'New Character')+' — press Enter for full detail">'; html+='<td class="exq"><span class="exq-chev">▸</span></td>'; visCols().forEach(function(c){ var cls=(c.cls==='name')?'name':((c.type==='num'&&c.cls==='num')?'num':(c.cls==='ctr'?'ctr':'')); html+='<td class="'+cls+'">'+c.disp(a)+'</td>'; }); html+='</tr>'; if(isSel){ html+='<tr class="detail"><td colspan="'+(visCols().length+1)+'">'+detailHTML(a)+'</td></tr>'; } }); var tb=$('tbody'); tb.innerHTML=html; Array.prototype.forEach.call(tb.querySelectorAll('tr.data'),function(tr){ function toggle(){ var ri=+tr.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } tr.addEventListener('click',toggle); tr.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
-  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
+  function renderCards(){ var rows=sortedRoster(); var html=''; rows.forEach(function(rec){ var a=rec.a, ri=rec.i, open=(expanded===ri); html+='<div class="ccard"><div class="chead" data-ri="'+ri+'" tabindex="0" role="button" aria-expanded="'+(open?'true':'false')+'"><div><div class="nm">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div><div class="sub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(Number(a.hd)||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div></div><div class="chev">'+(open?'−':'+')+'</div></div>'; if(open){ html+='<div class="cbody">'; html+=kv('HP',a.hp); html+='<div class="kv"><span class="k">AC</span><span class="v">'+acCellHTML(a.ac,a.name)+'</span></div>'; html+=kv('Save DC',dcDisp(a)); html+=kv('AP Earned',a.earnedTotal!=null?a.earnedTotal:(a.earned||0)); html+=kv('AP Spent',a.spent); html+='<div class="kv"><span class="k" title="The FROZEN ledger — what was actually paid, and what governs what this player can spend right now. Can legitimately differ from the 📒 AP Ledger view&rsquo;s repriced total whenever prices or rules moved since a purchase.">AP Available</span><span class="v">'+availCell(a.available)+'</span></div>'; html+='<div class="kv"><span class="k">Flags</span><span class="v">'+flagDisp(a)+'</span></div>'; html+=detailHTML(a); html+='</div>'; } html+='</div>'; }); var c=$('cards'); c.innerHTML=html; Array.prototype.forEach.call(c.querySelectorAll('.chead'),function(h){ function toggle(){ var ri=+h.getAttribute('data-ri'); expanded=(expanded===ri)?null:ri; render(); } h.addEventListener('click',toggle); h.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } }); }); }
   function renderTable(){ renderHead(); renderBody(); renderCards(); }
   // Dim the local-tools card whenever this campaign actually has characters. Guarded: the
   // campaign-ready block that defines it may not have loaded (cloud bridge failure).
@@ -3230,7 +3230,7 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
     }).join('');
     return '<div class="card" data-id="'+esc(rec.id)+'"><div class="chead">'+
       '<div class="cname">'+esc(a.name||'New Character')+(flagCount(a)?' <span class="flag">⚠</span>':'')+tamperBadge(a)+'</div>'+
-      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(a.hd||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div>'+
+      '<div class="csub">'+esc(speciesText(a))+' · '+esc(classText(a))+' · HD '+(Number(a.hd)||0)+' · T'+(a.tier||0)+lockIconHTML(a)+'</div>'+
       '<div class="cardactions">'+viewBtnHTML(rec.id)+' '+hideBtnHTML(rec.id)+'</div>'+
       '</div><div class="xgrid">'+boxesHtml+'</div>'+
       '<div style="padding:0 16px 16px">'+secBlock('DM tools (private)', dmToolsBody(rec.id, rec.dm, a.boons, a.creationLock))+'</div></div>';

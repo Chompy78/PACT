@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-22-xss-unescaped-build-fields — numeric build fields are coerced in the fold, and every render site is escaped too
+- Accepted 2026-10-22. A hostile LOG `patch` event could leave HTML in `hd`/`languages`/`ki`/`sorcery`/`hardy`/`tough`/`attune`/tradition `rank`/`slots[]`, and several tool render sites concatenated them raw (stored XSS reaching a DM or a link recipient). Deep fix: `foldBuild()` coerces them with compute()'s own rules (no mechanics change, no version bump); shallow fix: those sites now `Number()`/`esc()`, and CharGen `addRow` escapes unknown subabil/subbundle presets.
+  Full record: `decisions/2026/D-GH-2026-10-22-xss-unescaped-build-fields.md`.
+
 ## D-GH-2026-10-13-campaign-house-rules — house rules are set campaign-wide by the DM, with per-character DM overrides
 - Accepted by owner 2026-10-13 (P2/R1/U1/T2/S2/V1/W1/X1/Y1). Campaign `rules.charHouseRules` (Calls, custom/repriced boons and
   drawbacks; "disabled" = the existing ban lists) apply to every campaign character; a DM's per-character `dmHouseRules` override
