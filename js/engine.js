@@ -1783,6 +1783,17 @@ export function compute(b, opts){
   const saveAdj=dset["Weak-Willed"]?-1:0;
   // ----- Character size (0 AP) — the rule lives in sizeOf() (fix/stored-size), so a tool saving a build can store the real size. -----
   const {size, choosable:sizeChoosable}=sizeOf(b);
+  // Free features (Warden / Protector) carry no price of their own, so their itemize row reads 0 while the AP lands on the weapon /
+  // armour lines. Give the row a THIRD element: what this feature adds to THIS character's total right now (total minus the total
+  // without it), so a ledger can print "12*" instead of a bare 0. Display only: row[1] stays 0, so nothing that sums rows or reads
+  // `lines` changes, and `total` is untouched. The inner compute() is told not to repeat this (it has no free feature left anyway).
+  if(!(opts&&opts._noFreeEff)&&_ITEMS["Class features"]){
+    _ITEMS["Class features"].forEach(function(row){
+      const f=DATA.features[row[0]]; if(!f||!f.free) return;
+      const b2=Object.assign({},b,{features:b.features.filter(function(x){return x!==row[0];})});
+      row[2]=total-compute(b2,Object.assign({},opts,{_noFreeEff:true})).total;
+    });
+  }
   return {total,remaining,budget:spendable,playerAp,dmAp,drawbackAp:_dGranted,dmDiscountAp,spendable,lines:L,itemize:_ITEMS,warnings:W,hp:hp2,baseHP:row.baseHP,prof,tier,mods:mod,effScore,size,sizeChoosable,
     // Traits owned for free via a heritage pack — derived, never stored. See packTraitsFor().
     packTraits:packTraitsFor(b.species,b.species2),
