@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-25-strict-language-note-match — a plain language name is listed when the campaign's list entry carries a "(note)"
+- `isListed()` also matches a list entry with its TRAILING bracket groups removed ("Haldeni" for "Haldeni (default)"); the exact match stays, the plain name is stored as typed (provisional — owner to confirm). Not a rules change: `compute()` never reads a language name, so no `DATA.version` bump and no guide edit.
+  Full record: `decisions/2026/D-GH-2026-10-25-strict-language-note-match.md`.
+
 ## D-GH-2026-10-25-server-negative-cost-after-lock — the database refuses a player-added negative cost on a campaign character
 - A new trigger refuses a NEW negative-cost `buy` (cat not drawback/patch/mbound/dbound) or `names` event, and a binding below the engine's flat -2, on a campaign character written by a non-DM. Separate trigger, not an edit to the house-rules grants guard; the 2 lives in `pact_binding_grant_max()` and CI checks it against the engine. Live measurement: zero such events exist. Residual: events stored before a solo character joined a campaign.
   Full record: `decisions/2026/D-GH-2026-10-25-server-negative-cost-after-lock.md`.

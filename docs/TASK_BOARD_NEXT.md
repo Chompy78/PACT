@@ -27,29 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## fix/strict-language-note-match — a plain language name must match a campaign list entry that carries a "(note)" — TODO
-Branch fix/strict-language-note-match. **Effort:** low · **Risk:** medium — touches the engine's language gate (js/engine.js), so it changes which names a strict campaign accepts. Wrongly loosening it would let off-list names through.
-
-```text
-FOUND 2026-10-22 (live): Skylar, a player in campaign Amble, could not spend or save because her language was the plain
-"Haldeni". Amble's language list is strict (rules.languages = {list, strict:true}) and its entries carry notes inside the name:
-"Haldeni (default)", "Aelvish (Elven dialect) (Elven rule)". campaignLanguages(rules).isListed() in js/engine.js is an exact,
-case-insensitive match, so the plain name a player types counts as off the list. The cause was inferred, not proven: the exact
-error on her screen was never seen. The seven affected characters were rewritten by hand to "Haldeni (default)" the same day
-(docs/sessions/2026-10-22-security-audit-and-xss-fix.md, "Live-data fix"). The cause is still there for every new player.
-
-DO:
-  1. Make isListed() also match when the player's name equals a list entry with its trailing "(note)" groups removed. Keep the
-     exact match as it is. An entry's own wording stays what is stored; only the comparison changes.
-  2. DECIDE with the owner: if the plain name matches, should CharGen offer the full list entry ("Haldeni (default)") or accept the
-     plain name as typed? Recommended: accept it as typed and store what was typed, so no one's data is rewritten.
-  3. Add cases to a CI script: plain "Haldeni" is listed for the Amble list; "Haldeni (default)" still is; "Elvish" (not on the
-     list) still is not; a name already locked in is still never refused.
-  4. Rules version: this changes which names the engine accepts, so bump DATA.version once, add a CHANGELOG line, and land the
-     matching Players Guide wording (engine AND guide, per AGENTS.md).
-```
-**Done when:** a script run against a copy of Amble's list shows the plain names of every annotated entry accepted, an off-list name still refused, and a locked-in name never refused; `engine-parity` reports 0 failed; a plain-name save no longer needs a hand edit.
-
 ## feat/free-subclass-bare-pick — a free-subclass pick with nothing bought from it must not count (rules change) — TODO
 Branch feat/free-subclass-bare-pick. **Effort:** medium · **Risk:** high — a rules change (engine AND Players Guide must both land, `DATA.version` bumped once) that can lower existing characters' prices, so the live blast radius must be measured first.
 
