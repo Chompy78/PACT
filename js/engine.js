@@ -368,7 +368,9 @@ export function ownedChoiceGrants(b) {
     if (g.widen) continue;   // a list-widening (Magical Secrets), not a free pick: widenedLists() reads it, this block stays empty
     let owned = false;
     if ((DATA.features || {})[key]) owned = (b.features || []).indexOf(key) >= 0;
-    else if (ksub) owned = ((b.freeSub || {})[kcls] === ksub) || (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0);
+    // A free-subclass pick owns the subclass only once a piece of it is bought (feat/free-subclass-bare-pick), the same rule compute() prices by.
+    else if (ksub) owned = (b.subAbilities || []).some(k => k.indexOf(kcls + "|" + ksub + "|") === 0)
+      || (((b.freeSub || {})[kcls] === ksub) && (b.subSpellBundles || []).some(k => { const q = String(k).split("|"); return q[0] === kcls && q[1] === ksub; }));
     if (!owned || hd < (Number(g.charLevel) || 1)) continue;
     out.push({ key, label: ksub || key, from: _GRANT_LISTS.filter(c => (g.from || "").indexOf(c) >= 0), note: g.from || "", charLevel: Number(g.charLevel) || 1 });
   }
@@ -1352,7 +1354,10 @@ export function compute(b, opts){
   // v0.196: a bought expanded-list bundle also opens its subclass for unlock-accounting
   for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p[0]&&_p[1])(subUsed[_p[0]]=subUsed[_p[0]]||{})[_p[1]]=1;}
   let subUnlockAP=0; let subUnlockN=0;
-  for(const cls in subUsed){const used=Object.keys(subUsed[cls]);const free=freeSub[cls]||used[0];
+  // feat/free-subclass-bare-pick (owner decision N3, 2026-10-04; Players Guide §13/§14): naming a free subclass is not itself the free part —
+  // "opening it is all that's free. Pick it, then buy each piece you want." A pick with nothing bought from it holds no slot, so the first
+  // subclass actually USED is the free one (subUsed lists only subclasses with a counted ability or spell bundle).
+  for(const cls in subUsed){const used=Object.keys(subUsed[cls]);const free=(freeSub[cls]&&used.indexOf(freeSub[cls])>=0)?freeSub[cls]:used[0];
     for(const sub of used){if(sub!==free){subUnlockAP+=DATA.subUnlock;subUnlockN++;}}}
   {const _vc={};for(const _bk of (b.subSpellBundles||[])){const _p=String(_bk).split("|");if(_p.length>=3){const _k=_p[0]+"|"+_p[1];(_vc[_k]=_vc[_k]||{})[_p[2]]=1;}}for(const _k in _vc){const _x=Object.keys(_vc[_k]).length-1;if(_x>0){subUnlockAP+=_x*DATA.subUnlock;subUnlockN+=_x;}}}
   if(subUnlockAP) add("Subclass unlocks ("+subUnlockN+" × 15)",subUnlockAP);
