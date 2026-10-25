@@ -58,3 +58,22 @@ security audit and a stored-XSS sweep together, then the fixes.
   the note `(default)` as part of the language name.
 - **Not fixed (the cause remains):** any new player who types a plain name from an annotated strict list hits the same
   refusal. Options on record: strip a trailing `(note)` in the match (engine change), or clean the list's names.
+
+## Warden "0 AP" display fix and close-out (2026-10-23 to 10-25)
+- **Report:** a player saw the Warden skill listed at 0 AP on Moss Stormspud. First diagnosis (a missing charge) was wrong:
+  the charge is correct (12 AP for the Weapon and Armour proficiencies, plus 6 for the Magician). The bare 0 is only the
+  itemize row, because the Warden and Protector are `free:true` and their cost is charged on the Weapon and Armour lines.
+- **Fix (#713, squash `c737952`):** display only. `compute()` adds a third slot to a free feature's `Class features` row: the
+  total with the feature minus the total without it. CharGen's summary and the DM Console ledger print it as `12*`; an
+  already-proficient character shows `0*`. Totals and lines are unchanged. No rules change, no version bump. The Live Sheet
+  does not draw itemize rows, so it is untouched. New gate `free-feature-effective-cost-ci.mjs` (9 assertions).
+  Six CI jobs went red once (five "Install Chromium" timeouts, one lighthouse performance score); re-runs passed, all 30 green.
+- **Magician skill modifier (owner question):** yes, it changes. With WIS 16 the engine gives Arcana and Nature +3; Religion and
+  Perception stay 0; the Warden gives none. Checked in the engine only, not on a rendered sheet.
+- **Board task added (`c74114d`):** `fix/strict-language-note-match` (owner's AA1, after first picking skip). It is the real fix
+  for the Amble cause above.
+- **Cleanup:** deleted local and remote `fix/free-feature-effective-cost` and `fix/xss-unescaped-build-fields` (code identical to
+  the merged #708) and their worktrees. `ui/show-granted-proficiencies` was already gone. Left alone: `feat/livesheet-weapons`
+  and `dev/branch-preview/worktree` (not this session's).
+- **Not confirmed:** Skylar's ability to spend after the language fix. The owner said to assume it works.
+
