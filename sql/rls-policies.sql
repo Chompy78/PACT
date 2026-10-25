@@ -2493,6 +2493,7 @@ begin
       if v_cat in ('drawback', 'patch') then continue; end if;
       v_floor := case when v_cat in ('mbound', 'dbound') then -public.pact_binding_grant_max() else 0 end;
     elsif v_ev->>'type' = 'names' then
+      v_cat := '';
       v_floor := 0;
     else
       continue;
