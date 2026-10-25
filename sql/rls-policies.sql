@@ -2462,6 +2462,83 @@ create trigger trg_pact_player_grants_guard
   for each row execute function public.pact_enforce_player_grants();
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- Negative costs (fix/server-negative-cost-after-lock, D-GH-2026-10-25-server-negative-cost-after-lock). Folded in from
+-- sql/migrations/2026-10-25-server-negative-cost.sql (see its header for the gap, the live measurement and the residual risk); the
+-- statements below are that migration's, verbatim, so run-negative-cost.sh can check they match.
+-- ---------------------------------------------------------------------------------------------------------------------
+create or replace function public.pact_binding_grant_max()
+returns numeric language sql immutable set search_path = public, pg_temp
+as $function$ select 2::numeric $function$;
+comment on function public.pact_binding_grant_max() is
+  'The most AP a Martially/Magically Bound buy may grant (its cost may be as low as minus this). Must equal -priceOf(mbound/dbound) in js/engine.js (flat -2); testing/scripts/creation-lock-guard-test/run-negative-cost.sh checks it. D-GH-2026-10-25-server-negative-cost-after-lock.';
+
+create or replace function public.pact_enforce_negative_cost()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_old jsonb; v_new jsonb; v_ev jsonb; v_cat text; v_cost numeric; v_floor numeric;
+  v_used int[] := '{}'; v_found boolean; j int; v_cand jsonb; v_dup boolean;
+begin
+  if NEW.stats is not distinct from OLD.stats then return NEW; end if;
+  if NEW.campaign_id is null then return NEW; end if;
+  if coalesce(current_setting('request.jwt.claims', true), '') = '' then return NEW; end if;  -- admin session
+  if (OLD.campaign_id is not null and public.is_campaign_dm(OLD.campaign_id)) or public.is_campaign_dm(NEW.campaign_id) then
+    return NEW;
+  end if;
+  v_old := case when jsonb_typeof(OLD.stats->'LOG') = 'array' then OLD.stats->'LOG' else '[]'::jsonb end;
+  v_new := case when jsonb_typeof(NEW.stats->'LOG') = 'array' then NEW.stats->'LOG' else '[]'::jsonb end;
+  for v_ev in select e from jsonb_array_elements(v_new) e loop
+    if jsonb_typeof(v_ev) <> 'object' then continue; end if;
+    if v_ev->>'type' = 'buy' then
+      v_cat := coalesce(v_ev->>'cat', '');
+      if v_cat in ('drawback', 'patch') then continue; end if;
+      v_floor := case when v_cat in ('mbound', 'dbound') then -public.pact_binding_grant_max() else 0 end;
+    elsif v_ev->>'type' = 'names' then
+      v_cat := '';
+      v_floor := 0;
+    else
+      continue;
+    end if;
+    v_cost := public.pact_num(v_ev->'cost');
+    -- A binding is ONE flag (Martially Bound) or one per discipline (Magically Bound, payload ti/di): a second negative-cost copy of
+    -- the same binding in the log is not a purchase, it is minting -2 AP an event (review finding, 2026-10-25).
+    v_dup := v_cat in ('mbound', 'dbound') and v_cost < 0 and (
+      select count(*) from jsonb_array_elements(v_new) o
+       where jsonb_typeof(o) = 'object' and o->>'type' = 'buy' and o->>'cat' = v_cat
+         and coalesce(o->'payload'->>'ti', '') = coalesce(v_ev->'payload'->>'ti', '')
+         and coalesce(o->'payload'->>'di', '') = coalesce(v_ev->'payload'->>'di', '')
+         and public.pact_num(o->'cost') < 0) > 1;
+    if v_cost >= v_floor and not v_dup then continue; end if;
+    -- already stored? (multiset match, ignoring what tools re-stamp)
+    v_found := false;
+    for j in 0 .. jsonb_array_length(v_old) - 1 loop
+      if j = any(v_used) then continue; end if;
+      v_cand := v_old -> j;
+      if jsonb_typeof(v_cand) = 'object' and (v_cand - 'ts' - 'rules' - 'label') = (v_ev - 'ts' - 'rules' - 'label') then
+        v_used := v_used || j; v_found := true; exit;
+      end if;
+    end loop;
+    if v_found then continue; end if;
+    raise exception 'PACT: a % can''t be recorded with a cost of % AP — only drawbacks and bindings give AP back (reload the character; if this keeps happening tell your DM)',
+      case when v_ev->>'type' = 'names' then 'names event' else 'purchase' end, v_cost;
+  end loop;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_pact_negative_cost_guard on public.characters;
+create trigger trg_pact_negative_cost_guard
+  before update on public.characters
+  for each row execute function public.pact_enforce_negative_cost();
+
+-- A trigger function never needs EXECUTE (2026-09-01-revoke-trigger-function-execute.sql); revoking does not stop it firing.
+revoke all on function public.pact_enforce_negative_cost() from public, anon, authenticated;
+revoke all on function public.pact_binding_grant_max()     from public, anon;
+grant execute on function public.pact_binding_grant_max()  to authenticated;
+
+comment on function public.pact_enforce_negative_cost() is
+  'Refuses a NEW negative-cost buy (any cat but drawback/patch/mbound/dbound) or names event, and a binding below -pact_binding_grant_max(), on a campaign character written by a non-DM. D-GH-2026-10-25-server-negative-cost-after-lock.';
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- §6.1: campaigns.rules.charHouseRules has one writer.
 -- ---------------------------------------------------------------------------------------------------------------------
 create or replace function public.pact_guard_char_house_rules()

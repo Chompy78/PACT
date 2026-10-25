@@ -133,6 +133,11 @@ jobs:
         run: node testing/scripts/gen-drawback-prices-sql.mjs --check
       - name: Campaign house rules — migration, refusals, legitimate paths, ledger cross-check, rollback
         run: testing/scripts/creation-lock-guard-test/run-house-rules.sh
+      # fix/server-negative-cost-after-lock: a player cannot lower a campaign character's server spend with a negative-cost buy or names event
+      # (rls-policies.sql carries the fix; the script rolls it back first so BEFORE shows the attacks working, and checks the server's binding
+      # bound against js/engine.js's flat -2).
+      - name: Negative costs — migration, attacks, legitimate paths, engine cross-check, rollback
+        run: testing/scripts/creation-lock-guard-test/run-negative-cost.sh
 
   # feat/campaign-house-rules-dm-editor / -overrides: what DM Console's Character house rules editor and its per-character
   # override editor SEND (captured by their e2e with
