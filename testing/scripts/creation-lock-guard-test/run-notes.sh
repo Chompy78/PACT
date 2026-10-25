@@ -25,6 +25,8 @@ def() { psqlc -At -c "select md5(pg_get_functiondef('public.dm_edit_character_lo
 # Step back past house rules first (its rollback restores THIS migration's dm_edit_character_log), record that definition
 # (FOLDED), then step back to the pre-migration state with this rollback, so BEFORE / AFTER / rollback below still rehearse the
 # same transition they did before the fold; AFTER must then match FOLDED (baseline and migration agree).
+# The negative-cost guard (2026-10-25) is newer than house rules and calls pact_num(), which the house-rules rollback drops: step it back first.
+psqlc -1 < "$M/2026-10-25-server-negative-cost-rollback.sql" >/dev/null
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
 FOLDED=$(def)
 psqlc -1 < "$M/2026-10-15-boon-drawback-notes-rollback.sql"

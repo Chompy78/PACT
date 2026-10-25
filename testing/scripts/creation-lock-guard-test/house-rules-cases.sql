@@ -670,6 +670,8 @@ select t('lock: …and always on a draft', 'allowed', 'pass', $b$
   select owner_append('draft', '{"seq":4,"type":"buy","cat":"drawback","cost":-4,"payload":{"v":"Peg Leg"}}') $b$);
 select t('lock: a DM imposing a drawback after the lock is not this rule''s business', 'allowed', 'pass', $b$
   select as_dm(); select dm_edit_character_log(chid('tb'), '[{"type":"buy","cat":"drawback","payload":{"v":"Peg Leg"},"cost":0}]') $b$);
+-- R2-2 / R2-4 below are pinned as allowed HERE because run-house-rules.sh steps the 2026-10-25 negative-cost guard back first (it is newer than
+-- this migration and calls pact_num()); the live database refuses both since that guard, and negative-cost-cases.sql covers the refusal.
 select t('R2-2 (pre-existing, board fix/server-negative-cost-after-lock): a -1000 skill buy still lowers spend', 'allowed', 'pass', $b$
   select owner_append('ig3', '{"seq":3,"type":"buy","cat":"skill","cost":-1000,"payload":{"v":"Stealth"}}');
   select owner_append('ig3', '{"seq":4,"type":"buy","cat":"boon","cost":1000,"payload":{"v":"Lucky"}}') $b$);

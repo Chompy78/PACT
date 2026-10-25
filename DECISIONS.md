@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-25-server-negative-cost-after-lock — the database refuses a player-added negative cost on a campaign character
+- A new trigger refuses a NEW negative-cost `buy` (cat not drawback/patch/mbound/dbound) or `names` event, and a binding below the engine's flat -2, on a campaign character written by a non-DM. Separate trigger, not an edit to the house-rules grants guard; the 2 lives in `pact_binding_grant_max()` and CI checks it against the engine. Live measurement: zero such events exist. Residual: events stored before a solo character joined a campaign.
+  Full record: `decisions/2026/D-GH-2026-10-25-server-negative-cost-after-lock.md`.
+
 ## D-GH-2026-10-22-xss-unescaped-build-fields — numeric build fields are coerced in the fold, and every render site is escaped too
 - Accepted 2026-10-22. A hostile LOG `patch` event could leave HTML in `hd`/`languages`/`ki`/`sorcery`/`hardy`/`tough`/`attune`/tradition `rank`/`slots[]`, and several tool render sites concatenated them raw (stored XSS reaching a DM or a link recipient). Deep fix: `foldBuild()` coerces them with compute()'s own rules (no mechanics change, no version bump); shallow fix: those sites now `Number()`/`esc()`, and CharGen `addRow` escapes unknown subabil/subbundle presets.
   Full record: `decisions/2026/D-GH-2026-10-22-xss-unescaped-build-fields.md`.

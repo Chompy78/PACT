@@ -23,6 +23,8 @@ def() { psqlc -At -c "select md5(pg_get_functiondef('public.pact_enforce_player_
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 fails() { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n" | cut -c1-220; }
 FOLDED=$(def)
+# The negative-cost guard (2026-10-25) is newer than house rules and calls pact_num(), which the house-rules rollback drops: step it back first.
+psqlc -1 < "$M/2026-10-25-server-negative-cost-rollback.sql" >/dev/null
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql" >/dev/null
 psqlc < "$M/2026-10-12-server-player-award-after-lock-rollback.sql"
 LIVE=$(def)

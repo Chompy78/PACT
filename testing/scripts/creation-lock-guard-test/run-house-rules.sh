@@ -30,6 +30,8 @@ added() { psqlc -At -c "select (select count(*) from pg_proc p join pg_namespace
   + (select count(*) from pg_trigger where tgname in ('trg_pact_dm_family_guard','trg_pact_guard_char_house_rules','trg_pact_player_grants_guard'))"; }
 counts() { psqlc -At -c "select count(*) filter (where verdict='PASS') || ' passed, ' || count(*) filter (where verdict='FAIL') || ' failed (of ' || count(*) || ')' from res"; }
 mispredicted() { psqlc -At -F ' | ' -c "select before, verdict, got, name from res where (verdict = 'PASS') <> (before = 'pass') order by n" | cut -c1-240; }
+# The negative-cost guard (2026-10-25) is newer than house rules and calls pact_num(), which the house-rules rollback drops: step it back first.
+psqlc -1 < "$M/2026-10-25-server-negative-cost-rollback.sql" >/dev/null
 FOLDED=$(defs)
 [ "$(added)" = "20" ] || { echo "EXPECTED the folded baseline to carry the 17 functions + 3 triggers, found $(added)"; exit 1; }
 psqlc -1 < "$M/2026-10-13-campaign-house-rules-server-rollback.sql"
