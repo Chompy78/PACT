@@ -130,7 +130,7 @@ questions with the owner before writing code.
 **Done when:** a differential test builds the same purchase through CharGen's new path and Live Sheet's buy() and asserts identical event cat/payload/cost/gp/days and byte-identical folded builds; a locked-character HD and ability raise in CharGen append in-play events after the lock with the creation event untouched; a decrease is refused; undo steps back one purchase at a time and stops at the lock; pre-lock tests stay green.
 
 ## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
-Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
+Branch feat/roll-lock-then-spend. **PLAN WRITTEN AND COLD-REVIEWED 2026-10-27:** `docs/plans/2026-10-27-roll-lock-then-spend.md` (Design A: record the roll, cut it at the ceiling, store the remainder as steps, Accept locks and appends them; split into two PRs). Not built; waits for the owner's answers to its Q1–Q5. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
 
 ```text
 Owner decision B (2026-10-04): a roll on a character with a DM creation limit should be capped at that limit, THEN the
