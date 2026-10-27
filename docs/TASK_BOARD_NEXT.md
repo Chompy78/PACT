@@ -72,60 +72,8 @@ DO (owner, 2026-10-04):
 ```
 **Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
 
-## feat/server-freeze-houserules-gold — the server freeze still treats houseRules and gold as no-AP — TODO
-Branch feat/server-freeze-houserules-gold. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves. Remainder of `feat/server-freeze-at-lock` / `feat/server-freeze-apply`, whose main work is done (stage 1 applied 2026-10-10, stage 2 applied 2026-10-11 — see CHANGELOG and `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`).
-
-```text
-CORRECTION found by fix/player-free-ap (2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
-boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The applied
-stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(). Write a migration (+ rollback) that drops both
-from that list, so they are protected after a lock/seal/award. CharGen already refuses both after the lock; measure first (read-only,
-on the live characters table) how many locked characters' saves still rewrite them, then rehearse in
-testing/scripts/creation-lock-guard-test (run-freeze.sh) and add the cases. Apply only with the owner's approval; then get_advisors.
-Coordinate with feat/dm-house-rules-editor (if house rules move to a DM RPC, the DM route must still be able to write them).
-ALSO NOT YET RECORDED in the repo for the original entry's "Done when" (needs a live look, not a code change): the six Amble
-characters re-checked as still locked after the stage 1/2 applies, and a real player's save of a campaign character observed
-succeeding afterwards (the decision record says none had been observed yet on 2026-10-10). The log/advisor checks are already
-their own task, check/server-freeze-stage2-after-apply.
-```
-**Done when:** the migration is applied with the owner's approval and the Docker harness shows houseRules/gold edits refused after a lock and allowed before it; the Amble lock re-check and an observed honest campaign save are written down in the decision record.
-
-## feat/chargen-2b2-traditions-diff — OPTIONAL: let CharGen buy spellcasting after the lock instead of refusing it — TODO
-Branch feat/chargen-2b2-traditions-diff. **Effort:** high · **Risk:** high — a nested-array diff turned into indexed purchases in a ~600 KB file; a wrong mapping silently buys or prices the wrong thing (driver: damage likelihood). Plan: `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md` (cold-reviewed; the reviewers' staging is why this is separate and optional).
-
-```text
-Phase 2b-1 (#579, merged) REFUSES any post-lock edit to spellcasting in CharGen and points at the Live Sheet, which already records each rank, cantrip, slot and known
-spell as an in-play purchase. This task replaces that refusal with the real diff only if it can be made safe; if not, it is simply not done and spellcasting stays Live-Sheet-only
-after the lock (reviewers' Alternative A). Per the plan: diff cur.traditions vs the form's traditions into found/rank/cantrip/slot/known events (prefix check by position AND name,
-append-only, found -> rank -> cantrip/slot/known order, one step per +1), price each with priceOf and check each with purchaseLegality (shared helper _cgPostLockAppend, which
-also does the wallet check), refuse every decrease, any change to `bound` (it grants AP), and any change to arcanum/pactSlots (no purchase exists). FIRST establish how warlock
-arcanum/pactSlots are produced (derived vs form-set) so a legitimate warlock edit is never refused. Tests: head-to-head with the Live Sheet's buy() for scripted sequences,
-a refusal per rule, two new traditions in one edit, an insertion in the middle (refused), simultaneous rank + slot increases, a Warlock case, a randomised property test (>=200 edits).
-```
-**Done when:** the head-to-head and refusal tests pass in CI, the randomised property test shows identical folded builds from both tools, and the existing browser suite still passes — OR this task is closed as "not worth the risk" with that written in the plan.
-
-## fix/chargen-post-lock-purchases — CharGen rewrites creation history instead of appending an in-play purchase after the lock — TODO
-Branch fix/chargen-post-lock-purchases. **Effort:** high · **Risk:** high — core CharGen edit path (~600 KB file), 19 patch slots, and a price-parity requirement with Live Sheet. Plan to review FIRST: `docs/plans/2026-10-04-chargen-post-lock-purchases.md`. Blocks `feat/roll-lock-then-spend`.
-
-```text
-OBSERVED (2026-10-04, real browser): in CharGen, Finish creating then raise Hit Dice 3 -> 4. replacePatchSlot() rewrites
-the existing "Hit Dice & Proficiency" event IN PLACE (seq 10, still BEFORE the lock at seq 11, cost 5 -> 8): no new event,
-no in-play price, no gold/downtime stamp, and creation history is rewritten. In place is right pre-lock (readable ledger) and
-wrong after it. Live Sheet appends one fine-grained event per purchase (hd / abil / armour / ... from the engine's MUT table)
-with cost and a frozen gp/days.
-
-DO (owner decision B2, 2026-10-04): for a LOCKED character, route a patch-slot edit through a new _cgPostLockSlotEdit():
-diff the slot against its folded value; each increase becomes the matching in-play event, appended after commitHistory()
-(one undo step per purchase), priced as the compute() delta, legality-checked and gold/downtime-stamped like Live Sheet;
-each DECREASE is refused ("nothing bought can be removed once creation is finished"); no-AP slots (appearance, names) stay
-in place; species/origin class are refused. Pre-lock behaviour must stay byte-identical. Phase 1 = hdProf + stats +
-the parity test; then the other priced slots; then hardening; then the roll Accept button. Answer the plan's three open
-questions with the owner before writing code.
-```
-**Done when:** a differential test builds the same purchase through CharGen's new path and Live Sheet's buy() and asserts identical event cat/payload/cost/gp/days and byte-identical folded builds; a locked-character HD and ability raise in CharGen append in-play events after the lock with the creation event untouched; a decrease is refused; undo steps back one purchase at a time and stops at the lock; pre-lock tests stay green.
-
 ## feat/roll-lock-then-spend — random roll: cap at the creation limit, lock, then spend the rest in play — TODO
-Branch feat/roll-lock-then-spend. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
+Branch feat/roll-lock-then-spend. **UNBLOCKED 2026-10-27:** its prerequisite `fix/chargen-post-lock-purchases` (phases 1, 2a, 2b-1, 2b-2 and the wallet warning) shipped 2026-10-04/05, so CharGen can already append in-play purchases after the lock. **PLAN WRITTEN AND COLD-REVIEWED 2026-10-27:** `docs/plans/2026-10-27-roll-lock-then-spend.md` (Design A: record the roll, cut it at the ceiling, store the remainder as steps, Accept locks and appends them; split into two PRs). Not built; waits for the owner's answers to its Q1–Q5. **Effort:** high · **Risk:** high — `randomizeRoll()` is ~490 lines and its apply step is deliberately ordered (D-GH34), so a wrong change silently re-prices every rolled character. Follows `fix/chargen-creation-ceiling` (PR #561), which caps the roll at the DM's ceiling but does not lock.
 
 ```text
 Owner decision B (2026-10-04): a roll on a character with a DM creation limit should be capped at that limit, THEN the
@@ -147,28 +95,6 @@ button survive a reload (a flag kept with the autosave) and does cloud autosave 
 acceptance? (Recommended: yes to both.)
 ```
 **Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
-
-## fix/chargen-creation-ceiling — CharGen never refuses a purchase past the DM's creation limit — TODO
-Branch fix/chargen-creation-ceiling. **Effort:** high · **Risk:** high — damage scale (CharGen's central edit path, ~600 KB file) and ambiguity (CharGen is a whole-build editor that reprices on every edit, so "refuse this purchase" has no single call site) drive it. Plan to review FIRST: `docs/plans/2026-10-04-chargen-creation-ceiling.md`.
-
-```text
-GAP. docs/plans/2026-08-30-creation-ceiling.md "Done when" #2 says a purchase past the ceiling is refused in
-BOTH CharGen and Live Sheet. Only Live Sheet got it: tools/PACT-CharGen-Webtool.html imports and exposes
-wouldExceedCeiling() but never calls it (0 call sites, 2026-10-04). CharGen only shows "Finish creating" with the
-numbers in a tooltip. Evidence: Moss, Skylar, Fenwick and Archer — all CharGen characters — spent 101/98/97/79 AP
-against real limits of 83/80/78/68, while Anders and Caspian (Live Sheet) kept their block. Missing limits made it
-worse (Moss's was never stamped; Skylar's, Fenwick's and Archer's were deleted by the reload / stale-copy bugs, now
-fixed), but even with a limit stamped CharGen would not have refused.
-
-DO (owner decisions W1 + W2, 2026-10-04):
-  W1  Refuse, in CharGen, any edit that INCREASES spend and ends past the ceiling (unlocked + limit stamped only),
-      with the same message and both exits Live Sheet already shows. Edits that lower spend, locked characters,
-      characters with no stamped limit, and loads/imports/handoffs are never blocked.
-  W2  When an accepted edit lands the character exactly at its limit (0 left), prompt once: "Finish creating now?"
-      (reusing cgFinishCreating's flow; "Not yet" keeps building). Re-arm only after spend drops below the limit again.
-Follow the plan's design and answer its three open questions with the owner before writing code.
-```
-**Done when:** `chargen-flows-e2e.mjs` has new checks proving an over-limit edit is refused and reverted (state and form unchanged), an under-limit edit and a spend-lowering edit are accepted, a locked character and a no-limit character are unaffected, and the reach-the-limit prompt fires once; the Players Guide wording on the creation limit is checked and reconciled in the same change; no `DATA.version` bump unless pricing changes (it should not).
 
 ## fix/no-purchase-refunds — nothing bought can be un-bought for AP (engine rule) — TODO
 Branch fix/no-purchase-refunds. **Effort:** high · **Risk:** high — damage scale (edits js/engine.js, changes
@@ -192,6 +118,28 @@ Before changing anything: query the LIVE characters table for every character wh
 refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and list them for the owner.
 Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
 (engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
+
+UPDATE 2026-10-27 — MEASURED on live (read-only; no code written; the design questions below need the owner):
+Every live character whose stats were lowered from ABOVE 10 (a refund under this rule), found by folding each stats event of every
+character that carries a negative "Ability scores" patch cost. A dump below 10 is NOT listed (Skylar's STR 10 -> 8 is legitimate).
+  - Caspian (Amble, campaign, Live Sheet), seq 26: STR 12 -> 10, WIS 16 -> 14 — event cost -11 AP.
+  - Skylar (Amble, campaign, CharGen), seq 23: DEX 12 -> 10 — event cost -4 AP (before any award).
+  - Kaelen Dawnbreaker (solo), seq 15: CON 12 -> 10, DEX 14 -> 10, STR 14 -> 10 — event cost -22 AP.
+  - Marius Stormholt (solo), seq 20: CHA 14 -> 10, INT 12 -> 10, WIS 12 -> 10 — event cost -7 AP.
+  - Two DM copies repeat Caspian's and Skylar's events ("lock check" copies); Skylar's copy also holds the post-lock DEX 12 -> 10 (-4 AP, seq 27).
+  Other negative patch events are not refunds: Martially Bound grants (-2 / -4) and Identity changes.
+OPEN DESIGN QUESTIONS (answer before writing code; recommendations in brackets):
+  Q1 compute() prices a final build, not a history, so "keep the AP paid at the highest point" needs memory. [Recommended: foldBuild records the
+     highest score each stat has reached through a purchase or stats event (b.statsHigh); compute() prices a score of 10 or more at
+     max(score, high) and a score below 10 at its own value (the dump keeps paying out). The alternative, leaving compute() alone and having each
+     tool refuse a lowering, does not cover imports and DM edits, which the rule requires.]
+  Q2 CharGen is a whole-build editor before the lock, and rewrites a stats event in place on purpose. What is "saved/ledgered" there? [Recommended: a
+     score counts as bought once it is in a saved history the character has been locked, sealed or awarded past, or has appeared in a cloud save;
+     lowering a score in a draft that was never saved stays free, because nothing was bought yet.]
+  Q3 After the lock, a lowering "prices at 0 refund (or is rejected)". [Recommended: rejected, as CharGen's post-lock path and the server freeze
+     already do; it needs no pricing exception and the Guide sentence is simply "nothing you have bought can be removed".]
+  Q4 The four live characters above keep their frozen ledgers; only their displayed totals would move. Reconcile them (see "One-off
+     reconciliation pass for characters built before the pricing fixes") or leave them? [Recommended: leave, list them to the owner as done here.]
 
 ```
 **Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
