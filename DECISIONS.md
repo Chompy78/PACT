@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-27-dm-console-award-seal — the campaign-wide Award AP tile locks history; the per-character form no longer awards AP
+- The tile gains an "and lock history" tick, ticked by default, going through `award_ap_and_seal()` per character (fresh key per click); only characters that have FINISHED creation are sealed (provisional — owner to confirm), the rest are awarded only, and one failure does not stop the others. The per-character form drops its AP amount and tick; gold, bonus time and the standalone Lock history stay.
+  Full record: `decisions/2026/D-GH-2026-10-27-dm-console-award-seal.md`.
+
 ## D-GH-2026-10-25-server-negative-cost-after-lock — the database refuses a player-added negative cost on a campaign character
 - A new trigger refuses a NEW negative-cost `buy` (cat not drawback/patch/mbound/dbound) or `names` event, and a binding below the engine's flat -2, on a campaign character written by a non-DM. Separate trigger, not an edit to the house-rules grants guard; the 2 lives in `pact_binding_grant_max()` and CI checks it against the engine. Live measurement: zero such events exist. Residual: events stored before a solo character joined a campaign.
   Full record: `decisions/2026/D-GH-2026-10-25-server-negative-cost-after-lock.md`.

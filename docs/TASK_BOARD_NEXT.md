@@ -73,28 +73,6 @@ DO:
 ```
 **Done when:** new engine-parity fixtures cover a bare pick (ignored), a used pick (honoured) and the Moon/Land case; `expected-results.csv` updated in the same change; CharGen no longer writes a bare pick; the Guide states the rule and `verify-guide.mjs` passes; the live measurement has been shown to the owner.
 
-## feat/dm-console-award-seal — the campaign-wide Award AP tile cannot lock history; the per-character form can — TODO
-Branch feat/dm-console-award-seal. **Effort:** medium · **Risk:** medium — touches the DM's award flow (live AP) and calls `award_ap_and_seal()`; the idempotency and per-character failure handling are the fiddly parts.
-
-```text
-FOUND 2026-10-04 (owner, after awarding session 9): DM Console has TWO places to award AP. The campaign-wide tile "Award AP —
-Tick whoever earned it, set an amount and a note, and award every ticked character" (tools/DM-Console.html ~line 644) has NO
-"lock history" option; the per-character form ("Award AP, gold & bonus time") has an "and lock history" tick that is OFF by default.
-The owner used the tile, so nothing was sealed (no sessionSeal event on any of the six Amble histories) even though a seal is what
-freezes what a player bought up to that award. Sealing was deliberately never automatic (D-GH-2026-09-01-session-seal, option A1: an
-award event in the log as well as the server award would double-count AP) — but the tick only exists on the form most DMs don't use.
-
-DO (owner, 2026-10-04):
-  1. Add an "and lock history" checkbox, TICKED BY DEFAULT, to the campaign-wide Award AP tile; each ticked character goes through
-     award_ap_and_seal() (one atomic call per character, fresh idempotency key per click, as the per-character form does).
-  2. Remove the AP amount (and its lock-history tick) from the per-character form where the tile now covers it. KEEP what the tile
-     does not do: per-character gold and bonus time, and the standalone "Lock history" button.
-  3. DECIDE with the owner: seal only characters that have FINISHED creation (locked)? Sealing one still in creation freezes a
-     half-built character. Recommended: seal locked characters, award-only the rest, and say which in the result message.
-  4. A per-character failure must not abort the others, and the result lists who was awarded and who was sealed.
-```
-**Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
-
 ## feat/server-freeze-houserules-gold — the server freeze still treats houseRules and gold as no-AP — TODO
 Branch feat/server-freeze-houserules-gold. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves. Remainder of `feat/server-freeze-at-lock` / `feat/server-freeze-apply`, whose main work is done (stage 1 applied 2026-10-10, stage 2 applied 2026-10-11 — see CHANGELOG and `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`).
 

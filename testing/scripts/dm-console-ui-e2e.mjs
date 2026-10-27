@@ -341,7 +341,7 @@ const peek = await page.evaluate(async ()=>{
     stats:{ schema:'pact-character/1', name:'Cedric', SEQ:3,
             LOG:[{seq:1,type:'buy',path:'abilities.STR',cost:2}] } }]);
   await new Promise(r=>setTimeout(r,60));
-  const rosterCtl = [...document.querySelectorAll('#campRoster .award-btn, #campRoster .dm-notes-save, #campRoster .unbind-btn')];
+  const rosterCtl = [...document.querySelectorAll('#campRoster .seal-btn, #campRoster .dm-notes-save, #campRoster .unbind-btn')];
   out.rosterCtlCount = rosterCtl.length;
   out.rosterCtlLive  = rosterCtl.filter(b=>!b.disabled).map(b=>b.className);
 
@@ -362,17 +362,15 @@ const peek = await page.evaluate(async ()=>{
 
   const called = [];
   const spied = {};
-  ['awardAp','setCharacterDmNotes','unbindCharacter'].forEach(fn=>{
+  ['sealHistory','setCharacterDmNotes','unbindCharacter'].forEach(fn=>{
     spied[fn] = B[fn];
     B[fn] = function(){ called.push(fn); return Promise.resolve(0); };
   });
-  const amt = document.querySelector('#campRoster .award-amt');
-  if(amt) amt.value = '5';                         // non-zero: the amt===0 early-return would mask the guard
-  [...document.querySelectorAll('#campRoster .award-btn, #campRoster .dm-notes-save, #campRoster .unbind-btn')]
+  [...document.querySelectorAll('#campRoster .seal-btn, #campRoster .dm-notes-save, #campRoster .unbind-btn')]
     .forEach(b=>{ b.disabled = false; b.click(); });
   await new Promise(r=>setTimeout(r,80));
   out.rpcAfterForcedClick = called.slice();
-  ['awardAp','setCharacterDmNotes','unbindCharacter'].forEach(fn=>{ B[fn] = spied[fn]; });
+  ['sealHistory','setCharacterDmNotes','unbindCharacter'].forEach(fn=>{ B[fn] = spied[fn]; });
 
   // Same treatment for the panel's own write handlers. Each one carries its own _peekBlocks() call,
   // so a guard dropped from any single call site has to fail here rather than hide behind the others.
@@ -678,7 +676,7 @@ const npc = await page.evaluate(async () => {
     selAllLabel: (document.getElementById('campAwardApSelAll') || {}).textContent || '',
     npcBasicMode: npcCards.some(c => c.querySelector('.dm-basicmode-btn')),
     playerBasicMode: !!el.querySelector('.card[data-id="p1"] .dm-basicmode-btn'),
-    npcAwardForm: npcCards.every(c => c.querySelector('.award-btn')),
+    npcAwardForm: npcCards.every(c => c.querySelector('.seal-btn')),
     npcRemoveLabel: (npcCards[0] && npcCards[0].querySelector('.unbind-btn') || {}).textContent || '',
     npcDupBtns: npcCards.map(c => !!c.querySelector('.npc-dup-btn')),
     playerDupBtn: !!el.querySelector('.card[data-id="p1"] .npc-dup-btn'),
@@ -843,6 +841,77 @@ console.log('\n[dm-console-ui] rules lock bars');
   const bfatal = berrs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
   check('lock bars: no fatal page errors', bfatal.length === 0, bfatal.slice(0,2).join(' | '));
   await bp.close();
+}
+
+// feat/dm-console-award-seal (owner 2026-10-04): the campaign-wide "Award AP" tile can lock history, ticked by default, and the per-character
+// form no longer carries an AP amount (it keeps gold, bonus time and the standalone Lock history). Only characters that have FINISHED creation
+// are sealed; one still being built is awarded and left open; one character's failure does not stop the others.
+console.log('\n[dm-console-ui] Award AP tile locks history');
+{
+  const ap = await browser.newPage();
+  const aerrs = []; ap.on('pageerror', e => aerrs.push(String(e)));
+  await ap.goto(`http://localhost:${PORT}/PACT/tools/DM-Console.html`, { waitUntil:'load' });
+  await ap.waitForFunction(() => !!window._campBridge, { timeout: 15000 });
+  const r = await ap.evaluate(async () => {
+    const built = (id, name, extra) => ({ id, name, ap: 0, owner_id: 'o-' + id, stats: { SEQ: 3, LOG: [
+      { type: 'buy', cat: 'create', cost: 0, seq: 1, noLock: true, payload: {} }, ...(extra || []) ] } });
+    const lock = { type: 'creationLocked', seq: 2 };
+    const rows = [ built('open1', 'Open One'), built('lock1', 'Locked One', [lock]), built('lock2', 'Locked Two', [lock]) ];
+    const B = window._campBridge;
+    window._dmCampaignApRules = { ignorePlayerAp: true, campaignId: 'camp-1', rules: {} };
+    window._dmSetCampIdTest('camp-1');
+    B.getRoster = () => Promise.resolve(rows);
+    window._dmRenderCloudRoster(document.getElementById('campRoster'), rows);
+    const out = {};
+    out.sealBoxExists = !!document.getElementById('campAwardApSeal');
+    out.sealBoxDefaultChecked = !!(document.getElementById('campAwardApSeal') || {}).checked;
+    out.info = window._dmAwardApInfo(['open1', 'lock1', 'lock2', 'nobody']).map(i => i.id + ':' + i.locked);
+    // the per-character form
+    const card = document.querySelector('#campRoster .card[data-id="lock1"]');
+    out.cardHasAmount = !!(card && card.querySelector('.award-amt'));
+    out.cardHasSealTick = !!(card && card.querySelector('.award-seal'));
+    out.cardHasLockButton = !!(card && card.querySelector('.seal-btn'));
+    out.cardHasNote = !!(card && card.querySelector('.award-note'));
+    // spy the two RPCs
+    const calls = [];
+    B.awardAp = (id, amt, note) => { calls.push(['awardAp', id, amt, note]); return Promise.resolve(10); };
+    B.awardApAndSeal = (id, amt, note, idem) => { calls.push(['awardApAndSeal', id, amt, note, !!idem]); return Promise.resolve({ ap: 10 }); };
+    const realAlert = window.alert; window.alert = () => {};
+    const tick = ids => { document.querySelectorAll('#campAwardApList input').forEach(i => { i.checked = ids.includes(i.value); }); };
+    const press = async () => { document.getElementById('campAwardApAmt').value = '5'; document.getElementById('campAwardApNote').value = 'session 9';
+      document.getElementById('campAwardApBtn').click(); await new Promise(r => setTimeout(r, 120)); };
+    // 1. ticked (default): the locked ones are sealed, the open one is only awarded
+    tick(['open1', 'lock1', 'lock2']); await press();
+    out.calls1 = calls.splice(0).map(c => c.join('|'));
+    out.status1 = document.getElementById('campAwardApStatus').textContent;
+    // 2. unticked: nobody is sealed
+    document.getElementById('campAwardApSeal').checked = false;
+    tick(['lock1', 'open1']); await press();
+    out.calls2 = calls.splice(0).map(c => c.join('|'));
+    out.status2 = document.getElementById('campAwardApStatus').textContent;
+    // 3. one character's seal fails: the others still go through, and the failure is named
+    document.getElementById('campAwardApSeal').checked = true;
+    B.awardApAndSeal = (id, amt, note, idem) => { calls.push(['awardApAndSeal', id]); return id === 'lock1' ? Promise.reject(new Error('boom')) : Promise.resolve({ ap: 10 }); };
+    tick(['lock1', 'lock2', 'open1']); await press();
+    out.calls3 = calls.splice(0).map(c => c.join('|'));
+    out.status3 = document.getElementById('campAwardApStatus').textContent;
+    window.alert = realAlert;
+    return out;
+  });
+  check('the Award AP tile has an "and lock history" box', r.sealBoxExists, JSON.stringify(r));
+  check('...ticked by default', r.sealBoxDefaultChecked === true);
+  check('the roster bridge knows who has finished creation', r.info.join() === 'open1:false,lock1:true,lock2:true,nobody:false', r.info.join());
+  check('the per-character form has no AP amount and no lock tick', r.cardHasAmount === false && r.cardHasSealTick === false, JSON.stringify({ a: r.cardHasAmount, s: r.cardHasSealTick }));
+  check('...but keeps the standalone Lock history button and the note', r.cardHasLockButton === true && r.cardHasNote === true);
+  check('ticked: each FINISHED character goes through award_ap_and_seal (with a key), the one still in creation is only awarded',
+    r.calls1.join() === 'awardAp|open1|5|session 9,awardApAndSeal|lock1|5|session 9|true,awardApAndSeal|lock2|5|session 9|true', r.calls1.join());
+  check('...and the result says who was locked and who was not', /3\/3 characters awarded 5 AP/.test(r.status1) && /locked on 2 \(Locked One, Locked Two\)/.test(r.status1) && /still in creation: Open One/.test(r.status1), r.status1);
+  check('unticked: nobody is sealed, everyone is just awarded', r.calls2.join() === 'awardAp|open1|5|session 9,awardAp|lock1|5|session 9', r.calls2.join());
+  check('...and the result says history was not locked', /history not locked/.test(r.status2), r.status2);
+  check('one character failing does not stop the others, and the failure is named', r.calls3.length === 3 && /2\/3 characters awarded/.test(r.status3) && /Locked One: boom/.test(r.status3), r.calls3.join() + ' :: ' + r.status3);
+  const afatal = aerrs.filter(e => !/Failed to load|net::|supabase|fetch/i.test(e));
+  check('no fatal page errors on the Award AP tile', afatal.length === 0, afatal.slice(0,2).join(' | '));
+  await ap.close();
 }
 
 console.log(`\n[dm-console-ui] ${fail? fail+' of '+(pass+fail)+' checks FAILED' : 'all '+pass+' checks passed'}`);
