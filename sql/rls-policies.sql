@@ -1659,11 +1659,12 @@ $$;
 
 -- Folded in from sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql (applied to production 2026-10-10): the three helpers, then the ledger function that uses them.
 -- The key lists live in two tiny functions so they are visible in the database itself (COMMENT ON FUNCTION) and a later migration changes one line.
+-- [STAGE 3] Redefined by sql/migrations/2026-10-27-server-freeze-houserules-gold.sql: houseRules and gold left the exempt list (compute() prices both); the statements below are that migration's, verbatim.
 create or replace function public.pact_patch_exempt_keys()
- returns text[] language sql immutable set search_path = public, pg_temp
-as $function$ select array['appearance','houseRules','gold']::text[] $function$;
+ returns text[] language sql immutable set search_path to 'public', 'pg_temp'
+as $function$ select array['appearance']::text[] $function$;
 comment on function public.pact_patch_exempt_keys() is
-  'PERMANENT: patch fields that carry no AP and stay editable after a lock/seal (appearance text, house-rule toggles, the legacy wallet field). Everything else in a buy/patch event is protected (fail-closed).';
+  'PERMANENT: the only patch field that carries no AP and stays editable after a lock/seal (appearance text). houseRules and gold left this list on 2026-10-27 (stage 3): compute() prices both. Everything else in a buy/patch event is protected (fail-closed).';
 
 create or replace function public.pact_patch_temp_exempt_keys()
  returns text[] language sql immutable set search_path = public, pg_temp

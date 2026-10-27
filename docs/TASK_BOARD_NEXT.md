@@ -95,24 +95,6 @@ DO (owner, 2026-10-04):
 ```
 **Done when:** `dm-console-ui-e2e.mjs` shows the tile's lock-history box present and ticked by default, an award through it producing a `sessionSeal` for each locked ticked character (and none for an unlocked one), the per-character AP field gone while gold/bonus-time and the Lock history button remain; a failure on one character does not stop the rest.
 
-## feat/server-freeze-houserules-gold — the server freeze still treats houseRules and gold as no-AP — TODO
-Branch feat/server-freeze-houserules-gold. **Effort:** medium · **Risk:** high — a live security boundary; a wrong rule refuses honest saves. Remainder of `feat/server-freeze-at-lock` / `feat/server-freeze-apply`, whose main work is done (stage 1 applied 2026-10-10, stage 2 applied 2026-10-11 — see CHANGELOG and `decisions/2026/D-GH-2026-10-05-server-freeze-stage1.md`).
-
-```text
-CORRECTION found by fix/player-free-ap (2026-10-12): houseRules and gold are NOT no-AP — compute() prices both (custom/repriced
-boons and drawbacks via b.houseRules; "Starting gold" at 1 AP per step) — and misc carries Martially Bound (+2 AP). The applied
-stage-1/2 migrations still list houseRules and gold in pact_patch_exempt_keys(). Write a migration (+ rollback) that drops both
-from that list, so they are protected after a lock/seal/award. CharGen already refuses both after the lock; measure first (read-only,
-on the live characters table) how many locked characters' saves still rewrite them, then rehearse in
-testing/scripts/creation-lock-guard-test (run-freeze.sh) and add the cases. Apply only with the owner's approval; then get_advisors.
-Coordinate with feat/dm-house-rules-editor (if house rules move to a DM RPC, the DM route must still be able to write them).
-ALSO NOT YET RECORDED in the repo for the original entry's "Done when" (needs a live look, not a code change): the six Amble
-characters re-checked as still locked after the stage 1/2 applies, and a real player's save of a campaign character observed
-succeeding afterwards (the decision record says none had been observed yet on 2026-10-10). The log/advisor checks are already
-their own task, check/server-freeze-stage2-after-apply.
-```
-**Done when:** the migration is applied with the owner's approval and the Docker harness shows houseRules/gold edits refused after a lock and allowed before it; the Amble lock re-check and an observed honest campaign save are written down in the decision record.
-
 ## feat/chargen-2b2-traditions-diff — OPTIONAL: let CharGen buy spellcasting after the lock instead of refusing it — TODO
 Branch feat/chargen-2b2-traditions-diff. **Effort:** high · **Risk:** high — a nested-array diff turned into indexed purchases in a ~600 KB file; a wrong mapping silently buys or prices the wrong thing (driver: damage likelihood). Plan: `docs/plans/2026-10-04-chargen-post-lock-2b-spellcasting.md` (cold-reviewed; the reviewers' staging is why this is separate and optional).
 
