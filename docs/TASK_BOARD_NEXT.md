@@ -142,6 +142,28 @@ refund (don't reuse the 35-character snapshot in AGENTS.md — re-measure) and l
 Needs: DATA.version bump, new engine-parity fixtures, update expected-results, and the Players Guide
 (engine + guide both land, per AGENTS.md; run verify-guide.mjs before and after).
 
+UPDATE 2026-10-27 — MEASURED on live (read-only; no code written; the design questions below need the owner):
+Every live character whose stats were lowered from ABOVE 10 (a refund under this rule), found by folding each stats event of every
+character that carries a negative "Ability scores" patch cost. A dump below 10 is NOT listed (Skylar's STR 10 -> 8 is legitimate).
+  - Caspian (Amble, campaign, Live Sheet), seq 26: STR 12 -> 10, WIS 16 -> 14 — event cost -11 AP.
+  - Skylar (Amble, campaign, CharGen), seq 23: DEX 12 -> 10 — event cost -4 AP (before any award).
+  - Kaelen Dawnbreaker (solo), seq 15: CON 12 -> 10, DEX 14 -> 10, STR 14 -> 10 — event cost -22 AP.
+  - Marius Stormholt (solo), seq 20: CHA 14 -> 10, INT 12 -> 10, WIS 12 -> 10 — event cost -7 AP.
+  - Two DM copies repeat Caspian's and Skylar's events ("lock check" copies); Skylar's copy also holds the post-lock DEX 12 -> 10 (-4 AP, seq 27).
+  Other negative patch events are not refunds: Martially Bound grants (-2 / -4) and Identity changes.
+OPEN DESIGN QUESTIONS (answer before writing code; recommendations in brackets):
+  Q1 compute() prices a final build, not a history, so "keep the AP paid at the highest point" needs memory. [Recommended: foldBuild records the
+     highest score each stat has reached through a purchase or stats event (b.statsHigh); compute() prices a score of 10 or more at
+     max(score, high) and a score below 10 at its own value (the dump keeps paying out). The alternative, leaving compute() alone and having each
+     tool refuse a lowering, does not cover imports and DM edits, which the rule requires.]
+  Q2 CharGen is a whole-build editor before the lock, and rewrites a stats event in place on purpose. What is "saved/ledgered" there? [Recommended: a
+     score counts as bought once it is in a saved history the character has been locked, sealed or awarded past, or has appeared in a cloud save;
+     lowering a score in a draft that was never saved stays free, because nothing was bought yet.]
+  Q3 After the lock, a lowering "prices at 0 refund (or is rejected)". [Recommended: rejected, as CharGen's post-lock path and the server freeze
+     already do; it needs no pricing exception and the Guide sentence is simply "nothing you have bought can be removed".]
+  Q4 The four live characters above keep their frozen ledgers; only their displayed totals would move. Reconcile them (see "One-off
+     reconciliation pass for characters built before the pricing fixes") or leave them? [Recommended: leave, list them to the owner as done here.]
+
 ```
 **Done when:** `engine-parity.html` reports 0 failed with new fixtures covering (a) a pre-lock ability
 reduction giving no refund, (b) a below-10 dump still paying out, (c) a post-lock removal or reduction
