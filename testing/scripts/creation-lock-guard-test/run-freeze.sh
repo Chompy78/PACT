@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Throwaway-Postgres rehearsal of sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql and 2026-10-11-server-freeze-stage2.sql (+ their rollbacks). Needs Docker only; touches NO real database.
+# Throwaway-Postgres rehearsal of sql/migrations/2026-10-05-server-freeze-d2-e1-stage1.sql and 2026-10-11-server-freeze-stage2.sql and 2026-10-27-server-freeze-houserules-gold.sql (+ their rollbacks). Needs Docker only; touches NO real database.
 # Usage: testing/scripts/creation-lock-guard-test/run-freeze.sh        (expect: BEFORE shows the attacks working; AFTER every row PASS; rollback byte-identical)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -29,6 +29,17 @@ STAGE1_TMP=$(tmp)
 psqlc < ../../../sql/migrations/2026-10-11-server-freeze-stage2.sql
 psqlc -v tmpexp=refused < freeze-cases.sql >/dev/null; echo "STAGE 2: $(counts)"
 [ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n"; echo "STAGE 2 FAILED"; exit 1; }
+echo "=== STAGE 3: houseRules and gold leave the permanent exempt list (sql/migrations/2026-10-27-server-freeze-houserules-gold.sql) ==="
+perm() { psqlc -At -c "select md5(pg_get_functiondef('public.pact_patch_exempt_keys()'::regprocedure))"; }
+STAGE2_PERM=$(perm)
+psqlc < ../../../sql/migrations/2026-10-27-server-freeze-houserules-gold.sql
+psqlc -v tmpexp=refused -v hrgold=refused < freeze-cases.sql >/dev/null; echo "STAGE 3: $(counts)"
+[ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { psqlc -At -F ' | ' -c "select verdict, expect, got, name from res where verdict='FAIL' order by n"; echo "STAGE 3 FAILED"; exit 1; }
+echo "=== stage-3 rollback: the stage-1 permanent list comes back exactly ==="
+psqlc < ../../../sql/migrations/2026-10-27-server-freeze-houserules-gold-rollback.sql
+[ "$(perm)" = "$STAGE2_PERM" ] && echo "stage-3 rollback restores the permanent list exactly" || { echo "STAGE-3 ROLLBACK DIFFERS"; exit 1; }
+psqlc -v tmpexp=refused < freeze-cases.sql >/dev/null; echo "AFTER STAGE-3 ROLLBACK (stage-2 expectations): $(counts)"
+[ "$(psqlc -At -c "select count(*) from res where verdict='FAIL'")" = "0" ] || { echo "STAGE 2 EXPECTATIONS BROKEN AFTER STAGE-3 ROLLBACK"; exit 1; }
 echo "=== stage-2 rollback: the stage-1 exempt list comes back exactly ==="
 psqlc < ../../../sql/migrations/2026-10-11-server-freeze-stage2-rollback.sql
 [ "$(tmp)" = "$STAGE1_TMP" ] && echo "stage-2 rollback restores the stage-1 list exactly" || { echo "STAGE-2 ROLLBACK DIFFERS"; exit 1; }
