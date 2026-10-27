@@ -67,10 +67,16 @@ select t('a campaign DM updating the row directly cannot rewrite it either (DM r
 \else
 \set tmpexp allowed
 \endif
+-- Stage 3 (2026-10-27): run with `psql -v hrgold=refused` after sql/migrations/2026-10-27-server-freeze-houserules-gold.sql (houseRules and gold are protected);
+-- the default is stages 1 and 2, where those two fields may still be rewritten.
+\if :{?hrgold}
+\else
+\set hrgold allowed
+\endif
 
 -- ===== LEGITIMATE (allowed before and after) =====
 select t('edit the appearance patch in place after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,2,payload,patch,appearance,eyes}','"red"') $e$) $b$);
-select t('edit house rules in place after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,3,payload,patch,houseRules,a}','2') $e$) $b$);
+select t('edit house rules in place after the lock — allowed through stage 2, refused at stage 3 (compute() prices houseRules)', :'hrgold', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,3,payload,patch,houseRules,a}','2') $e$) $b$);
 select t('edit ONLY the appearance inside a mixed event (hd + appearance)', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,7,payload,patch,appearance,eyes}','"grey"') $e$) $b$);
 select t('spellcasting (the stage-1 temporary exemption): rewritten after the lock — allowed at stage 1, refused at stage 2', :'tmpexp', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,6,payload,patch,traditions}','[{"name":"Divine"}]') $e$) $b$);
 select t('append a new in-play purchase after the lock', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG}', (stats->'LOG') || '[{"seq":11,"type":"buy","cat":"hd","cost":4,"payload":{"to":6},"gp":25,"days":7}]') $e$) $b$);
@@ -118,12 +124,22 @@ select t('notes: LOCKED+SEALED+AWARDED — insert an appearance-only event at LO
 select t('notes: LOCKED — add new sub-keys to the appearance of a pre-lock MIXED event (hd + appearance)', 'allowed', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG,7,payload,patch,appearance}','{"eyes":"green","backstory":"long text","allies":"Guild","playerName":"Sam","alignment":"CG","background":"Sage"}') $e$) $b$);
 select t('notes: LOCKED — a NEW top-level patch key (patch.notes) is still refused when inserted before the lock (fail-closed; why the notes are appearance sub-keys)', 'refused', $b$ select owner_upd('lockedA', $e$ jsonb_set(stats,'{LOG}', '[{"seq":50,"type":"buy","cat":"patch","cost":0,"payload":{"patch":{"notes":"x"}}}]'::jsonb || (stats->'LOG')) $e$) $b$);
 
+-- ===== stage 3 (reviewer finding, 2026-10-27): a legacy MIXED event (houseRules + appearance) =====
+-- js/ui-helpers.js pactWithAppearance() rewrites the last appearance-carrying patch event IN PLACE (new ts, new appearance, every other patch key copied
+-- through). On a locked character whose bundle also carries houseRules that must stay legal, while a change to the houseRules value itself must not (stage 3).
+insert into characters(id, owner_id, campaign_id, name, stats) values
+ ('aaaaaaaa-0000-0000-0000-0000000000e1','a0000000-0000-0000-0000-000000000001','c1000000-0000-0000-0000-000000000001','hrmixed',
+  '{"SEQ":4,"LOG":[{"seq":1,"type":"buy","cat":"patch","cost":0,"payload":{"patch":{"houseRules":{"a":1},"appearance":{"eyes":"blue"}}}},{"seq":2,"type":"buy","cat":"skill","cost":1,"payload":{"v":"Stealth"}},{"seq":3,"type":"creationLocked"}]}');
+select t('mixed houseRules+appearance event: an appearance edit in place (new ts, same houseRules) after the lock — allowed at every stage', 'allowed', $b$ select owner_upd('hrmixed', $e$ jsonb_set(jsonb_set(stats,'{LOG,0,payload,patch,appearance,eyes}','"green"'),'{LOG,0,ts}','999') $e$) $b$);
+select t('mixed houseRules+appearance event: the houseRules value changed after the lock — allowed through stage 2, refused at stage 3', :'hrgold', $b$ select owner_upd('hrmixed', $e$ jsonb_set(stats,'{LOG,0,payload,patch,houseRules,a}','2') $e$) $b$);
+select t('mixed houseRules+appearance event: houseRules dropped from the bundle after the lock — allowed through stage 2, refused at stage 3', :'hrgold', $b$ select owner_upd('hrmixed', $e$ stats #- '{LOG,0,payload,patch,houseRules}' $e$) $b$);
+
 -- ===== one case per patch key =====
 -- a locked character with one single-key patch event per key (the key's value is the string "v0"), then a lock; each case rewrites that one value.
 create temp table keys(k text, cls text, expect text, i int);
 insert into keys(k, cls, expect, i)
 select k, cls, expect, row_number() over () from (values
-  ('appearance','permanent','allowed'),('houseRules','permanent','allowed'),('gold','permanent','allowed'),
+  ('appearance','permanent','allowed'),('houseRules','stage-3',:'hrgold'),('gold','stage-3',:'hrgold'),
   ('traditions','temporary',:'tmpexp'),('innate','temporary',:'tmpexp'),('dabblerCantrips','temporary',:'tmpexp'),('martiallyBound','temporary',:'tmpexp'),
   ('originClass','temporary',:'tmpexp'),('originClass2','temporary',:'tmpexp'),('size','temporary',:'tmpexp'),('lineage','temporary',:'tmpexp'),
   ('species','temporary','refused'),('species2','temporary','refused'),   -- still refused: the existing species-freeze rule, independent of stage 1

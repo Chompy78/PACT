@@ -10,6 +10,10 @@
 
 ## Index
 
+## D-GH-2026-10-27-server-freeze-houserules-gold — stage 3 of the server freeze: houseRules and gold are protected after a lock
+- `pact_patch_exempt_keys()` now returns {appearance}: `compute()` prices `houseRules` and `gold`, so a modified client can no longer rewrite them in place on a locked, sealed or awarded character (appending stays allowed). Measured on live first: 452 saved pairs from locked/sealed rows, none touched either field; no character has ever carried a `gold` value. Also records the Amble re-check and observed honest campaign saves.
+  Full record: `decisions/2026/D-GH-2026-10-27-server-freeze-houserules-gold.md`.
+
 ## D-GH-2026-10-25-server-negative-cost-after-lock — the database refuses a player-added negative cost on a campaign character
 - A new trigger refuses a NEW negative-cost `buy` (cat not drawback/patch/mbound/dbound) or `names` event, and a binding below the engine's flat -2, on a campaign character written by a non-DM. Separate trigger, not an edit to the house-rules grants guard; the 2 lives in `pact_binding_grant_max()` and CI checks it against the engine. Live measurement: zero such events exist. Residual: events stored before a solo character joined a campaign.
   Full record: `decisions/2026/D-GH-2026-10-25-server-negative-cost-after-lock.md`.
