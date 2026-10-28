@@ -1,0 +1,30 @@
+{
+ "description": "fix/no-purchase-refunds guard: a score that was never raised above 10 and is dumped to 8 still pays -4 AP, exactly as the Players Guide has it.",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 8
+   },
+   "cost": -4,
+   "seq": 2
+  }
+ ],
+ "_expect": {
+  "total": -4
+ }
+}
