@@ -1642,3 +1642,12 @@ The Supabase security advisor (2026-10-22) reports `auth_leaked_password_protect
 DO: the owner turns it on in the Supabase dashboard for the PACT project (piuprrrnaotrtxucrtsb); then re-run the security advisor to confirm the warning is gone and note it in CHANGELOG.md.
 ```
 **Done when:** the security advisor no longer lists `auth_leaked_password_protection`.
+
+## fix/player-grants-null-cat — the player-grants guard treats a `buy` with no `cat` as a drawback — TODO
+Branch fix/player-grants-null-cat. **Effort:** low · **Risk:** low — harmless today (ambiguity low, damage likelihood low, damage scale low: an uncategorised buy is ignored by the engine and by `pact_enforce_negative_cost`), but it is a database function on a trust boundary, so measure and test before the apply.
+
+```text
+Found 2026-10-25 while building fix/server-negative-cost-after-lock. `pact_enforce_player_grants()` skips a campaign-character `buy` event with a test of the form `not (cat is drawback-like or ...)`. When the event has no `cat`, the test evaluates to NULL, so the guard skips the event as if it were a drawback. Noted in testing/scripts/creation-lock-guard-test/negative-cost-cases.sql.
+DO: (1) measure live: count `buy` events with no `cat` in `characters.stats.LOG` (read-only); (2) make the missing-cat case explicit in the function (coalesce `cat` to '' so it is treated as an ordinary buy, or refuse it, whichever the measurement supports); (3) add harness cases to the player-grants SQL tests under testing/scripts/creation-lock-guard-test/; (4) fold the function into sql/rls-policies.sql and update the baseline drift test; (5) write a migration plus rollback, apply it, md5-compare the live definition with the local build, run get_advisors.
+```
+**Done when:** a `buy` with no `cat` is handled on purpose, with harness cases for it; the SQL guard workflow and `rls-baseline-test.sql` pass; the live function matches the local build; `get_advisors` (security) run after the apply.
