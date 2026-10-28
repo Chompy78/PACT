@@ -27,29 +27,6 @@ to `CHANGELOG.md`.
 
 # 🟡 NEXT — medium-severity fixes + remaining build work
 
-## fix/strict-language-note-match — a plain language name must match a campaign list entry that carries a "(note)" — TODO
-Branch fix/strict-language-note-match. **Effort:** low · **Risk:** medium — touches the engine's language gate (js/engine.js), so it changes which names a strict campaign accepts. Wrongly loosening it would let off-list names through.
-
-```text
-FOUND 2026-10-22 (live): Skylar, a player in campaign Amble, could not spend or save because her language was the plain
-"Haldeni". Amble's language list is strict (rules.languages = {list, strict:true}) and its entries carry notes inside the name:
-"Haldeni (default)", "Aelvish (Elven dialect) (Elven rule)". campaignLanguages(rules).isListed() in js/engine.js is an exact,
-case-insensitive match, so the plain name a player types counts as off the list. The cause was inferred, not proven: the exact
-error on her screen was never seen. The seven affected characters were rewritten by hand to "Haldeni (default)" the same day
-(docs/sessions/2026-10-22-security-audit-and-xss-fix.md, "Live-data fix"). The cause is still there for every new player.
-
-DO:
-  1. Make isListed() also match when the player's name equals a list entry with its trailing "(note)" groups removed. Keep the
-     exact match as it is. An entry's own wording stays what is stored; only the comparison changes.
-  2. DECIDE with the owner: if the plain name matches, should CharGen offer the full list entry ("Haldeni (default)") or accept the
-     plain name as typed? Recommended: accept it as typed and store what was typed, so no one's data is rewritten.
-  3. Add cases to a CI script: plain "Haldeni" is listed for the Amble list; "Haldeni (default)" still is; "Elvish" (not on the
-     list) still is not; a name already locked in is still never refused.
-  4. Rules version: this changes which names the engine accepts, so bump DATA.version once, add a CHANGELOG line, and land the
-     matching Players Guide wording (engine AND guide, per AGENTS.md).
-```
-**Done when:** a script run against a copy of Amble's list shows the plain names of every annotated entry accepted, an off-list name still refused, and a locked-in name never refused; `engine-parity` reports 0 failed; a plain-name save no longer needs a hand edit.
-
 ## feat/dm-console-award-seal — the campaign-wide Award AP tile cannot lock history; the per-character form can — TODO
 Branch feat/dm-console-award-seal. **Effort:** medium · **Risk:** medium — touches the DM's award flow (live AP) and calls `award_ap_and_seal()`; the idempotency and per-character failure handling are the fiddly parts.
 
@@ -1619,3 +1596,12 @@ The Supabase security advisor (2026-10-22) reports `auth_leaked_password_protect
 DO: the owner turns it on in the Supabase dashboard for the PACT project (piuprrrnaotrtxucrtsb); then re-run the security advisor to confirm the warning is gone and note it in CHANGELOG.md.
 ```
 **Done when:** the security advisor no longer lists `auth_leaked_password_protection`.
+
+## fix/player-grants-null-cat — the player-grants guard treats a `buy` with no `cat` as a drawback — TODO
+Branch fix/player-grants-null-cat. **Effort:** low · **Risk:** low — harmless today (ambiguity low, damage likelihood low, damage scale low: an uncategorised buy is ignored by the engine and by `pact_enforce_negative_cost`), but it is a database function on a trust boundary, so measure and test before the apply.
+
+```text
+Found 2026-10-25 while building fix/server-negative-cost-after-lock. `pact_enforce_player_grants()` skips a campaign-character `buy` event with a test of the form `not (cat is drawback-like or ...)`. When the event has no `cat`, the test evaluates to NULL, so the guard skips the event as if it were a drawback. Noted in testing/scripts/creation-lock-guard-test/negative-cost-cases.sql.
+DO: (1) measure live: count `buy` events with no `cat` in `characters.stats.LOG` (read-only); (2) make the missing-cat case explicit in the function (coalesce `cat` to '' so it is treated as an ordinary buy, or refuse it, whichever the measurement supports); (3) add harness cases to the player-grants SQL tests under testing/scripts/creation-lock-guard-test/; (4) fold the function into sql/rls-policies.sql and update the baseline drift test; (5) write a migration plus rollback, apply it, md5-compare the live definition with the local build, run get_advisors.
+```
+**Done when:** a `buy` with no `cat` is handled on purpose, with harness cases for it; the SQL guard workflow and `rls-baseline-test.sql` pass; the live function matches the local build; `get_advisors` (security) run after the apply.

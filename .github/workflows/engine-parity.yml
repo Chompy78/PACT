@@ -28,6 +28,7 @@ on:
       - "testing/scripts/wounds-ci.mjs"
       - "testing/scripts/subclass-double-purchase-ci.mjs"
       - "testing/scripts/prof-grants-ci.mjs"
+      - "testing/scripts/campaign-language-note-ci.mjs"
       - "testing/scripts/barred-grants-ci.mjs"
       - "testing/scripts/epic-boon-price-ci.mjs"
       - "testing/scripts/version-label-ci.mjs"
@@ -249,6 +250,10 @@ jobs:
       # refactor/names-slot-helper: pins allNameableSlots()/unnamedChoices() — slot order, dialog keys, blank test, kinds filter.
       - name: Run the nameable-slots gate
         run: node testing/scripts/names-slots-ci.mjs
+
+      # fix/strict-language-note-match: a plain language name is listed when the campaign's list entry carries a "(note)" ("Haldeni" for "Haldeni (default)").
+      - name: Run the campaign language-note gate
+        run: node testing/scripts/campaign-language-note-ci.mjs
 
   version-labels:
     # Every rules/build version a player can READ must agree with DATA.version / BUILD. The tools all
