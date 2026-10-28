@@ -694,6 +694,11 @@ window.addEventListener('unhandledrejection',function(e){var r=e&&e.reason;L('un
               <input type="text" class="award-note" id="campAwardApNote" placeholder="note — e.g. cleared the crypt">
               <button type="button" class="btn sm" id="campAwardApBtn">Award</button>
             </div>
+            <!-- feat/dm-console-award-seal (owner 2026-10-04): sealing is what freezes what a player bought up to this award, so it is ticked
+                 by default. Only characters that have FINISHED creation are sealed; one still being built is awarded and left open. -->
+            <label style="font-size:11px;display:flex;align-items:center;gap:4px;margin-top:6px" title="Draw a line under each ticked character's history as part of this award. Everything bought up to now becomes permanent — it can no longer be undone or un-ticked in CharGen or the Live Sheet. Anything bought afterwards stays editable. Characters still in creation are awarded but not locked.">
+              <input type="checkbox" id="campAwardApSeal" checked> and lock history <span style="opacity:.7">(characters that have finished creation)</span>
+            </label>
             <span id="campAwardApStatus" style="font-size:11px;color:var(--muted)"></span>
           </div>
 
@@ -1997,24 +2002,24 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         '<div class="kvrow"><span class="kk" title="This character\'s current downtime: the party\'s declared window (above the roster) plus any bonus time granted to them alone, minus what they have already spent — computed live, never stored per-character.">Downtime available <span style="opacity:.6">&#9432;</span></span><span class="vv">' + winTxt + '</span></div>' +
         '</div>';
     }
-    h += '<div class="ruleblock"><div class="lbl">Award AP'+(econOn?', gold &amp; bonus time':'')+'</div><div class="award-form">' +
-         '<input type="number" value="0" step="1" class="award-amt" data-cid="'+esc(id)+'" title="AP amount (negative to deduct)" placeholder="AP">';
+    // feat/dm-console-award-seal (owner 2026-10-04): AP is awarded from the campaign-wide "Award AP" tile (tick one character or many; it can
+    // lock history in the same call). This form keeps what the tile does not do: this character's gold, bonus time, and the standalone Lock history.
+    h += '<div class="ruleblock"><div class="lbl">'+(econOn?'Gold, bonus time &amp; lock history':'Lock history')+'</div><div class="award-form">';
     if(econOn){
       h += '<input type="number" value="0" step="1" class="award-gold" data-cid="'+esc(id)+'" title="Gold in gp (negative to deduct)" placeholder="gp">' +
-           '<input type="number" value="0" step="1" class="award-bonus-days" data-cid="'+esc(id)+'" title="EXTRA downtime for THIS character alone, in days (negative to deduct) — on top of the party\'s current window, and reset along with it when a new one is declared." placeholder="bonus days">';
+           '<input type="number" value="0" step="1" class="award-bonus-days" data-cid="'+esc(id)+'" title="EXTRA downtime for THIS character alone, in days (negative to deduct) \u2014 on top of the party\'s current window, and reset along with it when a new window is declared." placeholder="bonus days">';
     }
-    h += '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">' +
-         '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button></div>';
+    h += '<input type="text" placeholder="note" class="award-note" data-cid="'+esc(id)+'">';
+    if(econOn) h += '<button type="button" class="btn sm award-btn" data-cid="'+esc(id)+'">Award</button>';
+    h += '</div>';
     // feat/session-seal. Sealing draws a line under this character's history: everything already in it
     // becomes permanent, in BOTH player tools, and anything bought after stays editable as normal.
-    // Two controls deliberately, not one — sealing usually accompanies an award, but a session can end
-    // without one and a DM should not have to invent a 0 AP award to close it off.
+    // A separate control from the AP award: a session can end without an award and a DM should not have to
+    // invent a 0 AP award to close it off (the Award AP tile locks as part of an award).
     h += '<div class="award-form" style="margin-top:4px;align-items:center">' +
-         '<label style="font-size:11px;display:flex;align-items:center;gap:4px" ' +
-           'title="Draw a line under this character\'s history as part of this award. Everything bought up to now becomes permanent — it can no longer be undone or un-ticked in CharGen or the Live Sheet. Anything bought afterwards stays editable.">' +
-           '<input type="checkbox" class="award-seal" data-cid="'+esc(id)+'"> and lock history</label>' +
          '<button type="button" class="btn sm seal-btn" data-cid="'+esc(id)+'" ' +
            'title="Lock this character\'s history now, without awarding anything.">\uD83D\uDD12 Lock history</button></div>';
+    h += '<div style="font-size:11px;opacity:.75;margin-top:3px">Award AP from the \u201cAward AP\u201d tile above the roster (tick this character there).</div>';
     if(econOn) h += '<div style="font-size:11px;opacity:.75;margin-top:3px">Bonus time is extra days for THIS character only — declare the party\'s shared window above the roster instead.</div>';
     h += '<span class="award-status" data-cid="'+esc(id)+'" style="font-size:11px;color:var(--muted)"></span></div>';
     return h;
@@ -3289,6 +3294,14 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
   window._dmAwardApChecked = function(){
     return Array.prototype.slice.call(document.querySelectorAll('#campAwardApList input:checked')).map(function(cb){ return cb.value; });
   };
+  // feat/dm-console-award-seal: for each id the Award AP tile is about to award, its name and whether it has FINISHED creation
+  // (creationLockState()'s own answer, computed once in cloudAnalyze() — never re-derived here). Only a finished character is sealed.
+  window._dmAwardApInfo = function(ids){
+    return (ids||[]).map(function(id){
+      var e = _cloudEntry(id), cl = e && e.summary && e.summary.creationLock;
+      return { id: id, name: e ? _rosterDisplayName(e) : 'a character', locked: !!(cl && cl.locked) };
+    });
+  };
   window._dmRenderCloudRoster = function(container, rows){
     _cloudRosterEl = container;
     cloudRoster = (rows||[]).filter(function(r){ return !r.isNpc; }).map(cloudAnalyze);
@@ -3368,22 +3381,13 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
       var awardBtn = t.closest ? t.closest('.award-btn') : null;
       if(awardBtn && card){
         var acid = awardBtn.getAttribute('data-cid');
-        var amtEl = card.querySelector('.award-amt[data-cid="'+acid+'"]');
         var goldEl = card.querySelector('.award-gold[data-cid="'+acid+'"]');
         var bonusEl = card.querySelector('.award-bonus-days[data-cid="'+acid+'"]');
         var noteEl = card.querySelector('.award-note[data-cid="'+acid+'"]');
-        var astatus = card.querySelector('.award-status[data-cid="'+acid+'"]');
-        var amt = parseFloat(amtEl&&amtEl.value)||0;
         var gold = Math.round(parseFloat(goldEl&&goldEl.value)||0);
         var bonus = Math.round(parseFloat(bonusEl&&bonusEl.value)||0);
         var note = (noteEl&&noteEl.value||'').trim();
-        // alsoSeal is read BEFORE the zero-amount guard, deliberately. Ticking "and lock history" IS a
-        // requested action, so a DM who ticks it and presses Award with the AP/gold/bonus fields left at
-        // their default 0 must not be told to "enter an amount" — and the standalone `else if(alsoSeal)`
-        // branch below was unreachable for that gesture, which is the natural way to seal from this form.
-        var sealEl = card.querySelector('.award-seal[data-cid="'+acid+'"]');
-        var alsoSeal = !!(sealEl && sealEl.checked);
-        if(amt===0 && gold===0 && bonus===0 && !alsoSeal){ alert('Enter a non-zero AP, gold, or bonus time amount, or tick \u201cand lock history\u201d.'); return; }
+        if(gold===0 && bonus===0){ alert('Enter a non-zero gold or bonus time amount. (AP is awarded from the \u201cAward AP\u201d tile above the roster.)'); return; }
         awardBtn.disabled = true;
         // campaignId comes off window._dmCampaignApRules, not a bare `currentCampId` — that variable
         // belongs to a LATER script block's closure (the campaign-ready one, where loadRoster/
@@ -3392,22 +3396,6 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
         // `window.*` a few lines up rather than as bare names.
         var campId = window._dmCampaignApRules && window._dmCampaignApRules.campaignId;
         var jobs = [];
-        // "and lock history": award and seal must be ONE database call, not two jobs. Two can leave
-        // AP awarded but history unsealed (or the reverse), and a DM retrying the half they saw fail
-        // duplicates the half that succeeded — awarding twice is the one outcome here that materially
-        // damages a character. award_ap_and_seal() is atomic and idempotent for exactly that reason.
-        if(amt!==0 && alsoSeal) jobs.push(B.awardApAndSeal(acid, amt, note,
-            (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()))
-          .then(function(res){
-            var entry = _cloudEntry(acid);
-            if(entry && res){ entry.dm.ap = res.ap; }
-          }));
-        else if(amt!==0) jobs.push(B.awardAp(acid, amt, note).then(function(newAp){
-          var entry = _cloudEntry(acid);
-          if(entry){ entry.dm.ap = newAp; }
-        }));
-        else if(alsoSeal) jobs.push(B.sealHistory(acid, note,
-            (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())));
         if(gold!==0) jobs.push(B.awardGold(acid, gold, note).then(function(row){
           var entry = _cloudEntry(acid);
           if(entry && row){ entry.dm.gold = row.gold||0; }
@@ -3421,11 +3409,9 @@ function dmMakeGrant(amount,note){return window.apEncodeGrant({a:+amount,n:note|
           // (window._dmDowntimeWindows) this closure cannot refresh itself — window._dmReloadRoster
           // is the SAME cross-boundary bridge feat/dm-edit-events already uses for "something changed
           // that a local field patch can't express, re-fetch the whole roster". Always reload rather
-          // than branching on bonus!==0: an AP/gold-only award patches entry.dm.ap/entry.dm.gold above,
-          // but the card's own "AP left"/Level stat strip reads entry.summary (from the last
-          // cloudAnalyze()), not dm.ap/dm.gold directly — a local render() alone would leave those two
-          // headline numbers stale until the next unrelated refresh (fix/dm-console-roster-award-
-          // staleness). The extra reload cost is worth a card that's never wrong.
+          // than branching on bonus!==0: a gold-only award patches entry.dm.gold above, but the card's
+          // own stat strip reads entry.summary (from the last cloudAnalyze()), so a local render() alone
+          // would leave it stale until the next unrelated refresh (fix/dm-console-roster-award-staleness).
           if(window._dmReloadRoster) window._dmReloadRoster();
           else renderCloudRoster(el);
           if(errs.length) alert('Some awards failed: '+errs.join('; '));
@@ -4145,6 +4131,7 @@ document.addEventListener('campaign-ready', function () {
   var campAwardApAmt    = document.getElementById('campAwardApAmt');
   var campAwardApNote   = document.getElementById('campAwardApNote');
   var campAwardApBtn    = document.getElementById('campAwardApBtn');
+  var campAwardApSeal   = document.getElementById('campAwardApSeal');
   var campAwardApStatus = document.getElementById('campAwardApStatus');
   var campAwardApSelAll  = document.getElementById('campAwardApSelAll');
   var campAwardApSelNone = document.getElementById('campAwardApSelNone');
@@ -5825,17 +5812,30 @@ document.addEventListener('campaign-ready', function () {
     if(amt===0){ alert('Enter a non-zero AP amount.'); return; }
     campAwardApBtn.disabled = true;
     campAwardApStatus.textContent = 'Awarding…';
-    // Independent per-character RPCs, same as the per-character award form (awardBody()) — a failure
-    // on one character must not roll back or block the others, so allSettled + a combined report
-    // rather than Promise.all.
-    var results = await Promise.allSettled(ids.map(function(id){ return B.awardAp(id, amt, note); }));
+    // feat/dm-console-award-seal: "and lock history" is ticked by default. A ticked, FINISHED character goes through award_ap_and_seal()
+    // — ONE atomic call, with a fresh idempotency key per character per click, so a retry can never award twice. A character still in
+    // creation is awarded only (sealing it would freeze a half-built character), and the result says which was which.
+    var seal = !!(campAwardApSeal && campAwardApSeal.checked);
+    var info = window._dmAwardApInfo ? window._dmAwardApInfo(ids) : ids.map(function(id){ return { id: id, name: String(id), locked: false }; });
+    var key = function(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (String(Date.now())+'-'+String(Math.random()).slice(2)); };
+    // Independent per-character RPCs, same as the old per-character award form — a failure on one character must not roll back or block
+    // the others, so allSettled + a combined report rather than Promise.all.
+    var results = await Promise.allSettled(info.map(function(i){
+      return (seal && i.locked) ? B.awardApAndSeal(i.id, amt, note, key()) : B.awardAp(i.id, amt, note);
+    }));
     campAwardApBtn.disabled = false;
-    var okCount = results.filter(function(r){ return r.status==='fulfilled'; }).length;
-    var errs = results.filter(function(r){ return r.status==='rejected'; })
-                       .map(function(r){ return (r.reason&&r.reason.message)||String(r.reason); });
-    campAwardApStatus.textContent = okCount+'/'+ids.length+' character'+(ids.length===1?'':'s')+' awarded '+amt+' AP'+
+    var okIdx = [], errs = [];
+    results.forEach(function(r, n){
+      if(r.status === 'fulfilled') okIdx.push(n);
+      else errs.push(info[n].name+': '+((r.reason&&r.reason.message)||String(r.reason)));
+    });
+    var sealedNames = okIdx.filter(function(n){ return seal && info[n].locked; }).map(function(n){ return info[n].name; });
+    var openNames = okIdx.filter(function(n){ return seal && !info[n].locked; }).map(function(n){ return info[n].name; });
+    campAwardApStatus.textContent = okIdx.length+'/'+ids.length+' character'+(ids.length===1?'':'s')+' awarded '+amt+' AP'+
+      (seal ? (' — history locked on '+sealedNames.length+(sealedNames.length ? ' ('+sealedNames.join(', ')+')' : '')+
+               (openNames.length ? '; not locked, still in creation: '+openNames.join(', ') : '')) : ' — history not locked')+
       (errs.length ? ' — some failed: '+errs.join('; ') : '.');
-    if(okCount>0){ campAwardApAmt.value='0'; campAwardApNote.value=''; }
+    if(okIdx.length>0){ campAwardApAmt.value='0'; campAwardApNote.value=''; }
     loadRoster(currentCampId);   // refresh every card's AP figure and re-tick from the fresh roster
   });
 
