@@ -3302,7 +3302,8 @@ export const STANDARD_LANGUAGES = Object.freeze(["Common","Common Sign Language"
 //             unlearned, so refusing it would leave that character unable to save) — callers only flag it.
 //   checked — whether off-list names are worth flagging at all: false with no campaign list and strict
 //             off, which is the pre-feature behaviour (free text, no note).
-//   isListed(name) — case-insensitive membership test (surrounding whitespace ignored); a blank name counts as listed.
+//   isListed(name) — case-insensitive membership test (surrounding whitespace ignored); a blank name counts as listed. A name also counts
+//             as listed when it equals a list entry with its trailing "(note)" groups removed ("Haldeni" for "Haldeni (default)").
 export function campaignLanguages(rules) {
   const cfg = (rules && typeof rules === 'object' && rules.languages && typeof rules.languages === 'object') ? rules.languages : {};
   const seen = new Set(), own = [];
@@ -3313,9 +3314,15 @@ export function campaignLanguages(rules) {
   });
   const custom = own.length > 0, list = custom ? own : STANDARD_LANGUAGES.slice();
   const keys = new Set(list.map(n => n.toLowerCase()));
+  // fix/strict-language-note-match: a list entry may carry notes in trailing brackets ("Haldeni (default)", "Aelvish (Elven dialect)
+  // (Elven rule)"). The plain name a player types ("Haldeni", "Aelvish") is that language, so it is listed too. Only TRAILING bracket
+  // groups come off, and an entry that is nothing but a note adds no key. The exact match above is unchanged, and whatever the player
+  // typed is what gets stored.
+  const plainKeys = new Set();
+  list.forEach(n => { const p = n.replace(/(?:\s*\([^()]*\))+\s*$/, '').trim().toLowerCase(); if (p) plainKeys.add(p); });
   const strict = cfg.strict === true;
   return { list, custom, strict, checked: custom || strict,
-    isListed: name => { const k = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().toLowerCase(); return !k || keys.has(k); } };
+    isListed: name => { const k = String(name == null ? '' : name).replace(/\s+/g, ' ').trim().toLowerCase(); return !k || keys.has(k) || plainKeys.has(k); } };
 }
 
 // creationCeiling(events, opts) — the AP ceiling a character may not spend past while still being
