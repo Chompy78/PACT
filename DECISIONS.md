@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-25-free-subclass-bare-pick — a free-subclass pick holds no slot until something is bought from it (rules v0.387)
+- Owner decision N3: the engine now honours `freeSub[cls]` only when that subclass has a counted ability or spell list; otherwise the first subclass actually used is the free one (was: a bare pick kept the slot and the real subclass paid the 15 AP unlock). Live blast radius measured first: 0 totals move. Guide sentence added in both copies; CharGen deliberately NOT changed (the dropdown is form state) — owner to confirm.
+  Full record: `decisions/2026/D-GH-2026-10-25-free-subclass-bare-pick.md`.
 ## D-GH-2026-10-25-strict-language-note-match — a plain language name is listed when the campaign's list entry carries a "(note)"
 - `isListed()` also matches a list entry with its TRAILING bracket groups removed ("Haldeni" for "Haldeni (default)"); the exact match stays, the plain name is stored as typed (provisional — owner to confirm). Not a rules change: `compute()` never reads a language name, so no `DATA.version` bump and no guide edit.
   Full record: `decisions/2026/D-GH-2026-10-25-strict-language-note-match.md`.
