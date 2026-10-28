@@ -1,0 +1,40 @@
+{
+ "description": "fix/no-purchase-refunds (owner rule 2026-10-04): a score raised to 14 (9 AP) and then lowered to 12 keeps the AP paid at its highest point. Before the fix compute() charged only 4 for the final 12 and the player kept 5 AP of refund.",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 12
+   },
+   "cost": -5,
+   "seq": 3
+  }
+ ],
+ "_expect": {
+  "total": 9
+ }
+}

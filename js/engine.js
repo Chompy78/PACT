@@ -939,6 +939,17 @@ export function freeProfs(b, blocked) {
   return out;
 }
 
+// fix/no-purchase-refunds (owner rule 2026-10-04: you can't un-buy anything except drawbacks). The AP price of ONE ability
+// score. `hi` is the highest value the score has ever held in the log (b.statsHigh, stamped by _replay). Lowering a score
+// that was raised above 10 gives nothing back: the part above 10 stays paid at its highest point, and only the part below
+// 10 pays out as a dump always did (the Players Guide). With hi <= the score -- every build that was never lowered -- this
+// is the plain ladder price, so no existing total moves. DATA.ABIL only defines 2-20, so both ends are clamped.
+function _abilPrice(sc, hi) {
+  const lo = Math.min(20, Math.max(2, Number(sc) || 10));
+  const top = Math.min(20, Math.max(lo, 10, Number(hi) || 0));
+  return (DATA.ABIL[Math.min(lo, 10)] || 0) + (DATA.ABIL[top] || 0);
+}
+
 export function compute(b, opts){
   b=Object.assign({},b);
   // Campaign house rules (D-GH-2026-10-13-campaign-house-rules): in a campaign context every reader of
@@ -972,7 +983,7 @@ export function compute(b, opts){
   // hard-capped 2-20), but compute() is the single source of truth every caller trusts — a hand-edited
   // save, DM Console's edit path, or a reloaded tampered file all bypass the UI cap. Clamped the same way
   // unlockCum's cumulative lookup already is (see its own comment: "a clamp under-charges at worst").
-  let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const _sc=Math.min(20,Math.max(2,st[a]||10));abilAP+=(DATA.ABIL[_sc]||0);} add("Ability scores",abilAP);
+  let abilAP=0;for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){abilAP+=_abilPrice(st[a]||10,(b.statsHigh||{})[a]);} add("Ability scores",abilAP);
   for(const a of ["STR","DEX","CON","INT","WIS","CHA"]){const sc=st[a]||10; if(sc<6) W.push(a+" "+sc+" is below the normal floor of 6 — needs DM approval"); if(sc>20) W.push(a+" "+sc+" is above the normal ceiling of 20 — priced as 20");}
   const effScore={}; const mod={};
   const hd=b.hd||1;
@@ -3034,6 +3045,10 @@ function _replay(b, log, onApplied) {
   // creationLockState() — needed because a log whose final event is `creationLocked` is locked, yet no
   // real event "enters" that state.
   const _lockAt = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
+  // fix/no-purchase-refunds: the highest score each ability has held. Kept in a local and re-stamped on the build after every
+  // event, so a `patch` event (Object.assign onto the build) cannot wipe or lower it by carrying a `statsHigh` of its own.
+  const _hi = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
+  b.statsHigh = _hi;
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
     const _wasLocked = _lockAt[_i];
@@ -3099,6 +3114,8 @@ function _replay(b, log, onApplied) {
     if (e.cat === 'patch' && e.payload && e.payload.patch && 'hardy' in e.payload.patch && Array.isArray(b._vigorRankTier))
       b._vigorRankTier = b._vigorRankTier.slice(0, Math.max(0, Math.floor(Number(e.payload.patch.hardy)) || 0));
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
+    if (b.stats && typeof b.stats === 'object') for (const a in _hi) { const v = Number(b.stats[a]); if (v > _hi[a]) _hi[a] = v; }
+    b.statsHigh = _hi;
     if (onApplied) onApplied(e, b, _wasLocked);
   }
   // Lock state after the whole log, for compute(): a cross-species trait added to a LOCKED build (the
@@ -3564,7 +3581,10 @@ const _CTX_PRICERS={
   // Ability raise: the ABIL ladder delta from the CURRENT score to the target. A build diff here would
   // also re-price already-owned Grit, whose surcharge rides vgcap = CON mod (js/engine.js:119,123).
   abil:function(cur,p){const from=(cur.stats&&cur.stats[p.ab])||10;
-    return (DATA.ABIL[Math.min(20,(+p.to))]||0)-(DATA.ABIL[Math.min(20,from)]||0);},
+    // fix/no-purchase-refunds: priced through _abilPrice() with the score's highest-ever value, so re-buying a score that was lowered
+    // after being raised costs only what was not already paid, and the label matches what compute() will charge.
+    const hi=(cur.statsHigh&&cur.statsHigh[p.ab])||0;
+    return _abilPrice(+p.to,Math.max(hi,+p.to))-_abilPrice(from,hi);},
   // Level up: the Hit Dice cumulative step, PLUS anything that step makes legal.
   //
   // The ladder step alone is right for everything the character already owns — that independence is the

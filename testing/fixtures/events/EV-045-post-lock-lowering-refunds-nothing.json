@@ -1,0 +1,44 @@
+{
+ "description": "fix/no-purchase-refunds (c): STR bought to 14 (9 AP) before the creation lock; a lowering to 12 AFTER the lock refunds nothing, so the total stays 9. (The server freeze and CharGen's post-lock path already reject the lowering itself; this pins that the engine would not pay it out if one arrived through an import or a DM edit.)",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "creationLocked",
+   "seq": 3
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 12
+   },
+   "cost": -5,
+   "seq": 4
+  }
+ ],
+ "_expect": {
+  "total": 9
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "description": "fix/no-purchase-refunds: 14 (9 AP) then lowered to 8. The part above 10 stays paid (9); only the part below 10 pays out as a dump always did (-4). Total 5, not the -4 a fresh 8 costs.",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 8
+   },
+   "cost": -13,
+   "seq": 3
+  }
+ ],
+ "_expect": {
+  "total": 5
+ }
+}

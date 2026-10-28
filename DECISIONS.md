@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-29-no-purchase-refunds — lowering a raised ability score gives no AP back (rules v0.388)
+- The engine keeps the highest score each ability has held and prices a score as the part below 10 plus the climb to its highest point, so a lowering above 10 refunds nothing and a dump below 10 still pays out. Seven live logs' compute() totals move (the four known characters, two DM copies, one more DM copy); frozen ledgers are untouched. Guide paragraph in both copies; fixtures EV-041..045.
+  Full record: `decisions/2026/D-GH-2026-10-29-no-purchase-refunds.md`.
 ## D-GH-2026-10-27-dm-console-award-seal — the campaign-wide Award AP tile locks history; the per-character form no longer awards AP
 - The tile gains an "and lock history" tick, ticked by default, going through `award_ap_and_seal()` per character (fresh key per click); only characters that have FINISHED creation are sealed (provisional — owner to confirm), the rest are awarded only, and one failure does not stop the others. The per-character form drops its AP amount and tick; gold, bonus time and the standalone Lock history stay.
   Full record: `decisions/2026/D-GH-2026-10-27-dm-console-award-seal.md`.

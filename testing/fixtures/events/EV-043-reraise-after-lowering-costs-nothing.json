@@ -1,0 +1,50 @@
+{
+ "description": "fix/no-purchase-refunds: 14, lowered to 12, raised back to 14. The 14 was already paid for, so the second climb adds nothing (total 9).",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 12
+   },
+   "cost": -5,
+   "seq": 3
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 0,
+   "seq": 4
+  }
+ ],
+ "_expect": {
+  "total": 9
+ }
+}
