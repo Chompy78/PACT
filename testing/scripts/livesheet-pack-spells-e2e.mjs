@@ -15,6 +15,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { launchChromium } from './lib/launch-chromium.mjs';
+import { DATA } from '../../js/engine.js';
 
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const PORT = Number(process.env.PACT_E2E_PORT) || 7993;
@@ -34,12 +35,16 @@ let pass = 0, fail = 0;
 const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
 
 const XSS = '<img src=x onerror="window.__pwn=1">';
+// A free-subclass pick owns the subclass only once a piece of it is bought (feat/free-subclass-bare-pick, rules v0.387), so the fixtures own
+// Arcane Trickster and Eldritch Knight the way a real player does: through one of their abilities.
+const pieceOf = (cls, sub) => cls + '|' + sub + '|' + DATA.subclasses[cls][sub].abilities[0].name;
+const ATP = pieceOf('Rogue', 'Arcane Trickster'), EKP = pieceOf('Fighter', 'Eldritch Knight');
 const base = { species: 'Tiefling', lineage: 'Infernal', originClass: 'Rogue', hd: 3, languages: 1, languageNames: ['Common'],
   stats: { STR: 10, DEX: 16, CON: 12, INT: 14, WIS: 10, CHA: 12 },
   racialSpells: ['Fire Bolt', 'Hellish Rebuke'], racialTraits: ['Tiefling: Thaumaturgy cantrip'] };
 const caster = { traditions: [{ name: 'Arcane', rank: 1, disciplines: [{ name: 'Wizard', cantrips: 1, slots: [2,0,0,0,0,0,0,0,0],
   known: [1,0,0,0,0,0,0,0,0], cantripNames: ['Mage Hand'], knownNames: [['Magic Missile']] }] }],
-  freeSub: { Rogue: 'Arcane Trickster' }, grantNames: { 'Rogue: Arcane Trickster': [XSS] } };
+  freeSub: { Rogue: 'Arcane Trickster' }, subAbilities: [ATP], grantNames: { 'Rogue: Arcane Trickster': [XSS] } };
 const logOf = (patch) => [
   { type: 'award', amount: 600, seq: 1, label: 'Award' },
   { type: 'buy', cat: 'patch', cost: 0, level: 3, seq: 2, label: 'Identity', payload: { patch } },
@@ -112,21 +117,21 @@ const has = (rows, re) => rows.some(t => re.test(t));
 // 2b. Only what the build still GRANTS is listed (review of #668): grantedSpells() on hand-made builds, in the page's engine.
 {
   const { ctx, page, errs } = await open(logOf(base));
-  const probe = await page.evaluate(() => { const B = (o) => Object.assign(baseBuild(), o), names = (o) => grantedSpells(B(o)).map(g => g.name).sort().join(',');
+  const probe = await page.evaluate(({ ATP, EKP }) => { const B = (o) => Object.assign(baseBuild(), o), names = (o) => grantedSpells(B(o)).map(g => g.name).sort().join(',');
     return {
       staleLineage: names({ species: 'Elf', lineage: 'High', racialSpells: ['Fire Bolt', 'Prestidigitation'] }),
       crossTrait: names({ species: 'Elf', racialTraits: ['Tiefling: Thaumaturgy cantrip'] }),
       ownTrait: names({ species: 'Tiefling', racialTraits: ['Tiefling: Thaumaturgy cantrip'] }),
       grantNotHeld: names({ originClass: 'Rogue', hd: 5, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
-      grantHeld: names({ originClass: 'Rogue', hd: 5, freeSub: { Rogue: 'Arcane Trickster' }, grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
-      ekHd2: names({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' }, grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
-      ekHd3: names({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' }, grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
+      grantHeld: names({ originClass: 'Rogue', hd: 5, freeSub: { Rogue: 'Arcane Trickster' }, subAbilities: [ATP], grantNames: { 'Rogue: Arcane Trickster': ['Shield'] } }),
+      ekHd2: names({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [EKP], grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
+      ekHd3: names({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [EKP], grantNames: { 'Fighter: Eldritch Knight': ['Fireball'] } }),
       styleNoSlot: names({ fightingStyleNames: ['Blessed Warrior'], fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light'] } }),
       styleOneSlot: names({ features: ['Paladin: Fighting Style'], fightingStyleNames: ['Blessed Warrior', 'Druidic Warrior'],
         fsCantripNames: { 'Blessed Warrior': ['Guidance', 'Light', 'Sacred Flame'], 'Druidic Warrior': ['Druidcraft'] } }),
-      dialogUsesEngine: _ownedGrants(B({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' } })).length === 0
-                     && _ownedGrants(B({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' } })).length === 1,
-    }; });
+      dialogUsesEngine: _ownedGrants(B({ originClass: 'Fighter', hd: 2, freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [EKP] })).length === 0
+                     && _ownedGrants(B({ originClass: 'Fighter', hd: 3, freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [EKP] })).length === 1,
+    }; }, { ATP, EKP });
   check('a spell left over from an old lineage is not listed', probe.staleLineage === 'Prestidigitation', probe.staleLineage);
   check('an origin-race-only cantrip trait on another species is not listed', probe.crossTrait === '', probe.crossTrait);
   check('…but is on its own species', probe.ownTrait === 'Thaumaturgy', probe.ownTrait);

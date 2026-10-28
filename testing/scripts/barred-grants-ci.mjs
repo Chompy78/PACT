@@ -41,8 +41,11 @@ for (const k of ARTS) {
 
 console.log('== the free off-list spell picks are switched off');
 const named = key => ({ [key]: ['Fireball', 'Shield', 'Counterspell', 'Wish', 'Time Stop', 'Meteor Swarm'] });
-const ek = mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' }, grantNames: named('Fighter: Eldritch Knight') });
-const at = mk('Rogue', { freeSub: { Rogue: 'Arcane Trickster' }, grantNames: named('Rogue: Arcane Trickster') });
+// A free-subclass pick owns the subclass only once a piece of it is bought (feat/free-subclass-bare-pick), so these two own it through an ability.
+const ekPiece = 'Fighter|Eldritch Knight|' + DATA.subclasses.Fighter['Eldritch Knight'].abilities[0].name;
+const atPiece = 'Rogue|Arcane Trickster|' + DATA.subclasses.Rogue['Arcane Trickster'].abilities[0].name;
+const ek = mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [ekPiece], grantNames: named('Fighter: Eldritch Knight') });
+const at = mk('Rogue', { freeSub: { Rogue: 'Arcane Trickster' }, subAbilities: [atPiece], grantNames: named('Rogue: Arcane Trickster') });
 const ms = mk('Bard', { features: ['Bard: Magical Secrets'], grantNames: named('Bard: Magical Secrets') });
 for (const [n, b] of [['Eldritch Knight', ek], ['Arcane Trickster', at], ['Magical Secrets', ms]]) {
   ok(ownedChoiceGrants(b).length === 0, n + ': ownedChoiceGrants() lists no free-pick block', JSON.stringify(ownedChoiceGrants(b).map(g => g.key)));
@@ -52,9 +55,11 @@ for (const [n, b] of [['Eldritch Knight', ek], ['Arcane Trickster', at], ['Magic
   const saved = DATA.spellGrants.choiceGrants['Fighter: Eldritch Knight'].bar;
   delete DATA.spellGrants.choiceGrants['Fighter: Eldritch Knight'].bar;
   ok(ownedChoiceGrants(ek).length === 1, 'control: with bar removed the Eldritch Knight block comes back', String(ownedChoiceGrants(ek).length));
+  const bareEk = mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' }, grantNames: named('Fighter: Eldritch Knight') });
+  ok(ownedChoiceGrants(bareEk).length === 0, 'control: a BARE Eldritch Knight pick (nothing bought) owns no block even with the bar removed', String(ownedChoiceGrants(bareEk).length));
   DATA.spellGrants.choiceGrants['Fighter: Eldritch Knight'].bar = saved;
 }
-ok(total(ek) === total(mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' } })), 'naming grant spells changes no price');
+ok(total(ek) === total(mk('Fighter', { freeSub: { Fighter: 'Eldritch Knight' }, subAbilities: [ekPiece] })), 'naming grant spells changes no price');
 
 console.log('== Bard: Magical Secrets is back, as a list-widening only');
 const MS = 'Bard: Magical Secrets', msg = DATA.spellGrants.choiceGrants[MS];
