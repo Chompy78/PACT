@@ -3825,6 +3825,99 @@ function _cgPostLockSteps(slot,patch,cur){
   if(refuse) refuse='\uD83D\uDD12 '+refuse+'\n\n'+tail;
   return {steps:steps,refuse:refuse};
 }
+// feat/roll-lock-then-spend (plan docs/plans/2026-10-27-roll-lock-then-spend.md, PR 1 of 2): turn "this build" -> "that build" into the in-play purchases that get there.
+// Pure: reads two folded builds, returns {steps, refuse}. The per-slot plan builders above (_cgPostLockSteps, _cgTraditionSteps) do the slot work; flat checklist categories
+// are bought one value at a time, as the checklist does. It NEVER returns a partial list: after building the steps it folds them onto a copy of `cur` with the engine's own MUT
+// and compares the result with `target` over every field a roll can touch (_cgRollDiff); any difference, and any change it has no purchase for (species, origin class, size,
+// lineage, innate spells, custom proficiencies, bindings, drawbacks, starting gold), is a refusal. So a mis-mapped slot cannot buy the wrong thing: it refuses instead.
+var _CG_REMAINDER_FLAT=[   // [category, build field] in the order they are bought, so each step's prerequisite is already owned: classes before their subclass, a skill/tool before its expertise
+  ['unlockclass','unlockedClasses'],['save','saves'],['skill','skills'],['tool','tools'],['instrument','instruments'],['expertise','expertise'],['toolexpertise','toolExpertise'],
+  ['mastery','masteries'],['racial','racialTraits'],['racialspell','racialSpells'],['art','arts'],['feature','features'],['subabil','subAbilities'],['subbundle','subSpellBundles'],['boon','boons']
+];
+var _CG_REMAINDER_FIELDS=['stats','hd','profBonus','languages','hardy','tough','ki','sorcery','attune','armour','wornArmour','shieldWorn','weaponProf','freeSub','traditions',
+  'drawbacks','species','species2','originClass','originClass2','lineage','martiallyBound','innate','customProfs','dabblerCantrips','gold'].concat(_CG_REMAINDER_FLAT.map(function(p){ return p[1]; }));
+function _cgRollNorm(v){   // one comparable shape: empty/zero/false/"(none)" are all "not set"; lists of plain values are order-free; objects drop their unset keys
+  if(v==null||v===''||v==='(none)'||v===0||v===false) return null;
+  if(Array.isArray(v)){
+    var a=v.map(_cgRollNorm).filter(function(x){ return x!==null; });
+    if(!a.length) return null;
+    if(a.every(function(x){ return typeof x!=='object'; })) a=a.slice().sort();
+    return a;
+  }
+  if(typeof v==='object'){
+    var o={},n=0; Object.keys(v).sort().forEach(function(k){ var x=_cgRollNorm(v[k]); if(x!==null){ o[k]=x; n++; } });
+    return n?o:null;
+  }
+  return v;
+}
+// Which of the fields a roll can touch differ between two builds. Empty list = the same build as far as the roll is concerned.
+function _cgRollDiff(a,b){
+  var fixWp=function(x){ var wp=x.weaponProf; return (wp&&wp.martial===true)?Object.assign({},x,{weaponProf:Object.assign({},wp,{martial:1})}):x; };   // the roller's boolean "one martial weapon" == the number 1
+  a=fixWp(a); b=fixWp(b);
+  var d=[]; _CG_REMAINDER_FIELDS.forEach(function(k){ if(JSON.stringify(_cgRollNorm(a[k]))!==JSON.stringify(_cgRollNorm(b[k]))) d.push(k); });
+  return d;
+}
+function _cgBuildToSteps(cur,target){
+  // The roller marks "one martial weapon" as weaponProf.martial === true (compute() reads it as a count of 1); the form and the fold keep a number. Compare like with like.
+  target=JSON.parse(JSON.stringify(target)); if(target.weaponProf&&target.weaponProf.martial===true) target.weaponProf.martial=1;
+  var steps=[], refuse=null;
+  var no=function(why){ if(!refuse) refuse=why; };
+  var slot=function(name,patch){
+    var p=_cgPostLockSteps(name,patch,cur);
+    if(p.refuse) no(String(p.refuse).replace(/^🔒 /,'').split('\n')[0]); else steps=steps.concat(p.steps);
+  };
+  slot('hdProf',{hd:target.hd,profBonus:target.profBonus});
+  slot('stats',{stats:target.stats});
+  slot('languages',{languages:target.languages});
+  slot('vigor',{hardy:target.hardy,tough:target.tough});
+  slot('ki',{ki:target.ki}); slot('sorcery',{sorcery:target.sorcery}); slot('attunement',{attune:target.attune});
+  slot('armour',{armour:target.armour,wornArmour:target.wornArmour,shieldWorn:target.shieldWorn});
+  slot('weaponProf',{weaponProf:target.weaponProf});
+  slot('freeSub',{freeSub:target.freeSub});
+  if(!refuse){
+    // a free subclass is picked before the abilities that use it; flat values next, each once per copy the target holds beyond what `cur` already owns
+    _CG_REMAINDER_FLAT.forEach(function(pr){
+      var cat=pr[0], have=(cur[pr[1]]||[]).slice(), want=target[pr[1]]||[];
+      want.forEach(function(v){ var at=have.indexOf(v); if(at>=0) have.splice(at,1); else steps.push({cat:cat,payload:{v:v},label:((typeof _CG_CHECKLIST_LABEL!=='undefined'&&_CG_CHECKLIST_LABEL[cat])||cat)+' — '+v}); });
+      if(have.length) no('Nothing you have bought can be removed ('+have[0]+').');
+    });
+    // spellcasting last: the diff is the one the Live Sheet's own tiles allow (found / bind / rank / cantrips / slots / known)
+    var rules=_cgGateRules();
+    var tr=_cgTraditionSteps(cur.traditions||[],target.traditions||[],target.hd||cur.hd||1,!(rules&&rules.multiDisciplineAllowed===false),window.postLockAllowance(rules).bindings);
+    if(tr.refuse) no(tr.refuse); else steps=steps.concat(tr.steps);
+  }
+  if(refuse) return {steps:[],refuse:refuse};
+  var sim=JSON.parse(JSON.stringify(cur)); steps.forEach(function(st){ (MUT[st.cat]||function(){})(sim,st.payload); });
+  var diff=_cgRollDiff(sim,target);
+  if(diff.length) return {steps:[],refuse:'No purchase gets there: '+diff.join(', ')+' would still differ.'};
+  return {steps:steps,refuse:null};
+}
+// Which later build can this character actually be taken to? `candidates` are the roll's later builds in order; the LATEST one that purchases can reach wins, because a roll
+// may lower a stat, open a second origin, take a drawback or buy Warlock pact slots after the cut, and none of those can happen in play. Returns {index, plan} (index -1 and
+// plan null when no later build is reachable, with the first refusal in `why` so the caller can say so).
+function _cgPlanRemainder(cur,candidates){
+  var why='';
+  for(var i=candidates.length-1;i>=0;i--){
+    var plan=_cgBuildToSteps(cur,candidates[i]);
+    if(!plan.refuse&&plan.steps.length) return {index:i,plan:plan,why:''};
+    if(plan.refuse&&!why) why=plan.refuse;
+  }
+  return {index:-1,plan:null,why:why};
+}
+// Spend a step list without asking anyone: up to a few passes of the unattended append, because a step skipped for a missing prerequisite can fit once an earlier one has landed.
+// Returns {applied,skipped,blocked,why}; `skipped` holds only what never fit, with the reason from its last attempt.
+function _cgSpendSteps(steps){
+  var applied=[], pending=steps.slice(), last=[], blocked=false, why='';
+  for(var pass=0;pass<4&&pending.length;pass++){
+    var r=_cgPostLockAppend(pending,{unattended:true});
+    if(r.blocked){ blocked=true; why=r.why; last=pending.map(function(s){ return {cat:s.cat,label:s.label,why:r.why}; }); break; }
+    applied=applied.concat(r.applied); last=r.skipped;
+    if(!r.applied.length) break;
+    var keep={}; r.skipped.forEach(function(s){ keep[s.cat+'|'+s.label]=1; });
+    pending=pending.filter(function(s){ return keep[s.cat+'|'+s.label]; });
+  }
+  return {applied:applied,skipped:last,blocked:blocked,why:why};
+}
 // Price, legality-check and affordability-check a list of in-play purchases for the WHOLE list before anything is appended, so a
 // refusal leaves nothing half-applied; then append them (one undo frame — commitHistory latches per handler turn). Returns true when
 // they were appended, false when refused (a message was shown and every control has been repainted from the LOG). Shared by the slot
@@ -3842,19 +3935,28 @@ function _cgNamePool(b){return function(s){
 };}
 function _cgNamesRules(){return (window._cloudCampaign&&window._cloudCampaign.rules)||null;}
 function _cgNamesWhy(events,b){try{var g=window.namesGate(events,b,{rules:_cgNamesRules(),kinds:_CG_NAME_KINDS,poolSize:_cgNamePool(b)});return g.blocked?g.reason:'';}catch(e){return '';}}
+// opts.unattended (feat/roll-lock-then-spend, plan docs/plans/2026-10-27-roll-lock-then-spend.md): the same checks with NO dialog. Every place that would have asked the
+// player instead SKIPS that one step and records why; nothing is appended unless the names gate is clear. Returns {blocked,why,applied,skipped} instead of true/false.
+// It is deliberately stricter than the interactive path: a soft rules warning, a wallet shortfall and a trade offer are all things only the player can accept, so an
+// unattended run never accepts them for the player.
 function _cgPostLockAppend(steps,opts){
+  var U=!!(opts&&opts.unattended), skipped=[];
   // A load or repaint is rebuilding the form (applyBuild/restoreFrame hold _histSuspended for their whole run). The rows it rebuilds call the flat-category sync, which would
   // try to "buy" them one by one into a LOG that is about to be replaced; a refusal there repaints, the repaint rebuilds the rows, and that tries again — a stack overflow (found by the
   // post-lock parity fuzz: load a character while a locked one is open). Nothing is bought and nothing is refused while the form is only being painted.
-  if(_histSuspended) return true;
+  if(_histSuspended) return U?{blocked:true,why:'The form is being repainted.',applied:[],skipped:[]}:true;
   var b=foldBuild(LOG), evs=[], total=0, charged=false, _spendUp=0, _namesWhy;   // _namesWhy: the names gate, asked once against the character as it stands BEFORE this edit, so the purchase that makes a blank slot is allowed and the next one waits
   var _b0=b;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
+  var _avail=U?(compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent):0;   // unattended: the AP left, tested per step so a step that does not fit is dropped BEFORE anything is appended
+  var skip=function(st,why){ skipped.push({cat:st.cat,label:st.label,why:why}); };
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
+    if(U&&(st.cat==='boon'||st.cat==='drawback')&&(_cgHrRulesUnknown()||pactNotePrompt(DATA,st.cat,st.payload.v))){ skip(st,_cgHrRulesUnknown()?'house rules have not loaded on this device':'it needs a description from you'); continue; }   // the description box is a question only the player can answer
     if((st.cat==='boon'||st.cat==='drawback')&&_cgHrRulesUnknown()){ alert('\u26D4 Your campaign\'s house rules haven\'t loaded on this device, so boons and drawbacks can\'t be priced yet. Connect and reload this character to buy or take one.'); _cgRepaint(); return false; }
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
-    if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
+    if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ if(U) return {blocked:true,why:_namesWhy,applied:[],skipped:[]}; _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
+    if(U&&st.cat!=='drawback'&&cost>0&&total+cost>_avail){ skip(st,'not enough AP ('+cost+' needed, '+(_avail-total)+' left)'); continue; }
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;
     if(st.cat==='wornArmour'||st.cat==='shieldWorn'){ ev={type:'buy',cat:st.cat,payload:st.payload,cost:0,label:st.label,level:b.hd}; }   // the Live Sheet's setWornArmour(): free, unchecked, unstamped
@@ -3864,8 +3966,9 @@ function _cgPostLockAppend(steps,opts){
       // starting with the stop-sign marker, which let through purchases the Live Sheet refuses (Vigor past CON mod, "boon requires CON 12+").
       // Subclass abilities are offered only for the classes the character has access to (origin class + unlocked classes) — the Live Sheet's "Subclasses & abilities" panel.
       // CharGen's picker lists every class, so the same rule is enforced here (found by the post-lock parity fuzz: a Cleric bought a Fighter subclass ability).
-      if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
+      if(st.cat==='subabil'||st.cat==='subbundle'){ var _sc=String(st.payload.v||'').split('|')[0]; if([b.originClass].concat(b.unlockedClasses||[]).indexOf(_sc)<0){ if(U){ skip(st,_sc+' subclass abilities need '+_sc+' as an origin or unlocked class'); continue; } alert('\u26D4 Purchase blocked \u2014 '+_sc+' subclass abilities need '+_sc+' as your origin class or an unlocked class.'); _cgRepaint(); return false; } }
       var lg=purchaseLegality(b,st.cat,st.payload,_cgDmOpts());
+      if(U&&(lg.dup||lg.hard.length||lg.soft.length)){ skip(st,lg.dup?'already owned':(lg.hard.length?lg.hard[0]:'it raises a rules warning: '+lg.soft[0])); continue; }   // unattended: a soft warning needs the player's yes, so it is skipped, never accepted for them
       if(lg.dup){ alert('\u26D4 Already owned \u2014 "'+st.payload.v+'" can only be bought once.'); _cgRepaint(); return false; }
       if(lg.hard.length){ alert('\u26D4 Purchase blocked \u2014 it breaks a rules limit:\n\n\u2022 '+lg.hard.join('\n\u2022 ')); _cgRepaint(); return false; }
       if(lg.soft.length && !confirm('This purchase raises a rules warning:\n\u2022 '+lg.soft.join('\n\u2022 ')+'\n\nBuy anyway (it will be flagged for review)?')){ _cgRepaint(); return false; }
@@ -3874,6 +3977,7 @@ function _cgPostLockAppend(steps,opts){
       // warning is ONE confirm for the whole edit, below. A drawback is never charged, and a free purchase has nothing to trade.
       if(q&&(q.gp||q.days)&&st.cat!=='drawback'){
         var wc=walletCheck(virt,_cgWalletOpts(q));
+        if(U&&(wc.trade||wc.shortGold||wc.shortTime)){ skip(st,wc.trade?'the wallet is short and the trade needs your yes':'the wallet is short'); continue; }
         if(wc.trade){ var tq=_cgOfferTrade(q,wc); if(tq===false){ _cgRepaint(); return false; } if(tq) q=tq; }   // Cancel abandons the whole edit, as in the Live Sheet
       }
       ev={type:'buy',cat:st.cat,payload:st.payload,cost:cost,label:st.label,level:b.hd,warns:lg.rest};   // the Live Sheet stores what was flagged and clicked through
@@ -3881,6 +3985,10 @@ function _cgPostLockAppend(steps,opts){
     }
     virt.push(Object.assign({},ev,{ts:stampTs}));
     evs.push(ev); total+=cost; if(st.cat!=='drawback'){ charged=true; _spendUp+=(Number(cost)||0); } b=next;   // a drawback is never checked against the AP left: the Live Sheet's buy() skips that test for it, so an over-budget character can still take one (found by the parity fuzz)
+  }
+  if(U){   // every per-step gate has already run: append what survived as ONE undo frame / one repaint, and report the rest
+    if(evs.length) _cgEmitAll(evs);
+    return {blocked:false,why:'',applied:evs.map(function(e){ return {cat:e.cat,label:e.label,cost:e.cost}; }),skipped:skipped};
   }
   var avail=compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent;
   if(charged&&_spendUp>0&&total>avail){ flash('Not enough AP: needs '+total+', have '+avail); _cgRepaint(); return false; }   // V1: an edit that adds no spend (free purchases only) is never refused for AP, even below 0 — as the Live Sheet's buy()   // an edit of drawbacks alone is never tested against the AP left (the Live Sheet's buy() skips it for a drawback)
@@ -6056,7 +6164,7 @@ function randomizeRoll(themeKey,lvlWanted){
       const r=C(b);
       if(r.total<=budget && _hw(r.warnings)<=w0){
         if(bucket)spentBy[bucket]=(spentBy[bucket]||0)+(r.total-t0);
-        _cur=r; return true;
+        _cur=r; if(window._cgRollTrace)window._cgRollTrace.push({b:JSON.parse(JSON.stringify(b)),total:r.total,drawbackAp:r.drawbackAp||0}); return true;
       }
     }catch(e){}
     b=JSON.parse(snap); return false; }

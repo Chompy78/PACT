@@ -48,6 +48,13 @@ stops at the lock, which stays the wall — the owner said "maybe", so confirm w
 fix/no-purchase-refunds (undoing a post-lock purchase that has already been saved to the cloud). STILL OPEN: does the
 button survive a reload (a flag kept with the autosave) and does cloud autosave keep running while a roll awaits
 acceptance? (Recommended: yes to both.)
+PROGRESS 2026-10-29 (plan docs/plans/2026-10-27-roll-lock-then-spend.md, built as two PRs): PR 1 of 2 = the pure pieces, no UI — _cgBuildToSteps() / _cgPlanRemainder()
+("this build -> that build" as in-play purchases, or a refusal, never a partial list), _cgPostLockAppend(steps,{unattended:true}) + _cgSpendSteps() (the dialog checks without
+a dialog: a step that needs the player's yes is skipped and reported), and the roller's window._cgRollTrace hook; gated by chargen-roll-steps-e2e.mjs. PR 2 of 2 STILL TO DO:
+the roller runs to the full budget and cuts at the cap using that trace, the pending remainder is kept in a per-character browser-storage key, and the Accept button (opens the
+Name dialog first, locks, spends, reports; double-click and autosave safe). NOTE for PR 2: an unattended spend is ONE undo frame (commitHistory latches per handler turn), so
+undo steps back the whole Accept, not one purchase at a time as decided 2026-10-04 (3) — confirm with the owner. FOUND on the way (existing, not fixed): the roller prices
+weaponProf.martial === true but the form it applies the build through keeps 0, so a rolled character never gets the martial proficiency the budget counted.
 ```
 **Done when:** a roll on a limited, unlocked character stops at the limit and shows an Accept button; pressing it locks the character and spends the remainder after the lock at in-play prices, while re-rolling before that stays possible; `random-quality-ci` and `random-manual-e2e` stay green; new chargen-flows checks cover the cap, the lock position and the in-play remainder.
 

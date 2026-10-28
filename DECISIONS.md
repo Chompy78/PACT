@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-10-29-roll-lock-then-spend-steps — a rolled remainder becomes in-play purchases, spent without a dialog (PR 1 of 2)
+- The pure half of roll-lock-then-spend: a build-to-steps planner that refuses rather than return a partial list, an unattended mode of the post-lock append that skips (never accepts for the player) anything a dialog would have asked, and a roller trace hook. Undo after Accept will be one frame, not one purchase — flagged for PR 2.
+  Full record: `decisions/2026/D-GH-2026-10-29-roll-lock-then-spend-steps.md`.
 ## D-GH-2026-10-29-no-purchase-refunds — lowering a raised ability score gives no AP back (rules v0.388)
 - The engine keeps the highest score each ability has held and prices a score as the part below 10 plus the climb to its highest point, so a lowering above 10 refunds nothing and a dump below 10 still pays out. Seven live logs' compute() totals move (the four known characters, two DM copies, one more DM copy); frozen ledgers are untouched. Guide paragraph in both copies; fixtures EV-041..046.
   Full record: `decisions/2026/D-GH-2026-10-29-no-purchase-refunds.md`.
