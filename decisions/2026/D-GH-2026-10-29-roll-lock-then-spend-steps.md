@@ -38,3 +38,11 @@ it (names gate off), plan to a later build, spend unattended. Checks: no dialog 
 exactly the applied count, all plain `buy` events; with nothing skipped the folded build equals the target on every roll field; a refuse-everything
 bug fails (most trials must produce a plan). 60 trials (seed 11): 54 planned, 6 refused, 811 of 812 steps applied (the one skip was a boon that needs
 a description).
+
+**Independent review (a fresh agent, before merge).** Two real findings, both fixed and pinned: (1) `_cgSpendSteps` matched pending steps by `cat|label`,
+but labels repeat across disciplines ("L1 slot (2)"), so a step that had already landed could be re-applied on the retry pass and, because slot/rank/hit-die
+steps are absolute, LOWER something and refund AP. Skipped steps now carry their position, and the unattended path never appends a purchase with a negative
+cost (nothing bought can be un-bought). (2) `_cgRollNorm` dropped zeros and sorted numeric lists, so `[2,0,0,...]` equalled `[0,...,2]` and the self-check
+could not see a step built for the wrong spell level; numeric lists now compare by position, and an absent `shieldWorn` means "in hand" so an explicit
+set-down is a real difference. `extraClasses` joined the compared fields. Cases T1-T3 in the e2e pin all three; the interactive path was checked line by line
+and is unchanged when `opts.unattended` is falsy.

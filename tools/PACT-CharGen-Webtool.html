@@ -3835,24 +3835,26 @@ var _CG_REMAINDER_FLAT=[   // [category, build field] in the order they are boug
   ['mastery','masteries'],['racial','racialTraits'],['racialspell','racialSpells'],['art','arts'],['feature','features'],['subabil','subAbilities'],['subbundle','subSpellBundles'],['boon','boons']
 ];
 var _CG_REMAINDER_FIELDS=['stats','hd','profBonus','languages','hardy','tough','ki','sorcery','attune','armour','wornArmour','shieldWorn','weaponProf','freeSub','traditions',
-  'drawbacks','species','species2','originClass','originClass2','lineage','martiallyBound','innate','customProfs','dabblerCantrips','gold'].concat(_CG_REMAINDER_FLAT.map(function(p){ return p[1]; }));
-function _cgRollNorm(v){   // one comparable shape: empty/zero/false/"(none)" are all "not set"; lists of plain values are order-free; objects drop their unset keys
-  if(v==null||v===''||v==='(none)'||v===0||v===false) return null;
+  'drawbacks','species','species2','originClass','originClass2','lineage','extraClasses','martiallyBound','innate','customProfs','dabblerCantrips','gold'].concat(_CG_REMAINDER_FLAT.map(function(p){ return p[1]; }));
+function _cgRollNorm(v,inArr){   // one comparable shape: empty/zero/false/"(none)" are all "not set"; lists of names are order-free; numeric lists (spell slots by level) keep their POSITION; objects drop unset keys
+  if(v==null||v===''||v==='(none)'||v===false) return null;
+  if(v===0) return inArr?0:null;
   if(Array.isArray(v)){
-    var a=v.map(_cgRollNorm).filter(function(x){ return x!==null; });
-    if(!a.length) return null;
-    if(a.every(function(x){ return typeof x!=='object'; })) a=a.slice().sort();
-    return a;
+    if(v.every(function(x){ return typeof x==='string'; })){ var a=v.filter(function(x){ return x!==''&&x!=='(none)'; }).sort(); return a.length?a:null; }
+    var m=v.map(function(x){ return _cgRollNorm(x,true); });
+    while(m.length&&(m[m.length-1]===null||m[m.length-1]===0)) m.pop();   // [2,0,0] and [2] are the same list; [0,2] and [2,0] are not
+    return m.length?m:null;
   }
   if(typeof v==='object'){
-    var o={},n=0; Object.keys(v).sort().forEach(function(k){ var x=_cgRollNorm(v[k]); if(x!==null){ o[k]=x; n++; } });
+    var o={},n=0; Object.keys(v).sort().forEach(function(k){ var x=_cgRollNorm(v[k],false); if(x!==null){ o[k]=x; n++; } });
     return n?o:null;
   }
   return v;
 }
 // Which of the fields a roll can touch differ between two builds. Empty list = the same build as far as the roll is concerned.
 function _cgRollDiff(a,b){
-  var fixWp=function(x){ var wp=x.weaponProf; return (wp&&wp.martial===true)?Object.assign({},x,{weaponProf:Object.assign({},wp,{martial:1})}):x; };   // the roller's boolean "one martial weapon" == the number 1
+  var fixWp=function(x){ var wp=x.weaponProf; x=Object.assign({},x,{shieldWorn:x.shieldWorn!==false});   // an absent shieldWorn means the shield is in hand, only an explicit false sets it down
+    return (wp&&wp.martial===true)?Object.assign({},x,{weaponProf:Object.assign({},wp,{martial:1})}):x; };   // the roller's boolean "one martial weapon" == the number 1
   a=fixWp(a); b=fixWp(b);
   var d=[]; _CG_REMAINDER_FIELDS.forEach(function(k){ if(JSON.stringify(_cgRollNorm(a[k]))!==JSON.stringify(_cgRollNorm(b[k]))) d.push(k); });
   return d;
@@ -3913,8 +3915,8 @@ function _cgSpendSteps(steps){
     if(r.blocked){ blocked=true; why=r.why; last=pending.map(function(s){ return {cat:s.cat,label:s.label,why:r.why}; }); break; }
     applied=applied.concat(r.applied); last=r.skipped;
     if(!r.applied.length) break;
-    var keep={}; r.skipped.forEach(function(s){ keep[s.cat+'|'+s.label]=1; });
-    pending=pending.filter(function(s){ return keep[s.cat+'|'+s.label]; });
+    var keep={}; r.skipped.forEach(function(s){ keep[s.idx]=1; });
+    pending=pending.filter(function(s,j){ return keep[j]; });
   }
   return {applied:applied,skipped:last,blocked:blocked,why:why};
 }
@@ -3949,13 +3951,14 @@ function _cgPostLockAppend(steps,opts){
   var _b0=b;
   var virt=LOG.slice(), stampTs=Date.now(), totalQ={gp:0,days:0};   // the log as it will be after each step — the running wallet the trade offers read
   var _avail=U?(compute(foldBuild(LOG),_cgDmOpts()).spendable-economy(LOG).spent):0;   // unattended: the AP left, tested per step so a step that does not fit is dropped BEFORE anything is appended
-  var skip=function(st,why){ skipped.push({cat:st.cat,label:st.label,why:why}); };
+  var skip=function(st,why){ skipped.push({cat:st.cat,label:st.label,why:why,idx:i}); };   // idx = the step's position in `steps`: labels repeat across disciplines ("L1 slot (2)"), so a label is not an identity
   for(var i=0;i<steps.length;i++){
     var st=steps[i];
     if(U&&(st.cat==='boon'||st.cat==='drawback')&&(_cgHrRulesUnknown()||pactNotePrompt(DATA,st.cat,st.payload.v))){ skip(st,_cgHrRulesUnknown()?'house rules have not loaded on this device':'it needs a description from you'); continue; }   // the description box is a question only the player can answer
     if((st.cat==='boon'||st.cat==='drawback')&&_cgHrRulesUnknown()){ alert('\u26D4 Your campaign\'s house rules haven\'t loaded on this device, so boons and drawbacks can\'t be priced yet. Connect and reload this character to buy or take one.'); _cgRepaint(); return false; }
     var cost=priceOf(b,st.cat,st.payload);                          // js/engine.js — the Live Sheet's own pricer
     if(cost>0&&st.cat!=='drawback'){ if(_namesWhy===undefined) _namesWhy=_cgNamesWhy(LOG,_b0); if(_namesWhy){ if(U) return {blocked:true,why:_namesWhy,applied:[],skipped:[]}; _cgRepaint(); if(confirm('\u26D4 '+_namesWhy+'\n\nOpen it now?')) openNames(); return false; } }
+    if(U&&st.cat!=='drawback'&&cost<0){ skip(st,'it would give AP back or lower something already bought'); continue; }   // nothing bought can be un-bought: an absolute step retried after a later one landed would refund AP
     if(U&&st.cat!=='drawback'&&cost>0&&total+cost>_avail){ skip(st,'not enough AP ('+cost+' needed, '+(_avail-total)+' left)'); continue; }
     var next=JSON.parse(JSON.stringify(b)); (MUT[st.cat]||function(){})(next,st.payload);
     var ev;

@@ -123,6 +123,40 @@ for (let i = 0; i < TRIALS; i++) {
   if (r.skipped.length) { withSkips++; r.skipped.forEach(s => { const key = s.replace(/[0-9]+/g, 'N').slice(0, 80); skipWhy[key] = (skipWhy[key] || 0) + 1; }); }
   if (!r.skipped.length && !r.blocked) check(tag + ' — P2 nothing skipped: the folded build equals the roll\'s final build', r.diff.length === 0, 'still differs: ' + r.diff.join(','));
 }
+// ---- targeted cases from the review of #724 ----
+const SETUP = ({ seed, budget }) => {
+  var a = seed | 0;
+  Math.random = function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  try { localStorage.clear(); } catch (e) {}
+  resetBuild(); document.getElementById('budget').value = String(budget);
+  if (typeof _cgSyncAward === 'function') _cgSyncAward();
+  window._cgRollTrace = []; randomizeRoll(null, 0);
+  var trace = window._cgRollTrace; window._cgRollTrace = null;
+  window.requireNamesOn = function () { return false; };
+  window.namesGate = function () { return { blocked: false, missing: [], reason: '' }; };
+  applyBuild(JSON.parse(JSON.stringify(trace[Math.floor(trace.length / 2)].b)));
+  cgFinishCreating(true);
+  return { locked: _cgIsLocked(), str: foldBuild(LOG).stats.STR, hd: foldBuild(LOG).hd };
+};
+await pg.evaluate(() => { window.__t = true; });
+dialogs = [];
+const s0 = await pg.evaluate(SETUP, { seed: 4242, budget: 160 });
+check('targeted: setup locked a rolled character', s0.locked === true && s0.str >= 4);
+// T1 — nothing lowered, ever: an absolute step below the current value is skipped, never appended
+const t1 = await pg.evaluate(() => { var n = LOG.length, cur = foldBuild(LOG).stats.STR;
+  var r = _cgSpendSteps([{ cat: 'abil', payload: { ab: 'STR', to: cur - 2 }, label: 'lower STR' }]);
+  return { applied: r.applied.length, skipped: r.skipped.map(function (x) { return x.why; }), grew: LOG.length - n, after: foldBuild(LOG).stats.STR, cur: cur }; });
+check('T1 a lowering step is skipped, not appended', t1.applied === 0 && t1.skipped.length === 1 && t1.grew === 0 && t1.after === t1.cur, JSON.stringify(t1));
+// T2 — two steps with the SAME label: the one that lands must not be applied again on the retry pass
+const t2 = await pg.evaluate(() => { var n = LOG.length, cur = foldBuild(LOG).stats.STR;
+  var r = _cgSpendSteps([{ cat: 'abil', payload: { ab: 'STR', to: Math.min(20, cur + 2) }, label: 'same' }, { cat: 'hd', payload: { to: 20 }, label: 'same' }]);
+  return { applied: r.applied.length, skipped: r.skipped.length, grew: LOG.length - n, str: foldBuild(LOG).stats.STR, cur: cur }; });
+check('T2 a same-labelled step that landed is not applied twice', t2.applied === 1 && t2.skipped === 1 && t2.grew === 1 && t2.str === Math.min(20, t2.cur + 2), JSON.stringify(t2));
+// T3 — the positional diff: slots [2,0,...] and [0,...,2] are different builds
+const t3 = await pg.evaluate(() => ({ same: JSON.stringify(_cgRollNorm([2, 0, 0, 0, 0, 0, 0, 0, 0])) === JSON.stringify(_cgRollNorm([2])), diff: JSON.stringify(_cgRollNorm([2, 0, 0, 0, 0, 0, 0, 0, 0])) !== JSON.stringify(_cgRollNorm([0, 0, 0, 0, 0, 0, 0, 0, 2])) }));
+check('T3 spell-slot arrays compare by position (trailing zeros ignored)', t3.same && t3.diff, JSON.stringify(t3));
+check('targeted: no dialog opened', dialogs.length === 0, dialogs.join(' | '));
+
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
 const planned = trials - skippedShort - refused;
 check('most trials produce a plan (not a refuse-everything bug)', trials > 0 && planned >= Math.ceil((trials - skippedShort) * 0.5), planned + ' of ' + (trials - skippedShort));
