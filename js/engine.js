@@ -3048,6 +3048,9 @@ function _replay(b, log, onApplied) {
   // fix/no-purchase-refunds: the highest score each ability has held. Kept in a local and re-stamped on the build after every
   // event, so a `patch` event (Object.assign onto the build) cannot wipe or lower it by carrying a `statsHigh` of its own.
   const _hi = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
+  // Seeded from the build as it stands BEFORE the first event, so a score that arrives in a base snapshot (rebuildStateFromEvents) and is
+  // lowered by the very first event still counts as paid (found in review of #723).
+  if (b.stats && typeof b.stats === 'object') for (const a in _hi) { const v = Number(b.stats[a]); if (v > _hi[a]) _hi[a] = v; }
   b.statsHigh = _hi;
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];

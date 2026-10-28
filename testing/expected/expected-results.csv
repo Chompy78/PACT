@@ -144,3 +144,4 @@ EV-042,event-sourcing,fixtures/events/EV-042-lowered-below-ten-pays-only-the-dum
 EV-043,event-sourcing,fixtures/events/EV-043-reraise-after-lowering-costs-nothing.json,,9,,0,,true,4,true,"no-purchase-refunds: 14, 12, 14 again costs nothing extra (total 9)"
 EV-044,event-sourcing,fixtures/events/EV-044-plain-dump-still-pays-out.json,,-4,,0,,true,2,true,"no-purchase-refunds guard: a never-raised score dumped to 8 still pays -4"
 EV-045,event-sourcing,fixtures/events/EV-045-post-lock-lowering-refunds-nothing.json,,9,,0,,true,4,true,"no-purchase-refunds (c): a lowering after the creation lock refunds nothing (total stays 9)"
+EV-046,event-sourcing,fixtures/events/EV-046-snapshot-score-lowered-by-first-event.json,,9,,0,,true,2,true,"no-purchase-refunds: a snapshot score lowered by the first event keeps its paid climb (total 9)"

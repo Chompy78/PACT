@@ -41,5 +41,5 @@ only what was not already paid. CharGen's per-score AP label shows the same figu
 "Raising stats" in BOTH the served copy and the `pact-guide` master.
 
 **Pinned by** parity fixtures EV-041 (14 then 12 keeps 9; was 4), EV-042 (14 then 8: 5; was -4), EV-043 (14, 12, 14: 9), EV-044 (a plain dump
-to 8 still pays -4), EV-045 (a lowering after the lock refunds nothing). EV-041 and EV-042 fail on the old engine; EV-043 and EV-044 are guards.
-`engine-parity` 145 passed / 0 failed.
+to 8 still pays -4), EV-045 (a lowering after the lock refunds nothing), EV-046 (a snapshot score lowered by the very first event; found in an independent review). EV-041 and EV-042 fail on the old engine; EV-043 and EV-044 are guards.
+`engine-parity` 146 passed / 0 failed.

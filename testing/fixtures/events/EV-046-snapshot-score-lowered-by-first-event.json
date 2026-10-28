@@ -1,0 +1,38 @@
+{
+ "description": "fix/no-purchase-refunds (review of #723): the starting snapshot already holds STR 14 (9 AP) and the very first event lowers it to 10. The climb to 14 was paid for, so the total stays 9 (it was 0 until the running maximum was seeded from the snapshot).",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true,
+  "stats": {
+   "STR": 14,
+   "DEX": 10,
+   "CON": 10,
+   "INT": 10,
+   "WIS": 10,
+   "CHA": 10
+  }
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 10
+   },
+   "cost": 0,
+   "seq": 2
+  }
+ ],
+ "_expect": {
+  "total": 9
+ }
+}
