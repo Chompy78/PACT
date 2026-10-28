@@ -19,6 +19,7 @@ on:
       - "testing/scripts/player-free-ap-e2e.mjs"
       - "testing/scripts/player-award-after-lock-e2e.mjs"
       - "testing/scripts/audit-followups-e2e.mjs"
+      - "testing/scripts/chargen-roll-steps-e2e.mjs"
       - "testing/package.json"
       - "testing/package-lock.json"
       - ".github/workflows/chargen-flows.yml"
@@ -62,3 +63,5 @@ jobs:
         run: node testing/scripts/player-award-after-lock-e2e.mjs
       - name: Audit-fix follow-ups (wallet race, creation AP, binding, Tasha, Randomise id)
         run: node testing/scripts/audit-followups-e2e.mjs
+      - name: Roll remainder to in-play purchases, spent without a dialog
+        run: node testing/scripts/chargen-roll-steps-e2e.mjs --trials 40
