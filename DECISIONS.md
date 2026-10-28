@@ -13,6 +13,9 @@
 ## D-GH-2026-10-27-dm-console-award-seal — the campaign-wide Award AP tile locks history; the per-character form no longer awards AP
 - The tile gains an "and lock history" tick, ticked by default, going through `award_ap_and_seal()` per character (fresh key per click); only characters that have FINISHED creation are sealed (provisional — owner to confirm), the rest are awarded only, and one failure does not stop the others. The per-character form drops its AP amount and tick; gold, bonus time and the standalone Lock history stay.
   Full record: `decisions/2026/D-GH-2026-10-27-dm-console-award-seal.md`.
+## D-GH-2026-10-25-strict-language-note-match — a plain language name is listed when the campaign's list entry carries a "(note)"
+- `isListed()` also matches a list entry with its TRAILING bracket groups removed ("Haldeni" for "Haldeni (default)"); the exact match stays, the plain name is stored as typed (provisional — owner to confirm). Not a rules change: `compute()` never reads a language name, so no `DATA.version` bump and no guide edit.
+  Full record: `decisions/2026/D-GH-2026-10-25-strict-language-note-match.md`.
 ## D-GH-2026-10-27-server-freeze-houserules-gold — stage 3 of the server freeze: houseRules and gold are protected after a lock
 - `pact_patch_exempt_keys()` now returns {appearance}: `compute()` prices `houseRules` and `gold`, so a modified client can no longer rewrite them in place on a locked, sealed or awarded character (appending stays allowed). Measured on live first: 452 saved pairs from locked/sealed rows, none touched either field; no character has ever carried a `gold` value. Also records the Amble re-check and observed honest campaign saves.
   Full record: `decisions/2026/D-GH-2026-10-27-server-freeze-houserules-gold.md`.
