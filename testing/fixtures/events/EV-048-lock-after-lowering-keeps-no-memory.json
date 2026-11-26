@@ -1,0 +1,44 @@
+{
+ "description": "creation-score-refund: 14, lowered to 12 during creation, THEN locked: only the 12 counts (total 4)",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 12
+   },
+   "cost": -5,
+   "seq": 3
+  },
+  {
+   "type": "creationLocked",
+   "seq": 4
+  }
+ ],
+ "_expect": {
+  "total": 4
+ }
+}

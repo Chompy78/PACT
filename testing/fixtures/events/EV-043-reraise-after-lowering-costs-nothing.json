@@ -1,5 +1,5 @@
 {
- "description": "fix/no-purchase-refunds: 14, lowered to 12, raised back to 14. The 14 was already paid for, so the second climb adds nothing (total 9).",
+ "description": "Locked character (fix/creation-score-refund, owner rule 2026-11-26): fix/no-purchase-refunds: 14, lowered to 12, raised back to 14. The 14 was already paid for, so the second climb adds nothing (total 9).",
  "baseSnapshot": {
   "name": "Refund Test",
   "budget": 0,
@@ -24,6 +24,10 @@
    "seq": 2
   },
   {
+   "type": "creationLocked",
+   "seq": 3
+  },
+  {
    "type": "buy",
    "cat": "abil",
    "payload": {
@@ -31,7 +35,7 @@
     "to": 12
    },
    "cost": -5,
-   "seq": 3
+   "seq": 4
   },
   {
    "type": "buy",
@@ -41,7 +45,7 @@
     "to": 14
    },
    "cost": 0,
-   "seq": 4
+   "seq": 5
   }
  ],
  "_expect": {

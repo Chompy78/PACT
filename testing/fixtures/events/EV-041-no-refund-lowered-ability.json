@@ -1,5 +1,5 @@
 {
- "description": "fix/no-purchase-refunds (owner rule 2026-10-04): a score raised to 14 (9 AP) and then lowered to 12 keeps the AP paid at its highest point. Before the fix compute() charged only 4 for the final 12 and the player kept 5 AP of refund.",
+ "description": "Locked character (fix/creation-score-refund, owner rule 2026-11-26): fix/no-purchase-refunds (owner rule 2026-10-04): a score raised to 14 (9 AP) and then lowered to 12 keeps the AP paid at its highest point. Before the fix compute() charged only 4 for the final 12 and the player kept 5 AP of refund.",
  "baseSnapshot": {
   "name": "Refund Test",
   "budget": 0,
@@ -24,6 +24,10 @@
    "seq": 2
   },
   {
+   "type": "creationLocked",
+   "seq": 3
+  },
+  {
    "type": "buy",
    "cat": "abil",
    "payload": {
@@ -31,7 +35,7 @@
     "to": 12
    },
    "cost": -5,
-   "seq": 3
+   "seq": 4
   }
  ],
  "_expect": {

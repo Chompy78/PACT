@@ -1,0 +1,40 @@
+{
+ "description": "creation-score-refund: during creation 14 then 10 returns all 9 AP (total 0)",
+ "baseSnapshot": {
+  "name": "Refund Test",
+  "budget": 0,
+  "originClass": "Fighter",
+  "species": "Human",
+  "inPlay": true
+ },
+ "events": [
+  {
+   "type": "award",
+   "amount": 40,
+   "seq": 1
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 14
+   },
+   "cost": 9,
+   "seq": 2
+  },
+  {
+   "type": "buy",
+   "cat": "abil",
+   "payload": {
+    "ab": "STR",
+    "to": 10
+   },
+   "cost": -9,
+   "seq": 3
+  }
+ ],
+ "_expect": {
+  "total": 0
+ }
+}

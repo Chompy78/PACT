@@ -1,5 +1,5 @@
 {
- "description": "fix/no-purchase-refunds (review of #723): the starting snapshot already holds STR 14 (9 AP) and the very first event lowers it to 10. The climb to 14 was paid for, so the total stays 9 (it was 0 until the running maximum was seeded from the snapshot).",
+ "description": "Locked character (fix/creation-score-refund, owner rule 2026-11-26): fix/no-purchase-refunds (review of #723): the starting snapshot already holds STR 14 (9 AP) and the very first event lowers it to 10. The climb to 14 was paid for, so the total stays 9 (it was 0 until the running maximum was seeded from the snapshot).",
  "baseSnapshot": {
   "name": "Refund Test",
   "budget": 0,
@@ -22,6 +22,10 @@
    "seq": 1
   },
   {
+   "type": "creationLocked",
+   "seq": 2
+  },
+  {
    "type": "buy",
    "cat": "abil",
    "payload": {
@@ -29,7 +33,7 @@
     "to": 10
    },
    "cost": 0,
-   "seq": 2
+   "seq": 3
   }
  ],
  "_expect": {
