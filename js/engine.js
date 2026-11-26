@@ -940,7 +940,7 @@ export function freeProfs(b, blocked) {
 }
 
 // fix/no-purchase-refunds (owner rule 2026-10-04: you can't un-buy anything except drawbacks). The AP price of ONE ability
-// score. `hi` is the highest value the score has ever held in the log (b.statsHigh, stamped by _replay). Lowering a score
+// score. `hi` is the highest value the score has held since creation was locked (b.statsHigh, stamped by _replay; 10 during creation). Lowering a score
 // that was raised above 10 gives nothing back: the part above 10 stays paid at its highest point, and only the part below
 // 10 pays out as a dump always did (the Players Guide). With hi <= the score -- every build that was never lowered -- this
 // is the plain ladder price, so no existing total moves. DATA.ABIL only defines 2-20, so both ends are clamped.
@@ -3045,16 +3045,22 @@ function _replay(b, log, onApplied) {
   // creationLockState() — needed because a log whose final event is `creationLocked` is locked, yet no
   // real event "enters" that state.
   const _lockAt = _lockStates(evs.concat([{ type: '_probe', noLock: true }]));
-  // fix/no-purchase-refunds: the highest score each ability has held. Kept in a local and re-stamped on the build after every
-  // event, so a `patch` event (Object.assign onto the build) cannot wipe or lower it by carrying a `statsHigh` of its own.
-  const _hi = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 };
-  // Seeded from the build as it stands BEFORE the first event, so a score that arrives in a base snapshot (rebuildStateFromEvents) and is
-  // lowered by the very first event still counts as paid (found in review of #723).
-  if (b.stats && typeof b.stats === 'object') for (const a in _hi) { const v = Number(b.stats[a]); if (v > _hi[a]) _hi[a] = v; }
-  b.statsHigh = _hi;
+  // fix/creation-score-refund (owner rule 2026-11-26): the highest score each ability has held SINCE CREATION WAS LOCKED.
+  // While a character is still being created, every score can be raised or lowered with the AP fully returned, so nothing is
+  // remembered; from the lock on, a lowering pays nothing back (the score at the lock counts as held). A creationUnlocked
+  // forgets it again. Kept in a local and re-stamped on the build after every event, so a `patch` event (Object.assign onto
+  // the build) cannot wipe or lower it by carrying a `statsHigh` of its own.
+  const _hi = {};
+  const _trackHigh = (locked) => {
+    for (const a of ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'])
+      _hi[a] = locked ? Math.max(_hi[a] || 10, Number(b.stats && b.stats[a]) || 10) : 10;
+    b.statsHigh = _hi;
+  };
   for (let _i = 0; _i < evs.length; _i++) {
     const e = evs[_i];
     const _wasLocked = _lockAt[_i];
+    // Before the mutator, so the score a locked event is about to lower (including one from a base snapshot) counts as held.
+    _trackHigh(_wasLocked);
     // fix/creation-lock-enforcement: freeze creation-time Vigor at the lock. CharGen writes Vigor during
     // creation as a `patch` of `hardy`, not as cat:'vigor' events, so those ranks never got a
     // _vigorRankTier stamp and compute() priced them at TODAY's tier — every Hit-Dice tier gained after
@@ -3117,14 +3123,14 @@ function _replay(b, log, onApplied) {
     if (e.cat === 'patch' && e.payload && e.payload.patch && 'hardy' in e.payload.patch && Array.isArray(b._vigorRankTier))
       b._vigorRankTier = b._vigorRankTier.slice(0, Math.max(0, Math.floor(Number(e.payload.patch.hardy)) || 0));
     (MUT[e.cat] || (() => {}))(b, e.payload || {});
-    if (b.stats && typeof b.stats === 'object') for (const a in _hi) { const v = Number(b.stats[a]); if (v > _hi[a]) _hi[a] = v; }
-    b.statsHigh = _hi;
+    _trackHigh(_wasLocked);
     if (onApplied) onApplied(e, b, _wasLocked);
   }
   // Lock state after the whole log, for compute(): a cross-species trait added to a LOCKED build (the
   // candidate purchaseLegality() prices) has no _raceTraitLocked entry yet, and this is what tells
   // compute() it is being bought in play. Derived on every fold, never saved — like every `_` key here.
   b._creationLocked = !!_lockAt[evs.length];
+  _trackHigh(b._creationLocked);
   if (b._creationLocked && (b.hardy || 0) > 0) _fillVigorStamps(b);
   // single-instance proficiency lists never hold duplicates. Factored into _dedupeProfLists() (just
   // above baseBuild()) so repriceDraft() can apply the SAME nine lists mid-walk — see its call site.

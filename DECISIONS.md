@@ -10,6 +10,9 @@
 
 ## Index
 
+## D-GH-2026-11-26-creation-score-refund — scores can be changed freely until creation is locked (rules v0.389)
+- Owner (2026-11-26): raising and lowering a score during creation returns the AP in full; after the lock nothing is lowered or refunded. Replaces the before-lock part of D-GH-2026-10-29-no-purchase-refunds.
+  Full record: `decisions/2026/D-GH-2026-11-26-creation-score-refund.md`.
 ## D-GH-2026-10-29-roll-lock-then-spend-steps — a rolled remainder becomes in-play purchases, spent without a dialog (PR 1 of 2)
 - The pure half of roll-lock-then-spend: a build-to-steps planner that refuses rather than return a partial list, an unattended mode of the post-lock append that skips (never accepts for the player) anything a dialog would have asked, and a roller trace hook. Undo after Accept will be one frame, not one purchase — flagged for PR 2.
   Full record: `decisions/2026/D-GH-2026-10-29-roll-lock-then-spend-steps.md`.

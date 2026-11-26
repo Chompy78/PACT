@@ -1,5 +1,5 @@
 {
- "description": "fix/no-purchase-refunds: 14 (9 AP) then lowered to 8. The part above 10 stays paid (9); only the part below 10 pays out as a dump always did (-4). Total 5, not the -4 a fresh 8 costs.",
+ "description": "Locked character (fix/creation-score-refund, owner rule 2026-11-26): fix/no-purchase-refunds: 14 (9 AP) then lowered to 8. The part above 10 stays paid (9); only the part below 10 pays out as a dump always did (-4). Total 5, not the -4 a fresh 8 costs.",
  "baseSnapshot": {
   "name": "Refund Test",
   "budget": 0,
@@ -24,6 +24,10 @@
    "seq": 2
   },
   {
+   "type": "creationLocked",
+   "seq": 3
+  },
+  {
    "type": "buy",
    "cat": "abil",
    "payload": {
@@ -31,7 +35,7 @@
     "to": 8
    },
    "cost": -13,
-   "seq": 3
+   "seq": 4
   }
  ],
  "_expect": {
